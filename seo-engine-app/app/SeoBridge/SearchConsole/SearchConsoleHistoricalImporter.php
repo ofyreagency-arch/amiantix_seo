@@ -6,6 +6,7 @@ namespace App\SeoBridge\SearchConsole;
 
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
+use App\Services\SeoEngineContext;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\HistoricalSeoImporter;
 use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
@@ -14,6 +15,7 @@ class SearchConsoleHistoricalImporter implements HistoricalSeoImporter
 {
     public function __construct(
         private readonly SearchConsoleService $searchConsole,
+        private readonly SeoEngineContext $context,
     ) {}
 
     public function import(array $windows = [7, 28, 90, 180, 365], int $limit = 250): array
@@ -31,10 +33,11 @@ class SearchConsoleHistoricalImporter implements HistoricalSeoImporter
 
                 SeoSearchConsoleMetric::query()->updateOrCreate(
                     [
+                        'site_id'     => $this->context->siteId(),
                         'metric_date' => $date,
                         'window_days' => $window,
-                        'query' => null,
-                        'url' => $row['url'],
+                        'query'       => null,
+                        'url'         => $row['url'],
                     ],
                     [
                         'seo_page_id' => $page?->id,
@@ -60,10 +63,11 @@ class SearchConsoleHistoricalImporter implements HistoricalSeoImporter
 
                 SeoSearchConsoleMetric::query()->updateOrCreate(
                     [
+                        'site_id'     => $this->context->siteId(),
                         'metric_date' => $date,
                         'window_days' => $window,
-                        'query' => $row['query'],
-                        'url' => $row['url'],
+                        'query'       => $row['query'],
+                        'url'         => $row['url'],
                     ],
                     [
                         'seo_page_id' => $page?->id,
@@ -95,6 +99,9 @@ class SearchConsoleHistoricalImporter implements HistoricalSeoImporter
             return null;
         }
 
-        return SeoPage::query()->where('slug', $slug)->first();
+        return SeoPage::query()
+            ->where('site_id', $this->context->siteId())
+            ->where('slug', $slug)
+            ->first();
     }
 }

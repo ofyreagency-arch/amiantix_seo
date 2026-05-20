@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class SeoVector extends Model
 {
     protected $fillable = [
+        'site_id',
         'entity_type',
         'entity_key',
         'entity_id',

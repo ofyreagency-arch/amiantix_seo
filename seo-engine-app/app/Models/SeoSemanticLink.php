@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class SeoSemanticLink extends Model
 {
     protected $fillable = [
+        'site_id',
         'relation_type',
         'source_key',
         'source_id',

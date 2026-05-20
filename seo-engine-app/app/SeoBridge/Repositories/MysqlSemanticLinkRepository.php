@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\SeoBridge\Repositories;
 
 use App\Models\SeoSemanticLink;
+use App\Services\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\SemanticLinkRepository;
 
 class MysqlSemanticLinkRepository implements SemanticLinkRepository
 {
+    public function __construct(private readonly SeoEngineContext $context) {}
+
     public function replaceInternalLinkSuggestions(string $sourceKey, array $suggestions): int
     {
         return $this->replace('internal_link', $sourceKey, $suggestions);
@@ -42,14 +45,16 @@ class MysqlSemanticLinkRepository implements SemanticLinkRepository
     private function replace(string $relationType, string $sourceKey, array $items): int
     {
         SeoSemanticLink::query()
+            ->where('site_id', $this->context->siteId())
             ->where('relation_type', $relationType)
             ->where('source_key', $sourceKey)
             ->delete();
 
         foreach ($items as $item) {
             SeoSemanticLink::query()->create([
+                'site_id'       => $this->context->siteId(),
                 'relation_type' => $relationType,
-                'source_key' => $sourceKey,
+                'source_key'    => $sourceKey,
                 'source_id' => isset($item['source_id']) ? (int) $item['source_id'] : null,
                 'target_key' => (string) ($item['target_key'] ?? ''),
                 'target_id' => isset($item['target_id']) ? (int) $item['target_id'] : null,
@@ -67,6 +72,7 @@ class MysqlSemanticLinkRepository implements SemanticLinkRepository
     private function fetch(string $relationType, string $sourceKey, int $limit): array
     {
         return SeoSemanticLink::query()
+            ->where('site_id', $this->context->siteId())
             ->where('relation_type', $relationType)
             ->where('source_key', $sourceKey)
             ->orderByDesc('similarity_score')

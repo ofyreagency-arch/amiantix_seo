@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\SeoBridge\VectorStore;
 
 use App\Models\SeoVector;
+use App\Services\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\VectorStore;
 
 class MysqlVectorStore implements VectorStore
 {
+    public function __construct(private readonly SeoEngineContext $context) {}
+
     public function find(string $entityType, string $entityKey): ?object
     {
         return SeoVector::query()
+            ->where('site_id', $this->context->siteId())
             ->where('entity_type', $entityType)
             ->where('entity_key', $entityKey)
             ->first();
@@ -30,8 +34,9 @@ class MysqlVectorStore implements VectorStore
     ): object {
         return tap(
             SeoVector::query()->firstOrNew([
+                'site_id'     => $this->context->siteId(),
                 'entity_type' => $entityType,
-                'entity_key' => $entityKey,
+                'entity_key'  => $entityKey,
             ]),
             function (SeoVector $vector) use ($entityId, $sourceText, $sourceHash, $embeddingModel, $embeddingVersion, $embedding, $meta): void {
                 $vector->fill([
@@ -50,6 +55,7 @@ class MysqlVectorStore implements VectorStore
     public function forEntityKeys(string $entityType, array $entityKeys): iterable
     {
         return SeoVector::query()
+            ->where('site_id', $this->context->siteId())
             ->where('entity_type', $entityType)
             ->whereIn('entity_key', $entityKeys)
             ->get();

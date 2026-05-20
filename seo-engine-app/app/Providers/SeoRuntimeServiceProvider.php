@@ -17,6 +17,7 @@ use App\SeoBridge\SearchConsole\SearchConsoleHistoricalImporter;
 use App\SeoBridge\VectorStore\MysqlVectorStore;
 use App\Services\DatabasePrioritizedPageProvider;
 use App\Services\GenericContentSignalProvider;
+use App\Services\SeoEngineContext;
 use App\Services\RuntimePageStatusLabeler;
 use App\Services\RuntimeSeoMonitoringService;
 use App\Services\RuntimeSignalSuggestionFormatter;
@@ -55,6 +56,8 @@ class SeoRuntimeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(SeoEngineContext::class);
+
         $this->app->singleton(SeoPageRepository::class, MysqlSeoPageRepository::class);
         $this->app->singleton(SeoGenerationDriver::class, OpenAiSeoGenerationDriver::class);
         $this->app->singleton(SeoFeedbackLoopDriver::class, DatabaseSeoFeedbackLoopDriver::class);

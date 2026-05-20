@@ -53,7 +53,7 @@ return [
     ],
 
     'seo_engine' => [
-        'api_token' => env('SEO_ENGINE_API_TOKEN', 'local-seo-engine-token'),
+        'admin_token' => env('SEO_ENGINE_ADMIN_TOKEN', ''),
     ],
 
 ];

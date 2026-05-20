@@ -9,6 +9,7 @@ use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
 use App\Services\RuntimeSeoMonitoringService;
+use App\Services\SeoEngineContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Ofyre\SeoEngine\Contracts\SemanticLinkRepository;
@@ -162,10 +163,15 @@ class SeoRuntimeController extends Controller
         ]);
     }
 
-    public function pages(Request $request): JsonResponse
+    public function pages(Request $request, SeoEngineContext $context): JsonResponse
     {
+        $siteId = $context->siteId();
+
         if ($request->filled('slug')) {
-            $page = SeoPage::query()->where('slug', ltrim((string) $request->query('slug'), '/'))->first();
+            $page = SeoPage::query()
+                ->where('site_id', $siteId)
+                ->where('slug', ltrim((string) $request->query('slug'), '/'))
+                ->first();
             abort_if(! $page, 404, 'SEO page not found.');
 
             return response()->json($page);
@@ -173,8 +179,29 @@ class SeoRuntimeController extends Controller
 
         return response()->json(
             SeoPage::query()
+                ->where('site_id', $siteId)
                 ->orderByDesc('updated_at')
                 ->paginate((int) $request->integer('per_page', 25))
         );
+    }
+
+    public function sitemap(SeoEngineContext $context, SeoPageRepository $pages): JsonResponse
+    {
+        $siteUrl = rtrim($context->url(), '/');
+
+        $entries = collect($pages->publishedPages())
+            ->map(fn (object $page): array => [
+                'loc'        => $siteUrl.$page->canonicalPath(),
+                'lastmod'    => $page->updated_at?->toDateString(),
+                'changefreq' => 'weekly',
+                'priority'   => '0.8',
+            ])
+            ->values();
+
+        return response()->json([
+            'site_id' => $context->siteId(),
+            'count'   => $entries->count(),
+            'entries' => $entries,
+        ]);
     }
 }

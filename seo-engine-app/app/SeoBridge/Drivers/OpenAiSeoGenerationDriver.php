@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\SeoBridge\Drivers;
 
 use App\Models\SeoPage;
+use App\Services\SeoEngineContext;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\SeoGenerationDriver;
 use Ofyre\SeoEngine\Services\Generation\SeoGenerationService;
@@ -15,6 +16,7 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
     public function __construct(
         private readonly SeoGenerationService $generator,
         private readonly SeoScoreRefreshService $scoreRefresh,
+        private readonly SeoEngineContext $context,
     ) {}
 
     public function generatePage(string $keyword, string $status): object
@@ -22,9 +24,12 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
         $result = $this->generator->generatePayload($keyword);
         $slug = Str::slug(Str::lower($keyword));
 
-        $page = SeoPage::query()->firstOrNew(['slug' => $slug]);
+        $page = SeoPage::query()->firstOrNew([
+            'site_id' => $this->context->siteId(),
+            'slug'    => $slug,
+        ]);
         $page->forceFill([
-            'site_id' => (string) config('seo-engine.site.id', 'default'),
+            'site_id' => $this->context->siteId(),
             'keyword' => $keyword,
             'slug' => $slug,
             'cluster' => $result['cluster'],
@@ -40,7 +45,7 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
                 'cluster' => $result['cluster'],
                 'slug' => $slug,
             ]),
-            'canonical_url' => rtrim((string) config('seo-engine.site.url', config('app.url')), '/').'/'.$slug,
+            'canonical_url' => rtrim($this->context->url(), '/').'/'.$slug,
             'image_prompt' => $this->generator->generateImagePrompt($keyword, $result['cluster']),
             'published_at' => $status === 'published' ? now() : $page->published_at,
         ])->save();

@@ -8,37 +8,47 @@ use App\Models\SeoAudit;
 use App\Models\SeoPage;
 use App\Models\SeoSemanticLink;
 use App\Models\SeoSuggestion;
+use App\Services\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\SeoCockpitRepository;
 
 class DatabaseSeoCockpitRepository implements SeoCockpitRepository
 {
+    public function __construct(private readonly SeoEngineContext $context) {}
+
     public function dashboardPages(): mixed
     {
-        return SeoPage::query()->latest('updated_at')->paginate(25);
+        return SeoPage::query()
+            ->where('site_id', $this->context->siteId())
+            ->latest('updated_at')
+            ->paginate(25);
     }
 
     public function dashboardStats(): array
     {
+        $siteId = $this->context->siteId();
+
         return [
-            'pending' => SeoPage::query()->where('status', 'review')->count(),
-            'published' => SeoPage::query()->where('status', 'published')->count(),
-            'rejected' => SeoSuggestion::query()->where('status', 'rejected')->count(),
-            'suggestions' => SeoSuggestion::query()->where('status', 'pending')->count(),
+            'pending'     => SeoPage::query()->where('site_id', $siteId)->where('status', 'review')->count(),
+            'published'   => SeoPage::query()->where('site_id', $siteId)->where('status', 'published')->count(),
+            'rejected'    => SeoSuggestion::query()->whereHas('page', fn ($q) => $q->where('site_id', $siteId))->where('status', 'rejected')->count(),
+            'suggestions' => SeoSuggestion::query()->whereHas('page', fn ($q) => $q->where('site_id', $siteId))->where('status', 'pending')->count(),
         ];
     }
 
     public function dashboardInsights(): array
     {
+        $siteId = $this->context->siteId();
+
         return [
-            'average_seo_score' => round((float) SeoPage::query()->avg('seo_score'), 1),
-            'average_indexability_score' => round((float) SeoPage::query()->avg('indexability_score'), 1),
-            'pending_suggestions' => SeoSuggestion::query()->where('status', 'pending')->count(),
+            'average_seo_score'          => round((float) SeoPage::query()->where('site_id', $siteId)->avg('seo_score'), 1),
+            'average_indexability_score' => round((float) SeoPage::query()->where('site_id', $siteId)->avg('indexability_score'), 1),
+            'pending_suggestions'        => SeoSuggestion::query()->whereHas('page', fn ($q) => $q->where('site_id', $siteId))->where('status', 'pending')->count(),
         ];
     }
 
     public function previewUrl(object $page): string
     {
-        return rtrim((string) config('seo-engine.site.url', config('app.url')), '/').$page->canonicalPath();
+        return rtrim($this->context->url(), '/').$page->canonicalPath();
     }
 
     public function loadEditPage(object $page): object
@@ -85,6 +95,7 @@ class DatabaseSeoCockpitRepository implements SeoCockpitRepository
     private function linkPayload(string $relationType, string $sourceKey): array
     {
         return SeoSemanticLink::query()
+            ->where('site_id', $this->context->siteId())
             ->where('relation_type', $relationType)
             ->where('source_key', $sourceKey)
             ->orderByDesc('similarity_score')
