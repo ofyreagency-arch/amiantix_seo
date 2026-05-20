@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace App\SeoPresets\Amiantix;
+namespace App\SeoPresets\Generic;
 
 use Ofyre\SeoEngine\Contracts\NicheContentProvider;
+use Ofyre\SeoEngine\Examples\GenericBusinessPreset\GenericBusinessContentProfile;
 
-class AmiantixContentProfile implements NicheContentProvider
+class GenericContentProfile implements NicheContentProvider
 {
-    private \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixContentProfile $inner;
+    private GenericBusinessContentProfile $inner;
 
     public function __construct()
     {
-        $this->inner = new \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixContentProfile();
+        $this->inner = new GenericBusinessContentProfile();
     }
 
     public function fallbackPayload(string $keyword, string $cluster, array $blueprint, array $context = []): array

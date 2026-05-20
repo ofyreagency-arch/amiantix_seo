@@ -32,7 +32,7 @@ class RuntimeSignalSuggestionFormatter implements SignalSuggestionFormatter
     {
         return [
             'question' => $question,
-            'answer' => 'Cette réponse doit être enrichie avec un angle Amiantix précis avant publication.',
+            'answer' => 'Cette réponse doit être enrichie avec un angle éditorial précis avant publication.',
         ];
     }
 

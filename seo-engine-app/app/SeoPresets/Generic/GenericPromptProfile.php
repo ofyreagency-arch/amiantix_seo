@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace App\SeoPresets\Amiantix;
+namespace App\SeoPresets\Generic;
 
 use Ofyre\SeoEngine\Contracts\PromptProfileProvider;
+use Ofyre\SeoEngine\Examples\GenericBusinessPreset\GenericBusinessPromptProfile;
 
-class AmiantixPromptProfile implements PromptProfileProvider
+class GenericPromptProfile implements PromptProfileProvider
 {
-    private \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixPromptProfile $inner;
+    private GenericBusinessPromptProfile $inner;
 
     public function __construct()
     {
-        $this->inner = new \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixPromptProfile();
+        $this->inner = new GenericBusinessPromptProfile();
     }
 
     public function generationPrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string

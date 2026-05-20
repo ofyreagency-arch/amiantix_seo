@@ -15,17 +15,17 @@ use App\SeoBridge\Repositories\MysqlSemanticLinkRepository;
 use App\SeoBridge\Repositories\MysqlSeoPageRepository;
 use App\SeoBridge\SearchConsole\SearchConsoleHistoricalImporter;
 use App\SeoBridge\VectorStore\MysqlVectorStore;
-use App\Services\AmiantixContentSignalProvider;
 use App\Services\DatabasePrioritizedPageProvider;
+use App\Services\GenericContentSignalProvider;
 use App\Services\RuntimePageStatusLabeler;
 use App\Services\RuntimeSeoMonitoringService;
 use App\Services\RuntimeSignalSuggestionFormatter;
 use App\Services\SeoOverrideService;
-use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
-use App\SeoPresets\Amiantix\AmiantixContentProfile;
-use App\SeoPresets\Amiantix\AmiantixImagePromptProvider;
-use App\SeoPresets\Amiantix\AmiantixInternalLinkProvider;
-use App\SeoPresets\Amiantix\AmiantixPromptProfile;
+use App\SeoPresets\Generic\GenericBlueprintProvider;
+use App\SeoPresets\Generic\GenericContentProfile;
+use App\SeoPresets\Generic\GenericImagePromptProvider;
+use App\SeoPresets\Generic\GenericInternalLinkProvider;
+use App\SeoPresets\Generic\GenericPromptProfile;
 use Illuminate\Support\ServiceProvider;
 use Ofyre\SeoEngine\Contracts\ContentSignalProvider;
 use Ofyre\SeoEngine\Contracts\EmbeddableContentRepository as EmbeddableContentRepositoryContract;
@@ -68,16 +68,16 @@ class SeoRuntimeServiceProvider extends ServiceProvider
         $this->app->singleton(SeoCockpitRepository::class, DatabaseSeoCockpitRepository::class);
         $this->app->singleton(SearchConsoleTokenProvider::class, GoogleServiceAccountTokenService::class);
         $this->app->singleton(RewriteAccessDecider::class, SeoOverrideService::class);
-        $this->app->singleton(ContentSignalProvider::class, AmiantixContentSignalProvider::class);
+        $this->app->singleton(ContentSignalProvider::class, GenericContentSignalProvider::class);
         $this->app->singleton(PageStatusLabeler::class, RuntimePageStatusLabeler::class);
         $this->app->singleton(PrioritizedPageProvider::class, DatabasePrioritizedPageProvider::class);
         $this->app->singleton(SignalSuggestionFormatter::class, RuntimeSignalSuggestionFormatter::class);
 
-        $this->app->singleton(NicheBlueprintProvider::class, AmiantixBlueprintProvider::class);
-        $this->app->singleton(PromptProfileProvider::class, AmiantixPromptProfile::class);
-        $this->app->singleton(NicheContentProvider::class, AmiantixContentProfile::class);
-        $this->app->singleton(InternalLinkProvider::class, AmiantixInternalLinkProvider::class);
-        $this->app->singleton(ImagePromptProvider::class, AmiantixImagePromptProvider::class);
+        $this->app->singleton(NicheBlueprintProvider::class, GenericBlueprintProvider::class);
+        $this->app->singleton(PromptProfileProvider::class, GenericPromptProfile::class);
+        $this->app->singleton(NicheContentProvider::class, GenericContentProfile::class);
+        $this->app->singleton(InternalLinkProvider::class, GenericInternalLinkProvider::class);
+        $this->app->singleton(ImagePromptProvider::class, GenericImagePromptProvider::class);
 
         $this->app->singleton(RuntimeSeoMonitoringService::class);
     }

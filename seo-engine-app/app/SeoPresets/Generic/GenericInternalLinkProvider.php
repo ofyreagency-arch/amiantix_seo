@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace App\SeoPresets\Amiantix;
+namespace App\SeoPresets\Generic;
 
 use Ofyre\SeoEngine\Contracts\InternalLinkProvider;
+use Ofyre\SeoEngine\Examples\GenericBusinessPreset\GenericBusinessInternalLinkProvider;
 
-class AmiantixInternalLinkProvider implements InternalLinkProvider
+class GenericInternalLinkProvider implements InternalLinkProvider
 {
-    private \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixInternalLinkProvider $inner;
+    private GenericBusinessInternalLinkProvider $inner;
 
     public function __construct()
     {
-        $this->inner = new \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixInternalLinkProvider();
+        $this->inner = new GenericBusinessInternalLinkProvider();
     }
 
     public function linksFor(object $page): array

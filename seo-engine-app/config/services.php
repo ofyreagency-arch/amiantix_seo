@@ -47,7 +47,7 @@ return [
 
     'google_search_console' => [
         'enabled' => env('SEARCH_CONSOLE_ENABLED', true),
-        'site_url' => env('GOOGLE_SEARCH_CONSOLE_SITE_URL', 'sc-domain:amiantix.com'),
+        'site_url' => env('GOOGLE_SEARCH_CONSOLE_SITE_URL', ''),
         'credentials' => env('GOOGLE_APPLICATION_CREDENTIALS', storage_path('google/service-account.json')),
         'access_token' => env('GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN'),
     ],

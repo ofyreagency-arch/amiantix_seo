@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace App\SeoPresets\Amiantix;
+namespace App\SeoPresets\Generic;
 
 use Ofyre\SeoEngine\Contracts\NicheBlueprintProvider;
+use Ofyre\SeoEngine\Examples\GenericBusinessPreset\GenericBusinessBlueprintProvider;
 
-class AmiantixBlueprintProvider implements NicheBlueprintProvider
+class GenericBlueprintProvider implements NicheBlueprintProvider
 {
-    private \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixBlueprintProvider $inner;
+    private GenericBusinessBlueprintProvider $inner;
 
     public function __construct()
     {
-        $this->inner = new \Ofyre\SeoEngine\Examples\AmiantixPreset\AmiantixBlueprintProvider();
+        $this->inner = new GenericBusinessBlueprintProvider();
     }
 
     public function resolve(string $keyword, ?string $cluster = null): array
