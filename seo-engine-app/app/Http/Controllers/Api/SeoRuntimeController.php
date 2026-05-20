@@ -1,0 +1,180 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
+use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
+use App\Services\RuntimeSeoMonitoringService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Ofyre\SeoEngine\Contracts\SemanticLinkRepository;
+use Ofyre\SeoEngine\Contracts\SeoPageRepository;
+use Ofyre\SeoEngine\Services\Admin\SeoCockpitService;
+use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
+use Ofyre\SeoEngine\Services\Embeddings\CannibalizationDetectionService;
+use Ofyre\SeoEngine\Services\Embeddings\ContentEmbeddingService;
+use Ofyre\SeoEngine\Services\Embeddings\InternalLinkSuggestionService;
+use Ofyre\SeoEngine\Services\Embeddings\QueryPageMatchingService;
+use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
+use Ofyre\SeoEngine\Services\Review\SeoPageStatusService;
+use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
+use Throwable;
+
+class SeoRuntimeController extends Controller
+{
+    public function generate(Request $request, SeoGeneratePageRunner $runner): JsonResponse
+    {
+        $payload = $request->validate([
+            'keyword' => ['required', 'string', 'max:255'],
+            'status' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $result = $runner->run($payload['keyword'], $payload['status'] ?? 'draft', false);
+
+        return response()->json([
+            'page' => $result['page'],
+            'warning' => $result['warning'],
+        ], 201);
+    }
+
+    public function rewrite(Request $request, SeoPageRepository $pages, SeoRewriteService $rewrite): JsonResponse
+    {
+        $payload = $request->validate([
+            'slug' => ['required', 'string'],
+            'mode' => ['nullable', 'string'],
+        ]);
+
+        $page = $pages->findBySlug($payload['slug']);
+        abort_if(! $page, 404, 'SEO page not found.');
+
+        $suggestion = $rewrite->createSuggestion($page, $payload['mode'] ?? 'enrich');
+
+        return response()->json([
+            'page' => $page,
+            'suggestion' => $suggestion,
+        ]);
+    }
+
+    public function analyze(
+        Request $request,
+        SeoPageRepository $pages,
+        SeoPageStatusService $statusService,
+        SearchConsoleService $searchConsole,
+        DatabaseSeoCockpitRepository $cockpitRepository,
+    ): JsonResponse {
+        $payload = $request->validate([
+            'slug' => ['required', 'string'],
+        ]);
+
+        $page = $pages->findBySlug($payload['slug']);
+        abort_if(! $page, 404, 'SEO page not found.');
+
+        return response()->json([
+            'page' => $page,
+            'status_report' => $statusService->summarize($page),
+            'metrics' => $searchConsole->pageMetrics($page),
+            'semantic_context' => $cockpitRepository->semanticContextForPage($page),
+            'timeline' => $cockpitRepository->timelineForPage($page),
+        ]);
+    }
+
+    public function opportunities(SeoCockpitService $cockpit): JsonResponse
+    {
+        return response()->json($cockpit->dashboardPayload());
+    }
+
+    public function autopilot(
+        Request $request,
+        RuntimeSeoMonitoringService $monitoring,
+        ContentEmbeddingService $embeddings,
+        InternalLinkSuggestionService $internalLinks,
+        CannibalizationDetectionService $cannibalization,
+        QueryPageMatchingService $matching,
+        SeoPageRepository $pages,
+    ): JsonResponse {
+        $payload = $request->validate([
+            'slug' => ['nullable', 'string'],
+            'sync_embeddings' => ['nullable', 'boolean'],
+        ]);
+
+        $summary = [];
+
+        if (! empty($payload['slug'])) {
+            $page = $pages->findBySlug($payload['slug']);
+            abort_if(! $page, 404, 'SEO page not found.');
+
+            $summary['monitored'] = $monitoring->monitorPage($page);
+        } else {
+            $summary['monitoring'] = $monitoring->monitor();
+        }
+
+        if ((bool) ($payload['sync_embeddings'] ?? true)) {
+            $summary['embeddings'] = $embeddings->embedPages($payload['slug'] ?? null, force: true);
+            $summary['internal_links'] = $internalLinks->refresh($payload['slug'] ?? null);
+            $summary['cannibalization'] = $cannibalization->refresh($payload['slug'] ?? null);
+            $summary['query_matching'] = $matching->refresh($payload['slug'] ?? null, force: true);
+        }
+
+        return response()->json($summary);
+    }
+
+    public function searchConsole(Request $request, SearchConsoleService $searchConsole): JsonResponse
+    {
+        $days = (int) $request->integer('days', 28);
+        $limit = (int) $request->integer('limit', 25);
+
+        return response()->json([
+            'top_queries' => $searchConsole->getTopQueries($days, $limit),
+            'top_pages' => $searchConsole->getTopPages($days, min($limit, 250)),
+            'stored_metrics' => SeoSearchConsoleMetric::query()->latest('metric_date')->limit(50)->get(),
+        ]);
+    }
+
+    public function internalLinks(Request $request, SeoPageRepository $pages, SemanticLinkRepository $semanticLinks): JsonResponse
+    {
+        $slug = (string) $request->query('slug', '');
+        $page = $pages->findBySlug($slug);
+        abort_if(! $page, 404, 'SEO page not found.');
+
+        return response()->json([
+            'page' => $page,
+            'internal_links' => $semanticLinks->internalLinkSuggestions($slug),
+            'cannibalization_risks' => $semanticLinks->cannibalizationRisks($slug),
+            'query_matches' => $semanticLinks->queryPageMatches($slug),
+        ]);
+    }
+
+    public function indexation(Request $request, SeoPageRepository $pages, SearchConsoleService $searchConsole): JsonResponse
+    {
+        $slug = (string) $request->query('slug', '');
+        $page = $pages->findBySlug($slug);
+        abort_if(! $page, 404, 'SEO page not found.');
+
+        $pageUrl = rtrim((string) config('app.url'), '/').$page->canonicalPath();
+
+        return response()->json([
+            'page' => $page,
+            'inspection' => $searchConsole->inspectPageUrl($pageUrl),
+        ]);
+    }
+
+    public function pages(Request $request): JsonResponse
+    {
+        if ($request->filled('slug')) {
+            $page = SeoPage::query()->where('slug', ltrim((string) $request->query('slug'), '/'))->first();
+            abort_if(! $page, 404, 'SEO page not found.');
+
+            return response()->json($page);
+        }
+
+        return response()->json(
+            SeoPage::query()
+                ->orderByDesc('updated_at')
+                ->paginate((int) $request->integer('per_page', 25))
+        );
+    }
+}

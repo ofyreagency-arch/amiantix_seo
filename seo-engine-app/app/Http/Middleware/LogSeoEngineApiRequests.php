@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response;
+
+class LogSeoEngineApiRequests
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        $startedAt = microtime(true);
+        $response = $next($request);
+
+        Log::info('SEO engine API request', [
+            'method' => $request->method(),
+            'path' => $request->path(),
+            'status' => $response->getStatusCode(),
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'ip' => $request->ip(),
+        ]);
+
+        return $response;
+    }
+}
