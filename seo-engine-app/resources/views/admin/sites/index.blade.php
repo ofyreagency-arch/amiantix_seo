@@ -22,6 +22,7 @@
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Nom</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">URL</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Niche</th>
+                        <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Preset</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Locale</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Statut</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
@@ -37,6 +38,7 @@
                         </td>
                         <td class="px-6 py-4 text-gray-500 text-xs">{{ $site->url }}</td>
                         <td class="px-6 py-4 text-gray-600">{{ $site->niche }}</td>
+                        <td class="px-6 py-4 text-gray-600">{{ $site->preset ?? 'generic' }}</td>
                         <td class="px-6 py-4 text-gray-600">{{ $site->locale }}</td>
                         <td class="px-6 py-4">
                             @if($site->is_active)
@@ -73,7 +75,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+                        <td colspan="7" class="px-6 py-12 text-center text-gray-400">
                             Aucun site configuré. Ajoutez votre premier site ci-contre.
                         </td>
                     </tr>
@@ -119,6 +121,15 @@
                 <label class="block text-xs font-medium text-gray-600 mb-1.5">Locale</label>
                 <input type="text" name="locale" value="{{ old('locale', 'fr') }}" placeholder="fr"
                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1.5">Preset</label>
+                <select name="preset"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    @foreach($availablePresets as $presetKey => $presetLabel)
+                        <option value="{{ $presetKey }}" @selected(old('preset', old('niche') === 'amiante' ? 'amiantix' : 'generic') === $presetKey)>{{ $presetLabel }}</option>
+                    @endforeach
+                </select>
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1.5">Webhook URL (optionnel)</label>

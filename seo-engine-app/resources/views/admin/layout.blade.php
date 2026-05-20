@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Admin') — SEO Engine</title>
     @vite(['resources/css/app.css'])
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    @stack('styles')
 </head>
 <body class="bg-gray-50 antialiased">
 <div class="flex h-screen overflow-hidden">
@@ -89,5 +92,6 @@
         </main>
     </div>
 </div>
+@stack('scripts')
 </body>
 </html>

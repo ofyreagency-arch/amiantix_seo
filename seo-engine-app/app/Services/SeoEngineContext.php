@@ -15,6 +15,7 @@ class SeoEngineContext
     private string $url;
     private string $niche;
     private string $locale;
+    private string $preset;
     private ?string $gscSiteUrl;
     private ?string $gscCredentialsPath;
 
@@ -26,15 +27,31 @@ class SeoEngineContext
         $this->url                 = $site->url;
         $this->niche               = $site->niche;
         $this->locale              = $site->locale;
+        $this->preset              = $site->resolvedPreset();
         $this->gscSiteUrl          = $site->gsc_site_url;
         $this->gscCredentialsPath  = $site->gsc_credentials_path;
 
-        // Inject per-site GSC config so SearchConsoleService reads the right values
+        // Inject per-site SEO + GSC config so the engine reads the correct site context.
+        config([
+            'seo-engine.site.id' => $this->siteId,
+            'seo-engine.site.name' => $this->name,
+            'seo-engine.site.url' => $this->url,
+            'seo-engine.site.niche' => $this->niche,
+            'seo-engine.site.locale' => $this->locale,
+            'seo-engine.site.preset' => $this->preset,
+        ]);
+
         if ($this->gscSiteUrl) {
-            config(['seo-engine.search_console.site_url' => $this->gscSiteUrl]);
+            config([
+                'seo-engine.search_console.site_url' => $this->gscSiteUrl,
+                'services.google_search_console.site_url' => $this->gscSiteUrl,
+            ]);
         }
         if ($this->gscCredentialsPath) {
-            config(['seo-engine.search_console.credentials' => $this->gscCredentialsPath]);
+            config([
+                'seo-engine.search_console.credentials' => $this->gscCredentialsPath,
+                'services.google_search_console.credentials' => $this->gscCredentialsPath,
+            ]);
         }
     }
 
@@ -76,6 +93,13 @@ class SeoEngineContext
         return $this->loaded
             ? $this->locale
             : (string) config('seo-engine.site.locale', 'en');
+    }
+
+    public function preset(): string
+    {
+        return $this->loaded
+            ? $this->preset
+            : (string) config('seo-engine.site.preset', 'generic');
     }
 
     public function gscSiteUrl(): ?string

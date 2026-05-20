@@ -7,17 +7,25 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
 use App\Models\SeoSite;
+use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class AdminSitesController extends Controller
 {
+    public function __construct(
+        private readonly PresetManager $presets,
+    ) {}
+
     public function index(): View
     {
         $sites = SeoSite::query()->orderByDesc('created_at')->get();
 
-        return view('admin.sites.index', compact('sites'));
+        return view('admin.sites.index', [
+            'sites' => $sites,
+            'availablePresets' => $this->presets->availablePresets(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -28,6 +36,7 @@ class AdminSitesController extends Controller
             'url'         => ['required', 'url', 'max:255'],
             'niche'       => ['required', 'string', 'max:80'],
             'locale'      => ['required', 'string', 'max:10'],
+            'preset'      => ['required', 'string', 'in:generic,amiantix'],
             'webhook_url' => ['nullable', 'url', 'max:255'],
         ]);
 

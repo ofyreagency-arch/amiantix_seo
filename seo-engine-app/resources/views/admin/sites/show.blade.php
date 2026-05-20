@@ -23,6 +23,8 @@
                 <span class="text-xs text-gray-300">•</span>
                 <span class="text-xs text-gray-400">{{ $site->niche }}</span>
                 <span class="text-xs text-gray-300">•</span>
+                <span class="text-xs text-gray-400">{{ $site->preset ?? 'generic' }}</span>
+                <span class="text-xs text-gray-300">•</span>
                 <span class="text-xs text-gray-400">{{ $site->locale }}</span>
             </div>
         </div>
@@ -147,6 +149,7 @@
         {{-- Site info --}}
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-4 space-y-2 text-xs text-gray-500">
             <div class="flex justify-between"><span>Site ID</span><span class="font-mono text-gray-700">{{ $site->site_id }}</span></div>
+            <div class="flex justify-between"><span>Preset</span><span>{{ $site->preset ?? 'generic' }}</span></div>
             <div class="flex justify-between"><span>Créé le</span><span>{{ $site->created_at?->format('d/m/Y') }}</span></div>
             <div class="flex justify-between"><span>Webhook</span><span>{{ $site->webhook_url ? '✓' : '—' }}</span></div>
             <div class="flex justify-between"><span>GSC</span><span>{{ $site->gsc_site_url ? '✓' : '—' }}</span></div>
