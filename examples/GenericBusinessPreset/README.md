@@ -40,7 +40,7 @@ It is not meant to be your final production preset. It is a starter kit that sho
 
 ## For real projects
 
-For a real project like Amiantix, immobilier or recrutement, treat this preset as a scaffold:
+Treat this preset as a scaffold for your own niche:
 
 - keep the structure
 - replace the topic vocabulary
