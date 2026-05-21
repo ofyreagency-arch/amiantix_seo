@@ -353,6 +353,16 @@
         @foreach($failedRules as $rule)
         @php $def = $blockerMap[$rule] ?? null; @endphp
         @if($def)
+        @if($rule === 'image_not_approved')
+            @php
+                $hasGeneratedImage = filled($page->image_path);
+                $def['detail'] = $hasGeneratedImage
+                    ? 'Statut actuel : '.($page->image_status ?? 'generated').' — le visuel existe, il reste à le valider.'
+                    : 'Aucun visuel généré pour cette page. Le moteur a seulement un prompt image.';
+                $def['action'] = $hasGeneratedImage ? 'approve_image' : 'generate_image';
+                $def['btn'] = $hasGeneratedImage ? 'Approuver l’image' : 'Générer l’image IA';
+            @endphp
+        @endif
         @php $c = $colorsMap[$def['color']]; @endphp
         <div class="px-6 py-4 flex items-center justify-between gap-6">
             <div class="flex items-start gap-3 min-w-0">

@@ -11,6 +11,7 @@ use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
+use App\Services\Media\SeoPageImageGenerator;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,7 @@ use Illuminate\View\View;
 use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 use Ofyre\SeoEngine\Services\Review\SeoPageStatusService;
+use Ofyre\SeoEngine\Services\Scoring\SeoScoreRefreshService;
 
 class AdminPagesController extends Controller
 {
@@ -184,23 +186,41 @@ class AdminPagesController extends Controller
             ->with('success', 'Page publiée.');
     }
 
-    public function quickFix(Request $request, string $siteId, int $pageId): RedirectResponse
+    public function quickFix(
+        Request $request,
+        string $siteId,
+        int $pageId,
+        SeoPageImageGenerator $images,
+        SeoScoreRefreshService $scoreRefresh,
+    ): RedirectResponse
     {
         $action = $request->input('action');
         $this->loadSite($siteId);
         $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
 
-        match ($action) {
-            'approve_image'  => $page->update(['image_status' => 'approved']),
-            'clear_noindex'  => $page->update(['forced_noindex' => false]),
-            'set_review'     => $page->update(['status' => 'review']),
-            default          => null,
-        };
+        try {
+            match ($action) {
+                'generate_image' => $images->generate($page),
+                'approve_image'  => $images->approve($page),
+                'clear_noindex'  => $page->forceFill(['forced_noindex' => false])->save(),
+                'set_review'     => $page->forceFill(['status' => 'review'])->save(),
+                default          => null,
+            };
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $pageId])
+                ->with('warning', $exception->getMessage());
+        }
+
+        if (in_array($action, ['clear_noindex', 'set_review'], true)) {
+            $scoreRefresh->refresh($page->refresh());
+        }
 
         return redirect()
             ->route('admin.pages.show', [$siteId, $pageId])
             ->with('success', match ($action) {
-                'approve_image' => 'Image marquée comme approuvée.',
+                'generate_image' => 'Image IA générée pour la page.',
+                'approve_image' => 'Image approuvée pour publication.',
                 'clear_noindex' => 'Forced noindex désactivé.',
                 'set_review'    => 'Page passée en statut review.',
                 default         => 'Action appliquée.',
