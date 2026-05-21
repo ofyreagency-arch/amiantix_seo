@@ -7,6 +7,19 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Local Package Sync
+
+This runtime consumes `ofyre/seo-engine` from the parent repository through a Composer path repository.
+On some VPS layouts, `composer update ofyre/seo-engine` cannot refresh `vendor/ofyre/seo-engine` cleanly because the runtime sits inside the package source tree.
+
+When that happens, run:
+
+```bash
+php artisan seo:sync-local-package
+```
+
+This command copies the local package files from `..` into `vendor/ofyre/seo-engine` and keeps the runtime aligned with the latest `src/` changes.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
