@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminSemanticController;
 use App\Http\Controllers\Admin\AdminSitesController;
 use App\Http\Controllers\Admin\AdminStrategyController;
 use App\Http\Controllers\Admin\AdminSuggestionsController;
+use App\Http\Controllers\Admin\AdminSystemController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -23,6 +24,7 @@ Route::post('/admin/logout', [AdminAuthController::class, 'logout'])->name('admi
 
 Route::middleware('admin.auth')->prefix('admin')->name('admin.')->group(function (): void {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/system', [AdminSystemController::class, 'show'])->name('system');
 
     Route::get('/sites', [AdminSitesController::class, 'index'])->name('sites.index');
     Route::post('/sites', [AdminSitesController::class, 'store'])->name('sites.store');
