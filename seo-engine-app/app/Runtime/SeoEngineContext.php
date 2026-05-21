@@ -21,6 +21,8 @@ class SeoEngineContext
 
     public function loadFromSite(SeoSite $site): void
     {
+        $googleConnection = $site->resolvedGoogleConnection();
+
         $this->loaded              = true;
         $this->siteId              = $site->site_id;
         $this->name                = $site->name;
@@ -28,8 +30,8 @@ class SeoEngineContext
         $this->niche               = $site->niche;
         $this->locale              = $site->locale;
         $this->preset              = $site->resolvedPreset();
-        $this->gscSiteUrl          = $site->gsc_site_url;
-        $this->gscCredentialsPath  = $site->gsc_credentials_path;
+        $this->gscSiteUrl          = $googleConnection?->property_url ?: $site->gsc_site_url;
+        $this->gscCredentialsPath  = $googleConnection?->credentials_path ?: $site->gsc_credentials_path;
 
         // Inject per-site SEO + GSC config so the engine reads the correct site context.
         config([

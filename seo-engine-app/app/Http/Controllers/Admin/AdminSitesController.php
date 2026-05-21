@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
 use App\Models\SeoSite;
+use App\Models\SeoSiteGoogleConnection;
 use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,10 @@ class AdminSitesController extends Controller
 
     public function index(): View
     {
-        $sites = SeoSite::query()->orderByDesc('created_at')->get();
+        $sites = SeoSite::query()
+            ->with('googleConnection')
+            ->orderByDesc('created_at')
+            ->get();
 
         return view('admin.sites.index', [
             'sites' => $sites,
@@ -38,15 +42,23 @@ class AdminSitesController extends Controller
             'locale'      => ['required', 'string', 'max:10'],
             'preset'      => ['required', 'string', 'in:generic,amiantix'],
             'webhook_url' => ['nullable', 'url', 'max:255'],
+            'gsc_connection_mode' => ['nullable', 'string', 'in:service_account,oauth_google'],
+            'gsc_property_url' => ['nullable', 'string', 'max:500'],
+            'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
+            'gsc_account_email' => ['nullable', 'email', 'max:255'],
         ]);
 
         $token = SeoSite::generateToken();
 
-        SeoSite::query()->create([
+        $site = SeoSite::query()->create([
             ...$data,
             'api_token_hash' => $token['hash'],
             'is_active'      => true,
+            'gsc_site_url' => $data['gsc_property_url'] ?? null,
+            'gsc_credentials_path' => $data['gsc_credentials_path'] ?? null,
         ]);
+
+        $this->syncGoogleConnection($site, $data);
 
         return redirect()->route('admin.sites.index')
             ->with('new_token', $token['token'])
@@ -55,7 +67,7 @@ class AdminSitesController extends Controller
 
     public function show(string $siteId): View
     {
-        $site  = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
+        $site  = SeoSite::query()->with('googleConnection')->where('site_id', $siteId)->firstOrFail();
         $pages = SeoPage::query()
             ->where('site_id', $siteId)
             ->select(['id', 'keyword', 'slug', 'status', 'seo_score', 'quality_score', 'updated_at'])
@@ -81,5 +93,34 @@ class AdminSitesController extends Controller
         SeoSite::query()->where('site_id', $siteId)->update(['is_active' => false]);
 
         return redirect()->route('admin.sites.index')->with('success', 'Site désactivé.');
+    }
+
+    /**
+     * @param  array<string,mixed>  $data
+     */
+    private function syncGoogleConnection(SeoSite $site, array $data): void
+    {
+        $propertyUrl = trim((string) ($data['gsc_property_url'] ?? ''));
+        $credentialsPath = trim((string) ($data['gsc_credentials_path'] ?? ''));
+        $accountEmail = trim((string) ($data['gsc_account_email'] ?? ''));
+        $mode = trim((string) ($data['gsc_connection_mode'] ?? ''));
+
+        $hasConnectionData = $propertyUrl !== '' || $credentialsPath !== '' || $accountEmail !== '' || $mode !== '';
+
+        if (! $hasConnectionData) {
+            return;
+        }
+
+        SeoSiteGoogleConnection::query()->updateOrCreate(
+            ['site_id' => $site->site_id],
+            [
+                'connection_mode' => $mode !== '' ? $mode : 'service_account',
+                'property_url' => $propertyUrl !== '' ? $propertyUrl : null,
+                'google_account_email' => $accountEmail !== '' ? $accountEmail : null,
+                'credentials_path' => $credentialsPath !== '' ? $credentialsPath : null,
+                'connection_status' => ($propertyUrl !== '' || $credentialsPath !== '') ? 'configured' : 'not_connected',
+                'last_error' => null,
+            ],
+        );
     }
 }

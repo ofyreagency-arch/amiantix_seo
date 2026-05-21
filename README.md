@@ -4,6 +4,14 @@ Reusable AI SEO engine for Laravel applications.
 
 This repository is the reusable engine core, not the final host runtime. For production, install it inside a dedicated Laravel app that exposes the private API, persistence, workers and scheduler.
 
+Runtime product/runtime decisions for the multi-site host app are documented here:
+
+[docs/runtime-product-design.md](./docs/runtime-product-design.md)
+
+Current runtime capability status and real-world validation roadmap are documented here:
+
+[docs/runtime-capability-matrix.md](./docs/runtime-capability-matrix.md)
+
 ## What lives in the package
 
 - SEO generation core

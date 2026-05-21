@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SeoSite extends Model
 {
@@ -32,6 +33,11 @@ class SeoSite extends Model
         ];
     }
 
+    public function googleConnection(): HasOne
+    {
+        return $this->hasOne(SeoSiteGoogleConnection::class, 'site_id', 'site_id');
+    }
+
     public function resolvedPreset(): string
     {
         $preset = trim((string) ($this->preset ?? ''));
@@ -46,6 +52,56 @@ class SeoSite extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function resolvedGoogleConnection(): ?SeoSiteGoogleConnection
+    {
+        if ($this->relationLoaded('googleConnection')) {
+            return $this->getRelation('googleConnection');
+        }
+
+        return $this->googleConnection()->first();
+    }
+
+    public function resolvedGscSiteUrl(): ?string
+    {
+        return $this->resolvedGoogleConnection()?->property_url ?: $this->gsc_site_url;
+    }
+
+    public function resolvedGscCredentialsPath(): ?string
+    {
+        return $this->resolvedGoogleConnection()?->credentials_path ?: $this->gsc_credentials_path;
+    }
+
+    public function resolvedGscConnectionMode(): ?string
+    {
+        $connection = $this->resolvedGoogleConnection();
+
+        if ($connection?->connection_mode) {
+            return $connection->connection_mode;
+        }
+
+        return ($this->gsc_site_url || $this->gsc_credentials_path)
+            ? 'service_account'
+            : null;
+    }
+
+    public function resolvedGscConnectionStatus(): string
+    {
+        $connection = $this->resolvedGoogleConnection();
+
+        if ($connection?->connection_status) {
+            return $connection->connection_status;
+        }
+
+        return ($this->gsc_site_url || $this->gsc_credentials_path)
+            ? 'configured'
+            : 'not_connected';
+    }
+
+    public function hasSearchConsoleConfigured(): bool
+    {
+        return (bool) ($this->resolvedGscSiteUrl() || $this->resolvedGscCredentialsPath());
     }
 
     public static function resolveByToken(string $rawToken): ?self

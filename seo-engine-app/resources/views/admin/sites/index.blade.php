@@ -24,6 +24,7 @@
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Niche</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Preset</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Locale</th>
+                        <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">GSC</th>
                         <th class="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Statut</th>
                         <th class="text-right px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -40,6 +41,20 @@
                         <td class="px-6 py-4 text-gray-600">{{ $site->niche }}</td>
                         <td class="px-6 py-4 text-gray-600">{{ $site->preset ?? 'generic' }}</td>
                         <td class="px-6 py-4 text-gray-600">{{ $site->locale }}</td>
+                        <td class="px-6 py-4">
+                            @php
+                                $gscStatus = $site->resolvedGscConnectionStatus();
+                                $gscTone = match ($gscStatus) {
+                                    'connected' => 'bg-emerald-100 text-emerald-700',
+                                    'configured' => 'bg-amber-100 text-amber-700',
+                                    'failed', 'unauthorized' => 'bg-rose-100 text-rose-700',
+                                    default => 'bg-gray-100 text-gray-500',
+                                };
+                            @endphp
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $gscTone }}">
+                                {{ str_replace('_', ' ', $gscStatus) }}
+                            </span>
+                        </td>
                         <td class="px-6 py-4">
                             @if($site->is_active)
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Actif</span>
@@ -75,7 +90,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                        <td colspan="8" class="px-6 py-12 text-center text-gray-400">
                             Aucun site configuré. Ajoutez votre premier site ci-contre.
                         </td>
                     </tr>
@@ -135,6 +150,35 @@
                 <label class="block text-xs font-medium text-gray-600 mb-1.5">Webhook URL (optionnel)</label>
                 <input type="url" name="webhook_url" value="{{ old('webhook_url') }}" placeholder="https://monsite.com/seo-webhook"
                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            </div>
+            <div class="pt-1 border-t border-gray-100">
+                <div class="text-xs font-semibold text-gray-700 mb-3">Search Console (optionnel)</div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Mode de connexion</label>
+                        <select name="gsc_connection_mode"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Aucune connexion</option>
+                            <option value="service_account" @selected(old('gsc_connection_mode') === 'service_account')>Service account</option>
+                            <option value="oauth_google" @selected(old('gsc_connection_mode') === 'oauth_google')>OAuth Google</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Propriété GSC</label>
+                        <input type="text" name="gsc_property_url" value="{{ old('gsc_property_url') }}" placeholder="sc-domain:monsite.com"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Chemin credentials</label>
+                        <input type="text" name="gsc_credentials_path" value="{{ old('gsc_credentials_path') }}" placeholder="/var/www/seo-engine/seo-engine-app/storage/google/site.json"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Compte Google</label>
+                        <input type="email" name="gsc_account_email" value="{{ old('gsc_account_email') }}" placeholder="service-account@project.iam.gserviceaccount.com"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    </div>
+                </div>
             </div>
             <button type="submit"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors">
