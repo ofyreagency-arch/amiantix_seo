@@ -5,11 +5,127 @@ declare(strict_types=1);
 namespace App\Runtime;
 
 use App\Models\SeoPage;
+use App\Models\SeoSitePage;
+use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSearchConsoleMetric;
+use App\ObservedSite\ObservedPageHealthService;
+use Illuminate\Support\Collection;
+use Ofyre\SeoEngine\Contracts\PrioritizedPageProvider;
+use Ofyre\SeoEngine\Contracts\SeoFeedbackLoopDriver;
+use Ofyre\SeoEngine\Services\Scoring\SeoScoreRefreshService;
+use Ofyre\SeoEngine\Services\Scoring\SeoScoringService;
 use Ofyre\SeoEngine\Services\Monitoring\SeoMonitoringService;
+use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
 
 class RuntimeSeoMonitoringService extends SeoMonitoringService
 {
+    private readonly ObservedPageHealthService $observedHealth;
+
+    public function __construct(
+        SearchConsoleService $searchConsole,
+        SeoScoringService $scoring,
+        SeoFeedbackLoopDriver $feedbackLoop,
+        PrioritizedPageProvider $prioritizedPages,
+        SeoScoreRefreshService $scoreRefresh,
+        ?ObservedPageHealthService $observedHealth = null,
+    ) {
+        parent::__construct(
+            $searchConsole,
+            $scoring,
+            $feedbackLoop,
+            $prioritizedPages,
+            $scoreRefresh,
+        );
+
+        $this->observedHealth = $observedHealth ?? app(ObservedPageHealthService::class);
+    }
+
+    /**
+     * @return array{
+     *   monitored:int,
+     *   healthy:int,
+     *   warning:int,
+     *   critical:int,
+     *   items:array<int,array<string,mixed>>
+     * }
+     */
+    public function observedSummary(string $siteId, int $limit = 25): array
+    {
+        $pages = SeoSitePage::query()
+            ->where('site_id', $siteId)
+            ->orderByDesc('last_seen_at')
+            ->limit($limit)
+            ->get();
+
+        if ($pages->isEmpty()) {
+            return [
+                'monitored' => 0,
+                'healthy' => 0,
+                'warning' => 0,
+                'critical' => 0,
+                'items' => [],
+            ];
+        }
+
+        $snapshots = SeoSitePageSnapshot::query()
+            ->where('site_id', $siteId)
+            ->whereIn('site_page_id', $pages->pluck('id'))
+            ->orderByDesc('observed_at')
+            ->get()
+            ->groupBy('site_page_id')
+            ->map(fn (Collection $group): SeoSitePageSnapshot => $group->first());
+
+        $items = $pages
+            ->map(function (SeoSitePage $page) use ($snapshots): array {
+                $health = $this->observedHealth->forPage($page);
+                /** @var SeoSitePageSnapshot|null $snapshot */
+                $snapshot = $snapshots->get($page->id);
+                $state = $this->observedState($page, $health);
+                $priority = $this->observedPriority($page, $health, $snapshot);
+
+                return [
+                    'id' => $page->id,
+                    'site_id' => $page->site_id,
+                    'url' => $page->normalized_url,
+                    'path' => $page->path,
+                    'title' => $page->title,
+                    'cluster_label' => $page->cluster_label,
+                    'state' => $state,
+                    'priority' => $priority,
+                    'health_score' => $health['health_score'],
+                    'seo' => $health['seo'],
+                    'quality' => $health['quality'],
+                    'topical' => $health['topical'],
+                    'indexability' => $health['indexability'],
+                    'flags' => $health['flags'],
+                    'last_status_code' => $page->last_status_code,
+                    'indexability_state' => $page->indexability_state,
+                    'latest_word_count' => $page->latest_word_count,
+                    'authority_score' => (float) $page->authority_score,
+                    'orphan_score' => (float) $page->orphan_score,
+                    'overlap_score' => (float) $page->overlap_score,
+                    'last_seen_at' => $page->last_seen_at,
+                    'snapshot_observed_at' => $snapshot?->observed_at,
+                    'snapshot_word_count' => $snapshot?->word_count,
+                    'snapshot_status_code' => $snapshot?->status_code,
+                    'snapshot_is_indexable' => $snapshot?->is_indexable,
+                ];
+            })
+            ->sortBy([
+                ['priority', 'desc'],
+                ['health_score', 'asc'],
+            ])
+            ->values();
+
+        return [
+            'monitored' => $items->count(),
+            'healthy' => $items->where('state', 'healthy')->count(),
+            'warning' => $items->where('state', 'warning')->count(),
+            'critical' => $items->where('state', 'critical')->count(),
+            'items' => $items->all(),
+        ];
+    }
+
     protected function candidatePages(array $prioritizedIds): iterable
     {
         $query = SeoPage::query();
@@ -77,5 +193,43 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
             'last_audit_at' => now(),
             'is_indexed' => $metrics['indexed'] ?? $page->is_indexed,
         ])->save();
+    }
+
+    /**
+     * @param  array{health_score:int,flags:array<int,string>}  $health
+     */
+    private function observedState(SeoSitePage $page, array $health): string
+    {
+        if ((int) ($page->last_status_code ?? 0) >= 400 || $health['health_score'] < 45) {
+            return 'critical';
+        }
+
+        if ($health['flags'] !== [] || $health['health_score'] < 75) {
+            return 'warning';
+        }
+
+        return 'healthy';
+    }
+
+    /**
+     * @param  array{health_score:int,flags:array<int,string>}  $health
+     */
+    private function observedPriority(SeoSitePage $page, array $health, ?SeoSitePageSnapshot $snapshot): int
+    {
+        $priority = 0;
+        $priority += max(0, 100 - $health['health_score']);
+        $priority += min(30, count($health['flags']) * 6);
+        $priority += (int) round(((float) $page->orphan_score) * 20);
+        $priority += (int) round(((float) $page->overlap_score) * 15);
+
+        if ((int) ($page->last_status_code ?? 0) >= 400) {
+            $priority += 30;
+        }
+
+        if ($snapshot && $snapshot->observed_at?->lt(now()->subDays(14))) {
+            $priority += 10;
+        }
+
+        return min(100, $priority);
     }
 }

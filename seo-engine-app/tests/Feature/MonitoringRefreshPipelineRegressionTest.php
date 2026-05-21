@@ -7,7 +7,11 @@ namespace Tests\Feature;
 use App\Models\SeoAudit;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSite;
+use App\Models\SeoSitePage;
+use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSuggestion;
+use App\ObservedSite\ObservedPageHealthService;
 use App\Runtime\DatabasePrioritizedPageProvider;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\SeoBridge\Feedback\DatabaseSeoFeedbackLoopDriver;
@@ -352,6 +356,106 @@ class MonitoringRefreshPipelineRegressionTest extends TestCase
         $this->assertDatabaseMissing('seo_suggestions', [
             'seo_page_id' => $agedDraft->id,
         ]);
+    }
+
+    public function test_observed_monitoring_summarizes_real_crawled_pages_and_prioritizes_critical_pages(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'observed-monitor-site',
+            'name' => 'Observed Monitor',
+            'url' => 'https://observed.test',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'observed-monitor-token'),
+        ]);
+
+        $healthy = SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://observed.test/guide-amiante',
+            'url_hash' => sha1('https://observed.test/guide-amiante'),
+            'path' => '/guide-amiante',
+            'title' => 'Guide amiante complet',
+            'meta_description' => 'Guide amiante, obligations, repérage, risques et travaux.',
+            'canonical_url' => 'https://observed.test/guide-amiante',
+            'indexability_state' => 'indexable',
+            'last_status_code' => 200,
+            'latest_word_count' => 1400,
+            'authority_score' => 0.72,
+            'orphan_score' => 0.08,
+            'overlap_score' => 0.10,
+            'pillar_likelihood' => 0.82,
+            'cluster_label' => 'guide-amiante',
+            'last_seen_at' => now()->subDay(),
+        ]);
+
+        $critical = SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://observed.test/page-bloquee',
+            'url_hash' => sha1('https://observed.test/page-bloquee'),
+            'path' => '/page-bloquee',
+            'title' => null,
+            'meta_description' => null,
+            'canonical_url' => null,
+            'indexability_state' => 'noindex',
+            'last_status_code' => 404,
+            'latest_word_count' => 70,
+            'authority_score' => 0.05,
+            'orphan_score' => 0.91,
+            'overlap_score' => 0.80,
+            'pillar_likelihood' => 0.04,
+            'cluster_label' => null,
+            'last_seen_at' => now()->subDays(2),
+        ]);
+
+        SeoSitePageSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => 1,
+            'site_page_id' => $healthy->id,
+            'url' => $healthy->normalized_url,
+            'title' => $healthy->title,
+            'meta_description' => $healthy->meta_description,
+            'canonical_url' => $healthy->canonical_url,
+            'status_code' => 200,
+            'is_indexable' => true,
+            'word_count' => 1450,
+            'observed_at' => now()->subDay(),
+        ]);
+
+        SeoSitePageSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => 1,
+            'site_page_id' => $critical->id,
+            'url' => $critical->normalized_url,
+            'status_code' => 404,
+            'is_indexable' => false,
+            'word_count' => 70,
+            'observed_at' => now()->subDays(20),
+        ]);
+
+        $searchConsole = Mockery::mock(SearchConsoleService::class);
+
+        $monitor = new RuntimeSeoMonitoringService(
+            $searchConsole,
+            $this->scoring(),
+            app(DatabaseSeoFeedbackLoopDriver::class),
+            new DatabasePrioritizedPageProvider(),
+            $this->scoreRefresh(),
+            app(ObservedPageHealthService::class),
+        );
+
+        $summary = $monitor->observedSummary($site->site_id);
+
+        $this->assertSame(2, $summary['monitored']);
+        $this->assertSame(1, $summary['healthy']);
+        $this->assertSame(0, $summary['warning']);
+        $this->assertSame(1, $summary['critical']);
+        $this->assertSame('/page-bloquee', $summary['items'][0]['path']);
+        $this->assertSame('critical', $summary['items'][0]['state']);
+        $this->assertContains('non_indexable', $summary['items'][0]['flags']);
+        $this->assertContains('unhealthy_status', $summary['items'][0]['flags']);
+        $this->assertSame('/guide-amiante', $summary['items'][1]['path']);
+        $this->assertSame('healthy', $summary['items'][1]['state']);
+        $this->assertSame(1450, $summary['items'][1]['snapshot_word_count']);
     }
 
     private function scoreRefresh(): SeoScoreRefreshService
