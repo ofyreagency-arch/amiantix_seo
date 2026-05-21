@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SeoSitePage extends Model
 {
@@ -43,5 +44,10 @@ class SeoSitePage extends Model
             'discovered_at' => 'datetime',
             'last_seen_at' => 'datetime',
         ];
+    }
+
+    public function editorialPages(): HasMany
+    {
+        return $this->hasMany(SeoPage::class, 'observed_site_page_id');
     }
 }

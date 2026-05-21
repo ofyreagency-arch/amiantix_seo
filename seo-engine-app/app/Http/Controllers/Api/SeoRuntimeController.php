@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\ObservedSite\ObservedPageHealthService;
 use App\ObservedSite\ObservedRewriteBridgeService;
+use App\ObservedSite\SeoPageObservedLinkService;
 use App\ObservedSite\SiteHealthService;
 use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
@@ -32,6 +33,8 @@ use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
 
 class SeoRuntimeController extends Controller
 {
+    public function __construct(private readonly SeoPageObservedLinkService $observedLinks) {}
+
     public function generate(Request $request, SeoGeneratePageRunner $runner): JsonResponse
     {
         $payload = $request->validate([
@@ -358,6 +361,7 @@ class SeoRuntimeController extends Controller
 
         $pages = SeoPage::query()
             ->where('site_id', $siteId)
+            ->with('observedPage')
             ->orderByDesc('updated_at')
             ->paginate((int) $request->integer('per_page', 25));
 
@@ -365,14 +369,8 @@ class SeoRuntimeController extends Controller
             return response()->json($pages);
         }
 
-        $observedPages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereIn('path', $pages->getCollection()->map(fn (SeoPage $page): string => $page->canonicalPath())->all())
-            ->get()
-            ->keyBy('path');
-
-        $items = $pages->getCollection()->map(function (SeoPage $page) use ($observedPages): array {
-            $observedPage = $observedPages->get($page->canonicalPath());
+        $items = $pages->getCollection()->map(function (SeoPage $page): array {
+            $observedPage = $this->observedLinks->observedForPage($page);
 
             return [
                 'page' => $page,
@@ -424,10 +422,7 @@ class SeoRuntimeController extends Controller
 
     private function observedPageForLegacy(SeoPage $page): ?SeoSitePage
     {
-        return SeoSitePage::query()
-            ->where('site_id', $page->site_id)
-            ->where('path', $page->canonicalPath())
-            ->first();
+        return $this->observedLinks->observedForPage($page);
     }
 
     /**

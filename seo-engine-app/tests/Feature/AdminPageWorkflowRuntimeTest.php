@@ -82,9 +82,9 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             ->get(route('admin.pages.show', [$site->site_id, $page->id]));
 
         $response->assertOk();
-        $response->assertSee('Statut live');
-        $response->assertSee('Workflow');
-        $response->assertSee('Google');
+        $response->assertSee('Statut éditorial moteur');
+        $response->assertSee('Workflow éditorial');
+        $response->assertSee('Observed runtime');
         $response->assertSee('Suggestion active');
         $response->assertSee('Appliquer à la page');
     }

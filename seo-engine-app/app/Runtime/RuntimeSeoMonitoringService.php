@@ -10,6 +10,7 @@ use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSearchConsoleMetric;
 use App\ObservedSite\ObservedPageHealthService;
 use App\ObservedSite\ObservedRewriteBridgeService;
+use App\ObservedSite\SeoPageObservedLinkService;
 use Illuminate\Support\Collection;
 use Ofyre\SeoEngine\Contracts\PrioritizedPageProvider;
 use Ofyre\SeoEngine\Contracts\SeoFeedbackLoopDriver;
@@ -22,6 +23,7 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
 {
     private readonly ObservedPageHealthService $observedHealth;
     private readonly ObservedRewriteBridgeService $observedRewrite;
+    private readonly SeoPageObservedLinkService $observedLinks;
 
     public function __construct(
         SearchConsoleService $searchConsole,
@@ -31,6 +33,7 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
         SeoScoreRefreshService $scoreRefresh,
         ?ObservedPageHealthService $observedHealth = null,
         ?ObservedRewriteBridgeService $observedRewrite = null,
+        ?SeoPageObservedLinkService $observedLinks = null,
     ) {
         parent::__construct(
             $searchConsole,
@@ -42,6 +45,7 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
 
         $this->observedHealth = $observedHealth ?? app(ObservedPageHealthService::class);
         $this->observedRewrite = $observedRewrite ?? app(ObservedRewriteBridgeService::class);
+        $this->observedLinks = $observedLinks ?? app(SeoPageObservedLinkService::class);
     }
 
     /**
@@ -288,6 +292,20 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
      */
     private function legacyPageForObservedItem(string $siteId, array $item): ?SeoPage
     {
+        $observedSitePageId = (int) ($item['id'] ?? 0);
+
+        if ($observedSitePageId > 0) {
+            $linkedPage = SeoPage::query()
+                ->where('site_id', $siteId)
+                ->where('observed_site_page_id', $observedSitePageId)
+                ->orderByDesc('updated_at')
+                ->first();
+
+            if ($linkedPage) {
+                return $linkedPage;
+            }
+        }
+
         $path = trim((string) ($item['path'] ?? ''));
         $slug = ltrim($path, '/');
 
@@ -295,7 +313,7 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
             return null;
         }
 
-        return SeoPage::query()
+        $page = SeoPage::query()
             ->where('site_id', $siteId)
             ->where(function ($query) use ($slug, $path): void {
                 $query->where('slug', $slug)
@@ -303,5 +321,11 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
             })
             ->orderByDesc('updated_at')
             ->first();
+
+        if ($page) {
+            $this->observedLinks->syncPage($page);
+        }
+
+        return $page;
     }
 }

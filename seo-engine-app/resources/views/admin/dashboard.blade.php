@@ -64,7 +64,7 @@
                     <h1 class="text-2xl font-semibold tracking-tight">Le moteur pilote maintenant des signaux réels, pas juste des pages.</h1>
                     <p class="mt-3 text-sm text-slate-200 leading-6">
                         Observation, scoring, monitoring, feedback, rewrite et recommandations sont déjà stabilisés.
-                        Ce cockpit donne la priorité à l’action utile et masque le bruit tant que le site n’a pas encore été crawlé.
+                        Ce cockpit distingue désormais explicitement la couche éditoriale interne, la couche observée réelle et les recommandations runtime.
                     </p>
 
                     @if($isColdStart)
@@ -90,12 +90,12 @@
                         <div class="text-2xl font-semibold mt-1">{{ $stats['observed_pages'] }}</div>
                     </div>
                     <div class="rounded-xl bg-white/10 border border-white/10 px-4 py-3">
-                        <div class="text-[11px] uppercase tracking-wider text-slate-300">Actions en attente</div>
-                        <div class="text-2xl font-semibold mt-1">{{ $stats['action_queue'] }}</div>
+                        <div class="text-[11px] uppercase tracking-wider text-slate-300">Suggestions éditoriales</div>
+                        <div class="text-2xl font-semibold mt-1">{{ $stats['editorial_suggestions_pending'] }}</div>
                     </div>
                     <div class="rounded-xl bg-white/10 border border-white/10 px-4 py-3">
-                        <div class="text-[11px] uppercase tracking-wider text-slate-300">Crawls aujourd'hui</div>
-                        <div class="text-2xl font-semibold mt-1">{{ $stats['crawls_today'] }}</div>
+                        <div class="text-[11px] uppercase tracking-wider text-slate-300">Recommandations observed</div>
+                        <div class="text-2xl font-semibold mt-1">{{ $stats['observed_recommendations_pending'] }}</div>
                     </div>
                 </div>
             </div>
@@ -116,16 +116,43 @@
         </div>
     </section>
 
+    <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h2 class="text-sm font-semibold text-gray-900">Sources de vérité du cockpit</h2>
+        <p class="text-xs text-gray-500 mt-1">Le cockpit n’essaie plus de faire croire qu’une seule couche suffit à tout raconter.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+            <div class="rounded-xl border border-gray-100 px-4 py-4">
+                <div class="text-xs uppercase tracking-wider text-gray-400">SeoPage</div>
+                <div class="mt-2 text-sm font-medium text-gray-900">Workflow éditorial interne</div>
+                <div class="mt-2 text-xs text-gray-500">Généré, pending, review, publié côté moteur.</div>
+            </div>
+            <div class="rounded-xl border border-gray-100 px-4 py-4">
+                <div class="text-xs uppercase tracking-wider text-gray-400">SeoSitePage</div>
+                <div class="mt-2 text-sm font-medium text-gray-900">Réalité observée du site</div>
+                <div class="mt-2 text-xs text-gray-500">Crawlé, visible, structure, indexabilité, tensions réelles.</div>
+            </div>
+            <div class="rounded-xl border border-gray-100 px-4 py-4">
+                <div class="text-xs uppercase tracking-wider text-gray-400">SeoSuggestion</div>
+                <div class="mt-2 text-sm font-medium text-gray-900">Suggestions éditoriales</div>
+                <div class="mt-2 text-xs text-gray-500">Rewrites et actions legacy liées aux pages moteur.</div>
+            </div>
+            <div class="rounded-xl border border-gray-100 px-4 py-4">
+                <div class="text-xs uppercase tracking-wider text-gray-400">SeoRecommendation</div>
+                <div class="mt-2 text-sm font-medium text-gray-900">Recommandations observed</div>
+                <div class="mt-2 text-xs text-gray-500">Opportunités runtime issues du crawl, du graph et des signaux réels.</div>
+            </div>
+        </div>
+    </section>
+
     <section class="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div class="flex items-start justify-between gap-4 mb-5">
                 <div>
-                    <h2 class="text-sm font-semibold text-gray-900">Files d’action du moteur</h2>
-                    <p class="text-xs text-gray-500 mt-1">Ce que le cerveau a réellement décidé de garder en attente.</p>
+                    <h2 class="text-sm font-semibold text-gray-900">Queues réelles du moteur</h2>
+                    <p class="text-xs text-gray-500 mt-1">Séparation honnête entre suggestions éditoriales et recommandations observed.</p>
                 </div>
                 <div class="text-right">
                     <div class="text-2xl font-semibold text-gray-900">{{ $stats['action_queue'] }}</div>
-                    <div class="text-xs text-gray-500">actions actives</div>
+                    <div class="text-xs text-gray-500">éléments actifs au total</div>
                 </div>
             </div>
 
@@ -152,7 +179,7 @@
                 <div class="flex items-center justify-between gap-4 mb-4">
                     <div>
                         <h2 class="text-sm font-semibold text-gray-900">Backlog prioritaire</h2>
-                        <p class="text-xs text-gray-500 mt-1">La prochaine poignée d’actions utiles à traiter.</p>
+                        <p class="text-xs text-gray-500 mt-1">Vue compacte et hybride. Les badges distinguent recommandations observed et rewrites éditoriaux.</p>
                     </div>
                 </div>
 
@@ -234,6 +261,30 @@
                     </div>
                     @empty
                     <div class="px-6 py-8 text-center text-sm text-gray-400">Aucun rewrite pending.</div>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100">
+                    <h2 class="text-sm font-semibold text-gray-900">Recommandations observed</h2>
+                    <p class="text-xs text-gray-500 mt-1">Actions proposées à partir du crawl, du graph et des tensions observées.</p>
+                </div>
+                <div class="divide-y divide-gray-50">
+                    @forelse($priorityRecommendations->take(4) as $item)
+                    <div class="px-6 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">{{ $item->title }}</div>
+                                <div class="mt-1 text-xs text-gray-500">{{ $item->site_id }} · {{ str_replace('_', ' ', (string) $item->type) }} @if($item->cluster) · {{ $item->cluster }} @endif</div>
+                            </div>
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                                P{{ $item->priority }}
+                            </span>
+                        </div>
+                    </div>
+                    @empty
+                    <div class="px-6 py-8 text-center text-sm text-gray-400">Aucune recommandation observed pending.</div>
                     @endforelse
                 </div>
             </div>
@@ -343,7 +394,7 @@
             <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100">
                     <h2 class="text-sm font-semibold text-gray-900">Santé multi-sites</h2>
-                    <p class="text-xs text-gray-500 mt-1">Vue d’ensemble par site : observation, faiblesse, tension et backlog.</p>
+                    <p class="text-xs text-gray-500 mt-1">Vue hybride assumée : observation réelle par site, avec rappel séparé du volume éditorial moteur.</p>
                 </div>
                 <div class="divide-y divide-gray-50">
                     @forelse($sites->take(4) as $row)
@@ -401,10 +452,10 @@
 
             @if($hasFeedback)
             <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100">
-                    <h2 class="text-sm font-semibold text-gray-900">Queue feedback & signaux</h2>
-                    <p class="text-xs text-gray-500 mt-1">Boucle faible bruit : uniquement ce que le moteur garde utile.</p>
-                </div>
+                    <div class="px-6 py-4 border-b border-gray-100">
+                        <h2 class="text-sm font-semibold text-gray-900">Queue feedback & signaux</h2>
+                        <p class="text-xs text-gray-500 mt-1">Suggestions éditoriales issues des boucles legacy de feedback et de signaux.</p>
+                    </div>
                 <div class="divide-y divide-gray-50">
                     @foreach($feedbackQueue->take(4) as $suggestion)
                     <div class="px-6 py-4">
@@ -430,7 +481,7 @@
             <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100">
                     <h2 class="text-sm font-semibold text-gray-900">Pages moteur récentes</h2>
-                    <p class="text-xs text-gray-500 mt-1">Activité récente de la couche action/génération.</p>
+                    <p class="text-xs text-gray-500 mt-1">Activité récente de la couche éditoriale interne `SeoPage`, distincte de la couche observée.</p>
                 </div>
                 <div class="divide-y divide-gray-50">
                     @forelse($recent->take(4) as $page)

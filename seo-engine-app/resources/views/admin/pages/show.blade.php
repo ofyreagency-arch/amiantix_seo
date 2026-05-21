@@ -141,8 +141,9 @@
 
         <div class="space-y-5">
             <div class="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
-                <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Statut live</div>
-                <div class="mt-2 text-4xl font-semibold text-slate-900">{{ filled($page->published_at) || $page->status === 'published' ? 'En ligne' : 'En préparation' }}</div>
+                <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Statut éditorial moteur</div>
+                <div class="mt-2 text-4xl font-semibold text-slate-900">{{ filled($page->published_at) || $page->status === 'published' ? 'Publié côté moteur' : 'En préparation côté moteur' }}</div>
+                <div class="mt-2 text-sm text-slate-500">Ce statut décrit l’état interne de `SeoPage`. Il ne prouve pas à lui seul qu’un CMS externe a publié la page ni qu’elle est déjà visible au crawl.</div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
                     @foreach($liveCards as $card)
@@ -161,16 +162,16 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="rounded-3xl border border-slate-200 bg-white px-5 py-5">
-                    <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Google</div>
+                    <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Observed runtime</div>
                     <div class="mt-3 text-4xl font-semibold text-slate-900">{{ (int) round((float) ($latestMetric?->impressions ?? 0)) }}</div>
-                    <div class="mt-1 text-sm text-slate-500">impressions</div>
+                    <div class="mt-1 text-sm text-slate-500">impressions observées</div>
                     <div class="mt-6 text-sm text-slate-600">
                         CTR {{ number_format((float) ($latestMetric?->ctr ?? 0) * 100, 2) }}% · Pos {{ number_format((float) ($latestMetric?->position ?? 0), 1) }}
                     </div>
                 </div>
 
                 <div class="rounded-3xl border border-slate-200 bg-white px-5 py-5">
-                    <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Workflow</div>
+                    <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Workflow éditorial</div>
                     <div class="mt-4 flex flex-wrap gap-2">
                         @foreach($workflowStates as $item)
                             <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium {{ $item['active'] ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' }}">
@@ -179,7 +180,7 @@
                         @endforeach
                     </div>
                     <div class="mt-5 text-sm text-slate-600">
-                        {{ $pendingSuggestions->count() }} suggestion(s) pending · image {{ $imageApproved ? 'validée' : 'à revoir' }} · indexation {{ ($page->is_indexed || ($latestMetric?->is_indexed ?? false)) ? 'ok' : 'à confirmer' }}
+                        {{ $pendingSuggestions->count() }} suggestion(s) éditoriales pending · image {{ $imageApproved ? 'validée' : 'à revoir' }} · indexation {{ ($page->is_indexed || ($latestMetric?->is_indexed ?? false)) ? 'observée' : 'à confirmer' }}
                     </div>
                 </div>
             </div>
@@ -227,17 +228,17 @@
                     <div>
                         <div class="text-xs uppercase tracking-[0.25em] {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-600' : 'text-amber-600' }}">Publication</div>
                         <div class="mt-2 text-lg font-semibold {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-900' : 'text-amber-900' }}">
-                            {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'Prête à publier' : 'Publication bloquée' }}
+                            {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'Prête à être marquée comme publiée' : 'Publication moteur bloquée' }}
                         </div>
                         <div class="mt-2 text-sm {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-800' : 'text-amber-800' }}">
-                            {{ ($publicationSummary['live_message'] ?? '') !== '' ? $publicationSummary['live_message'] : 'Le moteur vérifie la cohérence éditoriale avant publication.' }}
+                            {{ ($publicationSummary['live_message'] ?? '') !== '' ? $publicationSummary['live_message'] : 'Le moteur vérifie la cohérence éditoriale avant de marquer la page comme publiée dans son propre workflow.' }}
                         </div>
                     </div>
                     @if($page->status !== 'published')
                     <form method="POST" action="{{ route('admin.pages.publish', [$site->site_id, $page->id]) }}">
                         @csrf
                         <button type="submit" class="inline-flex items-center rounded-full {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700' }} px-5 py-2.5 text-sm font-medium text-white transition-colors">
-                            Publier
+                            Marquer comme publié dans le moteur
                         </button>
                     </form>
                     @endif
@@ -270,25 +271,22 @@
         'seo_score_below_threshold' => [
             'label'   => 'Score SEO insuffisant',
             'detail'  => 'Actuel : '.((int)($page->seo_score ?? 0)).'/100 — seuil : 70',
-            'type'    => 'rewrite',
-            'mode'    => 'enrich',
-            'btn'     => 'Enrichir le contenu',
+            'type'    => 'diagnostic',
+            'next'    => 'Créer une suggestion éditoriale de rewrite/enrichissement si vous voulez traiter ce point automatiquement.',
             'color'   => 'rose',
         ],
         'indexability_below_threshold' => [
             'label'   => 'Indexabilité insuffisante',
             'detail'  => 'Actuel : '.((int)($page->indexability_score ?? 0)).'/100 — seuil : 65',
-            'type'    => 'rewrite',
-            'mode'    => 'improve-indexability',
-            'btn'     => 'Corriger l\'indexation',
+            'type'    => 'diagnostic',
+            'next'    => 'Le cockpit ne corrige pas réellement l’indexation en un clic. Traitez ce point via revue éditoriale ou action CMS réelle.',
             'color'   => 'rose',
         ],
         'faq_count_below_minimum' => [
             'label'   => 'FAQ insuffisante',
             'detail'  => 'Actuel : '.count($page->faq_json ?? []).' question(s) — minimum : 5',
-            'type'    => 'rewrite',
-            'mode'    => 'enrich',
-            'btn'     => 'Enrichir la FAQ',
+            'type'    => 'diagnostic',
+            'next'    => 'Passez par une suggestion éditoriale si vous souhaitez enrichir la FAQ. Le bouton magique a été retiré.',
             'color'   => 'amber',
         ],
         'image_not_approved' => [
@@ -318,16 +316,15 @@
         'duplicate_risk_high' => [
             'label'   => 'Risque de duplication élevé',
             'detail'  => 'Score : '.number_format((float)($page->duplicate_risk_score ?? 0) * 100, 0).'% — seuil max : 70%',
-            'type'    => 'rewrite',
-            'mode'    => 'de-duplicate',
-            'btn'     => 'Dédupliquer le contenu',
+            'type'    => 'diagnostic',
+            'next'    => 'Utilisez une suggestion éditoriale de rewrite si vous voulez retravailler le contenu. La déduplication n’est pas automatique.',
             'color'   => 'rose',
         ],
         'spam_risk_high' => [
             'label'   => 'Risque spam détecté',
             'detail'  => 'Le moteur a détecté des signaux spam dans le contenu.',
-            'type'    => 'info',
-            'btn'     => 'Revoir le contenu manuellement',
+            'type'    => 'diagnostic',
+            'next'    => 'Revue manuelle recommandée. Aucun correctif automatique fiable n’est proposé ici.',
             'color'   => 'rose',
         ],
     ];
@@ -341,8 +338,8 @@
 <div class="bg-white rounded-xl border border-rose-200 shadow-sm mb-6">
     <div class="px-6 py-4 border-b border-rose-100 flex items-center justify-between">
         <div>
-            <h2 class="font-semibold text-gray-900 text-sm">Débloquer la publication</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ count($failedRules) }} point(s) à corriger avant de pouvoir publier</p>
+            <h2 class="font-semibold text-gray-900 text-sm">Diagnostic de publication moteur</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ count($failedRules) }} point(s) bloquants. Les actions ci-dessous sont limitées aux correctifs réellement exécutables.</p>
         </div>
         <span class="inline-flex items-center rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
             {{ count($failedRules) }} bloquant(s)
@@ -370,20 +367,14 @@
                 <div class="min-w-0">
                     <div class="text-sm font-medium text-gray-900">{{ $def['label'] }}</div>
                     <div class="text-xs {{ $c['sub'] }} mt-0.5">{{ $def['detail'] }}</div>
+                    @if(!empty($def['next']))
+                    <div class="text-xs text-gray-500 mt-1">{{ $def['next'] }}</div>
+                    @endif
                 </div>
             </div>
 
             <div class="shrink-0">
-                @if($def['type'] === 'rewrite')
-                <form method="POST" action="{{ route('admin.pages.rewrite', [$site->site_id, $page->id]) }}">
-                    @csrf
-                    <input type="hidden" name="mode" value="{{ $def['mode'] }}">
-                    <button type="submit"
-                        class="inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors {{ $c['btn'] }}">
-                        {{ $def['btn'] }}
-                    </button>
-                </form>
-                @elseif($def['type'] === 'quickfix')
+                @if($def['type'] === 'quickfix')
                 <form method="POST" action="{{ route('admin.pages.quick-fix', [$site->site_id, $page->id]) }}">
                     @csrf
                     <input type="hidden" name="action" value="{{ $def['action'] }}">
@@ -394,7 +385,7 @@
                 </form>
                 @else
                 <span class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500">
-                    {{ $def['btn'] }}
+                    Diagnostic only
                 </span>
                 @endif
             </div>
@@ -542,7 +533,8 @@
 
         {{-- Rewrite --}}
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-5">
-            <h3 class="font-semibold text-gray-900 text-sm mb-4">Réécrire</h3>
+            <h3 class="font-semibold text-gray-900 text-sm mb-1">Suggestion éditoriale</h3>
+            <p class="text-xs text-gray-500 mb-4">Cette action crée une suggestion de rewrite sur `SeoPage`. Elle ne corrige pas magiquement le site observé ni le CMS.</p>
             @if(($observedRewriteContext['matched'] ?? false) === true)
                 @php
                     $state = $observedRewriteContext['state'] ?? 'unknown';
@@ -595,7 +587,8 @@
 
         @if(($observedRewriteContext['matched'] ?? false) === true && (!empty($observedRewriteContext['recommendations']) || !empty($observedRewriteContext['sections'])))
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-5">
-            <h3 class="font-semibold text-gray-900 text-sm mb-4">Backlog observed</h3>
+            <h3 class="font-semibold text-gray-900 text-sm mb-1">Observed runtime</h3>
+            <p class="text-xs text-gray-500 mb-4">Ce bloc reflète la réalité observée du site, distincte du workflow éditorial interne.</p>
 
             @if(!empty($observedRewriteContext['sections']))
                 <div class="space-y-2 mb-4">
@@ -628,9 +621,22 @@
 
         {{-- Page info --}}
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-4 space-y-2.5 text-xs">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.25em] text-gray-400 pb-2 border-b border-gray-100">Vérités et états</div>
             <div class="flex justify-between text-gray-500">
                 <span>Site</span>
                 <span class="font-medium text-gray-700">{{ $site->name }}</span>
+            </div>
+            <div class="flex justify-between text-gray-500">
+                <span>Source éditoriale</span>
+                <span class="font-medium text-gray-700">SeoPage</span>
+            </div>
+            <div class="flex justify-between text-gray-500">
+                <span>Source observée</span>
+                <span class="font-medium text-gray-700">{{ ($observedRewriteContext['matched'] ?? false) ? 'SeoSitePage liée' : 'Aucune correspondance observée' }}</span>
+            </div>
+            <div class="flex justify-between text-gray-500">
+                <span>Règle de mapping</span>
+                <span class="font-medium text-gray-700">{{ $page->observed_page_match_rule ?: 'Aucune' }}</span>
             </div>
             @if($page->cluster)
             <div class="flex justify-between text-gray-500">
@@ -654,7 +660,7 @@
             </div>
             @if($page->published_at)
             <div class="flex justify-between text-gray-500">
-                <span>Publié</span>
+                <span>Publié côté moteur</span>
                 <span class="text-gray-700">{{ $page->published_at?->format('d/m/Y') }}</span>
             </div>
             @endif

@@ -27,12 +27,13 @@ class AdminDashboardController extends Controller
         $stats = [
             'total_sites' => SeoSite::query()->active()->count(),
             'observed_pages' => SeoSitePage::query()->count(),
-            'action_queue' => SeoSuggestion::query()->where('status', 'pending')->count()
-                + SeoRecommendation::query()->where('status', 'pending')->count(),
+            'editorial_suggestions_pending' => SeoSuggestion::query()->where('status', 'pending')->count(),
+            'observed_recommendations_pending' => SeoRecommendation::query()->where('status', 'pending')->count(),
             'crawls_today' => SeoSiteCrawl::query()
                 ->whereDate('created_at', now()->toDateString())
                 ->count(),
         ];
+        $stats['action_queue'] = $stats['editorial_suggestions_pending'] + $stats['observed_recommendations_pending'];
 
         $queue = [
             'feedback' => SeoSuggestion::query()

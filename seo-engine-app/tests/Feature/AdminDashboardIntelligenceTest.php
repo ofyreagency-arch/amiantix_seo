@@ -167,7 +167,8 @@ class AdminDashboardIntelligenceTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('SEO Brain Runtime');
-        $response->assertSee('Files d’action du moteur');
+        $response->assertSee('Queues réelles du moteur');
+        $response->assertSee('Sources de vérité du cockpit');
         $response->assertSee('Backlog prioritaire');
         $response->assertSee('Santé multi-sites');
         $response->assertSee('Dashboard Site');

@@ -12,7 +12,10 @@ use Illuminate\Support\Collection;
 
 class ObservedRewriteBridgeService
 {
-    public function __construct(private readonly ObservedPageHealthService $pageHealth) {}
+    public function __construct(
+        private readonly ObservedPageHealthService $pageHealth,
+        private readonly SeoPageObservedLinkService $links,
+    ) {}
 
     /**
      * @return array<string,mixed>
@@ -133,16 +136,7 @@ class ObservedRewriteBridgeService
 
     private function findObservedPage(SeoPage $page): ?SeoSitePage
     {
-        $path = $page->canonicalPath();
-
-        return SeoSitePage::query()
-            ->where('site_id', $page->site_id)
-            ->where(function ($query) use ($path): void {
-                $query->where('path', $path)
-                    ->orWhere('normalized_url', 'like', '%'.$path);
-            })
-            ->orderByDesc('last_seen_at')
-            ->first();
+        return $this->links->observedForPage($page);
     }
 
     /**

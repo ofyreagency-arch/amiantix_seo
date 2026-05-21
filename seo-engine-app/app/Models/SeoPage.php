@@ -6,12 +6,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SeoPage extends Model
 {
     protected $fillable = [
         'site_id',
+        'observed_site_page_id',
         'keyword',
         'slug',
         'cluster',
@@ -41,6 +43,8 @@ class SeoPage extends Model
         'spam_risk',
         'review_issues_json',
         'last_audit_at',
+        'observed_page_match_rule',
+        'observed_page_linked_at',
     ];
 
     protected function casts(): array
@@ -55,7 +59,13 @@ class SeoPage extends Model
             'is_indexed' => 'boolean',
             'published_at' => 'datetime',
             'last_audit_at' => 'datetime',
+            'observed_page_linked_at' => 'datetime',
         ];
+    }
+
+    public function observedPage(): BelongsTo
+    {
+        return $this->belongsTo(SeoSitePage::class, 'observed_site_page_id');
     }
 
     public function audits(): HasMany
