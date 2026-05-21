@@ -152,6 +152,89 @@ class SeoRuntimeObservedApiTest extends TestCase
             ->assertJsonPath('items.0.state', 'warning');
     }
 
+    public function test_pages_endpoint_can_embed_observed_page_context(): void
+    {
+        [$site, $token] = $this->siteWithToken();
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'guide amiante',
+            'slug' => 'guide-amiante',
+            'status' => 'published',
+            'title' => 'Guide amiante',
+        ]);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://runtime-api.test/guide-amiante',
+            'url_hash' => sha1('https://runtime-api.test/guide-amiante'),
+            'path' => '/guide-amiante',
+            'title' => 'Guide amiante',
+            'meta_description' => 'Guide amiante complet.',
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+            'indexability_state' => 'indexable',
+            'last_status_code' => 200,
+            'latest_word_count' => 1200,
+            'authority_score' => 0.65,
+            'orphan_score' => 0.10,
+            'overlap_score' => 0.12,
+            'pillar_likelihood' => 0.80,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now(),
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/seo/pages?include_observed=1');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.page.slug', 'guide-amiante')
+            ->assertJsonPath('data.0.observed.path', '/guide-amiante')
+            ->assertJsonPath('data.0.observed.indexability_state', 'indexable');
+    }
+
+    public function test_internal_links_endpoint_includes_observed_page_context(): void
+    {
+        [$site, $token] = $this->siteWithToken();
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'guide amiante',
+            'slug' => 'guide-amiante',
+            'status' => 'published',
+            'title' => 'Guide amiante',
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+        ]);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://runtime-api.test/guide-amiante',
+            'url_hash' => sha1('https://runtime-api.test/guide-amiante'),
+            'path' => '/guide-amiante',
+            'title' => 'Guide amiante',
+            'meta_description' => 'Guide amiante complet.',
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+            'indexability_state' => 'indexable',
+            'last_status_code' => 200,
+            'latest_word_count' => 1200,
+            'authority_score' => 0.65,
+            'orphan_score' => 0.10,
+            'overlap_score' => 0.12,
+            'pillar_likelihood' => 0.80,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now(),
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/seo/internal-links?slug=guide-amiante');
+
+        $response->assertOk()
+            ->assertJsonPath('page.slug', 'guide-amiante')
+            ->assertJsonPath('observed.path', '/guide-amiante')
+            ->assertJsonPath('observed.health.indexability', 100);
+    }
+
     /**
      * @return array{0:SeoSite,1:string}
      */

@@ -239,12 +239,15 @@ class SeoRuntimeController extends Controller
         $slug = (string) $request->query('slug', '');
         $page = $pages->findBySlug($slug);
         abort_if(! $page, 404, 'SEO page not found.');
+        $observedPage = $this->observedPageForSlug($slug);
+        $observed = $observedPage ? $this->observedPagePayload($observedPage) : null;
 
         return response()->json([
             'page' => $page,
             'internal_links' => $semanticLinks->internalLinkSuggestions($slug),
             'cannibalization_risks' => $semanticLinks->cannibalizationRisks($slug),
             'query_matches' => $semanticLinks->queryPageMatches($slug),
+            'observed' => $observed,
         ]);
     }
 
@@ -265,6 +268,7 @@ class SeoRuntimeController extends Controller
     public function pages(Request $request, SeoEngineContext $context): JsonResponse
     {
         $siteId = $context->siteId();
+        $includeObserved = $request->boolean('include_observed', false);
 
         if ($request->filled('slug')) {
             $page = SeoPage::query()
@@ -273,15 +277,51 @@ class SeoRuntimeController extends Controller
                 ->first();
             abort_if(! $page, 404, 'SEO page not found.');
 
-            return response()->json($page);
+            if (! $includeObserved) {
+                return response()->json($page);
+            }
+
+            $observedPage = $this->observedPageForLegacy($page);
+
+            return response()->json([
+                'page' => $page,
+                'observed' => $observedPage ? $this->observedPagePayload($observedPage) : null,
+            ]);
         }
 
-        return response()->json(
-            SeoPage::query()
-                ->where('site_id', $siteId)
-                ->orderByDesc('updated_at')
-                ->paginate((int) $request->integer('per_page', 25))
-        );
+        $pages = SeoPage::query()
+            ->where('site_id', $siteId)
+            ->orderByDesc('updated_at')
+            ->paginate((int) $request->integer('per_page', 25));
+
+        if (! $includeObserved) {
+            return response()->json($pages);
+        }
+
+        $observedPages = SeoSitePage::query()
+            ->where('site_id', $siteId)
+            ->whereIn('path', $pages->getCollection()->map(fn (SeoPage $page): string => $page->canonicalPath())->all())
+            ->get()
+            ->keyBy('path');
+
+        $items = $pages->getCollection()->map(function (SeoPage $page) use ($observedPages): array {
+            $observedPage = $observedPages->get($page->canonicalPath());
+
+            return [
+                'page' => $page,
+                'observed' => $observedPage ? $this->observedPagePayload($observedPage) : null,
+            ];
+        });
+
+        return response()->json([
+            'current_page' => $pages->currentPage(),
+            'data' => $items->values()->all(),
+            'from' => $pages->firstItem(),
+            'last_page' => $pages->lastPage(),
+            'per_page' => $pages->perPage(),
+            'to' => $pages->lastItem(),
+            'total' => $pages->total(),
+        ]);
     }
 
     public function sitemap(SeoEngineContext $context, SeoPageRepository $pages): JsonResponse
@@ -302,5 +342,47 @@ class SeoRuntimeController extends Controller
             'count'   => $entries->count(),
             'entries' => $entries,
         ]);
+    }
+
+    private function observedPageForSlug(string $slug): ?SeoSitePage
+    {
+        $siteId = app(SeoEngineContext::class)->siteId();
+        $path = '/'.ltrim($slug, '/');
+
+        return SeoSitePage::query()
+            ->where('site_id', $siteId)
+            ->where('path', $path)
+            ->first();
+    }
+
+    private function observedPageForLegacy(SeoPage $page): ?SeoSitePage
+    {
+        return SeoSitePage::query()
+            ->where('site_id', $page->site_id)
+            ->where('path', $page->canonicalPath())
+            ->first();
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function observedPagePayload(SeoSitePage $page): array
+    {
+        $pageHealth = app(\App\ObservedSite\ObservedPageHealthService::class)->forPage($page);
+
+        return [
+            'id' => $page->id,
+            'path' => $page->path,
+            'url' => $page->normalized_url,
+            'title' => $page->title,
+            'cluster_label' => $page->cluster_label,
+            'indexability_state' => $page->indexability_state,
+            'last_status_code' => $page->last_status_code,
+            'latest_word_count' => $page->latest_word_count,
+            'authority_score' => (float) $page->authority_score,
+            'orphan_score' => (float) $page->orphan_score,
+            'overlap_score' => (float) $page->overlap_score,
+            'health' => $pageHealth,
+        ];
     }
 }
