@@ -24,8 +24,6 @@ composer require ofyre/seo-engine
 php artisan seo:install
 ```
 
-For a VPS runtime architecture with a dedicated Laravel host app for Amiantix, see [docs/amiantix-runtime-vps.md](./docs/amiantix-runtime-vps.md).
-
 ## Required adapters
 
 Configure the contracts in `config/seo-engine.php`:
@@ -112,7 +110,7 @@ Current phase 1 use cases:
 
 If `pgvector` is not installed on the host, migrations still succeed and embeddings are stored in JSON only.
 
-In the DUERP admin cockpit, the page edit view exposes:
+In the admin cockpit, the page edit view exposes:
 
 - semantic neighbors
 - internal-link suggestions
@@ -212,29 +210,10 @@ The default scheduler can now run the semantic pipeline automatically during the
 
 That means the admin queue can be refreshed before the team logs in, with suggestions already waiting for approval or rejection.
 
-## Business presets
-
-Examples:
-
-- DUERP = DUERP blueprint + DUERP prompt profile + DUERP internal linking
-- Amiantix = asbestos blueprint + asbestos CTA/content profile
-- Real estate = property blueprint + local CTA/content profile
-
-The engine should not be modified for a new niche. Add or swap adapters instead.
-
 ## Example preset
 
 A generic starter preset is included here:
 
 [examples/GenericBusinessPreset/README.md](./examples/GenericBusinessPreset/README.md)
 
-An Amiantix-oriented preset scaffold is also included here:
-
-[examples/AmiantixPreset/README.md](./examples/AmiantixPreset/README.md)
-
 Use it as a scaffold when starting a new niche before you build a richer custom preset.
-
-## Related docs
-
-- semantic layer walkthrough: [../../docs/seo-engine-semantic-layer.md](../../docs/seo-engine-semantic-layer.md)
-- DUERP operator quick guide: [../../docs/seo-engine-quick-guide.md](../../docs/seo-engine-quick-guide.md)

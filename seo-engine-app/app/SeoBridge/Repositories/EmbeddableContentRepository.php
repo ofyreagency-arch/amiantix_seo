@@ -6,7 +6,7 @@ namespace App\SeoBridge\Repositories;
 
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Illuminate\Support\Facades\DB;
 use Ofyre\SeoEngine\Contracts\EmbeddableContentRepository as EmbeddableContentRepositoryContract;
 

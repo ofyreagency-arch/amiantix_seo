@@ -119,7 +119,9 @@ class SeoScoringService
             $recommendations[] = 'Strengthen semantic depth and add content matching Search Console queries.';
         }
 
-        if (! ($page->indexed ?? false)) {
+        $indexed = $page->indexed ?? $page->is_indexed ?? $searchConsoleData['indexed'] ?? false;
+
+        if (! $indexed) {
             $score -= 10;
             $issues[] = 'not_indexed';
             $recommendations[] = 'Check indexation status, sitemap, canonical tags and content quality before requesting re-indexation.';

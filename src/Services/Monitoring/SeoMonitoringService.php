@@ -55,10 +55,10 @@ abstract class SeoMonitoringService
         $this->persistSearchConsoleHistory($page, $metrics, $audit);
         $this->persistMonitoringState($page, $metrics, $audit);
 
-        if ($autoImprove && $audit['score'] < (int) config('seo-engine.monitoring.auto_improve_threshold', 85)) {
+        if ($autoImprove) {
             $this->feedbackLoop->proposeForPage($page, $metrics, $audit);
 
-            return true;
+            return $audit['score'] < (int) config('seo-engine.monitoring.auto_improve_threshold', 85);
         }
 
         return false;

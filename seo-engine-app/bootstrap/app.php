@@ -14,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'seo.engine.token' => \App\Http\Middleware\EnsureSeoEngineToken::class,
-            'seo.engine.log' => \App\Http\Middleware\LogSeoEngineApiRequests::class,
+            'seo.engine.log'   => \App\Http\Middleware\LogSeoEngineApiRequests::class,
+            'admin.auth'       => \App\Http\Middleware\EnsureAdminWebAuth::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

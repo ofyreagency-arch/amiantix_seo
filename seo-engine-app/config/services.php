@@ -53,7 +53,8 @@ return [
     ],
 
     'seo_engine' => [
-        'admin_token' => env('SEO_ENGINE_ADMIN_TOKEN', ''),
+        'admin_token'          => env('SEO_ENGINE_ADMIN_TOKEN', ''),
+        'admin_web_password'   => env('ADMIN_WEB_PASSWORD', ''),
     ],
 
 ];

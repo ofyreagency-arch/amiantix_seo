@@ -15,6 +15,7 @@ class SeoSite extends Model
         'url',
         'niche',
         'locale',
+        'preset',
         'api_token_hash',
         'webhook_url',
         'gsc_site_url',
@@ -29,6 +30,17 @@ class SeoSite extends Model
             'is_active' => 'boolean',
             'settings_json' => 'array',
         ];
+    }
+
+    public function resolvedPreset(): string
+    {
+        $preset = trim((string) ($this->preset ?? ''));
+
+        if ($preset !== '') {
+            return $preset;
+        }
+
+        return $this->niche === 'amiante' ? 'amiantix' : 'generic';
     }
 
     public function scopeActive(Builder $query): Builder

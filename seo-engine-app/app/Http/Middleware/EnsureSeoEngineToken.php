@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\SeoSite;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;

@@ -14,7 +14,7 @@ class SeoAdminController extends Controller
     public function index(): JsonResponse
     {
         $sites = SeoSite::query()
-            ->select(['id', 'site_id', 'name', 'url', 'niche', 'locale', 'is_active', 'webhook_url', 'gsc_site_url', 'created_at'])
+            ->select(['id', 'site_id', 'name', 'url', 'niche', 'locale', 'preset', 'is_active', 'webhook_url', 'gsc_site_url', 'created_at'])
             ->orderBy('created_at')
             ->get();
 
@@ -29,6 +29,7 @@ class SeoAdminController extends Controller
             'url'                  => ['required', 'url', 'max:500'],
             'niche'                => ['nullable', 'string', 'max:100'],
             'locale'               => ['nullable', 'string', 'max:20'],
+            'preset'               => ['nullable', 'string', 'in:generic,amiantix'],
             'webhook_url'          => ['nullable', 'url', 'max:500'],
             'gsc_site_url'         => ['nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
@@ -40,12 +41,13 @@ class SeoAdminController extends Controller
             ...$data,
             'niche'          => $data['niche'] ?? 'general',
             'locale'         => $data['locale'] ?? 'en',
+            'preset'         => $data['preset'] ?? (($data['niche'] ?? null) === 'amiante' ? 'amiantix' : 'generic'),
             'api_token_hash' => $hash,
             'is_active'      => true,
         ]);
 
         return response()->json([
-            'site'      => $site->only(['id', 'site_id', 'name', 'url', 'niche', 'locale', 'created_at']),
+            'site'      => $site->only(['id', 'site_id', 'name', 'url', 'niche', 'locale', 'preset', 'created_at']),
             'api_token' => $raw,
             'warning'   => 'Store this token now — it will never be shown again.',
         ], 201);
@@ -74,6 +76,7 @@ class SeoAdminController extends Controller
             'url'                  => ['sometimes', 'url', 'max:500'],
             'niche'                => ['sometimes', 'string', 'max:100'],
             'locale'               => ['sometimes', 'string', 'max:20'],
+            'preset'               => ['sometimes', 'string', 'in:generic,amiantix'],
             'webhook_url'          => ['sometimes', 'nullable', 'url', 'max:500'],
             'gsc_site_url'         => ['sometimes', 'nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['sometimes', 'nullable', 'string', 'max:500'],
