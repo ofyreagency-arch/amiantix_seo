@@ -77,6 +77,9 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             'status' => 'pending',
         ]);
 
+        config()->set('seo-engine.site.preset', 'amiantix');
+        config()->set('seo-engine.site.niche', 'amiante');
+
         $response = $this
             ->withSession(['admin_authenticated' => true])
             ->get(route('admin.pages.show', [$site->site_id, $page->id]));
@@ -167,6 +170,7 @@ class AdminPageWorkflowRuntimeTest extends TestCase
 
         $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante paris', 'diagnostics');
         $payload = app(AmiantixContentProfile::class)->fallbackPayload('diagnostic amiante paris', 'diagnostics', $blueprint);
+        $publishableContent = $payload['content'].'<section><h2>Ressources complémentaires</h2><p><a href="/reglementation-amiante">Reglementation amiante</a> <a href="/reperage-amiante-avant-travaux">Repérage amiante avant travaux</a> <a href="/coordination-amiante">Coordination amiante</a></p></section>';
 
         $page = SeoPage::query()->create([
             'site_id' => $site->site_id,
@@ -177,16 +181,34 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             'title' => $payload['title'],
             'h1' => $payload['h1'],
             'meta_description' => $payload['meta_description'],
-            'content' => $payload['content'],
+            'content' => $publishableContent,
             'faq_json' => $payload['faq'],
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/diagnostic-amiante', 'label' => 'Diagnostic amiante'],
+                ['url' => '/reperage-amiante-avant-travaux', 'label' => 'Repérage amiante avant travaux'],
+                ['url' => '/ss4-amiante', 'label' => 'SS4 amiante'],
+                ['url' => '/dta-amiante', 'label' => 'DTA amiante'],
+                ['url' => '/coordination-amiante', 'label' => 'Coordination amiante'],
+            ],
             'seo_score' => 82,
             'quality_score' => 100,
             'indexability_score' => 76,
             'image_status' => 'approved',
             'image_quality_score' => 100,
+            'image_path' => 'seo/test-image.jpg',
+            'image_alt' => 'Illustration amiante chantier et coordination documentaire',
+            'image_prompt' => 'Illustration editoriale amiante chantier coordination documentaire',
             'spam_risk' => 'low',
             'duplicate_risk_score' => 20,
+            'cluster_links_count' => 2,
         ]);
+
+        config()->set('seo-engine.site.preset', 'amiantix');
+        config()->set('seo-engine.site.niche', 'amiante');
 
         $response = $this
             ->withSession(['admin_authenticated' => true])
@@ -198,6 +220,148 @@ class AdminPageWorkflowRuntimeTest extends TestCase
 
         $this->assertSame('published', $page->status);
         $this->assertNotNull($page->published_at);
+    }
+
+    public function test_page_show_refreshes_stale_scores_before_rendering(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('danger sante amiante', 'reglementation');
+        $payload = app(AmiantixContentProfile::class)->fallbackPayload('danger sante amiante', 'reglementation', $blueprint);
+        $publishableContent = $payload['content'].'<section><h2>Ressources complémentaires</h2><p><a href="/reglementation-amiante">Reglementation amiante</a> <a href="/reperage-amiante-avant-travaux">Repérage amiante avant travaux</a> <a href="/coordination-amiante">Coordination amiante</a></p></section>';
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'cluster' => 'reglementation',
+            'status' => 'review',
+            'title' => $payload['title'],
+            'h1' => $payload['h1'],
+            'meta_description' => $payload['meta_description'],
+            'content' => $publishableContent,
+            'faq_json' => $payload['faq'],
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/reglementation-amiante', 'label' => 'Reglementation amiante'],
+                ['url' => '/reperage-amiante-avant-travaux', 'label' => 'Repérage amiante avant travaux'],
+                ['url' => '/dta-amiante', 'label' => 'DTA amiante'],
+                ['url' => '/ss4-amiante', 'label' => 'SS4 amiante'],
+                ['url' => '/coordination-amiante', 'label' => 'Coordination amiante'],
+            ],
+            'image_status' => 'approved',
+            'image_path' => 'seo/test-image.jpg',
+            'image_alt' => 'Illustration amiante chantier et coordination documentaire',
+            'image_prompt' => 'Illustration editoriale amiante chantier coordination documentaire',
+            'seo_score' => 12,
+            'quality_score' => 100,
+            'topical_score' => 100,
+            'indexability_score' => 5,
+            'image_quality_score' => 30,
+            'spam_risk' => 'high',
+            'review_issues_json' => ['High spam risk or excessive genericness detected.'],
+            'cluster_links_count' => 2,
+        ]);
+
+        config()->set('seo-engine.site.preset', 'amiantix');
+        config()->set('seo-engine.site.niche', 'amiante');
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+
+        $page->refresh();
+
+        $this->assertSame('low', $page->spam_risk);
+        $this->assertGreaterThanOrEqual(70, $page->seo_score);
+        $this->assertGreaterThanOrEqual(65, $page->indexability_score);
+        $this->assertNotContains('High spam risk or excessive genericness detected.', $page->review_issues_json ?? []);
+        $response->assertDontSee('Risque spam détecté');
+    }
+
+    public function test_publish_refreshes_stale_scores_before_blocking_a_green_page(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('danger sante amiante', 'reglementation');
+        $payload = app(AmiantixContentProfile::class)->fallbackPayload('danger sante amiante', 'reglementation', $blueprint);
+        $publishableContent = $payload['content'].'<section><h2>Ressources complémentaires</h2><p><a href="/reglementation-amiante">Reglementation amiante</a> <a href="/reperage-amiante-avant-travaux">Repérage amiante avant travaux</a> <a href="/coordination-amiante">Coordination amiante</a></p></section>';
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'cluster' => 'reglementation',
+            'status' => 'review',
+            'title' => $payload['title'],
+            'h1' => $payload['h1'],
+            'meta_description' => $payload['meta_description'],
+            'content' => $publishableContent,
+            'faq_json' => $payload['faq'],
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/reglementation-amiante', 'label' => 'Reglementation amiante'],
+                ['url' => '/reperage-amiante-avant-travaux', 'label' => 'Repérage amiante avant travaux'],
+                ['url' => '/dta-amiante', 'label' => 'DTA amiante'],
+                ['url' => '/ss4-amiante', 'label' => 'SS4 amiante'],
+                ['url' => '/coordination-amiante', 'label' => 'Coordination amiante'],
+            ],
+            'image_status' => 'approved',
+            'image_path' => 'seo/test-image.jpg',
+            'image_alt' => 'Illustration amiante chantier et coordination documentaire',
+            'image_prompt' => 'Illustration editoriale amiante chantier coordination documentaire',
+            'seo_score' => 12,
+            'quality_score' => 100,
+            'topical_score' => 100,
+            'indexability_score' => 5,
+            'image_quality_score' => 30,
+            'spam_risk' => 'high',
+            'review_issues_json' => ['High spam risk or excessive genericness detected.'],
+            'cluster_links_count' => 2,
+        ]);
+
+        config()->set('seo-engine.site.preset', 'amiantix');
+        config()->set('seo-engine.site.niche', 'amiante');
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.publish', [$site->site_id, $page->id]));
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $page->refresh();
+
+        $this->assertSame('published', $page->status);
+        $this->assertNotNull($page->published_at);
+        $this->assertSame('low', $page->spam_risk);
     }
 
     public function test_quick_fix_can_generate_and_approve_ai_image(): void

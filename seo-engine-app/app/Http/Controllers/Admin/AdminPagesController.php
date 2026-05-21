@@ -31,6 +31,7 @@ class AdminPagesController extends Controller
         int $pageId,
         ObservedRewriteBridgeService $observedRewrite,
         SeoPageStatusService $statusService,
+        SeoScoreRefreshService $scoreRefresh,
     ): View
     {
         $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
@@ -41,6 +42,7 @@ class AdminPagesController extends Controller
             ])
             ->where('site_id', $siteId)
             ->findOrFail($pageId);
+        $page = $scoreRefresh->refresh($page);
         $observedRewriteContext = $observedRewrite->contextForPage($page);
         $latestMetric = $page->searchConsoleMetrics->first();
         $pendingSuggestions = $page->suggestions->where('status', 'pending')->values();
@@ -98,9 +100,11 @@ class AdminPagesController extends Controller
         SeoPageStatusService $statusService,
         DatabaseSeoCockpitRepository $cockpit,
         ObservedRewriteBridgeService $observedRewrite,
+        SeoScoreRefreshService $scoreRefresh,
     ): RedirectResponse {
         $this->loadSite($siteId);
         $dbPage = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+        $dbPage = $scoreRefresh->refresh($dbPage);
         $observedContext = $observedRewrite->contextForPage($dbPage);
 
         $analysis = [
@@ -171,9 +175,11 @@ class AdminPagesController extends Controller
         string $siteId,
         int $pageId,
         SeoPageStatusService $statusService,
+        SeoScoreRefreshService $scoreRefresh,
     ): RedirectResponse {
         $this->loadSite($siteId);
         $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+        $page = $scoreRefresh->refresh($page);
         $summary = $statusService->summarize($page, true);
 
         if ($summary['blocking_reasons'] !== []) {
