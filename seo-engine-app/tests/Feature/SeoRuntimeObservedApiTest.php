@@ -312,6 +312,10 @@ class SeoRuntimeObservedApiTest extends TestCase
     {
         [$site, $token] = $this->siteWithToken();
 
+        config()->set('services.google_search_console.enabled', true);
+        config()->set('services.google_search_console.access_token', 'test-token');
+        config()->set('services.google_search_console.site_url', 'sc-domain:runtime-api.test');
+
         Http::fake([
             '*' => Http::response([
                 'inspectionResult' => [
