@@ -10,6 +10,7 @@ use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class SeoRuntimeObservedApiTest extends TestCase
@@ -233,6 +234,77 @@ class SeoRuntimeObservedApiTest extends TestCase
             ->assertJsonPath('page.slug', 'guide-amiante')
             ->assertJsonPath('observed.path', '/guide-amiante')
             ->assertJsonPath('observed.health.indexability', 100);
+    }
+
+    public function test_analyze_endpoint_includes_observed_page_analysis_and_recommendations(): void
+    {
+        [$site, $token] = $this->siteWithToken();
+
+        Http::fake([
+            '*' => Http::response([
+                'inspectionResult' => [
+                    'indexStatusResult' => [
+                        'verdict' => 'PASS',
+                        'coverageState' => 'Submitted and indexed',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'guide amiante',
+            'slug' => 'guide-amiante',
+            'status' => 'published',
+            'title' => 'Guide amiante',
+            'content' => '<p>Guide amiante</p>',
+        ]);
+
+        $observed = SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://runtime-api.test/guide-amiante',
+            'url_hash' => sha1('https://runtime-api.test/guide-amiante'),
+            'path' => '/guide-amiante',
+            'title' => 'Guide amiante',
+            'meta_description' => null,
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+            'indexability_state' => 'noindex',
+            'last_status_code' => 200,
+            'latest_word_count' => 160,
+            'authority_score' => 0.12,
+            'orphan_score' => 0.81,
+            'overlap_score' => 0.20,
+            'pillar_likelihood' => 0.18,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now(),
+        ]);
+
+        SeoRecommendation::query()->create([
+            'site_id' => $site->site_id,
+            'site_page_id' => $observed->id,
+            'type' => 'refresh_page',
+            'priority' => 20,
+            'estimated_impact' => 'medium',
+            'difficulty' => 'medium',
+            'cluster' => 'guide',
+            'title' => 'Strengthen weak page: Guide amiante',
+            'reasoning' => 'Observed crawl says the page is weak.',
+            'suggested_action' => 'Improve coverage depth and headings.',
+            'status' => 'pending',
+            'meta_json' => [],
+            'generated_at' => now(),
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/seo/analyze', ['slug' => 'guide-amiante']);
+
+        $response->assertOk()
+            ->assertJsonPath('page.slug', 'guide-amiante')
+            ->assertJsonPath('observed_page.path', '/guide-amiante')
+            ->assertJsonPath('observed_page.indexability_state', 'noindex')
+            ->assertJsonPath('observed_analysis.recommendations.0.type', 'refresh_page')
+            ->assertJsonPath('observed_analysis.health.flags.0', 'missing_meta_description');
     }
 
     /**

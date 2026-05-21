@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\ObservedSite\ObservedPageHealthService;
 use App\ObservedSite\ObservedRewriteBridgeService;
 use App\ObservedSite\SiteHealthService;
 use App\Models\SeoPage;
@@ -83,6 +84,7 @@ class SeoRuntimeController extends Controller
         SearchConsoleService $searchConsole,
         DatabaseSeoCockpitRepository $cockpitRepository,
         ObservedRewriteBridgeService $observedRewrite,
+        ObservedPageHealthService $observedPageHealth,
     ): JsonResponse {
         $payload = $request->validate([
             'slug' => ['required', 'string'],
@@ -93,6 +95,7 @@ class SeoRuntimeController extends Controller
         $dbPage = $page instanceof SeoPage
             ? $page
             : SeoPage::query()->where('site_id', $page->site_id ?? null)->where('slug', $payload['slug'])->first();
+        $observedPage = $dbPage ? $this->observedPageForLegacy($dbPage) : null;
 
         return response()->json([
             'page' => $page,
@@ -101,6 +104,17 @@ class SeoRuntimeController extends Controller
             'semantic_context' => $cockpitRepository->semanticContextForPage($page),
             'timeline' => $cockpitRepository->timelineForPage($page),
             'observed_rewrite' => $dbPage ? $observedRewrite->contextForPage($dbPage) : null,
+            'observed_page' => $observedPage ? $this->observedPagePayload($observedPage, $observedPageHealth) : null,
+            'observed_analysis' => $observedPage ? [
+                'health' => $observedPageHealth->forPage($observedPage),
+                'recommendations' => SeoRecommendation::query()
+                    ->where('site_id', $observedPage->site_id)
+                    ->where('site_page_id', $observedPage->id)
+                    ->where('status', 'pending')
+                    ->orderBy('priority')
+                    ->limit(5)
+                    ->get(['type', 'priority', 'title', 'suggested_action', 'meta_json']),
+            ] : null,
         ]);
     }
 
@@ -366,9 +380,9 @@ class SeoRuntimeController extends Controller
     /**
      * @return array<string,mixed>
      */
-    private function observedPagePayload(SeoSitePage $page): array
+    private function observedPagePayload(SeoSitePage $page, ?ObservedPageHealthService $observedPageHealth = null): array
     {
-        $pageHealth = app(\App\ObservedSite\ObservedPageHealthService::class)->forPage($page);
+        $pageHealth = ($observedPageHealth ?? app(ObservedPageHealthService::class))->forPage($page);
 
         return [
             'id' => $page->id,
