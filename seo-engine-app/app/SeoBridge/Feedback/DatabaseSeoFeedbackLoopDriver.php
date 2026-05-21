@@ -24,7 +24,7 @@ class DatabaseSeoFeedbackLoopDriver implements SeoFeedbackLoopDriver
             return null;
         }
 
-        if (($audit['score'] ?? 100) >= 85) {
+        if ($this->pageHasRecovered($metrics, $audit)) {
             $this->suggestions->discardPending($page, 'feedback_loop:auto');
 
             return null;
@@ -48,5 +48,22 @@ class DatabaseSeoFeedbackLoopDriver implements SeoFeedbackLoopDriver
             ],
             'status' => 'pending',
         ]);
+    }
+
+    private function pageHasRecovered(array $metrics, array $audit): bool
+    {
+        if (($audit['score'] ?? 100) >= 85) {
+            return true;
+        }
+
+        $indexed = (bool) ($metrics['indexed'] ?? false);
+        $impressions = (float) ($metrics['impressions'] ?? 0);
+        $ctr = (float) ($metrics['ctr'] ?? 0);
+        $position = (float) ($metrics['position'] ?? 100);
+
+        return $indexed
+            && $impressions >= 100
+            && $ctr >= 0.03
+            && $position <= 10.0;
     }
 }
