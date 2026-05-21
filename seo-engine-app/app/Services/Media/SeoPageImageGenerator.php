@@ -42,14 +42,17 @@ class SeoPageImageGenerator
                     'prompt' => $prompt,
                     'size' => '1536x1024',
                     'quality' => 'high',
-                    'response_format' => 'b64_json',
                 ]);
         } catch (ConnectionException $exception) {
             throw new RuntimeException('Connexion OpenAI impossible pendant la génération d’image: '.$exception->getMessage(), previous: $exception);
         }
 
         if (! $response->successful()) {
-            throw new RuntimeException('OpenAI a refusé la génération d’image (HTTP '.$response->status().').');
+            $message = trim((string) $response->json('error.message', ''));
+            throw new RuntimeException(
+                'OpenAI a refusé la génération d’image (HTTP '.$response->status().')'
+                .($message !== '' ? ' : '.$message : '.')
+            );
         }
 
         $base64 = $response->json('data.0.b64_json');

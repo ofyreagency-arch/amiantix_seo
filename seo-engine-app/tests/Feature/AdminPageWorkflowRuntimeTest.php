@@ -481,9 +481,19 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             'image_status' => 'missing',
         ]);
 
+        Http::assertNothingSent();
+
         $this->withSession(['admin_authenticated' => true])
             ->post(route('admin.pages.quick-fix', [$site->site_id, $page->id]), ['action' => 'generate_image'])
             ->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        Http::assertSent(function ($request) {
+            $payload = $request->data();
+
+            return $request->url() === 'https://api.openai.com/v1/images/generations'
+                && ! array_key_exists('response_format', $payload)
+                && ($payload['model'] ?? null) === 'gpt-image-1';
+        });
 
         $page->refresh();
 
