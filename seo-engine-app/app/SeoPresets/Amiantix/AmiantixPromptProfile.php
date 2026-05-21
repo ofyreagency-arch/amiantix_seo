@@ -29,9 +29,11 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- ecrire pour donneurs d ordre, syndics, maitres d oeuvre, entreprises, collectivites et responsables techniques\n".
             "- ouvrir sur une situation terrain ou un moment de chantier reconnaissable\n".
             "- integrer obligations, vigilance terrain, documentation, coordination chantier et reduction du risque\n".
-            "- faire ressortir repérage, DTA, SS3, SS4, confinement, empoussièrement, phasage et arbitrages documentaires quand c est pertinent\n".
+            "- faire ressortir repérage, DTA, SS3, SS4, confinement, empoussièrement, phasage, coordination SPS, MOA/MOE et arbitrages documentaires quand c est pertinent\n".
             "- bannir les phrases vagues, les formulations premium, le meta discours, les banalites SEO et le blabla commercial\n".
             "- imposer un tableau riche avec colonnes risque / situation reelle / consequence / mesures / responsable / priorite\n".
+            "- structurer avec des H2/H3 nombreux, des listes courtes, des checklists, des points de vigilance et des blocs visuellement respirables\n".
+            "- couvrir aussi les contextes copropriete, ERP, site occupe, maintenance contrainte et changement d hypothese de travaux\n".
             "- inclure des cas pratiques, des erreurs frequentes, des points de vigilance pour le donneur d ordre et une FAQ terrain de 5 questions minimum\n".
             "- conclusion orientee action, verification et preparation documentaire, pas marketing\n".
             "- 1400 mots minimum\n".
@@ -51,6 +53,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             'Preuves a faire citer: '.json_encode($blueprint['evidence_examples'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             "Interdictions: ne pas parler de SEO, de Google, d IA, de structure editoriale ou du contenu lui-meme.\n".
             "Style attendu: concret, reglementaire quand il faut, oriente coordination, documents, responsabilites, arbitrages chantier et blocages evitables.\n".
+            "Enrichir avec plus de H2/H3, de checklists, de points de vigilance, de cas terrain et de contextes ERP / copropriete / site occupe si le contenu reste trop compact.\n".
             "Retourne uniquement un JSON avec title, meta_description, h1, content, faq et schema.\n".
             "Contenu actuel:\n".($page->content ?? '');
     }
@@ -67,6 +70,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- situations reelles de site occupe, maintenance, travaux ou copropriete quand c est pertinent\n".
             "- coordination entre donneur d ordre, diagnostiqueur, entreprise et occupants\n".
             "- references aux documents, validations, hypotheses de travaux et points de controle\n".
+            "- ajouter de l air visuel avec listes, checklists et sections courtes quand le texte est trop compact\n".
             "- style simple, humain, professionnel, sans prose marketing\n".
             "Retourne un JSON avec title, meta_description, h1, sections, faq, internal_links et rationale.\n".
             "Contenu actuel:\n".($page->content ?? '');

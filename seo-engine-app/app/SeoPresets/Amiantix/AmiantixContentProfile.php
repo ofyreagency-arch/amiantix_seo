@@ -18,13 +18,17 @@ final class AmiantixContentProfile implements NicheContentProvider
 
         $content = implode('', [
             $this->openingSituationBlock($blueprint),
+            $this->regulatoryScopeBlock($blueprint),
             $this->riskTableBlock($blueprint),
             $this->terrainRisksBlock($blueprint),
             $this->interventionFlowBlock($blueprint),
+            $this->operationalChecklistBlock($blueprint),
             $this->documentsBlock($blueprint),
             $this->donneurOrdreBlock($blueprint),
             $this->practicalCasesBlock($blueprint),
             $this->mistakesBlock($blueprint),
+            $this->sanctionsBlock($blueprint),
+            $this->erpOccupationBlock($blueprint),
             $this->evidenceBlock($blueprint),
             $this->faqPreviewBlock($blueprint),
             $this->internalLinksBlock(is_array($links) ? $links : [], $blueprint),
@@ -64,10 +68,14 @@ final class AmiantixContentProfile implements NicheContentProvider
         }
 
         $enrichmentBlocks = [
+            $this->regulatoryScopeBlock($blueprint),
             $this->costsDelaysBlock($blueprint),
             $this->controlMatrixBlock($blueprint),
+            $this->operationalChecklistBlock($blueprint),
             $this->siteOccupationBlock($blueprint),
+            $this->erpOccupationBlock($blueprint),
             $this->documentRoutineBlock($blueprint),
+            $this->sanctionsBlock($blueprint),
             $this->internalLinksBlock(is_array($links) ? $links : [], $blueprint),
         ];
 
@@ -100,13 +108,17 @@ final class AmiantixContentProfile implements NicheContentProvider
         $links = $context['internal_links'] ?? (($context['page']->internal_links_json ?? null) ?: []);
         $catalog = [
             'Contexte et obligations' => $this->openingSituationBlock($blueprint),
+            'Repérage, SS3, SS4 et responsabilites de coordination' => $this->regulatoryScopeBlock($blueprint),
             'Tableau de priorisation des risques' => $this->riskTableBlock($blueprint),
             'Situations a risque sur le terrain' => $this->terrainRisksBlock($blueprint),
             'Processus d intervention et coordination' => $this->interventionFlowBlock($blueprint),
+            'Checklist operationnelle avant intervention' => $this->operationalChecklistBlock($blueprint),
             'Documents et preuves a conserver' => $this->documentsBlock($blueprint),
             'Points de vigilance pour le donneur d ordre' => $this->donneurOrdreBlock($blueprint),
             'Cas pratiques terrain a cadrer' => $this->practicalCasesBlock($blueprint),
             'Erreurs frequentes et blocages evitables' => $this->mistakesBlock($blueprint),
+            'Blocages, sanctions et signaux d alerte a ne pas banaliser' => $this->sanctionsBlock($blueprint),
+            'Copropriete, ERP et site occupe : ce qui change vraiment' => $this->erpOccupationBlock($blueprint),
             'Matrice de controle documentaire et terrain' => $this->controlMatrixBlock($blueprint),
             'Questions terrain qui reviennent souvent' => $this->faqPreviewBlock($blueprint),
             'Ressources et pages utiles a croiser' => $this->internalLinksBlock(is_array($links) ? $links : [], $blueprint),
@@ -131,6 +143,14 @@ final class AmiantixContentProfile implements NicheContentProvider
         $firstCase = (string) ($cases[0] ?? 'Le risque amiante se joue autant dans le cadrage que dans le geste technique.');
 
         return '<section><h2>Contexte et obligations</h2><p>'.$firstCase.'</p><p>Sur un sujet amiante, la qualite de la decision depend rarement d une seule piece. Il faut relier le repérage, le contexte de site, les hypotheses de travaux, la circulation des personnes, la sequence chantier et les preuves documentaires. Les contraintes les plus sensibles reviennent souvent autour de '.$constraints.'.</p><p>Le lecteur attend donc plus qu un rappel reglementaire. Il veut comprendre qui doit verifier quoi, a quel moment, avec quelle piece et comment eviter qu un flou documentaire se transforme en retard, en surcout ou en exposition mal maitrisee.</p></section>';
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
+    private function regulatoryScopeBlock(array $blueprint): string
+    {
+        return '<section><h2>Repérage, SS3, SS4 et responsabilites de coordination</h2><p>Un contenu expert doit clarifier ce qui releve du repérage avant travaux, de la strategie d intervention et de la coordination entre acteurs. Le lecteur ne cherche pas seulement une definition: il veut savoir a quel moment la logique SS3 ou SS4 devient pertinente, comment elle s articule avec le perimetre de travaux et qui doit refermer les angles morts avant diffusion d un ordre d intervention.</p><h3>Repérage avant travaux</h3><p>Le repérage doit coller a l hypothese de travaux reelle, pas a une description trop large ou trop abstraite. Sans ce cadrage, le chantier part sur une base fragile.</p><h3>SS3 et SS4</h3><p>La page doit aider a distinguer les logiques de retrait ou encapsulage d un cote, et les interventions susceptibles d exposer a l amiante de l autre. Cette distinction change les methodes, les validations et la vigilance documentaire.</p><h3>MOA, MOE et coordination SPS</h3><p>Dans les contextes complexes, la maitrise d ouvrage, la maitrise d oeuvre et la coordination SPS doivent lire les memes hypothese de travaux, les memes limites de zone et les memes preuves. C est souvent la que se joue la solidite pratique du dispositif.</p></section>';
     }
 
     /**
@@ -188,6 +208,26 @@ final class AmiantixContentProfile implements NicheContentProvider
     /**
      * @param  array<string,mixed>  $blueprint
      */
+    private function operationalChecklistBlock(array $blueprint): string
+    {
+        $items = [
+            'Verifier que l hypothese de travaux correspond bien a la realite technique du site.',
+            'Croiser le repérage, le DTA ou les pieces existantes avec les zones reelles a ouvrir, decouper ou maintenir.',
+            'Identifier qui valide les limites de zone, les diffusions documentaires et les conditions d acces.',
+            'Prevoir les impacts d un site occupe, d un ERP ou d une copropriete avant le lancement des operations.',
+            'Conserver une preuve simple des arbitrages pris quand le contexte de chantier evolue.',
+        ];
+
+        $list = collect($items)
+            ->map(static fn (string $item): string => '<li>'.$item.'</li>')
+            ->implode('');
+
+        return '<section><h2>Checklist operationnelle avant intervention</h2><p>Cette checklist donne de l air au contenu et aide a convertir une lecture expert en verification immediate. Elle peut etre relue par un donneur d ordre, un syndic, un responsable technique ou un conducteur d operations.</p><ul>'.$list.'</ul></section>';
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
     private function documentsBlock(array $blueprint): string
     {
         $items = collect($blueprint['evidence_examples'] ?? [])
@@ -240,6 +280,22 @@ final class AmiantixContentProfile implements NicheContentProvider
             ->implode('');
 
         return '<section><h2>Erreurs frequentes et blocages evitables</h2><p>Les blocages amiante viennent souvent d un melange de theorie juste et d execution mal preparee. Les erreurs ci-dessous reviennent souvent quand la page ou le chantier restent trop abstraits.</p><ul>'.$items.'</ul><p>Les nommer clairement aide a differencier un contenu expert d un contenu seulement informatif.</p></section>';
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
+    private function sanctionsBlock(array $blueprint): string
+    {
+        return '<section><h2>Blocages, sanctions et signaux d alerte a ne pas banaliser</h2><p>Les consequences d une mauvaise lecture du risque amiante ne se limitent pas a un simple retard. On peut aller vers une suspension d intervention, une reprise de repérage, une recoordination d urgence, un blocage d entreprise ou une tension forte avec le maitre d ouvrage et les occupants.</p><h3>Quand le chantier se fige</h3><p>Le blocage arrive souvent quand une zone n est pas clairement couverte, quand une hypothese de travaux change sans mise a jour documentaire ou quand les validations ne sont pas partagees au bon moment.</p><h3>Pourquoi ce point doit apparaitre dans le contenu</h3><p>Un article expert doit montrer les consequences pratiques d une preparation faible: surcout, perte de planning, exposition mal maitrisee et responsabilites mal distribuees. C est cette couche qui rend la lecture vraiment decisionnelle.</p></section>';
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
+    private function erpOccupationBlock(array $blueprint): string
+    {
+        return '<section><h2>Copropriete, ERP et site occupe : ce qui change vraiment</h2><p>Les environnements occupes demandent des arbitrages plus fins qu un simple rappel technique. En copropriete, il faut souvent composer avec les parties communes, les occupations successives, les zones mal documentees et la communication avec plusieurs interlocuteurs. En ERP, la circulation du public, la continuite de service et les restrictions d acces changent directement la facon de preparer l intervention.</p><h3>Ce qu un bon contenu doit expliciter</h3><ul><li>Qui est informe et a quel moment.</li><li>Quelles zones doivent etre securisees ou requalifiees avant intervention.</li><li>Comment le phasage limite la coactivite, la circulation et les reprises de chantier.</li><li>Quelles preuves documentaires doivent suivre le chantier jusqu a la cloture.</li></ul></section>';
     }
 
     /**
@@ -351,8 +407,16 @@ final class AmiantixContentProfile implements NicheContentProvider
         $risk = $risks[($cycle - 1) % max(1, count($risks))] ?? ['Risque amiante', 'Situation terrain', 'Mesure utile'];
         $control = $blueprint['inspection_focus'][($cycle - 1) % max(1, count($blueprint['inspection_focus'] ?? ['controle terrain']))] ?? 'controle terrain';
         $proof = $blueprint['evidence_examples'][($cycle - 1) % max(1, count($blueprint['evidence_examples'] ?? ['preuve']))] ?? 'preuve documentaire';
+        $checkpoints = [
+            'Verifier que la zone et l hypothese de travaux sont toujours alignees.',
+            'Confirmer la diffusion des pieces utiles avant intervention.',
+            'Tracer la validation ou la reserve qui modifie le deroule du chantier.',
+        ];
+        $list = collect($checkpoints)
+            ->map(static fn (string $item): string => '<li>'.$item.'</li>')
+            ->implode('');
 
-        return '<section><h2>Zoom terrain '.$cycle.'</h2><h3>'.$risk[0].'</h3><p>'.$risk[1].'. Ce point devient critique quand la preparation documentaire, la coordination des acteurs ou la lecture du site ne suivent pas le rythme reel des travaux ou de la maintenance.</p><p>La mesure attendue doit rester visible: '.$risk[2].'. Le point de controle utile est souvent '.$control.', avec une preuve concrete comme '.$proof.'. C est ce niveau de detail qui rend un contenu amiante exploitable par un responsable technique, un syndic ou un donneur d ordre.</p></section>';
+        return '<section><h2>Zoom terrain '.$cycle.'</h2><h3>'.$risk[0].'</h3><p>'.$risk[1].'. Ce point devient critique quand la preparation documentaire, la coordination des acteurs ou la lecture du site ne suivent pas le rythme reel des travaux ou de la maintenance.</p><p>La mesure attendue doit rester visible: '.$risk[2].'. Le point de controle utile est souvent '.$control.', avec une preuve concrete comme '.$proof.'. C est ce niveau de detail qui rend un contenu amiante exploitable par un responsable technique, un syndic ou un donneur d ordre.</p><ul>'.$list.'</ul></section>';
     }
 
     private function contentWordCount(string $content): int

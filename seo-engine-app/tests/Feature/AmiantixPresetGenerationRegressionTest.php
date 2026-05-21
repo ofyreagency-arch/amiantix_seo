@@ -36,12 +36,17 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
 
         $content = (string) $payload['content'];
 
+        $this->assertStringContainsString('Repérage, SS3, SS4 et responsabilites de coordination', $content);
         $this->assertStringContainsString('Tableau de priorisation des risques', $content);
+        $this->assertStringContainsString('Checklist operationnelle avant intervention', $content);
         $this->assertStringContainsString('Documents et preuves a conserver', $content);
+        $this->assertStringContainsString('Blocages, sanctions et signaux d alerte a ne pas banaliser', $content);
+        $this->assertStringContainsString('Copropriete, ERP et site occupe : ce qui change vraiment', $content);
         $this->assertStringContainsString('Matrice de controle documentaire et terrain', $content);
         $this->assertStringContainsString('<table>', $content);
+        $this->assertStringContainsString('<ul>', $content);
         $this->assertGreaterThanOrEqual(5, count($payload['faq']));
-        $this->assertGreaterThanOrEqual(1350, str_word_count(strtolower(strip_tags($content))));
+        $this->assertGreaterThanOrEqual(1450, str_word_count(strtolower(strip_tags($content))));
     }
 
     public function test_amiantix_depth_enrichment_injects_missing_structure_into_thin_content(): void
@@ -51,10 +56,13 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
 
         $content = $provider->ensureContentDepth('<h2>Contexte et obligations</h2><p>Texte tres court.</p>', $blueprint);
 
+        $this->assertStringContainsString('Repérage, SS3, SS4 et responsabilites de coordination', $content);
         $this->assertStringContainsString('Tableau de priorisation des risques', $content);
+        $this->assertStringContainsString('Checklist operationnelle avant intervention', $content);
+        $this->assertStringContainsString('Blocages, sanctions et signaux d alerte a ne pas banaliser', $content);
         $this->assertStringContainsString('Questions terrain qui reviennent souvent', $content);
         $this->assertStringContainsString('Passer du constat a une intervention maitrisée', $content);
-        $this->assertGreaterThanOrEqual(1350, str_word_count(strtolower(strip_tags($content))));
+        $this->assertGreaterThanOrEqual(1450, str_word_count(strtolower(strip_tags($content))));
     }
 
     public function test_amiantix_generation_prompt_demands_expert_structure(): void
@@ -71,6 +79,8 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('tableau riche', $prompt);
         $this->assertStringContainsString('Cas pratiques a couvrir', $prompt);
         $this->assertStringContainsString('Pieces et preuves a citer', $prompt);
+        $this->assertStringContainsString('coordination SPS, MOA/MOE', $prompt);
+        $this->assertStringContainsString('checklists, des points de vigilance', $prompt);
         $this->assertStringContainsString('1400 mots minimum', $prompt);
     }
 }
