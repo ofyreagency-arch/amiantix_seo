@@ -1,0 +1,150 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSite;
+use App\Models\SeoSuggestion;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class AdminPageWorkflowRuntimeTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_page_show_displays_live_workflow_and_active_suggestion(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'status' => 'draft',
+            'title' => 'Diagnostic amiante Paris',
+            'content' => '<p>Contenu initial.</p>',
+            'seo_score' => 58,
+            'quality_score' => 100,
+            'indexability_score' => 64,
+            'image_quality_score' => 30,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->toDateString(),
+            'window_days' => 28,
+            'url' => 'https://workflow-site.test/diagnostic-amiante-paris',
+            'impressions' => 42,
+            'clicks' => 2,
+            'ctr' => 0.0476,
+            'position' => 11.2,
+            'is_indexed' => true,
+        ]);
+
+        SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:enrich',
+            'signals_json' => ['seo_score' => 58],
+            'suggestions_json' => [
+                'title' => 'Diagnostic amiante Paris : obligations et coordination',
+                'sections' => [
+                    'Ajouter une checklist opérationnelle avant intervention.',
+                    'Préciser les contextes copropriété et ERP.',
+                ],
+                'rationale' => [
+                    'Le contenu est déjà bon sur le fond, mais il manque encore un dernier cran de lisibilité et de workflow.',
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Statut live');
+        $response->assertSee('Workflow');
+        $response->assertSee('Google');
+        $response->assertSee('Suggestion active');
+        $response->assertSee('Appliquer à la page');
+    }
+
+    public function test_applying_a_suggestion_updates_page_fields_and_marks_it_applied(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'status' => 'draft',
+            'title' => 'Ancien titre',
+            'meta_description' => 'Ancienne meta',
+            'content' => '<p>Contenu initial.</p>',
+        ]);
+
+        $suggestion = SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:enrich',
+            'signals_json' => ['seo_score' => 58],
+            'suggestions_json' => [
+                'title' => 'Diagnostic amiante Paris : obligations, preuves et coordination',
+                'meta_description' => 'Une version plus claire et plus utile pour la publication.',
+                'h1' => 'Diagnostic amiante Paris : ce qu il faut cadrer avant intervention',
+                'faq' => [
+                    ['question' => 'Quand faut-il agir ?', 'answer' => 'Avant la diffusion d un ordre d intervention.'],
+                ],
+                'internal_links' => [
+                    ['url' => '/diagnostic-amiante', 'text' => 'Diagnostic amiante'],
+                ],
+                'sections' => [
+                    'Ajouter une checklist opérationnelle avant intervention.',
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.suggestions.apply', [$site->site_id, $page->id, $suggestion->id]));
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $page->refresh();
+        $suggestion->refresh();
+
+        $this->assertSame('review', $page->status);
+        $this->assertSame('Diagnostic amiante Paris : obligations, preuves et coordination', $page->title);
+        $this->assertSame('Une version plus claire et plus utile pour la publication.', $page->meta_description);
+        $this->assertSame('Diagnostic amiante Paris : ce qu il faut cadrer avant intervention', $page->h1);
+        $this->assertSame('applied', $suggestion->status);
+        $this->assertNotNull($suggestion->applied_at);
+        $this->assertSame('Quand faut-il agir ?', $page->faq_json[0]['question']);
+        $this->assertSame('Diagnostic amiante', $page->internal_links_json[0]['label']);
+    }
+}

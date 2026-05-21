@@ -16,6 +16,37 @@
     $statusColors = ['published' => 'bg-green-100 text-green-700', 'draft' => 'bg-gray-100 text-gray-600', 'review' => 'bg-yellow-100 text-yellow-700', 'error' => 'bg-red-100 text-red-700'];
     $sc = $statusColors[$page->status] ?? 'bg-gray-100 text-gray-600';
     $observedRewriteContext = session('observed_rewrite_context', $observedRewriteContext ?? null);
+    $pendingSuggestions = $pendingSuggestions ?? collect();
+    $latestPendingSuggestion = $pendingSuggestions->first();
+    $latestMetric = $latestMetric ?? null;
+    $pageIsHealthy = (float) ($page->seo_score ?? 0) >= 70 && (float) ($page->quality_score ?? 0) >= 80 && (float) ($page->indexability_score ?? 0) >= 65;
+    $pageIsApproved = $pendingSuggestions->isEmpty() && empty($page->review_issues_json);
+    $imageApproved = ($page->image_status ?? null) === 'approved' || (float) ($page->image_quality_score ?? 0) >= 80;
+    $workflowStates = [
+        ['label' => 'Draft', 'active' => in_array($page->status, ['draft', 'review', 'published'], true)],
+        ['label' => 'Preview', 'active' => filled($page->content)],
+        ['label' => 'Review', 'active' => in_array($page->status, ['review', 'published'], true)],
+        ['label' => 'Publish', 'active' => $page->status === 'published' || filled($page->published_at)],
+        ['label' => 'Monitor', 'active' => $latestMetric !== null || (($observedRewriteContext['matched'] ?? false) === true)],
+    ];
+    $heroBadges = array_filter([
+        $page->status === 'published' || filled($page->published_at) ? ['label' => 'Published', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
+        $pageIsHealthy ? ['label' => 'Healthy', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
+        $pageIsApproved ? ['label' => 'Approved', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
+        ($page->is_indexed || ($latestMetric?->is_indexed ?? false)) ? ['label' => 'Indexée', 'tone' => 'bg-sky-100 text-sky-700'] : null,
+        filled($page->cluster) ? ['label' => Str::upper((string) $page->cluster), 'tone' => 'bg-slate-100 text-slate-700'] : null,
+    ]);
+    $imageUrl = null;
+    if (filled($page->image_path)) {
+        $imagePath = (string) $page->image_path;
+        $imageUrl = Str::startsWith($imagePath, ['http://', 'https://', '/']) ? $imagePath : asset('storage/'.$imagePath);
+    }
+    $liveCards = [
+        ['label' => 'SEO score', 'value' => (int) ($page->seo_score ?? 0), 'suffix' => '/100'],
+        ['label' => 'Indexability', 'value' => (int) ($page->indexability_score ?? 0), 'suffix' => '/100'],
+        ['label' => 'Quality gate', 'value' => (int) ($page->quality_score ?? 0), 'suffix' => '/100'],
+        ['label' => 'Image quality', 'value' => (int) ($page->image_quality_score ?? 0), 'suffix' => '/100'],
+    ];
 @endphp
 
 {{-- Header --}}
@@ -63,6 +94,121 @@
             <div class="text-xs text-gray-400 mt-1">{{ $score['label'] }}</div>
         </div>
         @endforeach
+    </div>
+</div>
+
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm px-8 py-7 mb-6">
+    <div class="flex flex-wrap items-center gap-2 mb-5">
+        @foreach($heroBadges as $badge)
+            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ $badge['tone'] }}">{{ $badge['label'] }}</span>
+        @endforeach
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[0.42fr_0.58fr] gap-6">
+        <div>
+            <h2 class="text-3xl font-bold text-gray-900 leading-tight">{{ $page->title ?: $page->keyword }}</h2>
+            <div class="mt-2 text-sm text-gray-500">{{ $page->canonicalPath() }}</div>
+
+            <div class="mt-6 rounded-3xl overflow-hidden border border-gray-100 bg-slate-50 min-h-[260px] flex items-center justify-center">
+                @if($imageUrl)
+                    <img src="{{ $imageUrl }}" alt="{{ $page->image_alt ?: $page->keyword }}" class="w-full h-full object-cover">
+                @else
+                    <div class="px-8 py-10 text-center">
+                        <div class="mx-auto w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2 1.586-1.586a2 2 0 012.828 0L20 14m-6-8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="mt-4 text-lg font-semibold text-slate-700">Image en attente</div>
+                        <div class="mt-2 text-sm text-slate-500">Le contenu est là, mais il manque encore le visuel qui aide la page à ressembler à un vrai objet éditorial publié.</div>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <div class="space-y-5">
+            <div class="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
+                <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Statut live</div>
+                <div class="mt-2 text-4xl font-semibold text-slate-900">{{ filled($page->published_at) || $page->status === 'published' ? 'En ligne' : 'En préparation' }}</div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+                    @foreach($liveCards as $card)
+                    <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-sm text-slate-600">{{ $card['label'] }}</div>
+                            <div class="text-2xl font-semibold text-slate-900">{{ $card['value'] }}{{ $card['suffix'] }}</div>
+                        </div>
+                        <div class="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden">
+                            <div class="h-full rounded-full {{ $card['value'] >= 80 ? 'bg-emerald-500' : ($card['value'] >= 60 ? 'bg-amber-500' : 'bg-rose-500') }}" style="width: {{ max(4, min(100, (int) $card['value'])) }}%"></div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="rounded-3xl border border-slate-200 bg-white px-5 py-5">
+                    <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Google</div>
+                    <div class="mt-3 text-4xl font-semibold text-slate-900">{{ (int) round((float) ($latestMetric?->impressions ?? 0)) }}</div>
+                    <div class="mt-1 text-sm text-slate-500">impressions</div>
+                    <div class="mt-6 text-sm text-slate-600">
+                        CTR {{ number_format((float) ($latestMetric?->ctr ?? 0) * 100, 2) }}% · Pos {{ number_format((float) ($latestMetric?->position ?? 0), 1) }}
+                    </div>
+                </div>
+
+                <div class="rounded-3xl border border-slate-200 bg-white px-5 py-5">
+                    <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Workflow</div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        @foreach($workflowStates as $item)
+                            <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium {{ $item['active'] ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' }}">
+                                {{ $item['label'] }}
+                            </span>
+                        @endforeach
+                    </div>
+                    <div class="mt-5 text-sm text-slate-600">
+                        {{ $pendingSuggestions->count() }} suggestion(s) pending · image {{ $imageApproved ? 'validée' : 'à revoir' }} · indexation {{ ($page->is_indexed || ($latestMetric?->is_indexed ?? false)) ? 'ok' : 'à confirmer' }}
+                    </div>
+                </div>
+            </div>
+
+            @if($latestPendingSuggestion)
+            <div class="rounded-3xl border border-purple-100 bg-purple-50 px-5 py-5">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-xs uppercase tracking-[0.25em] text-purple-500">Suggestion active</div>
+                        <div class="mt-2 text-lg font-semibold text-purple-900">{{ $latestPendingSuggestion->source }}</div>
+                        <div class="mt-2 text-sm text-purple-700">
+                            {{ collect(\Illuminate\Support\Arr::wrap($latestPendingSuggestion->suggestions_json['rationale'] ?? []))->take(2)->implode(' ') ?: 'Une suggestion éditoriale est prête à être revue.' }}
+                        </div>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-purple-600">{{ $latestPendingSuggestion->created_at?->diffForHumans() }}</span>
+                </div>
+
+                @if(!empty($latestPendingSuggestion->suggestions_json['sections']))
+                    <div class="mt-4 space-y-2">
+                        @foreach(array_slice($latestPendingSuggestion->suggestions_json['sections'], 0, 4) as $section)
+                            <div class="flex items-start gap-2 text-sm text-purple-800">
+                                <span class="mt-0.5 text-purple-400">•</span>
+                                <span>{{ $section }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <div class="mt-5 flex flex-wrap items-center gap-3">
+                    <form method="POST" action="{{ route('admin.pages.suggestions.apply', [$site->site_id, $page->id, $latestPendingSuggestion->id]) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+                            Appliquer à la page
+                        </button>
+                    </form>
+                    <a href="{{ route('admin.sites.autopilot', $site->site_id) }}" class="inline-flex items-center rounded-full border border-purple-200 bg-white px-5 py-2.5 text-sm font-medium text-purple-700 hover:bg-purple-100 transition-colors">
+                        Voir toute la file
+                    </a>
+                </div>
+            </div>
+            @endif
+        </div>
     </div>
 </div>
 
