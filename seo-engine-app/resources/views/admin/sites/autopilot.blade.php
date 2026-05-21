@@ -11,6 +11,73 @@
 @section('content')
 @include('admin.partials.site-tabs')
 
+<div class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6 mb-6">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="font-semibold text-gray-900">Autopilot observed</h2>
+                <div class="mt-1 text-xs text-gray-500">Le runtime remonte maintenant les pages observées fragiles avant même la couche action historique.</div>
+            </div>
+            <div class="text-right">
+                <div class="text-2xl font-semibold {{ $observedStats['health_score'] >= 70 ? 'text-emerald-600' : ($observedStats['health_score'] >= 50 ? 'text-amber-600' : 'text-rose-600') }}">
+                    {{ $observedStats['health_score'] }}
+                </div>
+                <div class="text-xs text-gray-500">health observed</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-px bg-gray-100">
+            @foreach([
+                ['label' => 'Observées', 'value' => $observedStats['observed_pages']],
+                ['label' => 'Healthy', 'value' => $observedStats['healthy']],
+                ['label' => 'Warning', 'value' => $observedStats['warning']],
+                ['label' => 'Critical', 'value' => $observedStats['critical']],
+                ['label' => 'Recommandations', 'value' => $observedStats['recommendations']],
+                ['label' => 'Suggestions legacy', 'value' => $stats['pending']],
+            ] as $item)
+            <div class="bg-white px-5 py-4">
+                <div class="text-xs uppercase tracking-wider text-gray-400">{{ $item['label'] }}</div>
+                <div class="mt-2 text-xl font-semibold text-gray-900">{{ $item['value'] }}</div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-semibold text-gray-900">Pages observed sous tension</h2>
+            <div class="mt-1 text-xs text-gray-500">Ce que le runtime pousserait naturellement dans le backlog avant toute réécriture manuelle.</div>
+        </div>
+
+        <div class="divide-y divide-gray-50">
+            @forelse($observedAlerts as $alert)
+            <div class="px-6 py-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-sm font-medium text-gray-900">{{ $alert['title'] ?: $alert['path'] }}</div>
+                        <div class="mt-1 text-xs text-gray-500">{{ $alert['cluster_label'] ?: 'cluster inconnu' }} · {{ $alert['path'] }}</div>
+                    </div>
+                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium {{ ($alert['state'] ?? 'warning') === 'critical' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700' }}">
+                        {{ $alert['state'] }}
+                    </span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+                    <span>priorité {{ (int) ($alert['priority'] ?? 0) }}</span>
+                    <span>•</span>
+                    <span>santé {{ (int) ($alert['health_score'] ?? 0) }}</span>
+                    <span>•</span>
+                    <span>{{ collect($alert['flags'] ?? [])->take(2)->implode(' · ') ?: 'aucun flag' }}</span>
+                </div>
+            </div>
+            @empty
+            <div class="px-6 py-8 text-center text-sm text-gray-400">
+                Aucune page observed sous tension pour ce site.
+            </div>
+            @endforelse
+        </div>
+    </div>
+</div>
+
 {{-- Stats --}}
 <div class="grid grid-cols-3 gap-5 mb-6">
     @foreach([
@@ -27,10 +94,41 @@
     @endforeach
 </div>
 
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6">
+    <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="font-semibold text-gray-900">Backlog observed</h2>
+        <div class="mt-1 text-xs text-gray-500">Recommandations calculées depuis la couche observée, indépendantes des suggestions legacy.</div>
+    </div>
+
+    <div class="divide-y divide-gray-50">
+        @forelse($observedRecommendations as $recommendation)
+        <div class="px-6 py-4">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <div class="text-sm font-medium text-gray-900">{{ $recommendation->title }}</div>
+                    <div class="mt-1 text-xs text-gray-500">{{ $recommendation->type }} @if($recommendation->cluster) · {{ $recommendation->cluster }} @endif</div>
+                </div>
+                <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                    P{{ $recommendation->priority }}
+                </span>
+            </div>
+            <div class="mt-2 text-sm text-gray-600">{{ $recommendation->reasoning }}</div>
+        </div>
+        @empty
+        <div class="px-6 py-8 text-center text-sm text-gray-400">
+            Aucune recommandation observed pending pour ce site.
+        </div>
+        @endforelse
+    </div>
+</div>
+
 {{-- Pending suggestions --}}
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h2 class="font-semibold text-gray-900">Suggestions en attente</h2>
+        <div>
+            <h2 class="font-semibold text-gray-900">Suggestions legacy en attente</h2>
+            <div class="mt-1 text-xs text-gray-500">File d’action historique générée par le moteur rewrite / feedback loop.</div>
+        </div>
         <form method="POST" action="{{ route('admin.pages.autopilot', $site->site_id) }}">
             @csrf
             <button type="submit"
