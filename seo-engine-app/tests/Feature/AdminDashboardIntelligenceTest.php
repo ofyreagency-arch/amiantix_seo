@@ -106,7 +106,7 @@ class AdminDashboardIntelligenceTest extends TestCase
             'seo_page_id' => $page->id,
             'source' => 'rewrite_engine:enrich',
             'signals_json' => [],
-            'suggestions_json' => ['rationale' => ['rewrite_context']],
+            'suggestions_json' => ['rationale' => 'rewrite_context'],
             'status' => 'pending',
         ]);
 

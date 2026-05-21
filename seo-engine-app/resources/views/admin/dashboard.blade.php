@@ -220,7 +220,10 @@
                         <span class="inline-flex items-center rounded-full bg-fuchsia-50 px-2.5 py-1 text-xs font-medium text-fuchsia-700">pending</span>
                     </div>
                     <div class="mt-3 text-xs text-gray-500 line-clamp-2">
-                        {{ implode(' · ', array_slice($suggestion->suggestions_json['rationale'] ?? [], 0, 3)) ?: 'Aucune rationale.' }}
+                        {{ collect(\Illuminate\Support\Arr::wrap($suggestion->suggestions_json['rationale'] ?? []))
+                            ->filter(fn ($item) => is_string($item) && trim($item) !== '')
+                            ->take(3)
+                            ->implode(' · ') ?: 'Aucune rationale.' }}
                     </div>
                 </div>
                 @empty
@@ -245,7 +248,10 @@
                         <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">pending</span>
                     </div>
                     <div class="mt-3 text-xs text-gray-500 line-clamp-2">
-                        {{ implode(' · ', array_slice($suggestion->suggestions_json['rationale'] ?? [], 0, 3)) ?: 'Aucune rationale.' }}
+                        {{ collect(\Illuminate\Support\Arr::wrap($suggestion->suggestions_json['rationale'] ?? []))
+                            ->filter(fn ($item) => is_string($item) && trim($item) !== '')
+                            ->take(3)
+                            ->implode(' · ') ?: 'Aucune rationale.' }}
                     </div>
                 </div>
                 @empty
