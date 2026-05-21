@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
+use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
@@ -305,6 +306,185 @@ class SeoRuntimeObservedApiTest extends TestCase
             ->assertJsonPath('observed_page.indexability_state', 'noindex')
             ->assertJsonPath('observed_analysis.recommendations.0.type', 'refresh_page')
             ->assertJsonPath('observed_analysis.health.flags.0', 'missing_meta_description');
+    }
+
+    public function test_indexation_endpoint_includes_observed_analysis_and_latest_metric(): void
+    {
+        [$site, $token] = $this->siteWithToken();
+
+        Http::fake([
+            '*' => Http::response([
+                'inspectionResult' => [
+                    'indexStatusResult' => [
+                        'verdict' => 'PASS',
+                        'coverageState' => 'Submitted and indexed',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'guide amiante',
+            'slug' => 'guide-amiante',
+            'status' => 'published',
+            'title' => 'Guide amiante',
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+        ]);
+
+        $observed = SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://runtime-api.test/guide-amiante',
+            'url_hash' => sha1('https://runtime-api.test/guide-amiante'),
+            'path' => '/guide-amiante',
+            'title' => 'Guide amiante',
+            'meta_description' => null,
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+            'indexability_state' => 'noindex',
+            'last_status_code' => 200,
+            'latest_word_count' => 180,
+            'authority_score' => 0.14,
+            'orphan_score' => 0.72,
+            'overlap_score' => 0.18,
+            'pillar_likelihood' => 0.20,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now(),
+        ]);
+
+        SeoRecommendation::query()->create([
+            'site_id' => $site->site_id,
+            'site_page_id' => $observed->id,
+            'type' => 'refresh_page',
+            'priority' => 20,
+            'estimated_impact' => 'medium',
+            'difficulty' => 'medium',
+            'cluster' => 'guide',
+            'title' => 'Strengthen weak page: Guide amiante',
+            'reasoning' => 'Observed crawl says the page is weak.',
+            'suggested_action' => 'Improve coverage depth and headings.',
+            'status' => 'pending',
+            'meta_json' => [],
+            'generated_at' => now(),
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->toDateString(),
+            'window_days' => 28,
+            'query' => 'guide amiante',
+            'url' => 'https://runtime-api.test/guide-amiante',
+            'clicks' => 18,
+            'impressions' => 220,
+            'ctr' => 0.0818,
+            'position' => 7.4,
+            'is_indexed' => true,
+            'coverage_json' => ['index_verdict:PASS'],
+            'payload_json' => ['source' => 'test'],
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/seo/indexation?slug=guide-amiante');
+
+        $response->assertOk()
+            ->assertJsonPath('page.slug', 'guide-amiante')
+            ->assertJsonPath('inspection.indexed', true)
+            ->assertJsonPath('stored_metric.url', 'https://runtime-api.test/guide-amiante')
+            ->assertJsonPath('observed_page.path', '/guide-amiante')
+            ->assertJsonPath('observed_analysis.recommendations.0.type', 'refresh_page');
+    }
+
+    public function test_search_console_endpoint_exposes_connection_and_observed_page_matches(): void
+    {
+        [$site, $token] = $this->siteWithToken();
+
+        SeoSite::query()->whereKey($site->id)->update([
+            'gsc_site_url' => 'sc-domain:runtime-api.test',
+            'gsc_credentials_path' => '/secure/runtime-api.json',
+        ]);
+
+        config()->set('services.google_search_console.enabled', true);
+        config()->set('services.google_search_console.access_token', 'test-token');
+        config()->set('services.google_search_console.site_url', 'sc-domain:runtime-api.test');
+
+        Http::fake(function (\Illuminate\Http\Client\Request $request) {
+            $payload = $request->data();
+            $dimensions = $payload['dimensions'] ?? [];
+
+            if ($dimensions === ['query']) {
+                return Http::response([
+                    'rows' => [[
+                        'keys' => ['guide amiante'],
+                        'clicks' => 12,
+                        'impressions' => 180,
+                        'ctr' => 0.0666,
+                        'position' => 6.2,
+                    ]],
+                ], 200);
+            }
+
+            if ($dimensions === ['page']) {
+                return Http::response([
+                    'rows' => [[
+                        'keys' => ['https://runtime-api.test/guide-amiante'],
+                        'clicks' => 12,
+                        'impressions' => 180,
+                        'ctr' => 0.0666,
+                        'position' => 6.2,
+                    ]],
+                ], 200);
+            }
+
+            return Http::response(['rows' => []], 200);
+        });
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://runtime-api.test/guide-amiante',
+            'url_hash' => sha1('https://runtime-api.test/guide-amiante'),
+            'path' => '/guide-amiante',
+            'title' => 'Guide amiante',
+            'meta_description' => 'Guide amiante complet.',
+            'canonical_url' => 'https://runtime-api.test/guide-amiante',
+            'indexability_state' => 'indexable',
+            'last_status_code' => 200,
+            'latest_word_count' => 1250,
+            'authority_score' => 0.66,
+            'orphan_score' => 0.08,
+            'overlap_score' => 0.11,
+            'pillar_likelihood' => 0.80,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now(),
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => null,
+            'metric_date' => now()->toDateString(),
+            'window_days' => 28,
+            'query' => 'guide amiante',
+            'url' => 'https://runtime-api.test/guide-amiante',
+            'clicks' => 12,
+            'impressions' => 180,
+            'ctr' => 0.0666,
+            'position' => 6.2,
+            'is_indexed' => true,
+            'coverage_json' => ['index_verdict:PASS'],
+            'payload_json' => ['source' => 'test'],
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/seo/search-console');
+
+        $response->assertOk()
+            ->assertJsonPath('connection.configured', true)
+            ->assertJsonPath('connection.status', 'configured')
+            ->assertJsonPath('connection.property_url', 'sc-domain:runtime-api.test')
+            ->assertJsonPath('observed.matched_top_pages.0.url', 'https://runtime-api.test/guide-amiante')
+            ->assertJsonPath('observed.matched_top_pages.0.observed_page.path', '/guide-amiante')
+            ->assertJsonPath('stored_metrics.0.url', 'https://runtime-api.test/guide-amiante');
     }
 
     /**

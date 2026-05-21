@@ -11,6 +11,7 @@ use App\ObservedSite\SiteHealthService;
 use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
 use App\Runtime\RuntimeSeoMonitoringService;
@@ -164,15 +165,39 @@ class SeoRuntimeController extends Controller
         return response()->json($summary);
     }
 
-    public function searchConsole(Request $request, SearchConsoleService $searchConsole): JsonResponse
+    public function searchConsole(
+        Request $request,
+        SearchConsoleService $searchConsole,
+        SeoEngineContext $context,
+        ObservedPageHealthService $observedPageHealth,
+    ): JsonResponse
     {
         $days = (int) $request->integer('days', 28);
         $limit = (int) $request->integer('limit', 25);
+        $siteId = $context->siteId();
+        $site = SeoSite::query()
+            ->with('googleConnection')
+            ->where('site_id', $siteId)
+            ->first();
+        $topPages = $searchConsole->getTopPages($days, min($limit, 250));
 
         return response()->json([
+            'connection' => [
+                'configured' => $site?->hasSearchConsoleConfigured() ?? false,
+                'mode' => $site?->resolvedGscConnectionMode() ?? 'none',
+                'status' => $site?->resolvedGscConnectionStatus() ?? 'not_connected',
+                'property_url' => $site?->resolvedGscSiteUrl(),
+            ],
             'top_queries' => $searchConsole->getTopQueries($days, $limit),
-            'top_pages' => $searchConsole->getTopPages($days, min($limit, 250)),
-            'stored_metrics' => SeoSearchConsoleMetric::query()->latest('metric_date')->limit(50)->get(),
+            'top_pages' => $topPages,
+            'stored_metrics' => SeoSearchConsoleMetric::query()
+                ->where('site_id', $siteId)
+                ->latest('metric_date')
+                ->limit(50)
+                ->get(),
+            'observed' => [
+                'matched_top_pages' => $this->observedTopPageMatches($siteId, $topPages, $observedPageHealth),
+            ],
         ]);
     }
 
@@ -265,17 +290,45 @@ class SeoRuntimeController extends Controller
         ]);
     }
 
-    public function indexation(Request $request, SeoPageRepository $pages, SearchConsoleService $searchConsole): JsonResponse
+    public function indexation(
+        Request $request,
+        SeoPageRepository $pages,
+        SearchConsoleService $searchConsole,
+        ObservedPageHealthService $observedPageHealth,
+    ): JsonResponse
     {
         $slug = (string) $request->query('slug', '');
         $page = $pages->findBySlug($slug);
         abort_if(! $page, 404, 'SEO page not found.');
+        $dbPage = $page instanceof SeoPage
+            ? $page
+            : SeoPage::query()->where('site_id', $page->site_id ?? null)->where('slug', ltrim($slug, '/'))->first();
+        $observedPage = $dbPage ? $this->observedPageForLegacy($dbPage) : null;
 
         $pageUrl = rtrim((string) config('app.url'), '/').$page->canonicalPath();
 
         return response()->json([
             'page' => $page,
             'inspection' => $searchConsole->inspectPageUrl($pageUrl),
+            'stored_metric' => $dbPage
+                ? SeoSearchConsoleMetric::query()
+                    ->where('site_id', $dbPage->site_id)
+                    ->where('seo_page_id', $dbPage->id)
+                    ->latest('metric_date')
+                    ->latest('id')
+                    ->first()
+                : null,
+            'observed_page' => $observedPage ? $this->observedPagePayload($observedPage, $observedPageHealth) : null,
+            'observed_analysis' => $observedPage ? [
+                'health' => $observedPageHealth->forPage($observedPage),
+                'recommendations' => SeoRecommendation::query()
+                    ->where('site_id', $observedPage->site_id)
+                    ->where('site_page_id', $observedPage->id)
+                    ->where('status', 'pending')
+                    ->orderBy('priority')
+                    ->limit(5)
+                    ->get(['type', 'priority', 'title', 'suggested_action', 'meta_json']),
+            ] : null,
         ]);
     }
 
@@ -398,5 +451,49 @@ class SeoRuntimeController extends Controller
             'overlap_score' => (float) $page->overlap_score,
             'health' => $pageHealth,
         ];
+    }
+
+    /**
+     * @param  array<int,array{url:string,clicks:float,impressions:float,ctr:float,position:float}>  $topPages
+     * @return array<int,array<string,mixed>>
+     */
+    private function observedTopPageMatches(string $siteId, array $topPages, ObservedPageHealthService $observedPageHealth): array
+    {
+        $urls = collect($topPages)
+            ->pluck('url')
+            ->filter(fn (mixed $url): bool => is_string($url) && $url !== '')
+            ->values()
+            ->all();
+
+        if ($urls === []) {
+            return [];
+        }
+
+        $observedPages = SeoSitePage::query()
+            ->where('site_id', $siteId)
+            ->whereIn('normalized_url', $urls)
+            ->get()
+            ->keyBy('normalized_url');
+
+        return collect($topPages)
+            ->map(function (array $row) use ($observedPages, $observedPageHealth): ?array {
+                $observedPage = $observedPages->get((string) ($row['url'] ?? ''));
+
+                if (! $observedPage) {
+                    return null;
+                }
+
+                return [
+                    'url' => $row['url'],
+                    'clicks' => $row['clicks'],
+                    'impressions' => $row['impressions'],
+                    'ctr' => $row['ctr'],
+                    'position' => $row['position'],
+                    'observed_page' => $this->observedPagePayload($observedPage, $observedPageHealth),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 }
