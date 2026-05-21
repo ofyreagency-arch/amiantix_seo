@@ -12,6 +12,14 @@ Current runtime capability status and real-world validation roadmap are document
 
 [docs/runtime-capability-matrix.md](./docs/runtime-capability-matrix.md)
 
+Current product stabilization plan is documented here:
+
+[docs/product-stabilization-plan.md](./docs/product-stabilization-plan.md)
+
+Current editorial workflow and preset audit are documented here:
+
+[docs/editorial-workflow-audit.md](./docs/editorial-workflow-audit.md)
+
 ## What lives in the package
 
 - SEO generation core
