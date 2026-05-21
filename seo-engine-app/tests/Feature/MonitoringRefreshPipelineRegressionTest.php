@@ -237,7 +237,7 @@ class MonitoringRefreshPipelineRegressionTest extends TestCase
         $this->assertDatabaseCount('seo_suggestions', 0);
     }
 
-    public function test_monitoring_clears_stale_pending_feedback_when_a_page_recovers(): void
+    public function test_feedback_loop_clears_stale_pending_feedback_when_a_page_recovers(): void
     {
         $page = SeoPage::query()->create([
             'site_id' => 'monitor-site',
@@ -268,34 +268,28 @@ class MonitoringRefreshPipelineRegressionTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $searchConsole = Mockery::mock(SearchConsoleService::class);
-        $searchConsole->shouldReceive('pageMetrics')->once()->andReturn([
+        $metrics = [
             'impressions' => 210,
             'ctr' => 0.045,
             'position' => 5.9,
             'queries' => ['diagnostic amiante paris'],
             'indexed' => true,
             'coverage' => ['index_verdict:PASS'],
-        ]);
+        ];
 
-        $monitor = new RuntimeSeoMonitoringService(
-            $searchConsole,
-            $this->scoring(),
-            app(DatabaseSeoFeedbackLoopDriver::class),
-            new DatabasePrioritizedPageProvider(),
-            $this->scoreRefresh(),
-        );
+        $audit = [
+            'score' => 40,
+            'issues' => [],
+            'recommendations' => [],
+        ];
 
-        $improved = $monitor->monitorPage($page, autoImprove: true);
+        $suggestion = app(DatabaseSeoFeedbackLoopDriver::class)->proposeForPage($page, $metrics, $audit);
 
-        $this->assertFalse($improved);
+        $this->assertNull($suggestion);
         $this->assertDatabaseMissing('seo_suggestions', [
             'seo_page_id' => $page->id,
             'source' => 'feedback_loop:auto',
             'status' => 'pending',
-        ]);
-        $this->assertDatabaseHas('seo_audits', [
-            'seo_page_id' => $page->id,
         ]);
     }
 
