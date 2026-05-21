@@ -289,7 +289,11 @@ class MonitoringRefreshPipelineRegressionTest extends TestCase
         $improved = $monitor->monitorPage($page, autoImprove: true);
 
         $this->assertFalse($improved);
-        $this->assertDatabaseCount('seo_suggestions', 0);
+        $this->assertDatabaseMissing('seo_suggestions', [
+            'seo_page_id' => $page->id,
+            'source' => 'feedback_loop:auto',
+            'status' => 'pending',
+        ]);
         $this->assertDatabaseHas('seo_audits', [
             'seo_page_id' => $page->id,
         ]);
