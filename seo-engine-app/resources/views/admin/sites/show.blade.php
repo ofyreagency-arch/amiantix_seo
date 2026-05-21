@@ -31,6 +31,22 @@
     </div>
 
     <div class="flex items-center gap-3">
+        <a href="{{ route('admin.sites.crawler', $site->site_id) }}"
+           class="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+            Crawler
+        </a>
+        <a href="{{ route('admin.sites.strategy', $site->site_id) }}"
+           class="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+            Strategy
+        </a>
+        <a href="{{ route('admin.sites.semantic', $site->site_id) }}"
+           class="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+            Semantic
+        </a>
+        <a href="{{ route('admin.sites.health', $site->site_id) }}"
+           class="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+            Health
+        </a>
         {{-- Autopilot --}}
         <form method="POST" action="{{ route('admin.pages.autopilot', $site->site_id) }}">
             @csrf
@@ -43,6 +59,34 @@
             </button>
         </form>
     </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+    <a href="{{ route('admin.sites.crawler', $site->site_id) }}"
+       class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors">
+        <div class="text-sm font-semibold text-gray-900">Crawler</div>
+        <div class="mt-1 text-xs text-gray-500">Lancer un crawl réel et remplir la couche observée.</div>
+    </a>
+    <a href="{{ route('admin.sites.semantic', $site->site_id) }}"
+       class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors">
+        <div class="text-sm font-semibold text-gray-900">Semantic Graph</div>
+        <div class="mt-1 text-xs text-gray-500">Voir les liens, overlaps et relations structurelles.</div>
+    </a>
+    <a href="{{ route('admin.sites.strategy', $site->site_id) }}"
+       class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors">
+        <div class="text-sm font-semibold text-gray-900">Strategy</div>
+        <div class="mt-1 text-xs text-gray-500">Lire les opportunités et le backlog priorisé du moteur.</div>
+    </a>
+    <a href="{{ route('admin.sites.health', $site->site_id) }}"
+       class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors">
+        <div class="text-sm font-semibold text-gray-900">Health</div>
+        <div class="mt-1 text-xs text-gray-500">Contrôler qualité, fragilité et état SEO du site.</div>
+    </a>
+    <a href="{{ route('admin.sites.autopilot', $site->site_id) }}"
+       class="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 hover:border-purple-200 hover:bg-purple-50/40 transition-colors">
+        <div class="text-sm font-semibold text-gray-900">Autopilot Queue</div>
+        <div class="mt-1 text-xs text-gray-500">Voir les suggestions pending avant toute action.</div>
+    </a>
 </div>
 
 <div class="flex items-start gap-6">
@@ -152,7 +196,10 @@
             <div class="flex justify-between"><span>Preset</span><span>{{ $site->preset ?? 'generic' }}</span></div>
             <div class="flex justify-between"><span>Créé le</span><span>{{ $site->created_at?->format('d/m/Y') }}</span></div>
             <div class="flex justify-between"><span>Webhook</span><span>{{ $site->webhook_url ? '✓' : '—' }}</span></div>
-            <div class="flex justify-between"><span>GSC</span><span>{{ $site->gsc_site_url ? '✓' : '—' }}</span></div>
+            <div class="flex justify-between"><span>GSC mode</span><span>{{ $site->resolvedGscConnectionMode() ?? '—' }}</span></div>
+            <div class="flex justify-between"><span>GSC statut</span><span>{{ str_replace('_', ' ', $site->resolvedGscConnectionStatus()) }}</span></div>
+            <div class="flex justify-between"><span>GSC propriété</span><span class="text-right max-w-[160px] truncate">{{ $site->resolvedGscSiteUrl() ?: '—' }}</span></div>
+            <div class="flex justify-between"><span>GSC credentials</span><span class="text-right max-w-[160px] truncate">{{ $site->resolvedGscCredentialsPath() ?: '—' }}</span></div>
         </div>
     </div>
 </div>
