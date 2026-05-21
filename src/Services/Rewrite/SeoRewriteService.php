@@ -47,6 +47,7 @@ class SeoRewriteService
 
         $suggestions = $this->rewriteWithAi($page, $mode) ?? $this->prompts->fallbackRewrite($page, $mode);
         $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context);
+        $suggestions = $this->ensureProposedContent($page, $suggestions, $mode);
 
         return $this->suggestions->replacePending($page, 'rewrite_engine:'.$mode, [
             'source' => 'rewrite_engine:'.$mode,
@@ -277,5 +278,54 @@ class SeoRewriteService
         }
 
         return $decoded;
+    }
+
+    /**
+     * @param  array<string,mixed>  $suggestions
+     * @return array<string,mixed>
+     */
+    private function ensureProposedContent(object $page, array $suggestions, string $mode): array
+    {
+        $existing = trim((string) ($suggestions['content'] ?? $suggestions['proposed_content'] ?? ''));
+
+        if ($existing !== '') {
+            $suggestions['proposed_content'] = $existing;
+
+            return $suggestions;
+        }
+
+        $sections = collect($suggestions['sections'] ?? [])
+            ->filter(fn (mixed $item): bool => is_string($item) && trim($item) !== '')
+            ->values();
+
+        if ($sections->isEmpty()) {
+            return $suggestions;
+        }
+
+        $opening = match ($mode) {
+            'rewrite' => 'Cette passe propose une réécriture complète de la page avec un angle plus net et plus utile.',
+            'de-duplicate' => 'Cette passe clarifie l intention de recherche et différencie la page des contenus proches.',
+            'improve-ctr' => 'Cette passe renforce surtout la promesse éditoriale visible dans le titre et la meta.',
+            'improve-indexability' => 'Cette passe vise une page plus propre à publier et plus facile à indexer.',
+            default => 'Cette passe enrichit la page existante en gardant son angle principal tout en la rendant plus utile.',
+        };
+
+        $body = $sections
+            ->map(function (string $section, int $index): string {
+                $heading = 'Amélioration prioritaire '.($index + 1);
+
+                return '<section><h2>'.$heading.'</h2><p>'.$section.'</p></section>';
+            })
+            ->implode('');
+
+        $faq = collect($suggestions['faq'] ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item) && isset($item['question']))
+            ->take(3)
+            ->map(fn (array $item): string => '<section><h3>'.((string) ($item['question'] ?? 'Question')).'</h3><p>'.((string) ($item['answer'] ?? '')).'</p></section>')
+            ->implode('');
+
+        $suggestions['proposed_content'] = '<section><h2>Passe de réécriture</h2><p>'.$opening.'</p><p>'.((string) ($page->meta_description ?? $page->keyword ?? '')).'</p></section>'.$body.$faq;
+
+        return $suggestions;
     }
 }

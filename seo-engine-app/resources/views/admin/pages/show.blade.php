@@ -19,8 +19,10 @@
     $pendingSuggestions = $pendingSuggestions ?? collect();
     $latestPendingSuggestion = $pendingSuggestions->first();
     $latestMetric = $latestMetric ?? null;
+    $publicationSummary = session('publication_summary', $publicationSummary ?? null);
     $pageIsHealthy = (float) ($page->seo_score ?? 0) >= 70 && (float) ($page->quality_score ?? 0) >= 80 && (float) ($page->indexability_score ?? 0) >= 65;
-    $pageIsApproved = $pendingSuggestions->isEmpty() && empty($page->review_issues_json);
+    $pageIsApproved = ($page->status === 'published')
+        || ($page->status === 'review' && $pendingSuggestions->isEmpty() && empty($page->review_issues_json));
     $imageApproved = ($page->image_status ?? null) === 'approved' || (float) ($page->image_quality_score ?? 0) >= 80;
     $workflowStates = [
         ['label' => 'Draft', 'active' => in_array($page->status, ['draft', 'review', 'published'], true)],
@@ -63,6 +65,17 @@
             @endif
         </div>
         <div class="flex items-center gap-2">
+            @if($page->content)
+            <a href="{{ route('admin.pages.preview', [$site->site_id, $page->id]) }}"
+               target="_blank"
+               class="flex items-center gap-2 px-4 py-2 border border-indigo-200 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 text-sm rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                Prévisualiser
+            </a>
+            @endif
             <form method="POST" action="{{ route('admin.pages.analyze', [$site->site_id, $page->id]) }}">
                 @csrf
                 <button type="submit"
@@ -208,6 +221,41 @@
                 </div>
             </div>
             @endif
+
+            <div class="rounded-3xl border {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'border-emerald-100 bg-emerald-50' : 'border-amber-100 bg-amber-50' }} px-5 py-5">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-xs uppercase tracking-[0.25em] {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-600' : 'text-amber-600' }}">Publication</div>
+                        <div class="mt-2 text-lg font-semibold {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-900' : 'text-amber-900' }}">
+                            {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'Prête à publier' : 'Publication bloquée' }}
+                        </div>
+                        <div class="mt-2 text-sm {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-800' : 'text-amber-800' }}">
+                            {{ ($publicationSummary['live_message'] ?? '') !== '' ? $publicationSummary['live_message'] : 'Le moteur vérifie la cohérence éditoriale avant publication.' }}
+                        </div>
+                    </div>
+                    @if($page->status !== 'published')
+                    <form method="POST" action="{{ route('admin.pages.publish', [$site->site_id, $page->id]) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center rounded-full {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700' }} px-5 py-2.5 text-sm font-medium text-white transition-colors">
+                            Publier
+                        </button>
+                    </form>
+                    @endif
+                </div>
+
+                @if(!empty($publicationSummary['blocking_reasons']))
+                    <div class="mt-4 space-y-2">
+                        @foreach(array_slice($publicationSummary['blocking_reasons'], 0, 5) as $reason)
+                            <div class="flex items-start gap-2 text-sm text-amber-900">
+                                <span class="mt-0.5 text-amber-500">•</span>
+                                <span>{{ $reason }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @elseif($page->status !== 'published')
+                    <div class="mt-4 text-sm text-emerald-800">Les garde-fous actuels sont verts. Tu peux publier sans sortir du cockpit.</div>
+                @endif
+            </div>
         </div>
     </div>
 </div>
@@ -271,10 +319,63 @@
         @php $suggestion = session('rewrite_suggestion'); @endphp
         <div class="bg-purple-50 border border-purple-200 rounded-xl px-6 py-5">
             <div class="text-sm font-semibold text-purple-800 mb-3">Suggestion de réécriture</div>
-            @if(!empty($suggestion['proposed_content']))
-            <div class="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">{{ Str::limit($suggestion['proposed_content'], 2000) }}</div>
+            @if(!empty($suggestion['proposed_content']) || !empty($suggestion['content']))
+            @php $previewContent = $suggestion['proposed_content'] ?? $suggestion['content']; @endphp
+            <div class="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">{{ Str::limit(strip_tags((string) $previewContent), 2000) }}</div>
             @else
-            <pre class="text-xs text-purple-700 whitespace-pre-wrap">{{ json_encode($suggestion, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+            <div class="bg-white rounded-lg p-4 space-y-4 text-sm text-gray-700">
+                @if(!empty($suggestion['title']) || !empty($suggestion['meta_description']))
+                    <div>
+                        @if(!empty($suggestion['title']))
+                            <div class="font-semibold text-gray-900">{{ $suggestion['title'] }}</div>
+                        @endif
+                        @if(!empty($suggestion['meta_description']))
+                            <div class="mt-1 text-sm text-gray-500">{{ $suggestion['meta_description'] }}</div>
+                        @endif
+                    </div>
+                @endif
+
+                @if(!empty($suggestion['sections']))
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-2">Passes proposées</div>
+                        <div class="space-y-2">
+                            @foreach(array_slice($suggestion['sections'], 0, 6) as $section)
+                                <div class="flex items-start gap-2">
+                                    <span class="text-purple-400 mt-0.5">•</span>
+                                    <span>{{ $section }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                @if(!empty($suggestion['faq']))
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-2">FAQ suggérée</div>
+                        <div class="space-y-2">
+                            @foreach(array_slice($suggestion['faq'], 0, 3) as $faq)
+                                <div>
+                                    <div class="font-medium text-gray-900">{{ $faq['question'] ?? 'Question' }}</div>
+                                    <div class="text-gray-600">{{ $faq['answer'] ?? '' }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                @if(!empty($suggestion['rationale']))
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-2">Pourquoi</div>
+                        <div class="space-y-2">
+                            @foreach(array_slice($suggestion['rationale'], 0, 4) as $item)
+                                <div class="flex items-start gap-2">
+                                    <span class="text-purple-300 mt-0.5">→</span>
+                                    <span>{{ $item }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             @endif
         </div>
         @endif
@@ -325,8 +426,9 @@
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                         <option value="enrich">Enrichir</option>
                         <option value="rewrite">Réécriture complète</option>
-                        <option value="freshen">Actualiser</option>
-                        <option value="shorten">Raccourcir</option>
+                        <option value="de-duplicate">Dédupliquer</option>
+                        <option value="improve-ctr">Améliorer le CTR</option>
+                        <option value="improve-indexability">Améliorer l’indexation</option>
                     </select>
                 </div>
                 <button type="submit"

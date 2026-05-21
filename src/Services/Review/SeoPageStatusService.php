@@ -45,7 +45,7 @@ class SeoPageStatusService
         $indexabilityThreshold = 65;
         $faqMinimum = 5;
 
-        if ($forPublication && ! in_array($page->status, ['pending_review', 'published'], true)) {
+        if ($forPublication && ! in_array($page->status, ['pending_review', 'review', 'published'], true)) {
             $blockingReasons[] = $this->labeler?->blockingReasonWrongStatus((string) ($page->status ?? '')) ?? 'status_not_pending_review';
             $failedRules[] = 'status_not_pending_review';
         }

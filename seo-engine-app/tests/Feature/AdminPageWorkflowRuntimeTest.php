@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
+use App\SeoPresets\Amiantix\AmiantixContentProfile;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
@@ -146,5 +148,53 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertNotNull($suggestion->applied_at);
         $this->assertSame('Quand faut-il agir ?', $page->faq_json[0]['question']);
         $this->assertSame('Diagnostic amiante', $page->internal_links_json[0]['label']);
+    }
+
+    public function test_review_page_can_be_published_when_quality_gates_are_green(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante paris', 'diagnostics');
+        $payload = app(AmiantixContentProfile::class)->fallbackPayload('diagnostic amiante paris', 'diagnostics', $blueprint);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'cluster' => 'diagnostics',
+            'status' => 'review',
+            'title' => $payload['title'],
+            'h1' => $payload['h1'],
+            'meta_description' => $payload['meta_description'],
+            'content' => $payload['content'],
+            'faq_json' => $payload['faq'],
+            'seo_score' => 82,
+            'quality_score' => 100,
+            'indexability_score' => 76,
+            'image_status' => 'approved',
+            'image_quality_score' => 100,
+            'spam_risk' => 'low',
+            'duplicate_risk_score' => 20,
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.publish', [$site->site_id, $page->id]));
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $page->refresh();
+
+        $this->assertSame('published', $page->status);
+        $this->assertNotNull($page->published_at);
     }
 }

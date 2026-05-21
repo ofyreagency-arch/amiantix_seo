@@ -24,7 +24,12 @@ class AdminPagesController extends Controller
 {
     public function __construct(private readonly SeoEngineContext $context) {}
 
-    public function show(string $siteId, int $pageId, ObservedRewriteBridgeService $observedRewrite): View
+    public function show(
+        string $siteId,
+        int $pageId,
+        ObservedRewriteBridgeService $observedRewrite,
+        SeoPageStatusService $statusService,
+    ): View
     {
         $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
         $page = SeoPage::query()
@@ -37,8 +42,9 @@ class AdminPagesController extends Controller
         $observedRewriteContext = $observedRewrite->contextForPage($page);
         $latestMetric = $page->searchConsoleMetrics->first();
         $pendingSuggestions = $page->suggestions->where('status', 'pending')->values();
+        $publicationSummary = $statusService->summarize($page, true);
 
-        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions'));
+        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary'));
     }
 
     public function generate(Request $request, string $siteId, SeoGeneratePageRunner $runner): RedirectResponse
@@ -73,7 +79,7 @@ class AdminPagesController extends Controller
         $data   = $request->validate(['mode' => ['nullable', 'string']]);
         $this->loadSite($siteId);
         $dbPage = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
-        $observedContext = $observedRewrite->syncForPage($dbPage);
+        $observedContext = $observedRewrite->contextForPage($dbPage);
         $page = $dbPage->fresh(['suggestions']);
 
         $suggestion     = $rewrite->createSuggestion($page, $data['mode'] ?? 'enrich');
@@ -150,6 +156,42 @@ class AdminPagesController extends Controller
         }
 
         return $redirect;
+    }
+
+    public function publish(
+        string $siteId,
+        int $pageId,
+        SeoPageStatusService $statusService,
+    ): RedirectResponse {
+        $this->loadSite($siteId);
+        $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+        $summary = $statusService->summarize($page, true);
+
+        if ($summary['blocking_reasons'] !== []) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $pageId])
+                ->with('warning', 'Publication bloquée tant que certains points ne sont pas validés.')
+                ->with('publication_summary', $summary);
+        }
+
+        $page->update([
+            'status' => 'published',
+            'published_at' => $page->published_at ?? now(),
+        ]);
+
+        return redirect()
+            ->route('admin.pages.show', [$siteId, $pageId])
+            ->with('success', 'Page publiée.');
+    }
+
+    public function preview(string $siteId, int $pageId): View
+    {
+        $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
+        $page = SeoPage::query()
+            ->where('site_id', $siteId)
+            ->findOrFail($pageId);
+
+        return view('admin.pages.preview', compact('site', 'page'));
     }
 
     private function loadSite(string $siteId): SeoSite
