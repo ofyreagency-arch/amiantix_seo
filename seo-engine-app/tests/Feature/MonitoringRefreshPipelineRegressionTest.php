@@ -456,6 +456,70 @@ class MonitoringRefreshPipelineRegressionTest extends TestCase
         $this->assertSame(1450, $summary['items'][1]['snapshot_word_count']);
     }
 
+    public function test_observed_autopilot_syncs_rewrite_signals_for_warning_pages(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'observed-rewrite-site',
+            'name' => 'Observed Rewrite',
+            'url' => 'https://observed-rewrite.test',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'observed-rewrite-token'),
+        ]);
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'status' => 'published',
+            'title' => 'Diagnostic amiante Paris',
+            'content' => '<p>contenu</p>',
+        ]);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://observed-rewrite.test/diagnostic-amiante-paris',
+            'url_hash' => sha1('https://observed-rewrite.test/diagnostic-amiante-paris'),
+            'path' => '/diagnostic-amiante-paris',
+            'title' => 'Diagnostic amiante Paris',
+            'meta_description' => null,
+            'canonical_url' => 'https://observed-rewrite.test/diagnostic-amiante-paris',
+            'indexability_state' => 'noindex',
+            'last_status_code' => 200,
+            'latest_word_count' => 160,
+            'authority_score' => 0.11,
+            'orphan_score' => 0.88,
+            'overlap_score' => 0.21,
+            'pillar_likelihood' => 0.18,
+            'cluster_label' => 'diagnostic',
+            'last_seen_at' => now(),
+        ]);
+
+        $monitor = new RuntimeSeoMonitoringService(
+            Mockery::mock(SearchConsoleService::class),
+            $this->scoring(),
+            app(DatabaseSeoFeedbackLoopDriver::class),
+            new DatabasePrioritizedPageProvider(),
+            $this->scoreRefresh(),
+            app(ObservedPageHealthService::class),
+        );
+
+        $summary = $monitor->syncObservedRewriteSignals($site->site_id);
+
+        $this->assertSame([
+            'scanned' => 1,
+            'matched' => 1,
+            'synced' => 1,
+            'cleared' => 0,
+            'missing' => 0,
+        ], $summary);
+
+        $this->assertDatabaseHas('seo_suggestions', [
+            'source' => 'observed_rewrite:auto',
+            'status' => 'pending',
+        ]);
+    }
+
     private function scoreRefresh(): SeoScoreRefreshService
     {
         return new SeoScoreRefreshService(

@@ -9,6 +9,7 @@ use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSearchConsoleMetric;
 use App\ObservedSite\ObservedPageHealthService;
+use App\ObservedSite\ObservedRewriteBridgeService;
 use Illuminate\Support\Collection;
 use Ofyre\SeoEngine\Contracts\PrioritizedPageProvider;
 use Ofyre\SeoEngine\Contracts\SeoFeedbackLoopDriver;
@@ -20,6 +21,7 @@ use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
 class RuntimeSeoMonitoringService extends SeoMonitoringService
 {
     private readonly ObservedPageHealthService $observedHealth;
+    private readonly ObservedRewriteBridgeService $observedRewrite;
 
     public function __construct(
         SearchConsoleService $searchConsole,
@@ -28,6 +30,7 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
         PrioritizedPageProvider $prioritizedPages,
         SeoScoreRefreshService $scoreRefresh,
         ?ObservedPageHealthService $observedHealth = null,
+        ?ObservedRewriteBridgeService $observedRewrite = null,
     ) {
         parent::__construct(
             $searchConsole,
@@ -38,6 +41,7 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
         );
 
         $this->observedHealth = $observedHealth ?? app(ObservedPageHealthService::class);
+        $this->observedRewrite = $observedRewrite ?? app(ObservedRewriteBridgeService::class);
     }
 
     /**
@@ -124,6 +128,52 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
             'critical' => $items->where('state', 'critical')->count(),
             'items' => $items->all(),
         ];
+    }
+
+    /**
+     * @return array{
+     *   scanned:int,
+     *   matched:int,
+     *   synced:int,
+     *   cleared:int,
+     *   missing:int
+     * }
+     */
+    public function syncObservedRewriteSignals(string $siteId, int $limit = 10): array
+    {
+        $items = collect($this->observedSummary($siteId, max($limit * 3, $limit))['items'] ?? [])
+            ->filter(fn (array $item): bool => in_array($item['state'] ?? null, ['warning', 'critical'], true))
+            ->take($limit)
+            ->values();
+
+        $summary = [
+            'scanned' => $items->count(),
+            'matched' => 0,
+            'synced' => 0,
+            'cleared' => 0,
+            'missing' => 0,
+        ];
+
+        foreach ($items as $item) {
+            $page = $this->legacyPageForObservedItem($siteId, $item);
+
+            if (! $page) {
+                $summary['missing']++;
+
+                continue;
+            }
+
+            $summary['matched']++;
+            $context = $this->observedRewrite->syncForPage($page);
+
+            if (($context['queued'] ?? false) === true) {
+                $summary['synced']++;
+            } else {
+                $summary['cleared']++;
+            }
+        }
+
+        return $summary;
     }
 
     protected function candidatePages(array $prioritizedIds): iterable
@@ -231,5 +281,27 @@ class RuntimeSeoMonitoringService extends SeoMonitoringService
         }
 
         return min(100, $priority);
+    }
+
+    /**
+     * @param  array<string,mixed>  $item
+     */
+    private function legacyPageForObservedItem(string $siteId, array $item): ?SeoPage
+    {
+        $path = trim((string) ($item['path'] ?? ''));
+        $slug = ltrim($path, '/');
+
+        if ($slug === '') {
+            return null;
+        }
+
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where(function ($query) use ($slug, $path): void {
+                $query->where('slug', $slug)
+                    ->orWhere('canonical_url', 'like', '%'.$path);
+            })
+            ->orderByDesc('updated_at')
+            ->first();
     }
 }

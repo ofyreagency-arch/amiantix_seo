@@ -115,6 +115,7 @@ class SeoRuntimeController extends Controller
         CannibalizationDetectionService $cannibalization,
         QueryPageMatchingService $matching,
         SeoPageRepository $pages,
+        SeoEngineContext $context,
     ): JsonResponse {
         $payload = $request->validate([
             'slug' => ['nullable', 'string'],
@@ -128,8 +129,13 @@ class SeoRuntimeController extends Controller
             abort_if(! $page, 404, 'SEO page not found.');
 
             $summary['monitored'] = $monitoring->monitorPage($page);
+
+            if ($page instanceof SeoPage) {
+                $summary['observed_rewrite'] = $monitoring->syncObservedRewriteSignals($page->site_id, 1);
+            }
         } else {
             $summary['monitoring'] = $monitoring->monitor();
+            $summary['observed_rewrite'] = $monitoring->syncObservedRewriteSignals($context->siteId());
         }
 
         if ((bool) ($payload['sync_embeddings'] ?? true)) {

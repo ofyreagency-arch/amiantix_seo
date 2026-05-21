@@ -99,10 +99,15 @@ class AdminPagesController extends Controller
     public function autopilot(string $siteId, RuntimeSeoMonitoringService $monitoring): RedirectResponse
     {
         $this->loadSite($siteId);
-        $monitoring->monitor();
+        $legacy = $monitoring->monitor();
+        $observed = $monitoring->syncObservedRewriteSignals($siteId);
 
         return redirect()->route('admin.sites.show', $siteId)
-            ->with('success', 'Autopilot exécuté.');
+            ->with('success', sprintf(
+                'Autopilot exécuté. %d page(s) legacy auditée(s), %d signal(s) rewrite observed synchronisé(s).',
+                (int) ($legacy['audited'] ?? 0),
+                (int) ($observed['synced'] ?? 0)
+            ));
     }
 
     private function loadSite(string $siteId): SeoSite
