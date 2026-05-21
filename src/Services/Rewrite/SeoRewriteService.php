@@ -23,10 +23,16 @@ class SeoRewriteService
 
     public function createSuggestion(object $page, string $mode): mixed
     {
+        $context = $this->rewriteSignalContext($page);
+        $page = $this->pageWithRewriteContext($page, $context);
+
         if (! $this->overrides->rewriteAllowed($page)) {
             return $this->suggestions->persist($page, [
                 'source' => 'rewrite_blocked',
-                'signals_json' => ['cluster' => $page->cluster ?? null],
+                'signals_json' => [
+                    'cluster' => $page->cluster ?? null,
+                    'rewrite_context' => $this->signalContextSummary($context),
+                ],
                 'suggestions_json' => [
                     'blocked' => true,
                     'reason' => 'Rewrite disabled by human override.',
@@ -40,18 +46,170 @@ class SeoRewriteService
         }
 
         $suggestions = $this->rewriteWithAi($page, $mode) ?? $this->prompts->fallbackRewrite($page, $mode);
+        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context);
 
-        return $this->suggestions->persist($page, [
+        return $this->suggestions->replacePending($page, 'rewrite_engine:'.$mode, [
             'source' => 'rewrite_engine:'.$mode,
             'signals_json' => [
                 'seo_score' => $page->seo_score ?? null,
                 'indexability_score' => $page->indexability_score ?? null,
                 'spam_risk' => $page->spam_risk ?? null,
                 'cluster' => $page->cluster ?? null,
+                'rewrite_context' => $this->signalContextSummary($context),
             ],
             'suggestions_json' => $suggestions,
             'status' => 'pending',
         ]);
+    }
+
+    /**
+     * @return array{
+     *     sections:array<int,string>,
+     *     rationale:array<int,string>,
+     *     faq:array<int,array<string,mixed>>,
+     *     internal_links:array<int,array<string,mixed>>,
+     *     sources:array<string,int>,
+     *     pending_count:int
+     * }
+     */
+    private function rewriteSignalContext(object $page): array
+    {
+        $relationLoaded = method_exists($page, 'relationLoaded') && $page->relationLoaded('suggestions');
+        $related = $relationLoaded
+            ? collect($page->suggestions ?? [])
+            : (method_exists($page, 'suggestions') ? $page->suggestions()->where('status', 'pending')->get() : collect());
+
+        $pending = collect($related)
+            ->filter(fn (mixed $suggestion): bool => is_object($suggestion))
+            ->filter(fn (object $suggestion): bool => ($suggestion->status ?? null) === 'pending')
+            ->values();
+
+        $sections = $pending
+            ->flatMap(fn (object $suggestion): array => is_array($suggestion->suggestions_json['sections'] ?? null)
+                ? $suggestion->suggestions_json['sections']
+                : [])
+            ->filter(fn (mixed $section): bool => is_string($section) && trim($section) !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $rationale = $pending
+            ->flatMap(fn (object $suggestion): array => is_array($suggestion->suggestions_json['rationale'] ?? null)
+                ? $suggestion->suggestions_json['rationale']
+                : [])
+            ->filter(fn (mixed $item): bool => is_string($item) && trim($item) !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $faq = $pending
+            ->flatMap(fn (object $suggestion): array => is_array($suggestion->suggestions_json['faq'] ?? null)
+                ? $suggestion->suggestions_json['faq']
+                : [])
+            ->filter(fn (mixed $item): bool => is_array($item) && isset($item['question']))
+            ->unique(fn (array $item): string => Str::lower((string) ($item['question'] ?? '')))
+            ->values()
+            ->all();
+
+        $internalLinks = $pending
+            ->flatMap(fn (object $suggestion): array => is_array($suggestion->suggestions_json['internal_links'] ?? null)
+                ? $suggestion->suggestions_json['internal_links']
+                : [])
+            ->filter(fn (mixed $item): bool => is_array($item) && isset($item['url']))
+            ->unique(fn (array $item): string => Str::lower((string) ($item['url'] ?? '')))
+            ->values()
+            ->all();
+
+        $sources = $pending
+            ->groupBy(fn (object $suggestion): string => (string) ($suggestion->source ?? 'unknown'))
+            ->map(fn ($items): int => count($items))
+            ->all();
+
+        return [
+            'sections' => $sections,
+            'rationale' => $rationale,
+            'faq' => $faq,
+            'internal_links' => $internalLinks,
+            'sources' => $sources,
+            'pending_count' => $pending->count(),
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $context
+     */
+    private function pageWithRewriteContext(object $page, array $context): object
+    {
+        $clone = clone $page;
+        $clone->rewrite_signal_context = $context;
+        $clone->rewrite_signal_summary = $this->signalContextSummary($context);
+
+        return $clone;
+    }
+
+    /**
+     * @param  array<string,mixed>  $suggestions
+     * @param  array<string,mixed>  $context
+     * @return array<string,mixed>
+     */
+    private function mergeSignalContextIntoSuggestions(array $suggestions, array $context): array
+    {
+        $suggestions['sections'] = collect($suggestions['sections'] ?? [])
+            ->merge($context['sections'])
+            ->filter(fn (mixed $section): bool => is_string($section) && trim($section) !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $suggestions['rationale'] = collect($suggestions['rationale'] ?? [])
+            ->merge($context['rationale'])
+            ->push($this->signalContextSummary($context))
+            ->filter(fn (mixed $item): bool => is_string($item) && trim($item) !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $suggestions['faq'] = collect($suggestions['faq'] ?? [])
+            ->merge($context['faq'])
+            ->filter(fn (mixed $item): bool => is_array($item) && isset($item['question']))
+            ->unique(fn (array $item): string => Str::lower((string) ($item['question'] ?? '')))
+            ->values()
+            ->all();
+
+        $suggestions['internal_links'] = collect($suggestions['internal_links'] ?? [])
+            ->merge($context['internal_links'])
+            ->filter(fn (mixed $item): bool => is_array($item) && isset($item['url']))
+            ->unique(fn (array $item): string => Str::lower((string) ($item['url'] ?? '')))
+            ->values()
+            ->all();
+
+        $suggestions['signals_summary'] = array_merge(
+            is_array($suggestions['signals_summary'] ?? null) ? $suggestions['signals_summary'] : [],
+            [
+                'pending_rewrite_signals' => (int) ($context['pending_count'] ?? 0),
+                'sources' => $context['sources'] ?? [],
+            ],
+        );
+
+        return $suggestions;
+    }
+
+    /**
+     * @param  array<string,mixed>  $context
+     */
+    private function signalContextSummary(array $context): string
+    {
+        $count = (int) ($context['pending_count'] ?? 0);
+        $sources = collect($context['sources'] ?? [])
+            ->map(fn (int $total, string $source): string => $source.'='.$total)
+            ->values()
+            ->implode(', ');
+
+        if ($count === 0) {
+            return 'No pending engine signals were attached to this rewrite.';
+        }
+
+        return 'Rewrite informed by '.$count.' pending engine signal(s)'.($sources !== '' ? ' ['.$sources.'].' : '.');
     }
 
     /**
