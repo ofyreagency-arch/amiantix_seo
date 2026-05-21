@@ -11,30 +11,32 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('seo_site_google_connections', function (Blueprint $table): void {
-            $table->id();
-            $table->string('site_id', 64)->unique();
-            $table->string('connection_mode', 40)->default('service_account');
-            $table->string('property_url', 500)->nullable();
-            $table->string('property_label')->nullable();
-            $table->string('google_account_email')->nullable();
-            $table->text('refresh_token_encrypted')->nullable();
-            $table->timestamp('access_token_expires_at')->nullable();
-            $table->string('credentials_path', 500)->nullable();
-            $table->string('connection_status', 40)->default('not_connected');
-            $table->timestamp('last_validated_at')->nullable();
-            $table->timestamp('last_sync_at')->nullable();
-            $table->text('last_error')->nullable();
-            $table->json('meta_json')->nullable();
-            $table->timestamps();
+        if (! Schema::hasTable('seo_site_google_connections')) {
+            Schema::create('seo_site_google_connections', function (Blueprint $table): void {
+                $table->id();
+                $table->string('site_id', 64)->unique();
+                $table->string('connection_mode', 40)->default('service_account');
+                $table->string('property_url', 500)->nullable();
+                $table->string('property_label')->nullable();
+                $table->string('google_account_email')->nullable();
+                $table->text('refresh_token_encrypted')->nullable();
+                $table->timestamp('access_token_expires_at')->nullable();
+                $table->string('credentials_path', 500)->nullable();
+                $table->string('connection_status', 40)->default('not_connected');
+                $table->timestamp('last_validated_at')->nullable();
+                $table->timestamp('last_sync_at')->nullable();
+                $table->text('last_error')->nullable();
+                $table->json('meta_json')->nullable();
+                $table->timestamps();
 
-            $table->foreign('site_id')
-                ->references('site_id')
-                ->on('seo_sites')
-                ->cascadeOnDelete();
+                $table->foreign('site_id')
+                    ->references('site_id')
+                    ->on('seo_sites')
+                    ->cascadeOnDelete();
 
-            $table->index(['connection_status', 'connection_mode']);
-        });
+                $table->index(['connection_status', 'connection_mode'], 'seo_site_google_conn_status_mode_idx');
+            });
+        }
 
         $legacySites = DB::table('seo_sites')
             ->select(['site_id', 'gsc_site_url', 'gsc_credentials_path', 'created_at', 'updated_at'])
