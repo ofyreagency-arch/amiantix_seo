@@ -89,12 +89,84 @@
     </a>
 </div>
 
+<div class="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6 mb-6">
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="font-semibold text-gray-900">Couche observée</h2>
+                <div class="mt-1 text-xs text-gray-500">La santé et le monitoring du site sont maintenant lus depuis les pages crawlées réelles.</div>
+            </div>
+            <div class="text-right">
+                <div class="text-2xl font-semibold {{ ($observedHealth['score'] ?? 0) >= 70 ? 'text-emerald-600' : (($observedHealth['score'] ?? 0) >= 50 ? 'text-amber-600' : 'text-rose-600') }}">
+                    {{ $observedHealth['score'] ?? 0 }}
+                </div>
+                <div class="text-xs text-gray-500">health observed</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-100">
+            @foreach([
+                ['label' => 'Observées', 'value' => $observedMetrics['observed_pages']],
+                ['label' => 'Healthy', 'value' => $observedMetrics['healthy_pages']],
+                ['label' => 'Warning', 'value' => $observedMetrics['warning_pages']],
+                ['label' => 'Critical', 'value' => $observedMetrics['critical_pages']],
+                ['label' => 'Publiées', 'value' => $observedMetrics['published_pages']],
+                ['label' => 'Erreurs', 'value' => $observedMetrics['error_pages']],
+                ['label' => 'Générées', 'value' => $observedMetrics['generated_pages']],
+                ['label' => 'Crawl récent', 'value' => $latestCrawl ? ($latestCrawl->completed_at ?? $latestCrawl->started_at)?->diffForHumans() : '—'],
+            ] as $metric)
+            <div class="bg-white px-5 py-4">
+                <div class="text-xs uppercase tracking-wider text-gray-400">{{ $metric['label'] }}</div>
+                <div class="mt-2 text-xl font-semibold text-gray-900">{{ $metric['value'] }}</div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-semibold text-gray-900">Alertes observed</h2>
+            <div class="mt-1 text-xs text-gray-500">Les pages observées que le runtime juge les plus fragiles à ce stade.</div>
+        </div>
+
+        <div class="divide-y divide-gray-50">
+            @forelse($observedAlerts as $alert)
+            <div class="px-6 py-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-sm font-medium text-gray-900">{{ $alert['title'] ?: $alert['path'] }}</div>
+                        <div class="mt-1 text-xs text-gray-500">{{ $alert['cluster_label'] ?: 'cluster inconnu' }} · {{ $alert['path'] }}</div>
+                    </div>
+                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium {{ ($alert['state'] ?? 'warning') === 'critical' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700' }}">
+                        {{ $alert['state'] }}
+                    </span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+                    <span>priorité {{ (int) ($alert['priority'] ?? 0) }}</span>
+                    <span>•</span>
+                    <span>santé {{ (int) ($alert['health_score'] ?? 0) }}</span>
+                    <span>•</span>
+                    <span>{{ (int) ($alert['latest_word_count'] ?? 0) }} mots</span>
+                </div>
+            </div>
+            @empty
+            <div class="px-6 py-8 text-center text-sm text-gray-400">
+                Aucune alerte observed active pour ce site.
+            </div>
+            @endforelse
+        </div>
+    </div>
+</div>
+
 <div class="flex items-start gap-6">
 
     {{-- Pages table --}}
     <div class="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 class="font-semibold text-gray-900">Pages SEO</h2>
+            <div>
+                <h2 class="font-semibold text-gray-900">Pages moteur</h2>
+                <div class="mt-1 text-xs text-gray-500">Couche action historique : pages générées, réécritures et workflow éditorial.</div>
+            </div>
             <span class="text-xs text-gray-400">{{ $pages->total() }} page(s)</span>
         </div>
         <div class="overflow-x-auto">

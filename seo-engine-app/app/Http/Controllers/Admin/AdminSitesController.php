@@ -7,7 +7,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
 use App\Models\SeoSite;
+use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteGoogleConnection;
+use App\ObservedSite\SiteHealthService;
+use App\Runtime\RuntimeSeoMonitoringService;
 use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,7 +68,11 @@ class AdminSitesController extends Controller
             ->with('new_token_site', $data['name']);
     }
 
-    public function show(string $siteId): View
+    public function show(
+        string $siteId,
+        SiteHealthService $siteHealth,
+        RuntimeSeoMonitoringService $monitoring,
+    ): View
     {
         $site  = SeoSite::query()->with('googleConnection')->where('site_id', $siteId)->firstOrFail();
         $pages = SeoPage::query()
@@ -74,7 +81,39 @@ class AdminSitesController extends Controller
             ->orderByDesc('updated_at')
             ->paginate(25);
 
-        return view('admin.sites.show', compact('site', 'pages'));
+        $observedHealth = $siteHealth->calculate($siteId);
+        $observedMonitoring = $monitoring->observedSummary($siteId, 12);
+        $latestCrawl = SeoSiteCrawl::query()
+            ->where('site_id', $siteId)
+            ->orderByDesc('completed_at')
+            ->orderByDesc('created_at')
+            ->first();
+
+        $observedMetrics = [
+            'observed_pages' => $observedHealth['total_pages'] ?? 0,
+            'published_pages' => $observedHealth['published'] ?? 0,
+            'draft_pages' => $observedHealth['draft'] ?? 0,
+            'error_pages' => $observedHealth['errors'] ?? 0,
+            'generated_pages' => $pages->total(),
+            'healthy_pages' => $observedMonitoring['healthy'] ?? 0,
+            'warning_pages' => $observedMonitoring['warning'] ?? 0,
+            'critical_pages' => $observedMonitoring['critical'] ?? 0,
+        ];
+
+        $observedAlerts = collect($observedMonitoring['items'] ?? [])
+            ->filter(fn (array $item): bool => in_array($item['state'] ?? null, ['warning', 'critical'], true))
+            ->take(4)
+            ->values();
+
+        return view('admin.sites.show', compact(
+            'site',
+            'pages',
+            'observedHealth',
+            'observedMonitoring',
+            'observedMetrics',
+            'observedAlerts',
+            'latestCrawl',
+        ));
     }
 
     public function rotateToken(string $siteId): RedirectResponse
