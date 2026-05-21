@@ -6,8 +6,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\ObservedSite\ObservedRewriteBridgeService;
+use App\ObservedSite\SiteHealthService;
 use App\Models\SeoPage;
+use App\Models\SeoRecommendation;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSitePage;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
@@ -24,7 +27,6 @@ use Ofyre\SeoEngine\Services\Embeddings\QueryPageMatchingService;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 use Ofyre\SeoEngine\Services\Review\SeoPageStatusService;
 use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
-use Throwable;
 
 class SeoRuntimeController extends Controller
 {
@@ -157,6 +159,78 @@ class SeoRuntimeController extends Controller
             'top_queries' => $searchConsole->getTopQueries($days, $limit),
             'top_pages' => $searchConsole->getTopPages($days, min($limit, 250)),
             'stored_metrics' => SeoSearchConsoleMetric::query()->latest('metric_date')->limit(50)->get(),
+        ]);
+    }
+
+    public function runtimeSummary(
+        SeoEngineContext $context,
+        SiteHealthService $siteHealth,
+        RuntimeSeoMonitoringService $monitoring,
+    ): JsonResponse {
+        $siteId = $context->siteId();
+        $health = $siteHealth->calculate($siteId);
+        $observedMonitoring = $monitoring->observedSummary($siteId, 20);
+
+        $legacyPages = SeoPage::query()->where('site_id', $siteId);
+        $observedPages = SeoSitePage::query()->where('site_id', $siteId);
+
+        return response()->json([
+            'site' => [
+                'site_id' => $siteId,
+                'name' => $context->name(),
+                'url' => $context->url(),
+                'niche' => $context->niche(),
+                'locale' => $context->locale(),
+                'preset' => $context->preset(),
+            ],
+            'legacy' => [
+                'pages' => $legacyPages->count(),
+                'published' => (clone $legacyPages)->where('status', 'published')->count(),
+                'pending_suggestions' => SeoRecommendation::query()->where('site_id', $siteId)->where('status', 'pending')->count(),
+            ],
+            'observed' => [
+                'health' => $health,
+                'monitoring' => [
+                    'monitored' => $observedMonitoring['monitored'],
+                    'healthy' => $observedMonitoring['healthy'],
+                    'warning' => $observedMonitoring['warning'],
+                    'critical' => $observedMonitoring['critical'],
+                ],
+                'pages' => $observedPages->count(),
+                'top_alerts' => collect($observedMonitoring['items'] ?? [])
+                    ->filter(fn (array $item): bool => in_array($item['state'] ?? null, ['warning', 'critical'], true))
+                    ->take(5)
+                    ->values()
+                    ->all(),
+            ],
+        ]);
+    }
+
+    public function observedPages(
+        Request $request,
+        SeoEngineContext $context,
+        RuntimeSeoMonitoringService $monitoring,
+    ): JsonResponse {
+        $limit = max(1, min(100, (int) $request->integer('limit', 25)));
+        $state = $request->query('state');
+        $path = trim((string) $request->query('path', ''));
+
+        $items = collect($monitoring->observedSummary($context->siteId(), max($limit * 3, $limit))['items'] ?? []);
+
+        if (is_string($state) && $state !== '') {
+            $items = $items->where('state', $state);
+        }
+
+        if ($path !== '') {
+            $items = $items->filter(fn (array $item): bool => str_contains((string) ($item['path'] ?? ''), $path));
+        }
+
+        $items = $items->take($limit)->values();
+
+        return response()->json([
+            'site_id' => $context->siteId(),
+            'count' => $items->count(),
+            'items' => $items->all(),
         ]);
     }
 

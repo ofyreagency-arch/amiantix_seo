@@ -26,6 +26,8 @@ Route::middleware(['seo.engine.log', 'seo.engine.token', 'throttle:seo-engine'])
     Route::get('/seo/search-console', [SeoRuntimeController::class, 'searchConsole']);
     Route::get('/seo/internal-links', [SeoRuntimeController::class, 'internalLinks']);
     Route::get('/seo/indexation', [SeoRuntimeController::class, 'indexation']);
+    Route::get('/seo/runtime-summary', [SeoRuntimeController::class, 'runtimeSummary']);
+    Route::get('/seo/observed-pages', [SeoRuntimeController::class, 'observedPages']);
     Route::get('/seo/pages', [SeoRuntimeController::class, 'pages']);
     Route::get('/seo/sitemap', [SeoRuntimeController::class, 'sitemap']);
 });
