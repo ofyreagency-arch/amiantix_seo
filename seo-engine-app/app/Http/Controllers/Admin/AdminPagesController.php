@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\ObservedSite\ObservedRewriteBridgeService;
 use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
@@ -13,7 +14,6 @@ use App\Runtime\SeoEngineContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
-use Ofyre\SeoEngine\Contracts\SeoPageRepository;
 use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 use Ofyre\SeoEngine\Services\Review\SeoPageStatusService;
@@ -22,12 +22,13 @@ class AdminPagesController extends Controller
 {
     public function __construct(private readonly SeoEngineContext $context) {}
 
-    public function show(string $siteId, int $pageId): View
+    public function show(string $siteId, int $pageId, ObservedRewriteBridgeService $observedRewrite): View
     {
         $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
         $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+        $observedRewriteContext = $observedRewrite->contextForPage($page);
 
-        return view('admin.pages.show', compact('site', 'page'));
+        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext'));
     }
 
     public function generate(Request $request, string $siteId, SeoGeneratePageRunner $runner): RedirectResponse
@@ -56,38 +57,39 @@ class AdminPagesController extends Controller
         Request $request,
         string $siteId,
         int $pageId,
-        SeoPageRepository $pages,
         SeoRewriteService $rewrite,
+        ObservedRewriteBridgeService $observedRewrite,
     ): RedirectResponse {
         $data   = $request->validate(['mode' => ['nullable', 'string']]);
         $this->loadSite($siteId);
         $dbPage = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
-        $page   = $pages->findBySlug($dbPage->slug);
-        abort_if(! $page, 404);
+        $observedContext = $observedRewrite->syncForPage($dbPage);
+        $page = $dbPage->fresh(['suggestions']);
 
         $suggestion     = $rewrite->createSuggestion($page, $data['mode'] ?? 'enrich');
         $suggestionData = method_exists($suggestion, 'toArray') ? $suggestion->toArray() : (array) $suggestion;
 
         return redirect()->route('admin.pages.show', [$siteId, $pageId])
-            ->with('rewrite_suggestion', $suggestionData);
+            ->with('rewrite_suggestion', $suggestionData)
+            ->with('observed_rewrite_context', $observedContext);
     }
 
     public function analyze(
         string $siteId,
         int $pageId,
-        SeoPageRepository $pages,
         SeoPageStatusService $statusService,
         DatabaseSeoCockpitRepository $cockpit,
+        ObservedRewriteBridgeService $observedRewrite,
     ): RedirectResponse {
         $this->loadSite($siteId);
         $dbPage = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
-        $page   = $pages->findBySlug($dbPage->slug);
-        abort_if(! $page, 404);
+        $observedContext = $observedRewrite->contextForPage($dbPage);
 
         $analysis = [
-            'status_report'    => $statusService->summarize($page),
-            'semantic_context' => $cockpit->semanticContextForPage($page),
-            'timeline'         => $cockpit->timelineForPage($page),
+            'status_report' => $statusService->summarize($dbPage),
+            'semantic_context' => $cockpit->semanticContextForPage($dbPage),
+            'timeline' => $cockpit->timelineForPage($dbPage),
+            'observed_rewrite' => $observedContext,
         ];
 
         return redirect()->route('admin.pages.show', [$siteId, $pageId])

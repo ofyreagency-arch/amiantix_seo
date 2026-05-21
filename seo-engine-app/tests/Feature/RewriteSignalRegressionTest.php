@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\SeoRecommendation;
 use App\Models\SeoOverride;
 use App\Models\SeoPage;
+use App\Models\SeoSitePage;
 use App\Models\SeoSuggestion;
+use App\ObservedSite\ObservedRewriteBridgeService;
 use App\SeoBridge\Persisters\DatabaseSeoSuggestionPersister;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Ofyre\SeoEngine\Contracts\PromptProfileProvider;
@@ -307,6 +310,94 @@ class RewriteSignalRegressionTest extends TestCase
         $this->assertContains('review_wrong_ranking_page', $suggestion->suggestions_json['rationale']);
         $this->assertNotContains('already_applied', $suggestion->suggestions_json['rationale']);
         $this->assertSame(2, $suggestion->suggestions_json['signals_summary']['pending_rewrite_signals']);
+    }
+
+    public function test_observed_rewrite_bridge_feeds_runtime_rewrite_with_observed_context(): void
+    {
+        $page = SeoPage::query()->create([
+            'site_id' => 'rewrite-site',
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'cluster' => 'diagnostic',
+            'status' => 'published',
+            'title' => 'Diagnostic amiante Paris',
+            'content' => '<p>contenu</p>',
+            'seo_score' => 58,
+        ]);
+
+        $sitePage = SeoSitePage::query()->create([
+            'site_id' => 'rewrite-site',
+            'normalized_url' => 'https://rewrite.test/diagnostic-amiante-paris',
+            'url_hash' => sha1('https://rewrite.test/diagnostic-amiante-paris'),
+            'path' => '/diagnostic-amiante-paris',
+            'title' => 'Diagnostic amiante Paris',
+            'meta_description' => null,
+            'canonical_url' => 'https://rewrite.test/diagnostic-amiante-paris',
+            'indexability_state' => 'noindex',
+            'last_status_code' => 200,
+            'latest_word_count' => 180,
+            'internal_inlinks' => 0,
+            'internal_outlinks' => 1,
+            'authority_score' => 0.12,
+            'orphan_score' => 0.82,
+            'overlap_score' => 0.18,
+            'pillar_likelihood' => 0.25,
+            'cluster_label' => 'diagnostic',
+            'discovered_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        SeoRecommendation::query()->create([
+            'site_id' => 'rewrite-site',
+            'site_page_id' => $sitePage->id,
+            'type' => 'add_internal_links',
+            'priority' => 10,
+            'estimated_impact' => 'high',
+            'difficulty' => 'low',
+            'cluster' => 'diagnostic',
+            'title' => 'Reconnect orphan page: Diagnostic amiante Paris',
+            'reasoning' => 'Observed graph says the page is isolated.',
+            'suggested_action' => 'Add contextual internal links from stronger cluster pages.',
+            'status' => 'pending',
+            'meta_json' => [
+                'context_label' => 'Diagnostic amiante Paris',
+                'url' => 'https://rewrite.test/guide-diagnostic-amiante',
+            ],
+            'generated_at' => now(),
+        ]);
+
+        $context = app(ObservedRewriteBridgeService::class)->syncForPage($page);
+
+        $this->assertTrue($context['matched']);
+        $this->assertTrue($context['queued']);
+        $this->assertSame('warning', $context['state']);
+        $this->assertContains('non_indexable', $context['flags']);
+        $this->assertDatabaseHas('seo_suggestions', [
+            'seo_page_id' => $page->id,
+            'source' => 'observed_rewrite:auto',
+            'status' => 'pending',
+        ]);
+
+        $service = $this->rewriteService(
+            new class implements RewriteAccessDecider
+            {
+                public function rewriteAllowed(object $page): bool
+                {
+                    return true;
+                }
+            },
+            $this->promptProfile(),
+        );
+
+        $suggestion = $service->createSuggestion($page->fresh(['suggestions']), 'improve-indexability');
+
+        $this->assertSame('rewrite_engine:improve-indexability', $suggestion->source);
+        $this->assertContains('observed_rewrite:auto', array_keys($suggestion->suggestions_json['signals_summary']['sources']));
+        $this->assertContains('observed_flag:non_indexable', $suggestion->suggestions_json['rationale']);
+        $this->assertContains(
+            'Add contextual internal links from stronger cluster pages.',
+            $suggestion->suggestions_json['sections']
+        );
     }
 
     private function rewriteService(RewriteAccessDecider $access, PromptProfileProvider $prompts): SeoRewriteService

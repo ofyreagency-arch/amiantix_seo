@@ -15,6 +15,7 @@
 @php
     $statusColors = ['published' => 'bg-green-100 text-green-700', 'draft' => 'bg-gray-100 text-gray-600', 'review' => 'bg-yellow-100 text-yellow-700', 'error' => 'bg-red-100 text-red-700'];
     $sc = $statusColors[$page->status] ?? 'bg-gray-100 text-gray-600';
+    $observedRewriteContext = session('observed_rewrite_context', $observedRewriteContext ?? null);
 @endphp
 
 {{-- Header --}}
@@ -140,6 +141,36 @@
         {{-- Rewrite --}}
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-5">
             <h3 class="font-semibold text-gray-900 text-sm mb-4">Réécrire</h3>
+            @if(($observedRewriteContext['matched'] ?? false) === true)
+                @php
+                    $state = $observedRewriteContext['state'] ?? 'unknown';
+                    $stateTone = $state === 'critical'
+                        ? 'bg-red-50 text-red-700 border-red-100'
+                        : ($state === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100');
+                @endphp
+                <div class="mb-4 rounded-lg border px-3 py-3 {{ $stateTone }}">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide">Contexte observed</div>
+                            <div class="text-sm mt-1">
+                                {{ ucfirst($state) }} · score {{ $observedRewriteContext['health']['health_score'] ?? '—' }}
+                            </div>
+                        </div>
+                        <div class="text-xs text-right">
+                            <div>{{ count($observedRewriteContext['flags'] ?? []) }} flag(s)</div>
+                            <div>{{ count($observedRewriteContext['recommendations'] ?? []) }} reco(s)</div>
+                        </div>
+                    </div>
+
+                    @if(!empty($observedRewriteContext['flags']))
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            @foreach(($observedRewriteContext['flags'] ?? []) as $flag)
+                                <span class="inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium text-gray-700">{{ $flag }}</span>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            @endif
             <form method="POST" action="{{ route('admin.pages.rewrite', [$site->site_id, $page->id]) }}" class="space-y-3">
                 @csrf
                 <div>
@@ -158,6 +189,39 @@
                 </button>
             </form>
         </div>
+
+        @if(($observedRewriteContext['matched'] ?? false) === true && (!empty($observedRewriteContext['recommendations']) || !empty($observedRewriteContext['sections'])))
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-5">
+            <h3 class="font-semibold text-gray-900 text-sm mb-4">Backlog observed</h3>
+
+            @if(!empty($observedRewriteContext['sections']))
+                <div class="space-y-2 mb-4">
+                    @foreach(array_slice($observedRewriteContext['sections'], 0, 3) as $section)
+                        <div class="flex items-start gap-2 text-sm text-gray-700">
+                            <span class="text-purple-400 mt-0.5">•</span>
+                            <span>{{ $section }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            @if(!empty($observedRewriteContext['recommendations']))
+                <div class="space-y-3">
+                    @foreach(array_slice($observedRewriteContext['recommendations'], 0, 3) as $item)
+                        <div class="rounded-lg border border-gray-100 px-3 py-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-sm font-medium text-gray-900">{{ $item['title'] }}</div>
+                                <span class="text-[11px] rounded-full bg-gray-100 px-2 py-0.5 text-gray-500">P{{ $item['priority'] }}</span>
+                            </div>
+                            @if(!empty($item['suggested_action']))
+                                <div class="text-xs text-gray-500 mt-1">{{ $item['suggested_action'] }}</div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+        @endif
 
         {{-- Page info --}}
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-4 space-y-2.5 text-xs">

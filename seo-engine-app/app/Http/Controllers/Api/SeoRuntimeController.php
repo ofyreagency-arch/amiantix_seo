@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\ObservedSite\ObservedRewriteBridgeService;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
@@ -42,7 +43,13 @@ class SeoRuntimeController extends Controller
         ], 201);
     }
 
-    public function rewrite(Request $request, SeoPageRepository $pages, SeoRewriteService $rewrite): JsonResponse
+    public function rewrite(
+        Request $request,
+        SeoPageRepository $pages,
+        SeoRewriteService $rewrite,
+        SeoEngineContext $context,
+        ObservedRewriteBridgeService $observedRewrite,
+    ): JsonResponse
     {
         $payload = $request->validate([
             'slug' => ['required', 'string'],
@@ -51,12 +58,19 @@ class SeoRuntimeController extends Controller
 
         $page = $pages->findBySlug($payload['slug']);
         abort_if(! $page, 404, 'SEO page not found.');
+        $dbPage = SeoPage::query()
+            ->where('site_id', $context->siteId())
+            ->where('slug', ltrim($payload['slug'], '/'))
+            ->first();
+        $observedContext = $dbPage ? $observedRewrite->syncForPage($dbPage) : null;
+        $rewritePage = $dbPage ? $dbPage->fresh(['suggestions']) : $page;
 
-        $suggestion = $rewrite->createSuggestion($page, $payload['mode'] ?? 'enrich');
+        $suggestion = $rewrite->createSuggestion($rewritePage, $payload['mode'] ?? 'enrich');
 
         return response()->json([
-            'page' => $page,
+            'page' => $rewritePage,
             'suggestion' => $suggestion,
+            'observed_rewrite' => $observedContext,
         ]);
     }
 
@@ -66,6 +80,7 @@ class SeoRuntimeController extends Controller
         SeoPageStatusService $statusService,
         SearchConsoleService $searchConsole,
         DatabaseSeoCockpitRepository $cockpitRepository,
+        ObservedRewriteBridgeService $observedRewrite,
     ): JsonResponse {
         $payload = $request->validate([
             'slug' => ['required', 'string'],
@@ -73,6 +88,9 @@ class SeoRuntimeController extends Controller
 
         $page = $pages->findBySlug($payload['slug']);
         abort_if(! $page, 404, 'SEO page not found.');
+        $dbPage = $page instanceof SeoPage
+            ? $page
+            : SeoPage::query()->where('site_id', $page->site_id ?? null)->where('slug', $payload['slug'])->first();
 
         return response()->json([
             'page' => $page,
@@ -80,6 +98,7 @@ class SeoRuntimeController extends Controller
             'metrics' => $searchConsole->pageMetrics($page),
             'semantic_context' => $cockpitRepository->semanticContextForPage($page),
             'timeline' => $cockpitRepository->timelineForPage($page),
+            'observed_rewrite' => $dbPage ? $observedRewrite->contextForPage($dbPage) : null,
         ]);
     }
 
