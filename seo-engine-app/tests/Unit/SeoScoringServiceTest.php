@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Services\Scoring\RuntimeSeoScoringService;
 use Ofyre\SeoEngine\Contracts\ContentSignalProvider;
-use Ofyre\SeoEngine\Services\Scoring\SeoScoringService;
 use PHPUnit\Framework\TestCase;
 
 class SeoScoringServiceTest extends TestCase
 {
     public function test_it_preserves_historical_editorial_penalties_and_marker_recommendations(): void
     {
-        $service = new SeoScoringService(new class implements ContentSignalProvider
+        $service = new RuntimeSeoScoringService(new class implements ContentSignalProvider
         {
             public function requiredContentMarkers(): array
             {
@@ -83,7 +83,7 @@ class SeoScoringServiceTest extends TestCase
 
     public function test_it_preserves_search_console_and_risk_signal_weighting(): void
     {
-        $service = new SeoScoringService();
+        $service = new RuntimeSeoScoringService();
 
         $page = (object) [
             'title' => 'Diagnostic amiante avant travaux Paris',
@@ -118,6 +118,62 @@ class SeoScoringServiceTest extends TestCase
         $this->assertContains('Block publication and review the editorial brief.', $audit['recommendations']);
         $this->assertContains('Test a clearer title and a more result-oriented meta description.', $audit['recommendations']);
         $this->assertContains('Strengthen semantic depth and add content matching Search Console queries.', $audit['recommendations']);
+    }
+
+    public function test_it_does_not_penalize_unpublished_pages_for_missing_indexation_state(): void
+    {
+        $service = new RuntimeSeoScoringService();
+
+        $page = (object) [
+            'status' => 'review',
+            'published_at' => null,
+            'title' => 'Danger Sante Amiante : obligations, preuves et coordination',
+            'meta_description' => 'Contenu Amiantix sur le risque amiante avec situations terrain, preuves documentaires, coordination et arbitrages utiles avant intervention.',
+            'content' => $this->buildContent(
+                words: 1500,
+                headings: 6,
+                links: 3,
+                markers: ['amiante', 'diagnostic', 'reperage', 'travaux']
+            ),
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'schema_json' => ['@type' => 'Article'],
+            'image_path' => 'images/page.png',
+            'topical_score' => 100,
+            'spam_risk' => 'low',
+            'is_indexed' => null,
+        ];
+
+        $audit = $service->audit($page);
+
+        $this->assertNotContains('not_indexed', $audit['issues']);
+    }
+
+    public function test_it_still_penalizes_published_pages_when_indexation_is_missing(): void
+    {
+        $service = new RuntimeSeoScoringService();
+
+        $page = (object) [
+            'status' => 'published',
+            'published_at' => '2026-05-21 00:00:00',
+            'title' => 'Danger Sante Amiante : obligations, preuves et coordination',
+            'meta_description' => 'Contenu Amiantix sur le risque amiante avec situations terrain, preuves documentaires, coordination et arbitrages utiles avant intervention.',
+            'content' => $this->buildContent(
+                words: 1500,
+                headings: 6,
+                links: 3,
+                markers: ['amiante', 'diagnostic', 'reperage', 'travaux']
+            ),
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'schema_json' => ['@type' => 'Article'],
+            'image_path' => 'images/page.png',
+            'topical_score' => 100,
+            'spam_risk' => 'low',
+            'is_indexed' => null,
+        ];
+
+        $audit = $service->audit($page);
+
+        $this->assertContains('not_indexed', $audit['issues']);
     }
 
     /**

@@ -28,6 +28,7 @@ use App\Services\Preset\PresetImagePromptProvider;
 use App\Services\Preset\PresetInternalLinkProvider;
 use App\Services\Preset\PresetManager;
 use App\Services\Preset\PresetPromptProfile;
+use App\Services\Scoring\RuntimeSeoScoringService;
 use Illuminate\Support\ServiceProvider;
 use Ofyre\SeoEngine\Contracts\CannibalizationActionDecider;
 use Ofyre\SeoEngine\Contracts\ContentSignalProvider;
@@ -53,6 +54,7 @@ use Ofyre\SeoEngine\Contracts\SeoPageRepository;
 use Ofyre\SeoEngine\Contracts\SeoSuggestionPersister;
 use Ofyre\SeoEngine\Contracts\SignalSuggestionFormatter;
 use Ofyre\SeoEngine\Contracts\VectorStore;
+use Ofyre\SeoEngine\Services\Scoring\SeoScoringService;
 use Ofyre\SeoEngine\Services\SearchConsole\GoogleServiceAccountTokenService;
 
 class SeoRuntimeServiceProvider extends ServiceProvider
@@ -78,6 +80,7 @@ class SeoRuntimeServiceProvider extends ServiceProvider
         $this->app->singleton(SearchConsoleTokenProvider::class, GoogleServiceAccountTokenService::class);
         $this->app->singleton(RewriteAccessDecider::class, SeoOverrideService::class);
         $this->app->singleton(ContentSignalProvider::class, PresetContentSignalProvider::class);
+        $this->app->singleton(SeoScoringService::class, RuntimeSeoScoringService::class);
         $this->app->singleton(PageStatusLabeler::class, RuntimePageStatusLabeler::class);
         $this->app->singleton(PrioritizedPageProvider::class, DatabasePrioritizedPageProvider::class);
         $this->app->singleton(SignalSuggestionFormatter::class, RuntimeSignalSuggestionFormatter::class);

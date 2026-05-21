@@ -2,16 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Ofyre\SeoEngine\Services\Scoring;
+namespace App\Services\Scoring;
 
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\ContentSignalProvider;
+use Ofyre\SeoEngine\Services\Scoring\SeoScoringService;
 
-class SeoScoringService
+class RuntimeSeoScoringService extends SeoScoringService
 {
     public function __construct(
-        private readonly ?ContentSignalProvider $signals = null,
-    ) {}
+        private readonly ?ContentSignalProvider $runtimeSignals = null,
+    ) {
+        parent::__construct($runtimeSignals);
+    }
+
     /**
      * @param  array<string,mixed>  $searchConsoleData
      * @return array{score:int,issues:array<int,string>,recommendations:array<int,string>}
@@ -33,14 +37,14 @@ class SeoScoringService
         if ($wordCount < 1300) {
             $score -= 22;
             $issues[] = 'content_too_short';
-            $recommendations[] = $this->signals?->recommendationFor('content_too_short')
+            $recommendations[] = $this->runtimeSignals?->recommendationFor('content_too_short')
                 ?? 'Add content depth to reach sufficient editorial quality.';
         }
 
         if ($faqCount < 5) {
             $score -= 14;
             $issues[] = 'missing_or_short_faq';
-            $recommendations[] = $this->signals?->recommendationFor('missing_or_short_faq')
+            $recommendations[] = $this->runtimeSignals?->recommendationFor('missing_or_short_faq')
                 ?? 'Add at least 5 FAQ entries covering the main search intents.';
         }
 
@@ -53,7 +57,7 @@ class SeoScoringService
         if ($headings < 6) {
             $score -= 12;
             $issues[] = 'weak_heading_structure';
-            $recommendations[] = $this->signals?->recommendationFor('weak_heading_structure')
+            $recommendations[] = $this->runtimeSignals?->recommendationFor('weak_heading_structure')
                 ?? 'Structure the page with multiple H2/H3 headings covering the main topic angles.';
         }
 
@@ -82,11 +86,11 @@ class SeoScoringService
         }
 
         $normalizedContent = Str::lower(Str::ascii($content));
-        foreach ($this->signals?->requiredContentMarkers() ?? [] as $marker) {
+        foreach ($this->runtimeSignals?->requiredContentMarkers() ?? [] as $marker) {
             if (! str_contains($normalizedContent, $marker['marker'])) {
                 $score -= $marker['score_penalty'];
                 $issues[] = $marker['issue_key'];
-                $recommendation = $this->signals->recommendationFor($marker['issue_key']);
+                $recommendation = $this->runtimeSignals->recommendationFor($marker['issue_key']);
                 if ($recommendation !== null) {
                     $recommendations[] = $recommendation;
                 }
