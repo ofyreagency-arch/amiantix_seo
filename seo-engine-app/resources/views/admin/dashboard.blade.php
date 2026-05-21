@@ -319,6 +319,12 @@
                                 </span>
                             </div>
                             <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                                <span>état {{ $page->state }}</span>
+                                <span>•</span>
+                                <span>priorité {{ (int) $page->priority }}</span>
+                                <span>•</span>
+                                <span>santé {{ (int) $page->health_score }}</span>
+                                <span>•</span>
                                 <span>autorité {{ round(((float) $page->authority_score) * 100) }}%</span>
                                 <span>•</span>
                                 <span>orphan {{ round(((float) $page->orphan_score) * 100) }}%</span>
@@ -360,6 +366,9 @@
                             <span class="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{{ $row['orphan_pages'] }} orphelines</span>
                             <span class="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700">{{ $row['weak_pages'] }} faibles</span>
                             <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{{ $row['pending_actions'] }} actions</span>
+                            <span class="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">{{ $row['monitor_healthy'] }} healthy</span>
+                            <span class="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{{ $row['monitor_warning'] }} warning</span>
+                            <span class="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700">{{ $row['monitor_critical'] }} critical</span>
                         </div>
                     </div>
                     @empty

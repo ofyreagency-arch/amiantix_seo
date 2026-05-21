@@ -12,12 +12,17 @@ use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSitePage;
 use App\Models\SeoSuggestion;
+use App\ObservedSite\SiteHealthService;
+use App\Runtime\RuntimeSeoMonitoringService;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class AdminDashboardController extends Controller
 {
-    public function index(): View
+    public function index(
+        SiteHealthService $siteHealth,
+        RuntimeSeoMonitoringService $monitoring,
+    ): View
     {
         $stats = [
             'total_sites' => SeoSite::query()->active()->count(),
@@ -67,6 +72,13 @@ class AdminDashboardController extends Controller
         ];
 
         $siteIds = SeoSite::query()->active()->pluck('site_id');
+        $observedHealthBySite = [];
+        $observedMonitoringBySite = [];
+
+        foreach ($siteIds as $siteId) {
+            $observedHealthBySite[$siteId] = $siteHealth->calculate((string) $siteId);
+            $observedMonitoringBySite[$siteId] = $monitoring->observedSummary((string) $siteId, 50);
+        }
 
         $observedBySite = SeoSitePage::query()
             ->selectRaw('site_id, count(*) as total')
@@ -147,21 +159,13 @@ class AdminDashboardController extends Controller
                 $authority = (float) ($avgAuthorityBySite[$site->site_id] ?? 0);
                 $orphanAverage = (float) ($avgOrphanBySite[$site->site_id] ?? 0);
                 $crawl = $latestCrawlBySite[$site->site_id] ?? null;
-
-                $weakRatio = $observed > 0 ? min(1, $weak / $observed) : 1;
-                $actionRatio = $observed > 0 ? min(1, $pending / max(1, $observed)) : 0;
-                $healthScore = (int) round(
-                    max(
-                        0,
-                        min(
-                            100,
-                            ($authority * 55 * 100 / 100)
-                            + ((1 - $orphanAverage) * 25)
-                            + ((1 - $weakRatio) * 15)
-                            + ((1 - $actionRatio) * 5)
-                        )
-                    )
-                );
+                $health = $observedHealthBySite[$site->site_id] ?? ['score' => 0];
+                $monitorSummary = $observedMonitoringBySite[$site->site_id] ?? [
+                    'healthy' => 0,
+                    'warning' => 0,
+                    'critical' => 0,
+                    'items' => [],
+                ];
 
                 return [
                     'site' => $site,
@@ -172,7 +176,10 @@ class AdminDashboardController extends Controller
                     'pending_actions' => $pending,
                     'avg_authority' => round($authority * 100),
                     'avg_orphan' => round($orphanAverage * 100),
-                    'health_score' => $healthScore,
+                    'health_score' => (int) ($health['score'] ?? 0),
+                    'monitor_healthy' => (int) ($monitorSummary['healthy'] ?? 0),
+                    'monitor_warning' => (int) ($monitorSummary['warning'] ?? 0),
+                    'monitor_critical' => (int) ($monitorSummary['critical'] ?? 0),
                     'latest_crawl' => $crawl,
                 ];
             });
@@ -304,27 +311,16 @@ class AdminDashboardController extends Controller
             })
             ->values();
 
-        $weakObservedPages = SeoSitePage::query()
-            ->where(function ($query): void {
-                $query->where('latest_word_count', '<', 300)
-                    ->orWhere('authority_score', '<', 0.20)
-                    ->orWhere('orphan_score', '>=', 0.75)
-                    ->orWhere('indexability_state', '!=', 'indexable');
-            })
-            ->orderByDesc('orphan_score')
-            ->orderBy('authority_score')
-            ->orderBy('latest_word_count')
-            ->limit(8)
-            ->get([
-                'site_id',
-                'title',
-                'path',
-                'cluster_label',
-                'authority_score',
-                'orphan_score',
-                'latest_word_count',
-                'indexability_state',
-            ]);
+        $weakObservedPages = collect($observedMonitoringBySite)
+            ->flatMap(fn (array $summary): array => $summary['items'] ?? [])
+            ->filter(fn (array $item): bool => in_array($item['state'] ?? null, ['warning', 'critical'], true))
+            ->sortBy([
+                ['priority', 'desc'],
+                ['health_score', 'asc'],
+            ])
+            ->take(8)
+            ->map(fn (array $item): object => (object) $item)
+            ->values();
 
         $recent = SeoPage::query()
             ->select(['id', 'site_id', 'keyword', 'slug', 'status', 'seo_score', 'updated_at'])
