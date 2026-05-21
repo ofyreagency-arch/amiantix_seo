@@ -42,7 +42,23 @@
 
 @php
 $impactColors = ['high' => 'bg-red-100 text-red-700', 'medium' => 'bg-yellow-100 text-yellow-700', 'low' => 'bg-gray-100 text-gray-600'];
-$typeColors   = ['page' => 'bg-blue-100 text-blue-700', 'cluster' => 'bg-purple-100 text-purple-700', 'technical' => 'bg-orange-100 text-orange-700', 'link' => 'bg-green-100 text-green-700', 'content' => 'bg-cyan-100 text-cyan-700'];
+$typeColors = [
+    'add_internal_links' => 'bg-green-100 text-green-700',
+    'refresh_page' => 'bg-blue-100 text-blue-700',
+    'differentiate_intent' => 'bg-rose-100 text-rose-700',
+    'create_page' => 'bg-purple-100 text-purple-700',
+    'page' => 'bg-blue-100 text-blue-700',
+    'cluster' => 'bg-purple-100 text-purple-700',
+    'technical' => 'bg-orange-100 text-orange-700',
+    'link' => 'bg-green-100 text-green-700',
+    'content' => 'bg-cyan-100 text-cyan-700',
+];
+$typeLabels = [
+    'add_internal_links' => 'add internal links',
+    'refresh_page' => 'refresh page',
+    'differentiate_intent' => 'differentiate intent',
+    'create_page' => 'create page',
+];
 @endphp
 
 <div class="space-y-3">
@@ -60,7 +76,7 @@ $typeColors   = ['page' => 'bg-blue-100 text-blue-700', 'cluster' => 'bg-purple-
         <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1 flex-wrap">
                 <span class="font-semibold text-gray-900 {{ $done ? 'line-through' : '' }}">{{ $item->title }}</span>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $tc }}">{{ $item->type }}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $tc }}">{{ $typeLabels[$item->type] ?? $item->type }}</span>
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $ic }}">{{ $item->estimated_impact }}</span>
                 @if($done)
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">✓ Fait</span>
