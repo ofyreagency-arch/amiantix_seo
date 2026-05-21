@@ -60,6 +60,12 @@ class DatabaseSeoFeedbackLoopDriver implements SeoFeedbackLoopDriver
         $impressions = (float) ($metrics['impressions'] ?? 0);
         $ctr = (float) ($metrics['ctr'] ?? 0);
         $position = (float) ($metrics['position'] ?? 100);
+        $coverage = collect((array) ($metrics['coverage'] ?? []))
+            ->map(static fn (mixed $value): string => strtoupper((string) $value));
+
+        if ($indexed && $coverage->contains(fn (string $value): bool => str_contains($value, 'PASS'))) {
+            return true;
+        }
 
         return $indexed
             && $impressions >= 100
