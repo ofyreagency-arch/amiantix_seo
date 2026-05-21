@@ -103,7 +103,7 @@
     {{-- Content --}}
     @if($page->content)
     <div class="prose-blog mb-12">
-        {!! $page->content !!}
+        {!! Str::markdown((string) $page->content) !!}
     </div>
     @else
     <div class="mb-12 rounded-xl border border-dashed border-gray-200 px-6 py-10 text-center text-gray-400 text-sm">

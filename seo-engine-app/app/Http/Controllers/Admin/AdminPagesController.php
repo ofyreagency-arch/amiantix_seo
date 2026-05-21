@@ -133,6 +133,7 @@ class AdminPagesController extends Controller
         int $pageId,
         int $suggestionId,
         SeoSuggestionWorkflowService $workflow,
+        SeoScoreRefreshService $scoreRefresh,
     ): RedirectResponse
     {
         $this->loadSite($siteId);
@@ -142,8 +143,14 @@ class AdminPagesController extends Controller
         $result = $workflow->apply($suggestion);
         $updatedFields = $result['updated_fields'];
         $bodyApplied = $result['body_applied'];
+
+        $page = SeoPage::query()->find($pageId);
+        if ($page) {
+            $scoreRefresh->refresh($page->refresh());
+        }
+
         $message = $bodyApplied
-            ? 'Suggestion appliquée à la page.'
+            ? 'Suggestion appliquée et scores recalculés.'
             : ($result['signal_notes_applied']
                 ? 'Suggestion approuvée : la page a été marquée pour revue avec ses signaux et recommandations.'
                 : 'Suggestion appliquée partiellement : métadonnées, FAQ et maillage mis à jour.');
@@ -212,7 +219,7 @@ class AdminPagesController extends Controller
                 ->with('warning', $exception->getMessage());
         }
 
-        if (in_array($action, ['clear_noindex', 'set_review'], true)) {
+        if (in_array($action, ['clear_noindex', 'set_review', 'approve_image'], true)) {
             $scoreRefresh->refresh($page->refresh());
         }
 

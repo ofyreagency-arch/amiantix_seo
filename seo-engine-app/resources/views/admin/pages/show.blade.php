@@ -463,7 +463,17 @@
         @if(session('rewrite_suggestion'))
         @php $suggestion = session('rewrite_suggestion'); @endphp
         <div class="bg-purple-50 border border-purple-200 rounded-xl px-6 py-5">
-            <div class="text-sm font-semibold text-purple-800 mb-3">Suggestion de réécriture</div>
+            <div class="flex items-center justify-between mb-3">
+                <div class="text-sm font-semibold text-purple-800">Suggestion créée — en attente d'application</div>
+                @if(!empty($suggestion['id']))
+                <form method="POST" action="{{ route('admin.pages.suggestions.apply', [$site->site_id, $page->id, $suggestion['id']]) }}">
+                    @csrf
+                    <button type="submit" class="inline-flex items-center rounded-full bg-purple-700 px-4 py-2 text-xs font-semibold text-white hover:bg-purple-800 transition-colors">
+                        Appliquer &amp; recalculer les scores →
+                    </button>
+                </form>
+                @endif
+            </div>
             @if(!empty($suggestion['proposed_content']) || !empty($suggestion['content']))
             @php $previewContent = $suggestion['proposed_content'] ?? $suggestion['content']; @endphp
             <div class="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">{{ Str::limit(strip_tags((string) $previewContent), 2000) }}</div>
