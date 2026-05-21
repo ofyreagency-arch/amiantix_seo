@@ -295,6 +295,77 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertDontSee('Risque spam détecté');
     }
 
+    public function test_page_show_refresh_uses_site_preset_context(): void
+    {
+        $this->withoutVite();
+
+        config()->set('seo-engine.site.preset', 'generic');
+        config()->set('seo-engine.site.niche', 'general');
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('danger sante amiante', 'reglementation');
+        $payload = app(AmiantixContentProfile::class)->fallbackPayload('danger sante amiante', 'reglementation', $blueprint);
+        $publishableContent = $payload['content'].'<section><h2>Ressources complémentaires</h2><p><a href="/reglementation-amiante">Reglementation amiante</a> <a href="/reperage-amiante-avant-travaux">Repérage amiante avant travaux</a> <a href="/coordination-amiante">Coordination amiante</a></p></section>';
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'cluster' => 'reglementation',
+            'status' => 'review',
+            'title' => $payload['title'],
+            'h1' => $payload['h1'],
+            'meta_description' => $payload['meta_description'],
+            'content' => $publishableContent,
+            'faq_json' => $payload['faq'],
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/reglementation-amiante', 'label' => 'Reglementation amiante'],
+                ['url' => '/reperage-amiante-avant-travaux', 'label' => 'Repérage amiante avant travaux'],
+                ['url' => '/dta-amiante', 'label' => 'DTA amiante'],
+                ['url' => '/ss4-amiante', 'label' => 'SS4 amiante'],
+                ['url' => '/coordination-amiante', 'label' => 'Coordination amiante'],
+            ],
+            'image_status' => 'approved',
+            'image_path' => 'seo/test-image.jpg',
+            'image_alt' => 'Illustration amiante chantier et coordination documentaire',
+            'image_prompt' => 'Illustration editoriale amiante chantier coordination documentaire',
+            'seo_score' => 12,
+            'quality_score' => 12,
+            'topical_score' => 12,
+            'indexability_score' => 12,
+            'image_quality_score' => 30,
+            'spam_risk' => 'high',
+            'review_issues_json' => ['High spam risk or excessive genericness detected.'],
+            'cluster_links_count' => 2,
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+
+        $page->refresh();
+
+        $this->assertSame('low', $page->spam_risk);
+        $this->assertSame(100, $page->topical_score);
+        $this->assertSame(100, $page->quality_score);
+    }
+
     public function test_publish_refreshes_stale_scores_before_blocking_a_green_page(): void
     {
         $site = SeoSite::query()->create([

@@ -34,7 +34,7 @@ class AdminPagesController extends Controller
         SeoScoreRefreshService $scoreRefresh,
     ): View
     {
-        $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
+        $site = $this->loadSite($siteId);
         $page = SeoPage::query()
             ->with([
                 'suggestions' => fn ($query) => $query->orderByDesc('created_at'),
