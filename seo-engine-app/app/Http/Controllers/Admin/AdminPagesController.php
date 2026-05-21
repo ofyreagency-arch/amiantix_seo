@@ -184,6 +184,29 @@ class AdminPagesController extends Controller
             ->with('success', 'Page publiée.');
     }
 
+    public function quickFix(Request $request, string $siteId, int $pageId): RedirectResponse
+    {
+        $action = $request->input('action');
+        $this->loadSite($siteId);
+        $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+
+        match ($action) {
+            'approve_image'  => $page->update(['image_status' => 'approved']),
+            'clear_noindex'  => $page->update(['forced_noindex' => false]),
+            'set_review'     => $page->update(['status' => 'review']),
+            default          => null,
+        };
+
+        return redirect()
+            ->route('admin.pages.show', [$siteId, $pageId])
+            ->with('success', match ($action) {
+                'approve_image' => 'Image marquée comme approuvée.',
+                'clear_noindex' => 'Forced noindex désactivé.',
+                'set_review'    => 'Page passée en statut review.',
+                default         => 'Action appliquée.',
+            });
+    }
+
     public function preview(string $siteId, int $pageId): View
     {
         $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();

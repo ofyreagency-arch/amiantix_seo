@@ -260,6 +260,141 @@
     </div>
 </div>
 
+{{-- Guided publication blockers --}}
+@if($page->status !== 'published' && !empty($publicationSummary['failed_rules'] ?? []))
+@php
+    $failedRules = $publicationSummary['failed_rules'] ?? [];
+    $scores      = $publicationSummary['scores'] ?? [];
+
+    $blockerMap = [
+        'seo_score_below_threshold' => [
+            'label'   => 'Score SEO insuffisant',
+            'detail'  => 'Actuel : '.((int)($page->seo_score ?? 0)).'/100 — seuil : 70',
+            'type'    => 'rewrite',
+            'mode'    => 'enrich',
+            'btn'     => 'Enrichir le contenu',
+            'color'   => 'rose',
+        ],
+        'indexability_below_threshold' => [
+            'label'   => 'Indexabilité insuffisante',
+            'detail'  => 'Actuel : '.((int)($page->indexability_score ?? 0)).'/100 — seuil : 65',
+            'type'    => 'rewrite',
+            'mode'    => 'improve-indexability',
+            'btn'     => 'Corriger l\'indexation',
+            'color'   => 'rose',
+        ],
+        'faq_count_below_minimum' => [
+            'label'   => 'FAQ insuffisante',
+            'detail'  => 'Actuel : '.count($page->faq_json ?? []).' question(s) — minimum : 5',
+            'type'    => 'rewrite',
+            'mode'    => 'enrich',
+            'btn'     => 'Enrichir la FAQ',
+            'color'   => 'amber',
+        ],
+        'image_not_approved' => [
+            'label'   => 'Image non approuvée',
+            'detail'  => 'Statut actuel : '.($page->image_status ?? 'missing'),
+            'type'    => 'quickfix',
+            'action'  => 'approve_image',
+            'btn'     => 'Marquer l\'image comme approuvée',
+            'color'   => 'amber',
+        ],
+        'status_not_pending_review' => [
+            'label'   => 'Statut incorrect pour publication',
+            'detail'  => 'Statut actuel : '.($page->status ?? 'draft').' — requis : review',
+            'type'    => 'quickfix',
+            'action'  => 'set_review',
+            'btn'     => 'Passer en review',
+            'color'   => 'amber',
+        ],
+        'forced_noindex' => [
+            'label'   => 'Forced noindex activé',
+            'detail'  => 'La page est forcée en noindex par override manuel.',
+            'type'    => 'quickfix',
+            'action'  => 'clear_noindex',
+            'btn'     => 'Retirer le forced noindex',
+            'color'   => 'rose',
+        ],
+        'duplicate_risk_high' => [
+            'label'   => 'Risque de duplication élevé',
+            'detail'  => 'Score : '.number_format((float)($page->duplicate_risk_score ?? 0) * 100, 0).'% — seuil max : 70%',
+            'type'    => 'rewrite',
+            'mode'    => 'de-duplicate',
+            'btn'     => 'Dédupliquer le contenu',
+            'color'   => 'rose',
+        ],
+        'spam_risk_high' => [
+            'label'   => 'Risque spam détecté',
+            'detail'  => 'Le moteur a détecté des signaux spam dans le contenu.',
+            'type'    => 'info',
+            'btn'     => 'Revoir le contenu manuellement',
+            'color'   => 'rose',
+        ],
+    ];
+
+    $colorsMap = [
+        'rose'  => ['bg' => 'bg-rose-50',  'border' => 'border-rose-200',  'text' => 'text-rose-800',  'sub' => 'text-rose-600',  'dot' => 'bg-rose-500',  'btn' => 'border-rose-300 text-rose-700 hover:bg-rose-100'],
+        'amber' => ['bg' => 'bg-amber-50', 'border' => 'border-amber-200', 'text' => 'text-amber-800', 'sub' => 'text-amber-600', 'dot' => 'bg-amber-400', 'btn' => 'border-amber-300 text-amber-700 hover:bg-amber-100'],
+    ];
+@endphp
+
+<div class="bg-white rounded-xl border border-rose-200 shadow-sm mb-6">
+    <div class="px-6 py-4 border-b border-rose-100 flex items-center justify-between">
+        <div>
+            <h2 class="font-semibold text-gray-900 text-sm">Débloquer la publication</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ count($failedRules) }} point(s) à corriger avant de pouvoir publier</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
+            {{ count($failedRules) }} bloquant(s)
+        </span>
+    </div>
+
+    <div class="divide-y divide-gray-50">
+        @foreach($failedRules as $rule)
+        @php $def = $blockerMap[$rule] ?? null; @endphp
+        @if($def)
+        @php $c = $colorsMap[$def['color']]; @endphp
+        <div class="px-6 py-4 flex items-center justify-between gap-6">
+            <div class="flex items-start gap-3 min-w-0">
+                <div class="w-2 h-2 rounded-full {{ $c['dot'] }} mt-1.5 shrink-0"></div>
+                <div class="min-w-0">
+                    <div class="text-sm font-medium text-gray-900">{{ $def['label'] }}</div>
+                    <div class="text-xs {{ $c['sub'] }} mt-0.5">{{ $def['detail'] }}</div>
+                </div>
+            </div>
+
+            <div class="shrink-0">
+                @if($def['type'] === 'rewrite')
+                <form method="POST" action="{{ route('admin.pages.rewrite', [$site->site_id, $page->id]) }}">
+                    @csrf
+                    <input type="hidden" name="mode" value="{{ $def['mode'] }}">
+                    <button type="submit"
+                        class="inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors {{ $c['btn'] }}">
+                        {{ $def['btn'] }}
+                    </button>
+                </form>
+                @elseif($def['type'] === 'quickfix')
+                <form method="POST" action="{{ route('admin.pages.quick-fix', [$site->site_id, $page->id]) }}">
+                    @csrf
+                    <input type="hidden" name="action" value="{{ $def['action'] }}">
+                    <button type="submit"
+                        class="inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors {{ $c['btn'] }}">
+                        {{ $def['btn'] }}
+                    </button>
+                </form>
+                @else
+                <span class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500">
+                    {{ $def['btn'] }}
+                </span>
+                @endif
+            </div>
+        </div>
+        @endif
+        @endforeach
+    </div>
+</div>
+@endif
+
 <div class="grid grid-cols-3 gap-6">
 
     {{-- Content + meta --}}

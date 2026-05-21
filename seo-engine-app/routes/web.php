@@ -40,6 +40,7 @@ Route::middleware('admin.auth')->prefix('admin')->name('admin.')->group(function
     Route::post('/sites/{siteId}/pages/{pageId}/suggestions/{suggestionId}/apply', [AdminPagesController::class, 'applySuggestion'])->name('pages.suggestions.apply');
     Route::post('/sites/{siteId}/pages/{pageId}/publish', [AdminPagesController::class, 'publish'])->name('pages.publish');
     Route::get('/sites/{siteId}/pages/{pageId}/preview', [AdminPagesController::class, 'preview'])->name('pages.preview');
+    Route::post('/sites/{siteId}/pages/{pageId}/quick-fix', [AdminPagesController::class, 'quickFix'])->name('pages.quick-fix');
 
     // Intelligence
     Route::get('/sites/{siteId}/health',                    [AdminHealthController::class,      'show'])->name('sites.health');
