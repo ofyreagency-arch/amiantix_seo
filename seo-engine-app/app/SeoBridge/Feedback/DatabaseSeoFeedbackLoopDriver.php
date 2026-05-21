@@ -16,15 +16,17 @@ class DatabaseSeoFeedbackLoopDriver implements SeoFeedbackLoopDriver
 
     public function proposeForPage(object $page, array $metrics, array $audit): mixed
     {
-        if (($audit['score'] ?? 100) >= 85) {
-            return null;
-        }
-
         if (! $page instanceof SeoPage) {
             $page = SeoPage::query()->find((int) ($page->id ?? 0));
         }
 
         if (! $page) {
+            return null;
+        }
+
+        if (($audit['score'] ?? 100) >= 85) {
+            $this->suggestions->discardPending($page, 'feedback_loop:auto');
+
             return null;
         }
 

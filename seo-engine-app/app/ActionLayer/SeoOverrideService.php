@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services;
+namespace App\ActionLayer;
 
 use App\Models\SeoOverride;
 use Ofyre\SeoEngine\Contracts\RewriteAccessDecider;

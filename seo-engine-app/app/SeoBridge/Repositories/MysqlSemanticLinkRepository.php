@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\SeoBridge\Repositories;
 
 use App\Models\SeoSemanticLink;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\SemanticLinkRepository;
 
 class MysqlSemanticLinkRepository implements SemanticLinkRepository

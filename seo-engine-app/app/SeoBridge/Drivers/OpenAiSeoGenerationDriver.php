@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\SeoBridge\Drivers;
 
 use App\Models\SeoPage;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\SeoGenerationDriver;
 use Ofyre\SeoEngine\Services\Generation\SeoGenerationService;

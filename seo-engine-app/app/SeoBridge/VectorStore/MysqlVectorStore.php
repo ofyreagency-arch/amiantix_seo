@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\SeoBridge\VectorStore;
 
 use App\Models\SeoVector;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\VectorStore;
 
 class MysqlVectorStore implements VectorStore

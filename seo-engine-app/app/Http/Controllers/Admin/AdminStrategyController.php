@@ -7,7 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SeoSite;
 use App\Models\SeoStrategyItem;
-use App\Services\SiteStrategyService;
+use App\Recommendations\SiteStrategyService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 

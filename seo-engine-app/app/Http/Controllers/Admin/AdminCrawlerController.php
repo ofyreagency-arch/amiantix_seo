@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SeoSite;
-use App\Services\SiteCrawlerService;
+use App\ObservedSite\SiteCrawlerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 

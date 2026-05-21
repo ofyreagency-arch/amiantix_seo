@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SeoSite;
-use App\Services\SiteHealthService;
+use App\ObservedSite\SiteHealthService;
 use Illuminate\View\View;
 
 class AdminHealthController extends Controller

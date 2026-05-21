@@ -8,7 +8,7 @@ use App\Models\SeoAudit;
 use App\Models\SeoPage;
 use App\Models\SeoSemanticLink;
 use App\Models\SeoSuggestion;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\SeoCockpitRepository;
 
 class DatabaseSeoCockpitRepository implements SeoCockpitRepository

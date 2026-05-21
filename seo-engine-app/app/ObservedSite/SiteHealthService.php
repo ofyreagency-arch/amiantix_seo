@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services;
+namespace App\ObservedSite;
 
 use App\Models\SeoPage;
 use App\Models\SeoSiteSnapshot;

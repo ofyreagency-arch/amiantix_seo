@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\SeoBridge\Repositories;
 
 use App\Models\SeoPage;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Ofyre\SeoEngine\Contracts\SeoPageRepository;
 
 class MysqlSeoPageRepository implements SeoPageRepository

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SeoSearchConsoleMetric extends Model
 {
     protected $fillable = [
+        'site_id',
         'seo_page_id',
         'metric_date',
         'window_days',

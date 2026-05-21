@@ -6,7 +6,7 @@ namespace App\SeoBridge\SearchConsole;
 
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
-use App\Services\SeoEngineContext;
+use App\Runtime\SeoEngineContext;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\HistoricalSeoImporter;
 use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;

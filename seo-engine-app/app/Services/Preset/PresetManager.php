@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Preset;
 
-use App\Services\AmiantixContentSignalProvider;
-use App\Services\GenericContentSignalProvider;
-use App\Services\SeoEngineContext;
+use App\Presets\Signals\AmiantixContentSignalProvider;
+use App\Presets\Signals\GenericContentSignalProvider;
+use App\Runtime\SeoEngineContext;
 use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
 use App\SeoPresets\Amiantix\AmiantixContentProfile;
 use App\SeoPresets\Amiantix\AmiantixImagePromptProvider;
