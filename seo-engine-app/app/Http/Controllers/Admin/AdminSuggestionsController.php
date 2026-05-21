@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\ActionLayer\SeoSuggestionWorkflowService;
 use App\Http\Controllers\Controller;
 use App\Models\SeoRecommendation;
 use App\Models\SeoSite;
@@ -73,13 +74,21 @@ class AdminSuggestionsController extends Controller
         ));
     }
 
-    public function approve(string $siteId, int $id): RedirectResponse
+    public function approve(string $siteId, int $id, SeoSuggestionWorkflowService $workflow): RedirectResponse
     {
-        $suggestion = SeoSuggestion::query()->findOrFail($id);
-        $suggestion->update(['status' => 'applied', 'applied_at' => now()]);
+        $suggestion = SeoSuggestion::query()
+            ->whereHas('page', fn ($query) => $query->where('site_id', $siteId))
+            ->findOrFail($id);
+        $result = $workflow->apply($suggestion);
+
+        $message = $result['body_applied']
+            ? 'Suggestion approuvée et appliquée à la page.'
+            : ($result['signal_notes_applied']
+                ? 'Suggestion approuvée : ses recommandations ont été ramenées dans la fiche page pour revue.'
+                : 'Suggestion approuvée.');
 
         return redirect()->route('admin.sites.autopilot', $siteId)
-            ->with('success', 'Suggestion approuvée.');
+            ->with('success', $message);
     }
 
     public function reject(string $siteId, int $id): RedirectResponse

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\ActionLayer\SeoSuggestionWorkflowService;
 use App\Http\Controllers\Controller;
 use App\ObservedSite\ObservedRewriteBridgeService;
 use App\Models\SeoPage;
@@ -119,83 +120,33 @@ class AdminPagesController extends Controller
             ));
     }
 
-    public function applySuggestion(string $siteId, int $pageId, int $suggestionId): RedirectResponse
+    public function applySuggestion(
+        string $siteId,
+        int $pageId,
+        int $suggestionId,
+        SeoSuggestionWorkflowService $workflow,
+    ): RedirectResponse
     {
         $this->loadSite($siteId);
-        $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
         $suggestion = SeoSuggestion::query()
-            ->where('seo_page_id', $page->id)
+            ->whereHas('page', fn ($query) => $query->where('site_id', $siteId)->whereKey($pageId))
             ->findOrFail($suggestionId);
-
-        $payload = is_array($suggestion->suggestions_json) ? $suggestion->suggestions_json : [];
-        $updates = [];
-
-        foreach (['title', 'meta_description', 'h1'] as $field) {
-            $value = trim((string) ($payload[$field] ?? ''));
-
-            if ($value !== '') {
-                $updates[$field] = $value;
-            }
-        }
-
-        $content = trim((string) ($payload['content'] ?? $payload['proposed_content'] ?? ''));
-        if ($content !== '') {
-            $updates['content'] = $content;
-        }
-
-        if (is_array($payload['faq'] ?? null) && $payload['faq'] !== []) {
-            $updates['faq_json'] = collect($payload['faq'])
-                ->filter(fn (mixed $item): bool => is_array($item) && filled($item['question'] ?? null))
-                ->map(fn (array $item): array => [
-                    'question' => (string) ($item['question'] ?? ''),
-                    'answer' => (string) ($item['answer'] ?? ''),
-                ])
-                ->values()
-                ->all();
-        }
-
-        if (is_array($payload['internal_links'] ?? null) && $payload['internal_links'] !== []) {
-            $updates['internal_links_json'] = collect($payload['internal_links'])
-                ->filter(fn (mixed $item): bool => is_array($item) && filled($item['url'] ?? null))
-                ->map(fn (array $item): array => [
-                    'label' => (string) ($item['label'] ?? $item['text'] ?? $item['url']),
-                    'url' => (string) ($item['url'] ?? ''),
-                    'reason' => $item['reason'] ?? null,
-                ])
-                ->values()
-                ->all();
-        }
-
-        if (is_array($payload['schema'] ?? null)) {
-            $updates['schema_json'] = $payload['schema'];
-        }
-
-        if ($page->status === 'draft' && $updates !== []) {
-            $updates['status'] = 'review';
-        }
-
-        if ($updates !== []) {
-            $page->update($updates);
-        }
-
-        $suggestion->update([
-            'status' => 'applied',
-            'applied_at' => now(),
-        ]);
-
-        $updatedFields = array_keys($updates);
-        $bodyApplied = in_array('content', $updatedFields, true);
+        $result = $workflow->apply($suggestion);
+        $updatedFields = $result['updated_fields'];
+        $bodyApplied = $result['body_applied'];
         $message = $bodyApplied
             ? 'Suggestion appliquée à la page.'
-            : 'Suggestion appliquée partiellement : métadonnées, FAQ et maillage mis à jour.';
+            : ($result['signal_notes_applied']
+                ? 'Suggestion approuvée : la page a été marquée pour revue avec ses signaux et recommandations.'
+                : 'Suggestion appliquée partiellement : métadonnées, FAQ et maillage mis à jour.');
 
         $redirect = redirect()
             ->route('admin.pages.show', [$siteId, $pageId])
             ->with('success', $message)
             ->with('applied_suggestion_fields', $updatedFields);
 
-        if (! $bodyApplied && is_array($payload['sections'] ?? null) && $payload['sections'] !== []) {
-            $redirect->with('warning', 'Le corps de page n a pas été remplacé automatiquement car cette suggestion contient surtout des sections et recommandations éditoriales.');
+        if (! $bodyApplied && $result['signal_notes_applied']) {
+            $redirect->with('warning', 'Cette suggestion ne contenait pas de corps complet à injecter. Ses recommandations ont été ramenées dans la fiche page pour guider la prochaine passe éditoriale.');
         }
 
         return $redirect;

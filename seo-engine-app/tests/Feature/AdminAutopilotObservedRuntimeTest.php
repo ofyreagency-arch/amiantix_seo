@@ -106,4 +106,60 @@ class AdminAutopilotObservedRuntimeTest extends TestCase
         $response->assertSee('critical');
         $response->assertSee('feedback_loop:auto');
     }
+
+    public function test_approving_legacy_autopilot_suggestion_applies_review_signal_to_page(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'autopilot-site',
+            'name' => 'Autopilot Site',
+            'url' => 'https://autopilot.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'status' => 'draft',
+            'seo_score' => 58,
+            'review_issues_json' => ['issue-existing'],
+        ]);
+
+        $suggestion = SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'feedback_loop:auto',
+            'signals_json' => ['seo_score' => 58],
+            'suggestions_json' => [
+                'recommendations' => [
+                    'Add more strategic internal links to semantically close pages.',
+                    'Check indexation status, sitemap, canonical tags and content quality before requesting re-indexation.',
+                ],
+                'rationale' => [
+                    'low_ctr',
+                    'not_indexed',
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.sites.suggestions.approve', [$site->site_id, $suggestion->id]));
+
+        $response->assertRedirect(route('admin.sites.autopilot', $site->site_id));
+
+        $page->refresh();
+        $suggestion->refresh();
+
+        $this->assertSame('review', $page->status);
+        $this->assertSame('applied', $suggestion->status);
+        $this->assertNotNull($suggestion->applied_at);
+        $this->assertContains('issue-existing', $page->review_issues_json);
+        $this->assertContains('Add more strategic internal links to semantically close pages.', $page->review_issues_json);
+        $this->assertContains('low_ctr', $page->review_issues_json);
+    }
 }
