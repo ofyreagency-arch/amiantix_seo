@@ -29,7 +29,7 @@ class ObservedQueryEmbeddingService
             ->where('metric_date', '>=', now()->subDays($window)->toDateString())
             ->selectRaw('query, MAX(url) as url, SUM(clicks) as clicks, SUM(impressions) as impressions, AVG(ctr) as ctr, AVG(position) as position')
             ->groupBy('query')
-            ->orderByDesc('SUM(impressions)')
+            ->orderByDesc('impressions')
             ->limit($limit)
             ->get();
 
