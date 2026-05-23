@@ -53,7 +53,7 @@ final class AmiantixContentProfile implements NicheContentProvider
         $links = $context['internal_links'] ?? (($context['page']->internal_links_json ?? null) ?: []);
 
         foreach ($this->missingStructuralBlocks($content, $blueprint, $context) as $block) {
-            if (! str_contains($content, $block)) {
+            if (! $this->contentContainsMarker($content, $this->sectionMarker('', $block))) {
                 $content .= $block;
             }
         }
@@ -69,7 +69,7 @@ final class AmiantixContentProfile implements NicheContentProvider
                 break;
             }
 
-            if (! str_contains($content, $block)) {
+            if (! $this->contentContainsMarker($content, $this->sectionMarker('', $block))) {
                 $content .= $block;
             }
         }
@@ -99,7 +99,7 @@ final class AmiantixContentProfile implements NicheContentProvider
                 $block = (string) ($catalog[$heading] ?? '');
                 $marker = $this->sectionMarker($heading, $block);
 
-                return $block !== '' && ! str_contains($content, $marker);
+                return $block !== '' && ! $this->contentContainsMarker($content, $marker);
             })
             ->map(fn (string $heading): string => (string) ($catalog[$heading] ?? ''))
             ->values()
@@ -143,6 +143,27 @@ final class AmiantixContentProfile implements NicheContentProvider
         }
 
         return $heading;
+    }
+
+    private function contentContainsMarker(string $content, string $marker): bool
+    {
+        $normalizedMarker = $this->normalizeStructuralText($marker);
+
+        if ($normalizedMarker === '') {
+            return false;
+        }
+
+        return str_contains($this->normalizeStructuralText($content), $normalizedMarker);
+    }
+
+    private function normalizeStructuralText(string $value): string
+    {
+        return Str::of(strip_tags($value))
+            ->lower()
+            ->ascii()
+            ->replace(['&nbsp;', "\r", "\n", "\t"], ' ')
+            ->squish()
+            ->value();
     }
 
     /**

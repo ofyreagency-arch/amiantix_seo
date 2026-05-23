@@ -68,6 +68,24 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertGreaterThanOrEqual(1450, str_word_count(strtolower(strip_tags($content))));
     }
 
+    public function test_amiantix_depth_enrichment_does_not_duplicate_existing_ai_headings_with_different_casing(): void
+    {
+        $provider = app(AmiantixContentProfile::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('risque amiante appel offre', 'reglementation');
+
+        $content = $provider->ensureContentDepth(
+            '<h2>Contexte et Obligations</h2><p>Texte AI.</p>'
+            .'<h2>Tableau de Priorisation des Risques</h2><p>Bloc AI.</p>'
+            .'<h2>Documents et Preuves à Conserver</h2><p>Bloc AI.</p>',
+            $blueprint
+        );
+
+        $this->assertSame(1, substr_count($content, 'Contexte et Obligations'));
+        $this->assertSame(1, substr_count($content, 'Tableau de Priorisation des Risques'));
+        $this->assertSame(1, substr_count($content, 'Documents et Preuves à Conserver'));
+        $this->assertStringContainsString('Matrice de controle documentaire et terrain', $content);
+    }
+
     public function test_amiantix_generation_prompt_demands_expert_structure(): void
     {
         $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
