@@ -533,8 +533,16 @@ class RewriteSignalRegressionTest extends TestCase
             $suggestion->suggestions_json['signals_summary']['weak_section_reasons']['Documents et preuves a conserver']
         );
         $this->assertSame(
+            'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+            $suggestion->suggestions_json['signals_summary']['weak_section_instructions']['Documents et preuves a conserver']
+        );
+        $this->assertSame(
             ['too_short', 'missing_structure'],
             $suggestion->suggestions_json['signals_summary']['weak_section_reasons']['Matrice de controle documentaire et terrain']
+        );
+        $this->assertSame(
+            'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+            $suggestion->suggestions_json['signals_summary']['weak_section_instructions']['Matrice de controle documentaire et terrain']
         );
         $this->assertContains(
             'Target the currently weak sections before compacting the full article.',

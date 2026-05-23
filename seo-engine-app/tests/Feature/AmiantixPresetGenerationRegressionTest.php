@@ -143,6 +143,9 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
                     'expects_structure' => true,
                 ],
             ],
+            'rewrite_weak_section_instructions' => [
+                'Documents et preuves a conserver' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+            ],
         ];
 
         $prompt = app(AmiantixPromptProfile::class)->rewritePrompt($page, 'enrich');
@@ -153,6 +156,9 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('too_short', $prompt);
         $this->assertStringContainsString('missing_structure', $prompt);
         $this->assertStringContainsString('comprendre pourquoi chaque section faible est ciblee', $prompt);
+        $this->assertStringContainsString('Consignes de patch par section faible', $prompt);
+        $this->assertStringContainsString('developper et structurer cette section', $prompt);
+        $this->assertStringContainsString('suivre les consignes de patch associees a chaque section faible', $prompt);
     }
 
     public function test_amiantix_blueprint_varies_structure_for_appel_offre_keywords(): void

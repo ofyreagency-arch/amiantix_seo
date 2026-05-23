@@ -33,7 +33,13 @@ class SeoRewriteService
             static fn (array $profile): string => (string) ($profile['heading'] ?? ''),
             $weakSectionProfiles
         ));
-        $page = $this->pageWithRewriteContext($page, $context, $weakSections, $weakSectionProfiles);
+        $page = $this->pageWithRewriteContext(
+            $page,
+            $context,
+            $weakSections,
+            $weakSectionProfiles,
+            $this->weakSectionInstructionMap($weakSectionProfiles)
+        );
 
         if (! $this->overrides->rewriteAllowed($page)) {
             return $this->suggestions->persist($page, [
@@ -152,7 +158,8 @@ class SeoRewriteService
         object $page,
         array $context,
         array $weakSections = [],
-        array $weakSectionProfiles = []
+        array $weakSectionProfiles = [],
+        array $weakSectionInstructions = []
     ): object
     {
         $clone = clone $page;
@@ -160,6 +167,7 @@ class SeoRewriteService
         $clone->rewrite_signal_summary = $this->signalContextSummary($context);
         $clone->rewrite_weak_sections = $weakSections;
         $clone->rewrite_weak_section_profiles = $weakSectionProfiles;
+        $clone->rewrite_weak_section_instructions = $weakSectionInstructions;
 
         return $clone;
     }
@@ -213,6 +221,7 @@ class SeoRewriteService
                 'sources' => $context['sources'] ?? [],
                 'weak_sections' => $weakSections,
                 'weak_section_reasons' => $this->weakSectionReasonMap($weakSectionProfiles),
+                'weak_section_instructions' => $this->weakSectionInstructionMap($weakSectionProfiles),
             ],
         );
 
@@ -243,6 +252,42 @@ class SeoRewriteService
                 )),
             ])
             ->all();
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}>  $weakSectionProfiles
+     * @return array<string,string>
+     */
+    private function weakSectionInstructionMap(array $weakSectionProfiles): array
+    {
+        return collect($weakSectionProfiles)
+            ->filter(fn (mixed $profile): bool => is_array($profile) && is_string($profile['heading'] ?? null))
+            ->mapWithKeys(function (array $profile): array {
+                $heading = (string) $profile['heading'];
+                $reasons = array_values(array_filter(
+                    $profile['reasons'] ?? [],
+                    static fn (mixed $reason): bool => is_string($reason) && trim($reason) !== ''
+                ));
+
+                return [$heading => $this->instructionForWeakReasons($reasons)];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  array<int,string>  $reasons
+     */
+    private function instructionForWeakReasons(array $reasons): string
+    {
+        $hasTooShort = in_array('too_short', $reasons, true);
+        $hasMissingStructure = in_array('missing_structure', $reasons, true);
+
+        return match (true) {
+            $hasTooShort && $hasMissingStructure => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+            $hasMissingStructure => 'structurer cette section avec des listes, sous-parties ou tableaux utiles',
+            $hasTooShort => 'developper cette section avec plus de detail metier concret',
+            default => 'renforcer cette section localement sans compresser le reste de l article',
+        };
     }
 
     /**
