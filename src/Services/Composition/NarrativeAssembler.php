@@ -101,7 +101,7 @@ final class NarrativeAssembler
             $phase = $this->phaseForHeading($heading, $blueprint);
 
             if ($previousPhase !== null) {
-                $bridge = $this->bridgeForTransition($previousPhase, $phase, $blueprint, $existingContent.$html);
+                $bridge = $this->bridgeForTransition($previousPhase, $phase, $heading, $blueprint, $existingContent.$html);
 
                 if ($bridge !== '') {
                     $html .= '<section><p>'.$bridge.'</p></section>';
@@ -195,7 +195,7 @@ final class NarrativeAssembler
     /**
      * @param  array<string,mixed>  $blueprint
      */
-    private function bridgeForTransition(?string $fromPhase, ?string $toPhase, array $blueprint, string $existingContent = ''): string
+    private function bridgeForTransition(?string $fromPhase, ?string $toPhase, string $heading, array $blueprint, string $existingContent = ''): string
     {
         if ($toPhase === null) {
             return '';
@@ -213,16 +213,46 @@ final class NarrativeAssembler
 
         $pairKey = ($fromPhase ?? 'start').':'.$toPhase;
 
-        if (is_string($bridges[$pairKey] ?? null) && $bridges[$pairKey] !== '') {
-            $bridge = (string) $bridges[$pairKey];
+        $pairBridge = $this->bridgeTextForEntry($bridges[$pairKey] ?? null, $heading);
 
-            return $this->tailAlreadyCoversBridge($existingContent, $bridge) ? '' : $bridge;
+        if ($pairBridge !== '') {
+            return $this->tailAlreadyCoversBridge($existingContent, $pairBridge) ? '' : $pairBridge;
         }
 
-        if (is_string($bridges[$toPhase] ?? null) && $bridges[$toPhase] !== '') {
-            $bridge = (string) $bridges[$toPhase];
+        $phaseBridge = $this->bridgeTextForEntry($bridges[$toPhase] ?? null, $heading);
 
-            return $this->tailAlreadyCoversBridge($existingContent, $bridge) ? '' : $bridge;
+        if ($phaseBridge !== '') {
+            return $this->tailAlreadyCoversBridge($existingContent, $phaseBridge) ? '' : $phaseBridge;
+        }
+
+        return '';
+    }
+
+    /**
+     * @param  mixed  $entry
+     */
+    private function bridgeTextForEntry(mixed $entry, string $heading): string
+    {
+        if (is_string($entry) && $entry !== '') {
+            return $entry;
+        }
+
+        if (! is_array($entry) || $entry === []) {
+            return '';
+        }
+
+        $headingBridges = $entry['by_heading'] ?? null;
+
+        if (is_array($headingBridges) && is_string($headingBridges[$heading] ?? null) && $headingBridges[$heading] !== '') {
+            return (string) $headingBridges[$heading];
+        }
+
+        if (is_string($entry[$heading] ?? null) && $entry[$heading] !== '') {
+            return (string) $entry[$heading];
+        }
+
+        if (is_string($entry['default'] ?? null) && $entry['default'] !== '') {
+            return (string) $entry['default'];
         }
 
         return '';

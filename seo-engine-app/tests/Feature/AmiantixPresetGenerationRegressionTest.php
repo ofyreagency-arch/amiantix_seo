@@ -308,4 +308,32 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringNotContainsString('À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.', $html);
         $this->assertStringStartsWith('<section><h2>Questions terrain qui reviennent souvent</h2>', $html);
     }
+
+    public function test_narrative_assembler_prefers_a_heading_specific_bridge_variant_when_available(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $blueprint['composition']['narrative_phase_bridges']['faq'] = [
+            'default' => 'La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.',
+            'by_heading' => [
+                'Questions terrain qui reviennent souvent' => 'Avant de conclure, quelques questions terrain permettent de verrouiller les derniers arbitrages sans casser le fil du dossier.',
+            ],
+        ];
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+        ];
+
+        $html = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle documentaire.</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>Avant de conclure, quelques questions terrain permettent de verrouiller les derniers arbitrages sans casser le fil du dossier.</p></section>',
+            $html
+        );
+        $this->assertStringNotContainsString('La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.', $html);
+    }
 }
