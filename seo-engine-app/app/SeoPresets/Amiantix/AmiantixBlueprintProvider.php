@@ -171,8 +171,18 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                         ],
                     ],
                     'control' => 'Une fois les preuves posées, il devient plus simple de montrer comment les contrôles documentaires et terrain s enchaînent.',
-                    'faq' => 'À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.',
-                    'resources' => 'Le lecteur peut ensuite croiser ce cadre avec les ressources les plus proches de son besoin immédiat.',
+                    'faq' => [
+                        'default' => 'À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.',
+                        'by_from_phase' => [
+                            'control' => 'Après ce passage de contrôle, quelques questions terrain suffisent souvent à lever les derniers doutes sans relancer toute la consultation.',
+                        ],
+                    ],
+                    'resources' => [
+                        'default' => 'Le lecteur peut ensuite croiser ce cadre avec les ressources les plus proches de son besoin immédiat.',
+                        'by_from_phase' => [
+                            'faq' => 'Une fois les dernières hésitations absorbées, quelques ressources bien ciblées permettent d approfondir sans disperser la décision.',
+                        ],
+                    ],
                     'close' => 'La clôture doit alors ramener l ensemble vers une décision ou une action maîtrisée, sans rouvrir de digressions inutiles.',
                 ],
                 'table_mode' => 'control_matrix',
@@ -345,7 +355,12 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                         ],
                     ],
                     'control' => 'La logique de contrôle peut alors fermer le raisonnement sans repartir dans un simple catalogue de points.',
-                    'faq' => 'La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.',
+                    'faq' => [
+                        'default' => 'La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.',
+                        'by_from_phase' => [
+                            'control' => 'Après la boucle de contrôle, la FAQ peut traiter les dernières hésitations sans faire retomber l article dans une simple liste de points.',
+                        ],
+                    ],
                     'resources' => 'Quelques ressources connexes permettent enfin d élargir la lecture avec méthode.',
                     'close' => 'La conclusion doit ramener l ensemble vers une action maîtrisée plutôt que vers une nouvelle pile d informations.',
                 ],

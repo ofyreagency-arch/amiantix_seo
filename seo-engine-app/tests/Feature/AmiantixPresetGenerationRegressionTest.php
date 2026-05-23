@@ -369,4 +369,65 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
             $arbitrageHtml
         );
     }
+
+    public function test_narrative_assembler_prefers_a_previous_phase_variant_when_the_preset_provides_one(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $blueprint['composition']['narrative_phase_bridges']['faq'] = [
+            'default' => 'La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.',
+            'by_from_phase' => [
+                'control' => 'Après la boucle de contrôle, la FAQ peut traiter les dernières hésitations sans faire retomber l article dans une simple liste de points.',
+            ],
+        ];
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+        ];
+
+        $html = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle documentaire.</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>Après la boucle de contrôle, la FAQ peut traiter les dernières hésitations sans faire retomber l article dans une simple liste de points.</p></section>',
+            $html
+        );
+        $this->assertStringNotContainsString('La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.', $html);
+    }
+
+    public function test_narrative_assembler_uses_real_preset_previous_phase_variants(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+            'Ressources et pages utiles a croiser' => '<section><h2>Ressources et pages utiles a croiser</h2><p>Ressources.</p></section>',
+        ];
+
+        $faqHtml = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle documentaire.</p></section>'
+        );
+
+        $resourcesHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>Après ce passage de contrôle, quelques questions terrain suffisent souvent à lever les derniers doutes sans relancer toute la consultation.</p></section>',
+            $faqHtml
+        );
+        $this->assertStringStartsWith(
+            '<section><p>Une fois les dernières hésitations absorbées, quelques ressources bien ciblées permettent d approfondir sans disperser la décision.</p></section>',
+            $resourcesHtml
+        );
+    }
 }

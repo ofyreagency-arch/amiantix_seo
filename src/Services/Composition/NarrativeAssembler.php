@@ -213,13 +213,13 @@ final class NarrativeAssembler
 
         $pairKey = ($fromPhase ?? 'start').':'.$toPhase;
 
-        $pairBridge = $this->bridgeTextForEntry($bridges[$pairKey] ?? null, $heading);
+        $pairBridge = $this->bridgeTextForEntry($bridges[$pairKey] ?? null, $heading, $fromPhase);
 
         if ($pairBridge !== '') {
             return $this->tailAlreadyCoversBridge($existingContent, $pairBridge) ? '' : $pairBridge;
         }
 
-        $phaseBridge = $this->bridgeTextForEntry($bridges[$toPhase] ?? null, $heading);
+        $phaseBridge = $this->bridgeTextForEntry($bridges[$toPhase] ?? null, $heading, $fromPhase);
 
         if ($phaseBridge !== '') {
             return $this->tailAlreadyCoversBridge($existingContent, $phaseBridge) ? '' : $phaseBridge;
@@ -231,7 +231,7 @@ final class NarrativeAssembler
     /**
      * @param  mixed  $entry
      */
-    private function bridgeTextForEntry(mixed $entry, string $heading): string
+    private function bridgeTextForEntry(mixed $entry, string $heading, ?string $fromPhase = null): string
     {
         if (is_string($entry) && $entry !== '') {
             return $entry;
@@ -241,10 +241,33 @@ final class NarrativeAssembler
             return '';
         }
 
+        $headingPhaseBridges = $entry['by_heading_and_from_phase'] ?? null;
+
+        if (
+            is_string($fromPhase)
+            && is_array($headingPhaseBridges)
+            && is_array($headingPhaseBridges[$heading] ?? null)
+            && is_string($headingPhaseBridges[$heading][$fromPhase] ?? null)
+            && $headingPhaseBridges[$heading][$fromPhase] !== ''
+        ) {
+            return (string) $headingPhaseBridges[$heading][$fromPhase];
+        }
+
         $headingBridges = $entry['by_heading'] ?? null;
 
         if (is_array($headingBridges) && is_string($headingBridges[$heading] ?? null) && $headingBridges[$heading] !== '') {
             return (string) $headingBridges[$heading];
+        }
+
+        $phaseBridges = $entry['by_from_phase'] ?? null;
+
+        if (
+            is_string($fromPhase)
+            && is_array($phaseBridges)
+            && is_string($phaseBridges[$fromPhase] ?? null)
+            && $phaseBridges[$fromPhase] !== ''
+        ) {
+            return (string) $phaseBridges[$fromPhase];
         }
 
         if (is_string($entry[$heading] ?? null) && $entry[$heading] !== '') {
