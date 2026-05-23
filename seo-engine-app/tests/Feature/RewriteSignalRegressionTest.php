@@ -409,11 +409,11 @@ class RewriteSignalRegressionTest extends TestCase
             'cluster' => 'diagnostics',
             'title' => 'Diagnostic amiante Paris',
             'content' => implode('', [
-                '<section><h2>Contexte et obligations</h2><p>'.str_repeat('Contexte documentaire et obligations terrain. ', 25).'</p></section>',
-                '<section><h2>Processus d intervention et coordination</h2><p>'.str_repeat('Workflow, coordination, hypothese de travaux et preparation. ', 25).'</p></section>',
-                '<section><h2>Documents et preuves a conserver</h2><p>'.str_repeat('Pieces, traces, diffusion et validations documentaires. ', 25).'</p></section>',
+                '<section><h2>Contexte et obligations</h2><p>'.str_repeat('Contexte documentaire et obligations terrain. ', 70).'</p></section>',
+                '<section><h2>Processus d intervention et coordination</h2><p>'.str_repeat('Workflow, coordination, hypothese de travaux et preparation. ', 70).'</p></section>',
+                '<section><h2>Documents et preuves a conserver</h2><p>'.str_repeat('Pieces, traces, diffusion et validations documentaires. ', 70).'</p></section>',
                 '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle.</p><table><tr><td>amiante</td></tr></table></section>',
-                '<section><h2>Passer du constat a une intervention maitrisée</h2><p>'.str_repeat('Decision, arbitrage et verification finale. ', 25).'</p></section>',
+                '<section><h2>Passer du constat a une intervention maitrisée</h2><p>'.str_repeat('Decision, arbitrage et verification finale. ', 70).'</p></section>',
             ]),
             'seo_score' => 72,
             'indexability_score' => 88,
@@ -438,6 +438,56 @@ class RewriteSignalRegressionTest extends TestCase
         $this->assertStringContainsString('<h2>Processus d intervention et coordination</h2>', (string) $suggestion->suggestions_json['proposed_content']);
         $this->assertStringContainsString('<table>', (string) $suggestion->suggestions_json['proposed_content']);
         $this->assertStringNotContainsString('<h2>Passe de réécriture</h2>', (string) $suggestion->suggestions_json['proposed_content']);
+    }
+
+    public function test_rewrite_merge_helper_preserves_rich_content_and_appends_only_new_structured_sections(): void
+    {
+        $service = new class(
+            new class implements RewriteAccessDecider
+            {
+                public function rewriteAllowed(object $page): bool
+                {
+                    return true;
+                }
+            },
+            $this->promptProfile(),
+            new DatabaseSeoSuggestionPersister(),
+            app(\Ofyre\SeoEngine\Contracts\NicheBlueprintProvider::class),
+            app(\Ofyre\SeoEngine\Contracts\NicheContentProvider::class),
+        ) extends SeoRewriteService
+        {
+            protected function rewriteWithAi(object $page, string $mode): ?array
+            {
+                return [
+                    'title' => null,
+                    'meta_description' => null,
+                    'h1' => null,
+                    'proposed_content' => '<section><h2>Checklist operationnelle avant intervention</h2><p>Verifier les hypotheses de travaux, la diffusion des pieces et les acces sensibles.</p></section>',
+                    'sections' => ['Ajouter une checklist opérationnelle avant intervention.'],
+                    'faq' => [],
+                    'internal_links' => [],
+                    'rationale' => ['Patch local plus utile qu une réécriture totale.'],
+                ];
+            }
+        };
+
+        $current = implode('', [
+            '<section><h2>Contexte et obligations</h2><p>'.str_repeat('Contexte documentaire et obligations terrain. ', 20).'</p></section>',
+            '<section><h2>Processus d intervention et coordination</h2><p>'.str_repeat('Workflow, coordination, hypothese de travaux et preparation. ', 20).'</p></section>',
+        ]);
+        $patch = implode('', [
+            '<section><h2>Checklist operationnelle avant intervention</h2><p>Verifier les hypotheses de travaux, la diffusion des pieces et les acces sensibles.</p></section>',
+            '<section><h2>Contexte et obligations</h2><p>Cette section ne doit pas etre dupliquee.</p></section>',
+        ]);
+
+        $ref = new \ReflectionClass($service);
+        $method = $ref->getMethod('mergeSuggestedNarrativePatch');
+        $method->setAccessible(true);
+        $merged = $method->invoke($service, $current, $patch);
+
+        $this->assertStringContainsString('<h2>Contexte et obligations</h2>', (string) $merged);
+        $this->assertStringContainsString('<h2>Checklist operationnelle avant intervention</h2>', (string) $merged);
+        $this->assertSame(1, substr_count((string) $merged, '<h2>Contexte et obligations</h2>'));
     }
 
     private function rewriteService(RewriteAccessDecider $access, PromptProfileProvider $prompts): SeoRewriteService

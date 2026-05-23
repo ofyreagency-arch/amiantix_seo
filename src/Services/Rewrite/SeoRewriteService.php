@@ -303,6 +303,10 @@ class SeoRewriteService
 
         if ($baseContent === '' || $this->shouldPreserveExistingNarrative($currentContent, $baseContent, $mode)) {
             $baseContent = $currentContent;
+
+            if ($currentContent !== '' && $suggestedContent !== '') {
+                $baseContent = $this->mergeSuggestedNarrativePatch($currentContent, $suggestedContent);
+            }
         }
 
         if ($baseContent === '') {
@@ -437,6 +441,33 @@ class SeoRewriteService
         return '<section><h2>'.$heading.'</h2><ul>'.$items.'</ul></section>';
     }
 
+    private function mergeSuggestedNarrativePatch(string $currentContent, string $suggestedContent): string
+    {
+        $currentHeadings = $this->headingsIndex($currentContent);
+        $patchSections = $this->extractHtmlSections($suggestedContent);
+        $append = [];
+
+        foreach ($patchSections as $section) {
+            $heading = $this->firstHeadingFromSection($section);
+
+            if ($heading === '') {
+                continue;
+            }
+
+            if (isset($currentHeadings[Str::lower($heading)])) {
+                continue;
+            }
+
+            $append[] = $section;
+        }
+
+        if ($append === []) {
+            return $currentContent;
+        }
+
+        return $currentContent.implode('', $append);
+    }
+
     private function wordCount(string $content): int
     {
         return str_word_count(Str::ascii(strip_tags($content)));
@@ -447,5 +478,41 @@ class SeoRewriteService
         preg_match_all('/<h2\b/i', $content, $matches);
 
         return count($matches[0] ?? []);
+    }
+
+    /**
+     * @return array<string,true>
+     */
+    private function headingsIndex(string $content): array
+    {
+        preg_match_all('/<h2\b[^>]*>(.*?)<\/h2>/is', $content, $matches);
+
+        return collect($matches[1] ?? [])
+            ->map(fn (mixed $heading): string => Str::lower(trim(strip_tags((string) $heading))))
+            ->filter(fn (string $heading): bool => $heading !== '')
+            ->mapWithKeys(fn (string $heading): array => [$heading => true])
+            ->all();
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function extractHtmlSections(string $content): array
+    {
+        preg_match_all('/<section\b[^>]*>.*?<\/section>/is', $content, $matches);
+
+        return array_values(array_filter(
+            $matches[0] ?? [],
+            static fn (mixed $section): bool => is_string($section) && trim($section) !== ''
+        ));
+    }
+
+    private function firstHeadingFromSection(string $section): string
+    {
+        if (! preg_match('/<h2\b[^>]*>(.*?)<\/h2>/is', $section, $matches)) {
+            return '';
+        }
+
+        return trim(strip_tags((string) ($matches[1] ?? '')));
     }
 }
