@@ -213,16 +213,24 @@ final class NarrativeAssembler
 
         $pairKey = ($fromPhase ?? 'start').':'.$toPhase;
 
-        $pairBridge = $this->bridgeTextForEntry($bridges[$pairKey] ?? null, $heading, $fromPhase);
+        $pairBridge = $this->bridgeSelectionForEntry($bridges[$pairKey] ?? null, $heading, $fromPhase, $existingContent);
 
-        if ($pairBridge !== '') {
-            return $this->tailAlreadyCoversBridge($existingContent, $pairBridge) ? '' : $pairBridge;
+        if ($pairBridge['text'] !== '') {
+            if ($pairBridge['skip_tail_dedupe'] === false && $this->tailAlreadyCoversBridge($existingContent, $pairBridge['text'])) {
+                return '';
+            }
+
+            return $pairBridge['text'];
         }
 
-        $phaseBridge = $this->bridgeTextForEntry($bridges[$toPhase] ?? null, $heading, $fromPhase);
+        $phaseBridge = $this->bridgeSelectionForEntry($bridges[$toPhase] ?? null, $heading, $fromPhase, $existingContent);
 
-        if ($phaseBridge !== '') {
-            return $this->tailAlreadyCoversBridge($existingContent, $phaseBridge) ? '' : $phaseBridge;
+        if ($phaseBridge['text'] !== '') {
+            if ($phaseBridge['skip_tail_dedupe'] === false && $this->tailAlreadyCoversBridge($existingContent, $phaseBridge['text'])) {
+                return '';
+            }
+
+            return $phaseBridge['text'];
         }
 
         return '';
@@ -230,15 +238,22 @@ final class NarrativeAssembler
 
     /**
      * @param  mixed  $entry
+     * @return array{text:string,skip_tail_dedupe:bool}
      */
-    private function bridgeTextForEntry(mixed $entry, string $heading, ?string $fromPhase = null): string
+    private function bridgeSelectionForEntry(mixed $entry, string $heading, ?string $fromPhase = null, string $existingContent = ''): array
     {
         if (is_string($entry) && $entry !== '') {
-            return $entry;
+            return ['text' => $entry, 'skip_tail_dedupe' => false];
         }
 
         if (! is_array($entry) || $entry === []) {
-            return '';
+            return ['text' => '', 'skip_tail_dedupe' => false];
+        }
+
+        $signalBridge = $this->bridgeTextForSignalEntry($entry['by_context_signal'] ?? null, $heading, $fromPhase, $existingContent);
+
+        if ($signalBridge !== '') {
+            return ['text' => $signalBridge, 'skip_tail_dedupe' => true];
         }
 
         $headingPhaseBridges = $entry['by_heading_and_from_phase'] ?? null;
@@ -250,13 +265,13 @@ final class NarrativeAssembler
             && is_string($headingPhaseBridges[$heading][$fromPhase] ?? null)
             && $headingPhaseBridges[$heading][$fromPhase] !== ''
         ) {
-            return (string) $headingPhaseBridges[$heading][$fromPhase];
+            return ['text' => (string) $headingPhaseBridges[$heading][$fromPhase], 'skip_tail_dedupe' => false];
         }
 
         $headingBridges = $entry['by_heading'] ?? null;
 
         if (is_array($headingBridges) && is_string($headingBridges[$heading] ?? null) && $headingBridges[$heading] !== '') {
-            return (string) $headingBridges[$heading];
+            return ['text' => (string) $headingBridges[$heading], 'skip_tail_dedupe' => false];
         }
 
         $phaseBridges = $entry['by_from_phase'] ?? null;
@@ -267,15 +282,82 @@ final class NarrativeAssembler
             && is_string($phaseBridges[$fromPhase] ?? null)
             && $phaseBridges[$fromPhase] !== ''
         ) {
-            return (string) $phaseBridges[$fromPhase];
+            return ['text' => (string) $phaseBridges[$fromPhase], 'skip_tail_dedupe' => false];
         }
 
         if (is_string($entry[$heading] ?? null) && $entry[$heading] !== '') {
-            return (string) $entry[$heading];
+            return ['text' => (string) $entry[$heading], 'skip_tail_dedupe' => false];
         }
 
         if (is_string($entry['default'] ?? null) && $entry['default'] !== '') {
-            return (string) $entry['default'];
+            return ['text' => (string) $entry['default'], 'skip_tail_dedupe' => false];
+        }
+
+        return ['text' => '', 'skip_tail_dedupe' => false];
+    }
+
+    /**
+     * @param  mixed  $entry
+     */
+    private function bridgeTextForSignalEntry(mixed $entry, string $heading, ?string $fromPhase, string $existingContent): string
+    {
+        if (! is_array($entry) || $entry === [] || $existingContent === '') {
+            return '';
+        }
+
+        $tail = $this->tailWindow($existingContent, 55);
+        $tailTokens = $this->tokens($tail);
+
+        if ($tailTokens === []) {
+            return '';
+        }
+
+        foreach ($entry as $rule) {
+            if (! is_array($rule)) {
+                continue;
+            }
+
+            if (is_string($rule['heading'] ?? null) && $rule['heading'] !== $heading) {
+                continue;
+            }
+
+            if (is_string($rule['from_phase'] ?? null) && $rule['from_phase'] !== $fromPhase) {
+                continue;
+            }
+
+            $terms = is_array($rule['terms'] ?? null) ? $rule['terms'] : [];
+
+            if ($terms === []) {
+                continue;
+            }
+
+            $normalizedTerms = array_values(array_filter(array_map(
+                fn (mixed $term): string => is_string($term) ? $this->normalize($term) : '',
+                $terms
+            ), static fn (string $term): bool => $term !== ''));
+
+            if ($normalizedTerms === []) {
+                continue;
+            }
+
+            $matchedTerms = array_values(array_filter(
+                $normalizedTerms,
+                fn (string $term): bool => $this->tailContainsTerm($tailTokens, $term)
+            ));
+
+            if ($matchedTerms === []) {
+                continue;
+            }
+
+            $matchMode = is_string($rule['match'] ?? null) ? strtolower((string) $rule['match']) : 'any';
+
+            if ($matchMode === 'all' && count($matchedTerms) !== count($normalizedTerms)) {
+                continue;
+            }
+
+            if (is_string($rule['text'] ?? null) && $rule['text'] !== '') {
+                return (string) $rule['text'];
+            }
         }
 
         return '';
@@ -343,5 +425,25 @@ final class NarrativeAssembler
         }
 
         return implode(' ', array_slice($tokens, -$words));
+    }
+
+    /**
+     * @param  array<int,string>  $tailTokens
+     */
+    private function tailContainsTerm(array $tailTokens, string $term): bool
+    {
+        $termTokens = $this->tokens($term);
+
+        if ($termTokens === []) {
+            return false;
+        }
+
+        if (count($termTokens) === 1) {
+            return in_array($termTokens[0], $tailTokens, true);
+        }
+
+        $tail = implode(' ', $tailTokens);
+
+        return str_contains($tail, implode(' ', $termTokens));
     }
 }

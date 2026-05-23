@@ -176,6 +176,15 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                         'by_from_phase' => [
                             'control' => 'Après ce passage de contrôle, quelques questions terrain suffisent souvent à lever les derniers doutes sans relancer toute la consultation.',
                         ],
+                        'by_context_signal' => [
+                            [
+                                'from_phase' => 'control',
+                                'heading' => 'Questions terrain qui reviennent souvent',
+                                'terms' => ['dce', 'consultation'],
+                                'match' => 'any',
+                                'text' => 'Après ce contrôle du DCE et de la consultation, quelques questions terrain suffisent souvent à verrouiller les derniers doutes sans réouvrir tout le dossier.',
+                            ],
+                        ],
                     ],
                     'resources' => [
                         'default' => 'Le lecteur peut ensuite croiser ce cadre avec les ressources les plus proches de son besoin immédiat.',
@@ -359,6 +368,15 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                         'default' => 'La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.',
                         'by_from_phase' => [
                             'control' => 'Après la boucle de contrôle, la FAQ peut traiter les dernières hésitations sans faire retomber l article dans une simple liste de points.',
+                        ],
+                        'by_context_signal' => [
+                            [
+                                'from_phase' => 'control',
+                                'heading' => 'Questions terrain qui reviennent souvent',
+                                'terms' => ['controle documentaire', 'terrain'],
+                                'match' => 'all',
+                                'text' => 'Après ce contrôle documentaire et terrain, la FAQ peut absorber les derniers doutes sans casser la progression principale.',
+                            ],
                         ],
                     ],
                     'resources' => 'Quelques ressources connexes permettent enfin d élargir la lecture avec méthode.',

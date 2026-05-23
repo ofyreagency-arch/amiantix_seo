@@ -294,6 +294,7 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
     {
         $assembler = app(NarrativeAssembler::class);
         $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $blueprint['composition']['narrative_phase_bridges']['faq'] = 'À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.';
         $catalog = [
             'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
         ];
@@ -428,6 +429,73 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringStartsWith(
             '<section><p>Une fois les dernières hésitations absorbées, quelques ressources bien ciblées permettent d approfondir sans disperser la décision.</p></section>',
             $resourcesHtml
+        );
+    }
+
+    public function test_narrative_assembler_prefers_a_context_signal_variant_when_tail_matches(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $blueprint['composition']['narrative_phase_bridges']['faq'] = [
+            'default' => 'Bridge générique faq.',
+            'by_from_phase' => [
+                'control' => 'Bridge phase control.',
+            ],
+            'by_context_signal' => [
+                [
+                    'from_phase' => 'control',
+                    'heading' => 'Questions terrain qui reviennent souvent',
+                    'terms' => ['dce', 'consultation'],
+                    'match' => 'any',
+                    'text' => 'Bridge signal consultation.',
+                ],
+            ],
+        ];
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+        ];
+
+        $html = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle DCE, consultation et variantes.</p></section>'
+        );
+
+        $this->assertStringStartsWith('<section><p>Bridge signal consultation.</p></section>', $html);
+        $this->assertStringNotContainsString('Bridge phase control.', $html);
+    }
+
+    public function test_narrative_assembler_uses_real_preset_context_signal_variants(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $appelOffreBlueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $defaultBlueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+        ];
+
+        $appelOffreHtml = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $appelOffreBlueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle du DCE, consultation, variantes et diffusion.</p></section>'
+        );
+
+        $defaultHtml = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $defaultBlueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle documentaire terrain et verification croisee.</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>Après ce contrôle du DCE et de la consultation, quelques questions terrain suffisent souvent à verrouiller les derniers doutes sans réouvrir tout le dossier.</p></section>',
+            $appelOffreHtml
+        );
+        $this->assertStringStartsWith(
+            '<section><p>Après ce contrôle documentaire et terrain, la FAQ peut absorber les derniers doutes sans casser la progression principale.</p></section>',
+            $defaultHtml
         );
     }
 }
