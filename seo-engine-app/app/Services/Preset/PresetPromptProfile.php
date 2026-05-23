@@ -17,6 +17,16 @@ class PresetPromptProfile implements PromptProfileProvider
         return $this->presets->resolvePromptProfile()->generationPrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
     }
 
+    public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
+    {
+        return $this->presets->resolvePromptProfile()->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
+    }
+
+    public function generationFaqPrompt(string $keyword, string $cluster, array $blueprint, string $title, string $metaDescription, string $h1, string $content): string
+    {
+        return $this->presets->resolvePromptProfile()->generationFaqPrompt($keyword, $cluster, $blueprint, $title, $metaDescription, $h1, $content);
+    }
+
     public function improvementPrompt(object $page, array $blueprint, array $audit, array $editorialSections, array $expectedSignals): string
     {
         return $this->presets->resolvePromptProfile()->improvementPrompt($page, $blueprint, $audit, $editorialSections, $expectedSignals);

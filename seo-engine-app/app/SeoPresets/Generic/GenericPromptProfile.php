@@ -21,6 +21,25 @@ class GenericPromptProfile implements PromptProfileProvider
         return $this->inner->generationPrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
     }
 
+    public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
+    {
+        return $this->inner->generationPrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals)
+            ."\nRetourner uniquement un JSON avec: title, meta_description, h1, content.";
+    }
+
+    public function generationFaqPrompt(string $keyword, string $cluster, array $blueprint, string $title, string $metaDescription, string $h1, string $content): string
+    {
+        return "Tu completes uniquement la FAQ d un article SEO.\n"
+            .'Mot-cle principal: '.$keyword."\n"
+            .'Cluster: '.$cluster."\n"
+            .'Titre: '.$title."\n"
+            .'Meta description: '.$metaDescription."\n"
+            .'H1: '.$h1."\n"
+            ."Contenu principal:\n".$content."\n"
+            ."Retourner uniquement un JSON avec: faq.\n"
+            ."faq doit contenir au minimum 5 objets {question, answer} utiles, non promotionnels et cohérents avec le contenu.";
+    }
+
     public function improvementPrompt(object $page, array $blueprint, array $audit, array $editorialSections, array $expectedSignals): string
     {
         return $this->inner->improvementPrompt($page, $blueprint, $audit, $editorialSections, $expectedSignals);

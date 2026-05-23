@@ -33,19 +33,48 @@ class SeoGenerationService
     {
         $cluster = $this->internalLinking->clusterForKeyword($keyword);
         $blueprint = $this->blueprints->resolve($keyword, $cluster);
-        $aiResult = $this->generateWithAi($keyword, $cluster, $blueprint);
         $fallbackPayload = $this->fallbackPayload($keyword, $cluster, $blueprint);
-        $errorType = (string) ($aiResult['trace']['error_type'] ?? '');
+        $coreResult = $this->generateCoreWithAi($keyword, $cluster, $blueprint);
+        $steps = ['core' => $coreResult['trace']];
+        $errors = [];
 
-        if ($aiResult['payload'] === null) {
+        if ($coreResult['payload'] === null) {
             $source = 'fallback';
             $payload = $fallbackPayload;
-        } elseif ($errorType === 'partial_generation') {
-            $source = 'hybrid';
-            $payload = $this->mergePartialPayloadWithFallback($aiResult['payload'], $fallbackPayload);
+            $errors[] = $coreResult['error'];
+            $steps['faq'] = [
+                'step' => 'faq',
+                'skipped' => true,
+                'reason' => 'core_failed',
+            ];
         } else {
-            $source = 'ai';
-            $payload = $aiResult['payload'];
+            $payload = $this->mergePartialPayloadWithFallback($coreResult['payload'], $fallbackPayload);
+            $source = (($coreResult['trace']['error_type'] ?? null) === 'partial_generation') ? 'hybrid' : 'ai';
+
+            if ($coreResult['error']) {
+                $errors[] = $coreResult['error'];
+            }
+
+            $faqResult = $this->generateFaqWithAi(
+                $keyword,
+                $cluster,
+                $blueprint,
+                (string) ($payload['title'] ?? ''),
+                (string) ($payload['meta_description'] ?? ''),
+                (string) ($payload['h1'] ?? ''),
+                (string) ($payload['content'] ?? '')
+            );
+
+            $steps['faq'] = $faqResult['trace'];
+
+            if ($faqResult['payload'] !== null && is_array($faqResult['payload']['faq'] ?? null) && count($faqResult['payload']['faq']) >= 5) {
+                $payload['faq'] = array_values($faqResult['payload']['faq']);
+            } else {
+                $source = 'hybrid';
+                if ($faqResult['error']) {
+                    $errors[] = $faqResult['error'];
+                }
+            }
         }
 
         [$payload, $enriched] = $this->ensurePremiumDepth($payload, $blueprint, $keyword, $cluster);
@@ -59,8 +88,8 @@ class SeoGenerationService
             'blueprint' => $blueprint,
             'payload' => $payload,
             'generation_source' => $source,
-            'generation_error' => $aiResult['error'],
-            'generation_trace' => $aiResult['trace'],
+            'generation_error' => $this->combineGenerationErrors($errors),
+            'generation_trace' => $this->mergeGenerationTrace($steps, $payload),
         ];
     }
 
@@ -174,6 +203,55 @@ class SeoGenerationService
     }
 
     /**
+     * @param  array<string,mixed>  $blueprint
+     * @return array{payload:?array<string,mixed>,error:?string,trace:array<string,mixed>}
+     */
+    protected function generateCoreWithAi(string $keyword, string $cluster, array $blueprint): array
+    {
+        return $this->askAiResult(
+            $this->prompts->generationCorePrompt(
+                $keyword,
+                $cluster,
+                $blueprint,
+                $this->blueprints->expectedEditorialSections($blueprint),
+                $this->blueprints->expectedSignals($blueprint),
+            ),
+            $keyword,
+            ['title', 'meta_description', 'h1', 'content'],
+            'core'
+        );
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     * @return array{payload:?array<string,mixed>,error:?string,trace:array<string,mixed>}
+     */
+    protected function generateFaqWithAi(
+        string $keyword,
+        string $cluster,
+        array $blueprint,
+        string $title,
+        string $metaDescription,
+        string $h1,
+        string $content
+    ): array {
+        return $this->askAiResult(
+            $this->prompts->generationFaqPrompt(
+                $keyword,
+                $cluster,
+                $blueprint,
+                $title,
+                $metaDescription,
+                $h1,
+                $content
+            ),
+            $keyword,
+            ['faq'],
+            'faq'
+        );
+    }
+
+    /**
      * @param  array<string,mixed>  $audit
      * @return array{title?:string,meta_description?:string,h1?:string,content?:string,faq?:array<int,array<string,string>>,schema?:array<int,array<string,mixed>>}|null
      */
@@ -193,7 +271,7 @@ class SeoGenerationService
     /**
      * @return array{payload:?array<string,mixed>,error:?string,trace:array<string,mixed>}
      */
-    protected function askAiResult(string $prompt, ?string $keyword = null): array
+    protected function askAiResult(string $prompt, ?string $keyword = null, array $expectedKeys = ['title', 'meta_description', 'h1', 'content', 'faq', 'schema'], string $step = 'generation'): array
     {
         $apiKey = config('services.openai.api_key');
         $startedAt = microtime(true);
@@ -204,7 +282,9 @@ class SeoGenerationService
 
         Log::info('SEO generation started.', [
             'keyword' => $keyword,
+            'step' => $step,
             'prompt_length' => mb_strlen($prompt),
+            'expected_keys' => $expectedKeys,
             'timeout_seconds' => $timeoutSeconds,
             'connect_timeout_seconds' => $connectTimeoutSeconds,
             'retry_attempts' => $retryAttempts,
@@ -214,6 +294,7 @@ class SeoGenerationService
         if (! $apiKey) {
             Log::warning('SEO generation skipped: missing OPENAI_API_KEY.', [
                 'keyword' => $keyword,
+                'step' => $step,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'error_type' => 'missing_api_key',
             ]);
@@ -222,7 +303,9 @@ class SeoGenerationService
                 'payload' => null,
                 'error' => 'OPENAI_API_KEY manquante : génération AI indisponible.',
                 'trace' => [
+                    'step' => $step,
                     'error_type' => 'missing_api_key',
+                    'expected_keys' => $expectedKeys,
                 ],
             ];
         }
@@ -252,6 +335,7 @@ class SeoGenerationService
 
             Log::warning('SEO generation OpenAI connection failed.', [
                 'keyword' => $keyword,
+                'step' => $step,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'error_type' => $isTimeout ? 'timeout' : 'network_error',
                 'message' => $exception->getMessage(),
@@ -265,8 +349,10 @@ class SeoGenerationService
                     ? 'Connexion OpenAI expirée pendant la génération.'
                     : 'Connexion OpenAI impossible : '.$exception->getMessage(),
                 'trace' => [
+                    'step' => $step,
                     'error_type' => $isTimeout ? 'timeout' : 'network_error',
                     'exception_message' => $exception->getMessage(),
+                    'expected_keys' => $expectedKeys,
                 ],
             ];
         }
@@ -276,6 +362,7 @@ class SeoGenerationService
         if (! $response->successful()) {
             Log::warning('SEO generation OpenAI HTTP error.', [
                 'keyword' => $keyword,
+                'step' => $step,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'openai_duration_ms' => $openAiDurationMs,
                 'error_type' => 'openai_http_error',
@@ -287,9 +374,11 @@ class SeoGenerationService
                 'payload' => null,
                 'error' => 'OpenAI a répondu en erreur HTTP '.$response->status().'.',
                 'trace' => [
+                    'step' => $step,
                     'error_type' => 'openai_http_error',
                     'http_status' => $response->status(),
                     'response_excerpt' => Str::limit($response->body(), 500),
+                    'expected_keys' => $expectedKeys,
                 ],
             ];
         }
@@ -299,6 +388,7 @@ class SeoGenerationService
         if (! is_string($text) || trim($text) === '') {
             Log::warning('SEO generation returned empty payload.', [
                 'keyword' => $keyword,
+                'step' => $step,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'openai_duration_ms' => $openAiDurationMs,
                 'error_type' => 'empty_generation',
@@ -308,7 +398,9 @@ class SeoGenerationService
                 'payload' => null,
                 'error' => 'OpenAI a renvoyé une réponse vide.',
                 'trace' => [
+                    'step' => $step,
                     'error_type' => 'empty_generation',
+                    'expected_keys' => $expectedKeys,
                 ],
             ];
         }
@@ -318,6 +410,7 @@ class SeoGenerationService
         if (! is_array($decoded)) {
             Log::warning('SEO generation returned invalid JSON.', [
                 'keyword' => $keyword,
+                'step' => $step,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'openai_duration_ms' => $openAiDurationMs,
                 'error_type' => 'invalid_json',
@@ -329,35 +422,43 @@ class SeoGenerationService
                 'payload' => null,
                 'error' => 'OpenAI a renvoyé un JSON invalide : '.json_last_error_msg().'.',
                 'trace' => [
+                    'step' => $step,
                     'error_type' => 'invalid_json',
                     'json_error' => json_last_error_msg(),
                     'response_excerpt' => Str::limit($text, 500),
+                    'response_length' => mb_strlen($text),
+                    'expected_keys' => $expectedKeys,
                 ],
             ];
         }
 
         $decoded = $this->normalizeAiPayload($decoded);
 
-        if (! $this->isCompletePayload($decoded)) {
-            $missingKeys = $this->missingPayloadKeys($decoded);
+        if (! $this->isCompletePayload($decoded, $expectedKeys)) {
+            $missingKeys = $this->missingPayloadKeys($decoded, $expectedKeys);
 
             Log::warning('SEO generation returned partial payload.', [
                 'keyword' => $keyword,
+                'step' => $step,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'openai_duration_ms' => $openAiDurationMs,
                 'error_type' => 'partial_generation',
                 'keys' => array_keys($decoded),
                 'missing_keys' => $missingKeys,
+                'response_length' => mb_strlen($text),
             ]);
 
             return [
                 'payload' => $decoded,
-                'error' => 'OpenAI a renvoyé un payload partiel, complément preset requis. Clés manquantes : '.implode(', ', $missingKeys).'.',
+                'error' => 'OpenAI a renvoyé un payload partiel sur l étape '.$step.'. Clés manquantes : '.implode(', ', $missingKeys).'.',
                 'trace' => [
+                    'step' => $step,
                     'error_type' => 'partial_generation',
+                    'expected_keys' => $expectedKeys,
                     'returned_keys' => array_values(array_map('strval', array_keys($decoded))),
                     'missing_keys' => $missingKeys,
                     'response_excerpt' => Str::limit($text, 500),
+                    'response_length' => mb_strlen($text),
                 ],
             ];
         }
@@ -367,11 +468,15 @@ class SeoGenerationService
 
         Log::info('SEO generation completed.', [
             'keyword' => $keyword,
+            'step' => $step,
             'duration_ms' => $this->elapsedMs($startedAt),
             'openai_duration_ms' => $openAiDurationMs,
             'prompt_length' => mb_strlen($prompt),
+            'response_length' => mb_strlen($text),
             'timeout_seconds' => $timeoutSeconds,
             'connect_timeout_seconds' => $connectTimeoutSeconds,
+            'expected_keys' => $expectedKeys,
+            'returned_keys' => array_keys($decoded),
             'section_count' => $sectionCount,
         ]);
 
@@ -379,9 +484,12 @@ class SeoGenerationService
             'payload' => $decoded,
             'error' => null,
             'trace' => [
+                'step' => $step,
                 'error_type' => null,
+                'expected_keys' => $expectedKeys,
                 'returned_keys' => array_values(array_map('strval', array_keys($decoded))),
                 'missing_keys' => [],
+                'response_length' => mb_strlen($text),
             ],
         ];
     }
@@ -469,36 +577,46 @@ class SeoGenerationService
         return (int) round((microtime(true) - $startedAt) * 1000);
     }
 
-    protected function isCompletePayload(mixed $payload): bool
+    protected function isCompletePayload(mixed $payload, array $expectedKeys = ['title', 'meta_description', 'h1', 'content', 'faq', 'schema']): bool
     {
         if (! is_array($payload)) {
             return false;
         }
 
-        foreach (['title', 'meta_description', 'h1', 'content', 'faq', 'schema'] as $key) {
+        foreach ($expectedKeys as $key) {
             if (! array_key_exists($key, $payload)) {
                 return false;
             }
         }
 
-        return is_string($payload['title'])
-            && is_string($payload['meta_description'])
-            && is_string($payload['h1'])
-            && is_string($payload['content'])
-            && is_array($payload['faq'])
-            && is_array($payload['schema']);
+        $typeChecks = [
+            'title' => is_string($payload['title'] ?? null),
+            'meta_description' => is_string($payload['meta_description'] ?? null),
+            'h1' => is_string($payload['h1'] ?? null),
+            'content' => is_string($payload['content'] ?? null),
+            'faq' => is_array($payload['faq'] ?? null),
+            'schema' => is_array($payload['schema'] ?? null),
+        ];
+
+        foreach ($expectedKeys as $key) {
+            if (($typeChecks[$key] ?? false) !== true) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
      * @param  array<string, mixed>  $payload
      * @return array<int, string>
      */
-    protected function missingPayloadKeys(array $payload): array
+    protected function missingPayloadKeys(array $payload, array $expectedKeys = ['title', 'meta_description', 'h1', 'content', 'faq', 'schema']): array
     {
         $missing = [];
 
-        foreach (['title', 'meta_description', 'h1', 'content', 'faq', 'schema'] as $key) {
-            if (! array_key_exists($key, $payload)) {
+        foreach ($expectedKeys as $key) {
+            if (! array_key_exists($key, $payload) || $payload[$key] === null) {
                 $missing[] = $key;
             }
         }
@@ -532,6 +650,18 @@ class SeoGenerationService
     {
         if (array_key_exists('content', $payload)) {
             $payload['content'] = $this->normalizeAiContent($payload['content']);
+        }
+
+        if (array_key_exists('faq', $payload) && is_array($payload['faq'])) {
+            $payload['faq'] = collect($payload['faq'])
+                ->filter(fn (mixed $item): bool => is_array($item))
+                ->map(fn (array $item): array => [
+                    'question' => (string) ($item['question'] ?? ''),
+                    'answer' => (string) ($item['answer'] ?? ''),
+                ])
+                ->filter(fn (array $item): bool => $item['question'] !== '' && $item['answer'] !== '')
+                ->values()
+                ->all();
         }
 
         return $payload;
@@ -593,6 +723,58 @@ class SeoGenerationService
             ->implode('');
 
         return $sections;
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $steps
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function mergeGenerationTrace(array $steps, array $payload): array
+    {
+        $returnedKeys = [];
+        $missingKeys = [];
+        $errorType = null;
+
+        foreach ($steps as $step) {
+            if ($errorType === null && is_string($step['error_type'] ?? null) && $step['error_type'] !== '') {
+                $errorType = $step['error_type'];
+            }
+
+            if (is_array($step['returned_keys'] ?? null)) {
+                $returnedKeys = array_merge($returnedKeys, array_map('strval', $step['returned_keys']));
+            }
+
+            if (is_array($step['missing_keys'] ?? null)) {
+                $missingKeys = array_merge($missingKeys, array_map('strval', $step['missing_keys']));
+            }
+        }
+
+        $missingKeys = array_values(array_unique(array_filter($missingKeys, static fn (string $key): bool => ! array_key_exists($key, $payload))));
+
+        return [
+            'steps' => $steps,
+            'error_type' => $errorType,
+            'returned_keys' => array_values(array_unique($returnedKeys)),
+            'missing_keys' => $missingKeys,
+        ];
+    }
+
+    /**
+     * @param  array<int, string|null>  $errors
+     */
+    protected function combineGenerationErrors(array $errors): ?string
+    {
+        $filtered = array_values(array_filter(array_map(
+            static fn (mixed $error): ?string => is_string($error) && trim($error) !== '' ? trim($error) : null,
+            $errors
+        )));
+
+        if ($filtered === []) {
+            return null;
+        }
+
+        return implode(' | ', array_values(array_unique($filtered)));
     }
 
     protected function canonicalPathFor(object $page): string

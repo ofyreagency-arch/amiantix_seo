@@ -11,6 +11,12 @@ final class AmiantixPromptProfile implements PromptProfileProvider
 {
     public function generationPrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
     {
+        return $this->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals)."\n"
+            ."Puis compléter aussi faq et schema si possible.";
+    }
+
+    public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
+    {
         return "Tu rediges un article expert Amiantix sur le risque amiante.\n".
             'Mot-cle principal: '.$keyword."\n".
             'Cluster: '.$cluster."\n".
@@ -34,10 +40,30 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- imposer un tableau riche avec colonnes risque / situation reelle / consequence / mesures / responsable / priorite\n".
             "- structurer avec des H2/H3 nombreux, des listes courtes, des checklists, des points de vigilance et des blocs visuellement respirables\n".
             "- couvrir aussi les contextes copropriete, ERP, site occupe, maintenance contrainte et changement d hypothese de travaux\n".
-            "- inclure des cas pratiques, des erreurs frequentes, des points de vigilance pour le donneur d ordre et une FAQ terrain de 5 questions minimum\n".
+            "- inclure des cas pratiques, des erreurs frequentes et des points de vigilance pour le donneur d ordre\n".
             "- conclusion orientee action, verification et preparation documentaire, pas marketing\n".
             "- 1400 mots minimum\n".
-            'Retourner uniquement un JSON avec: title, meta_description, h1, content, faq, schema.';
+            'Retourner uniquement un JSON avec: title, meta_description, h1, content.';
+    }
+
+    public function generationFaqPrompt(string $keyword, string $cluster, array $blueprint, string $title, string $metaDescription, string $h1, string $content): string
+    {
+        return "Tu completes uniquement la FAQ d un article expert Amiantix sur le risque amiante.\n".
+            'Mot-cle principal: '.$keyword."\n".
+            'Cluster: '.$cluster."\n".
+            'Sujet: '.$blueprint['topic']."\n".
+            'Titre: '.$title."\n".
+            'Meta description: '.$metaDescription."\n".
+            'H1: '.$h1."\n".
+            'FAQ blueprint a adapter: '.json_encode($blueprint['faq'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
+            "Contraintes FAQ:\n".
+            "- 5 questions minimum\n".
+            "- questions terrain et métier, pas SEO\n".
+            "- réponses courtes, concrètes, orientées décision et coordination\n".
+            "- rester cohérent avec le contenu principal ci-dessous\n".
+            "- ne pas répéter mot pour mot le blueprint\n".
+            "Contenu principal:\n".$content."\n".
+            'Retourner uniquement un JSON avec: faq.';
     }
 
     public function improvementPrompt(object $page, array $blueprint, array $audit, array $editorialSections, array $expectedSignals): string

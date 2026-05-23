@@ -255,10 +255,11 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $page = app(SeoGeneratePageRunner::class)->run('Plan de retrait amiante en copropriete', 'draft', false)['page'];
 
         $this->assertSame('hybrid', $page->generation_source);
-        $this->assertStringContainsString('faq, schema', (string) $page->generation_error);
-        $this->assertSame(['title', 'meta_description', 'h1', 'content'], $page->generationReturnedKeys());
-        $this->assertSame(['faq', 'schema'], $page->generationMissingKeys());
-        $this->assertNotEmpty($page->generation_trace_json['response_excerpt'] ?? null);
+        $this->assertStringContainsString('étape faq', (string) $page->generation_error);
+        $this->assertContains('title', $page->generationReturnedKeys());
+        $this->assertContains('content', $page->generationReturnedKeys());
+        $this->assertSame([], $page->generationMissingKeys());
+        $this->assertNotEmpty($page->generation_trace_json['steps']['faq']['response_excerpt'] ?? null);
         $this->assertStringContainsString('Plan de retrait amiante', (string) $page->title);
         $this->assertStringStartsWith('<section><h2>Contexte</h2><p>Contenu.</p></section>', (string) $page->content);
         $this->assertCount(5, $page->faq_json ?? []);
