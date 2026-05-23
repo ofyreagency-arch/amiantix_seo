@@ -687,8 +687,8 @@ class SeoGenerationService
                     return '';
                 }
 
-                $heading = trim((string) ($section['H2'] ?? $section['h2'] ?? $section['title'] ?? ''));
-                $paragraph = trim((string) ($section['paragraph'] ?? $section['content'] ?? $section['text'] ?? ''));
+                $heading = $this->normalizeAiTextFragment($section['H2'] ?? $section['h2'] ?? $section['title'] ?? '');
+                $paragraph = $this->normalizeAiTextFragment($section['paragraph'] ?? $section['content'] ?? $section['text'] ?? '');
 
                 if ($heading === '' && $paragraph === '') {
                     return '';
@@ -706,8 +706,9 @@ class SeoGenerationService
 
                 if (is_array($section['items'] ?? null)) {
                     $items = collect($section['items'])
-                        ->filter(fn (mixed $item): bool => is_scalar($item) && trim((string) $item) !== '')
-                        ->map(fn (mixed $item): string => '<li>'.trim((string) $item).'</li>')
+                        ->map(fn (mixed $item): string => $this->normalizeAiTextFragment($item))
+                        ->filter(fn (string $item): bool => $item !== '')
+                        ->map(fn (string $item): string => '<li>'.$item.'</li>')
                         ->implode('');
 
                     if ($items !== '') {
@@ -723,6 +724,41 @@ class SeoGenerationService
             ->implode('');
 
         return $sections;
+    }
+
+    protected function normalizeAiTextFragment(mixed $value): string
+    {
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        if (is_scalar($value)) {
+            return trim((string) $value);
+        }
+
+        if (! is_array($value)) {
+            return '';
+        }
+
+        $preferredKeys = ['text', 'content', 'paragraph', 'value', 'label', 'title'];
+
+        foreach ($preferredKeys as $key) {
+            if (array_key_exists($key, $value)) {
+                $normalized = $this->normalizeAiTextFragment($value[$key]);
+
+                if ($normalized !== '') {
+                    return $normalized;
+                }
+            }
+        }
+
+        $fragments = collect($value)
+            ->map(fn (mixed $item): string => $this->normalizeAiTextFragment($item))
+            ->filter(fn (string $item): bool => $item !== '')
+            ->values()
+            ->all();
+
+        return trim(implode("\n", $fragments));
     }
 
     /**

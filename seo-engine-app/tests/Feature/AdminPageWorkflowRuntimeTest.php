@@ -321,6 +321,73 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertNull($page->generation_error);
     }
 
+    public function test_generate_normalizes_nested_structured_content_fragments_without_crashing(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::sequence()
+                ->push([
+                    'output' => [[
+                        'content' => [[
+                            'type' => 'output_text',
+                            'text' => json_encode([
+                                'title' => 'Coordination amiante en appel d offre',
+                                'meta_description' => 'Meta',
+                                'h1' => 'Coordination amiante en appel d offre',
+                                'content' => [
+                                    [
+                                        'H2' => 'Contexte',
+                                        'paragraph' => [
+                                            ['text' => 'Premier bloc.'],
+                                            ['text' => 'Deuxieme bloc.'],
+                                        ],
+                                        'items' => [
+                                            ['text' => 'Piece DCE'],
+                                            ['text' => 'Planning'],
+                                        ],
+                                    ],
+                                ],
+                            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        ]],
+                    ]],
+                ])
+                ->push([
+                    'output' => [[
+                        'content' => [[
+                            'type' => 'output_text',
+                            'text' => json_encode([
+                                'faq' => [
+                                    ['question' => 'Q1', 'answer' => 'R1'],
+                                    ['question' => 'Q2', 'answer' => 'R2'],
+                                    ['question' => 'Q3', 'answer' => 'R3'],
+                                    ['question' => 'Q4', 'answer' => 'R4'],
+                                    ['question' => 'Q5', 'answer' => 'R5'],
+                                ],
+                            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        ]],
+                    ]],
+                ]),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        app(SeoEngineContext::class)->loadFromSite($site);
+
+        $page = app(SeoGeneratePageRunner::class)->run('Coordination amiante appel d offre', 'draft', false)['page'];
+
+        $this->assertContains($page->generation_source, ['ai', 'hybrid']);
+        $this->assertStringContainsString('<h2>Contexte</h2>', (string) $page->content);
+        $this->assertStringContainsString('<p>Premier bloc.'."\n".'Deuxieme bloc.</p>', (string) $page->content);
+        $this->assertStringContainsString('<ul><li>Piece DCE</li><li>Planning</li></ul>', (string) $page->content);
+    }
+
     public function test_applying_a_suggestion_updates_page_fields_and_marks_it_applied(): void
     {
         $site = SeoSite::query()->create([
