@@ -12,7 +12,8 @@ use App\Models\SeoSuggestion;
 use App\ObservedSite\SiteHealthService;
 use App\Runtime\RuntimeSeoMonitoringService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Arr;
 use Illuminate\View\View;
 
 class AdminSuggestionsController extends Controller
@@ -31,11 +32,13 @@ class AdminSuggestionsController extends Controller
             ->with('page:id,keyword,slug,status')
             ->orderByDesc('created_at')
             ->paginate(20);
+        $pending = $this->decoratePendingSuggestions($pending);
 
         $stats = [
             'pending'  => SeoSuggestion::query()->whereHas('page', fn ($q) => $q->where('site_id', $siteId))->where('status', 'pending')->count(),
             'applied'  => SeoSuggestion::query()->whereHas('page', fn ($q) => $q->where('site_id', $siteId))->where('status', 'applied')->count(),
             'rejected' => SeoSuggestion::query()->whereHas('page', fn ($q) => $q->where('site_id', $siteId))->where('status', 'rejected')->count(),
+            'rewrite_targets' => $pending->getCollection()->sum(fn (SeoSuggestion $suggestion): int => count((array) ($suggestion->dashboard_rewrite_target_plan ?? []))),
         ];
 
         $observedHealth = $siteHealth->calculate($siteId);
@@ -97,5 +100,41 @@ class AdminSuggestionsController extends Controller
         $suggestion->update(['status' => 'rejected', 'rejected_at' => now()]);
 
         return redirect()->route('admin.sites.autopilot', $siteId);
+    }
+
+    private function decoratePendingSuggestions(LengthAwarePaginator $pending): LengthAwarePaginator
+    {
+        $pending->setCollection(
+            $pending->getCollection()->map(function (SeoSuggestion $suggestion): SeoSuggestion {
+                $summary = is_array($suggestion->suggestions_json['signals_summary'] ?? null)
+                    ? $suggestion->suggestions_json['signals_summary']
+                    : [];
+                $targetPlan = Arr::wrap($summary['rewrite_target_plan'] ?? []);
+
+                $suggestion->dashboard_rewrite_target_plan = collect($targetPlan)
+                    ->filter(fn (mixed $item): bool => is_array($item) && is_string($item['heading'] ?? null))
+                    ->map(function (array $item): array {
+                        $reasons = collect(Arr::wrap($item['reasons'] ?? []))
+                            ->filter(fn (mixed $reason): bool => is_string($reason) && trim($reason) !== '')
+                            ->values()
+                            ->all();
+
+                        return [
+                            'heading' => (string) ($item['heading'] ?? ''),
+                            'phase' => is_string($item['phase'] ?? null) ? (string) $item['phase'] : null,
+                            'patch_intent' => (string) ($item['patch_intent'] ?? 'local_reinforcement'),
+                            'replacement_mode' => (string) ($item['replacement_mode'] ?? 'replace_if_better'),
+                            'instruction' => (string) ($item['instruction'] ?? ''),
+                            'reasons' => $reasons,
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                return $suggestion;
+            })
+        );
+
+        return $pending;
     }
 }

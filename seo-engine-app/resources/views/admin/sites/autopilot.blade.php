@@ -84,6 +84,7 @@
         ['label' => 'En attente',  'value' => $stats['pending'],  'color' => 'text-amber-600',  'bg' => 'bg-amber-50'],
         ['label' => 'Appliquées', 'value' => $stats['applied'],  'color' => 'text-green-600',  'bg' => 'bg-green-50'],
         ['label' => 'Rejetées',   'value' => $stats['rejected'], 'color' => 'text-gray-500',   'bg' => 'bg-gray-50'],
+        ['label' => 'Sections ciblées', 'value' => $stats['rewrite_targets'], 'color' => 'text-indigo-600', 'bg' => 'bg-indigo-50'],
     ] as $stat)
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-5 flex items-center gap-4">
         <div class="w-12 h-12 {{ $stat['bg'] }} rounded-xl flex items-center justify-center">
@@ -164,13 +165,76 @@
                 @endif
 
                 @if(!empty($suggestion->suggestions_json))
-                <div class="space-y-1">
-                    @foreach(array_slice($suggestion->suggestions_json, 0, 2) as $item)
+                @php
+                    $payload = is_array($suggestion->suggestions_json) ? $suggestion->suggestions_json : [];
+                    $sections = array_slice(\Illuminate\Support\Arr::wrap($payload['sections'] ?? []), 0, 3);
+                    $rationale = array_slice(\Illuminate\Support\Arr::wrap($payload['rationale'] ?? []), 0, 2);
+                    $faq = array_slice(\Illuminate\Support\Arr::wrap($payload['faq'] ?? []), 0, 1);
+                    $rewriteTargetPlan = array_slice(\Illuminate\Support\Arr::wrap($suggestion->dashboard_rewrite_target_plan ?? []), 0, 3);
+                @endphp
+                <div class="space-y-2">
+                    @foreach($sections as $item)
                     <div class="text-sm text-gray-600 flex items-start gap-2">
                         <span class="text-indigo-400 mt-0.5">→</span>
-                        <span>{{ is_array($item) ? ($item['action'] ?? json_encode($item)) : $item }}</span>
+                        <span>{{ $item }}</span>
                     </div>
                     @endforeach
+                    @foreach($rationale as $item)
+                    <div class="text-xs text-gray-500 flex items-start gap-2">
+                        <span class="text-purple-300 mt-0.5">•</span>
+                        <span>{{ $item }}</span>
+                    </div>
+                    @endforeach
+                    @foreach($faq as $item)
+                    <div class="text-xs text-gray-500 flex items-start gap-2">
+                        <span class="text-emerald-300 mt-0.5">?</span>
+                        <span>{{ $item['question'] ?? 'Question suggérée' }}</span>
+                    </div>
+                    @endforeach
+                    @if(!empty($rewriteTargetPlan))
+                    <div class="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                        <div class="text-xs font-semibold uppercase tracking-wider text-indigo-700">Plan de patch ciblé</div>
+                        <div class="mt-2 space-y-3">
+                            @foreach($rewriteTargetPlan as $target)
+                            <div class="rounded-lg bg-white/80 px-3 py-2 border border-indigo-100">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <div class="text-sm font-medium text-gray-900">{{ $target['heading'] }}</div>
+                                    @if(!empty($target['phase']))
+                                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                                        phase {{ $target['phase'] }}
+                                    </span>
+                                    @endif
+                                    @if(!empty($target['patch_intent']))
+                                    <span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                                        {{ $target['patch_intent'] }}
+                                    </span>
+                                    @endif
+                                </div>
+                                @if(!empty($target['reasons']))
+                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                    @foreach($target['reasons'] as $reason)
+                                    <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                        {{ $reason }}
+                                    </span>
+                                    @endforeach
+                                </div>
+                                @endif
+                                @if(!empty($target['instruction']))
+                                <div class="mt-2 text-xs text-gray-600">{{ $target['instruction'] }}</div>
+                                @endif
+                                @if(!empty($target['replacement_mode']))
+                                <div class="mt-1 text-[11px] text-gray-400">{{ $target['replacement_mode'] }}</div>
+                                @endif
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endif
+                    @if(empty($sections) && empty($rationale) && empty($faq) && empty($rewriteTargetPlan))
+                    <div class="text-sm text-gray-500">
+                        Suggestion enregistrée, mais payload éditorial peu exploitable. Il faut revoir le rewrite ou son fallback.
+                    </div>
+                    @endif
                 </div>
                 @endif
 

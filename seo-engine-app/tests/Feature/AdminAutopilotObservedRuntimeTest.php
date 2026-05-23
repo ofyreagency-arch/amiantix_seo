@@ -44,7 +44,31 @@ class AdminAutopilotObservedRuntimeTest extends TestCase
             'seo_page_id' => $legacyPage->id,
             'source' => 'feedback_loop:auto',
             'signals_json' => ['low_ctr'],
-            'suggestions_json' => ['rationale' => ['low_ctr']],
+            'suggestions_json' => [
+                'sections' => [
+                    'Ajouter un comparatif opérationnel entre repérage et diagnostic.',
+                    'Détailler les points de contrôle avant diffusion des pièces.',
+                ],
+                'rationale' => [
+                    'low_ctr',
+                    'page too generic',
+                ],
+                'faq' => [
+                    ['question' => 'Quand faut-il relancer le repérage ?', 'answer' => 'Quand le périmètre de travaux change.'],
+                ],
+                'signals_summary' => [
+                    'rewrite_target_plan' => [
+                        [
+                            'heading' => 'Documents et preuves a conserver',
+                            'phase' => 'proof',
+                            'patch_intent' => 'expand_and_structure',
+                            'replacement_mode' => 'replace_only_if_patch_adds_structure',
+                            'instruction' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+                            'reasons' => ['too_short', 'missing_structure'],
+                        ],
+                    ],
+                ],
+            ],
             'status' => 'pending',
         ]);
 
@@ -101,10 +125,21 @@ class AdminAutopilotObservedRuntimeTest extends TestCase
         $response->assertSee('Autopilot observed');
         $response->assertSee('Backlog observed');
         $response->assertSee('Suggestions legacy en attente');
+        $response->assertSee('Sections ciblées');
         $response->assertSee('Strengthen weak observed page');
         $response->assertSee('/page-bloquee');
         $response->assertSee('critical');
         $response->assertSee('feedback_loop:auto');
+        $response->assertSee('Ajouter un comparatif opérationnel entre repérage et diagnostic.');
+        $response->assertSee('page too generic');
+        $response->assertSee('Quand faut-il relancer le repérage ?');
+        $response->assertSee('Plan de patch ciblé');
+        $response->assertSee('Documents et preuves a conserver');
+        $response->assertSee('phase proof');
+        $response->assertSee('expand_and_structure');
+        $response->assertSee('replace_only_if_patch_adds_structure');
+        $response->assertSee('too_short');
+        $response->assertSee('missing_structure');
     }
 
     public function test_approving_legacy_autopilot_suggestion_applies_review_signal_to_page(): void
