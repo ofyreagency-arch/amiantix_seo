@@ -92,6 +92,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
         $weakSections = is_array($page->rewrite_weak_sections ?? null) ? $page->rewrite_weak_sections : [];
         $weakSectionProfiles = is_array($page->rewrite_weak_section_profiles ?? null) ? $page->rewrite_weak_section_profiles : [];
         $weakSectionInstructions = is_array($page->rewrite_weak_section_instructions ?? null) ? $page->rewrite_weak_section_instructions : [];
+        $rewriteTargetPlan = is_array($page->rewrite_target_plan ?? null) ? $page->rewrite_target_plan : [];
 
         return "Reecris un article Amiantix sur le risque amiante.\n".
             'Mode: '.$mode."\n".
@@ -100,6 +101,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             'Sections faibles a renforcer en priorite: '.json_encode(array_values($weakSections), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             'Raisons de faiblesse par section: '.json_encode(array_values($weakSectionProfiles), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             'Consignes de patch par section faible: '.json_encode($weakSectionInstructions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
+            'Plan de patch cible par section: '.json_encode(array_values($rewriteTargetPlan), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             "Objectif: un contenu concret, expert, credibilise par le terrain, les obligations et les preuves documentaires.\n".
             "Interdictions: ne pas parler de SEO, d IA, de Google, de premium content ou de structure de page.\n".
             "Exigences:\n".
@@ -109,6 +111,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- si une partie est faible, la renforcer localement section par section au lieu de raccourcir tout l article\n".
             "- comprendre pourquoi chaque section faible est ciblee: manque de longueur, manque de structure utile, ou les deux\n".
             "- suivre les consignes de patch associees a chaque section faible avant d ajouter des blocs hors section\n".
+            "- utiliser le plan de patch cible pour comprendre la phase narrative, l intention de correction et le mode de remplacement attendu avant de proposer un patch\n".
             "- situations reelles de site occupe, maintenance, travaux ou copropriete quand c est pertinent\n".
             "- coordination entre donneur d ordre, diagnostiqueur, entreprise et occupants\n".
             "- references aux documents, validations, hypotheses de travaux et points de controle\n".

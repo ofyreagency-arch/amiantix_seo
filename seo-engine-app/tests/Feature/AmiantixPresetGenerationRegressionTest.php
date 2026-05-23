@@ -146,6 +146,19 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
             'rewrite_weak_section_instructions' => [
                 'Documents et preuves a conserver' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
             ],
+            'rewrite_target_plan' => [
+                [
+                    'heading' => 'Documents et preuves a conserver',
+                    'reasons' => ['too_short', 'missing_structure'],
+                    'instruction' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+                    'phase' => 'proof',
+                    'word_count' => 7,
+                    'has_structure' => false,
+                    'expects_structure' => true,
+                    'patch_intent' => 'expand_and_structure',
+                    'replacement_mode' => 'replace_only_if_patch_adds_structure',
+                ],
+            ],
         ];
 
         $prompt = app(AmiantixPromptProfile::class)->rewritePrompt($page, 'enrich');
@@ -159,6 +172,10 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('Consignes de patch par section faible', $prompt);
         $this->assertStringContainsString('developper et structurer cette section', $prompt);
         $this->assertStringContainsString('suivre les consignes de patch associees a chaque section faible', $prompt);
+        $this->assertStringContainsString('Plan de patch cible par section', $prompt);
+        $this->assertStringContainsString('expand_and_structure', $prompt);
+        $this->assertStringContainsString('replace_only_if_patch_adds_structure', $prompt);
+        $this->assertStringContainsString('utiliser le plan de patch cible', $prompt);
     }
 
     public function test_amiantix_blueprint_varies_structure_for_appel_offre_keywords(): void

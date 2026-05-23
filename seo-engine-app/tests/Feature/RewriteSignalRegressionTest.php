@@ -537,12 +537,34 @@ class RewriteSignalRegressionTest extends TestCase
             $suggestion->suggestions_json['signals_summary']['weak_section_instructions']['Documents et preuves a conserver']
         );
         $this->assertSame(
+            [
+                'heading' => 'Documents et preuves a conserver',
+                'reasons' => ['too_short', 'missing_structure'],
+                'instruction' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+                'phase' => 'proof',
+                'word_count' => 7,
+                'has_structure' => false,
+                'expects_structure' => true,
+                'patch_intent' => 'expand_and_structure',
+                'replacement_mode' => 'replace_only_if_patch_adds_structure',
+            ],
+            $suggestion->suggestions_json['signals_summary']['rewrite_target_plan'][0]
+        );
+        $this->assertSame(
             ['too_short', 'missing_structure'],
             $suggestion->suggestions_json['signals_summary']['weak_section_reasons']['Matrice de controle documentaire et terrain']
         );
         $this->assertSame(
             'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
             $suggestion->suggestions_json['signals_summary']['weak_section_instructions']['Matrice de controle documentaire et terrain']
+        );
+        $this->assertSame(
+            'proof',
+            $suggestion->suggestions_json['signals_summary']['rewrite_target_plan'][1]['phase']
+        );
+        $this->assertSame(
+            'expand_and_structure',
+            $suggestion->suggestions_json['signals_summary']['rewrite_target_plan'][1]['patch_intent']
         );
         $this->assertContains(
             'Target the currently weak sections before compacting the full article.',

@@ -28,17 +28,21 @@ class SeoRewriteService
     public function createSuggestion(object $page, string $mode): mixed
     {
         $context = $this->rewriteSignalContext($page);
+        $cluster = (string) ($page->cluster ?? '');
+        $blueprint = $this->blueprints->resolve((string) ($page->keyword ?? ''), $cluster !== '' ? $cluster : null);
         $weakSectionProfiles = $this->detectWeakSectionProfiles((string) ($page->content ?? ''));
         $weakSections = array_values(array_map(
             static fn (array $profile): string => (string) ($profile['heading'] ?? ''),
             $weakSectionProfiles
         ));
+        $weakSectionTargetPlan = $this->weakSectionTargetPlan($weakSectionProfiles, $blueprint);
         $page = $this->pageWithRewriteContext(
             $page,
             $context,
             $weakSections,
             $weakSectionProfiles,
-            $this->weakSectionInstructionMap($weakSectionProfiles)
+            $this->weakSectionInstructionMap($weakSectionProfiles),
+            $weakSectionTargetPlan
         );
 
         if (! $this->overrides->rewriteAllowed($page)) {
@@ -61,7 +65,7 @@ class SeoRewriteService
         }
 
         $suggestions = $this->rewriteWithAi($page, $mode) ?? $this->prompts->fallbackRewrite($page, $mode);
-        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context, $weakSections, $weakSectionProfiles);
+        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context, $weakSections, $weakSectionProfiles, $weakSectionTargetPlan);
         $suggestions = $this->ensureProposedContent($page, $suggestions, $mode);
 
         return $this->suggestions->replacePending($page, 'rewrite_engine:'.$mode, [
@@ -159,7 +163,8 @@ class SeoRewriteService
         array $context,
         array $weakSections = [],
         array $weakSectionProfiles = [],
-        array $weakSectionInstructions = []
+        array $weakSectionInstructions = [],
+        array $weakSectionTargetPlan = []
     ): object
     {
         $clone = clone $page;
@@ -168,6 +173,7 @@ class SeoRewriteService
         $clone->rewrite_weak_sections = $weakSections;
         $clone->rewrite_weak_section_profiles = $weakSectionProfiles;
         $clone->rewrite_weak_section_instructions = $weakSectionInstructions;
+        $clone->rewrite_target_plan = $weakSectionTargetPlan;
 
         return $clone;
     }
@@ -181,7 +187,8 @@ class SeoRewriteService
         array $suggestions,
         array $context,
         array $weakSections = [],
-        array $weakSectionProfiles = []
+        array $weakSectionProfiles = [],
+        array $weakSectionTargetPlan = []
     ): array
     {
         $suggestions['sections'] = collect($suggestions['sections'] ?? [])
@@ -222,6 +229,7 @@ class SeoRewriteService
                 'weak_sections' => $weakSections,
                 'weak_section_reasons' => $this->weakSectionReasonMap($weakSectionProfiles),
                 'weak_section_instructions' => $this->weakSectionInstructionMap($weakSectionProfiles),
+                'rewrite_target_plan' => $weakSectionTargetPlan,
             ],
         );
 
@@ -275,6 +283,38 @@ class SeoRewriteService
     }
 
     /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}>  $weakSectionProfiles
+     * @param  array<string,mixed>  $blueprint
+     * @return array<int,array{heading:string,reasons:array<int,string>,instruction:string,phase:string|null,word_count:int,has_structure:bool,expects_structure:bool,patch_intent:string,replacement_mode:string}>
+     */
+    private function weakSectionTargetPlan(array $weakSectionProfiles, array $blueprint = []): array
+    {
+        return collect($weakSectionProfiles)
+            ->filter(fn (mixed $profile): bool => is_array($profile) && is_string($profile['heading'] ?? null))
+            ->map(function (array $profile) use ($blueprint): array {
+                $heading = (string) ($profile['heading'] ?? '');
+                $reasons = array_values(array_filter(
+                    $profile['reasons'] ?? [],
+                    static fn (mixed $reason): bool => is_string($reason) && trim($reason) !== ''
+                ));
+
+                return [
+                    'heading' => $heading,
+                    'reasons' => $reasons,
+                    'instruction' => $this->instructionForWeakReasons($reasons),
+                    'phase' => $this->narrativePhaseForHeading($heading, $blueprint) ?? $this->strongLexicalPhaseForHeading($heading),
+                    'word_count' => (int) ($profile['word_count'] ?? 0),
+                    'has_structure' => (bool) ($profile['has_structure'] ?? false),
+                    'expects_structure' => (bool) ($profile['expects_structure'] ?? false),
+                    'patch_intent' => $this->patchIntentForWeakReasons($reasons),
+                    'replacement_mode' => $this->replacementModeForWeakReasons($reasons),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  array<int,string>  $reasons
      */
     private function instructionForWeakReasons(array $reasons): string
@@ -288,6 +328,32 @@ class SeoRewriteService
             $hasTooShort => 'developper cette section avec plus de detail metier concret',
             default => 'renforcer cette section localement sans compresser le reste de l article',
         };
+    }
+
+    /**
+     * @param  array<int,string>  $reasons
+     */
+    private function patchIntentForWeakReasons(array $reasons): string
+    {
+        $hasTooShort = in_array('too_short', $reasons, true);
+        $hasMissingStructure = in_array('missing_structure', $reasons, true);
+
+        return match (true) {
+            $hasTooShort && $hasMissingStructure => 'expand_and_structure',
+            $hasMissingStructure => 'structure_only',
+            $hasTooShort => 'expand_only',
+            default => 'local_reinforcement',
+        };
+    }
+
+    /**
+     * @param  array<int,string>  $reasons
+     */
+    private function replacementModeForWeakReasons(array $reasons): string
+    {
+        return in_array('missing_structure', $reasons, true)
+            ? 'replace_only_if_patch_adds_structure'
+            : 'replace_only_if_patch_adds_depth';
     }
 
     /**
