@@ -321,7 +321,8 @@ class SeoRewriteService
                 $baseContent = $this->mergeSuggestedNarrativePatch(
                     $currentContent,
                     $suggestedContent,
-                    $this->detectWeakSections($currentContent)
+                    $this->detectWeakSections($currentContent),
+                    $blueprint
                 );
             }
         }
@@ -458,7 +459,12 @@ class SeoRewriteService
         return '<section><h2>'.$heading.'</h2><ul>'.$items.'</ul></section>';
     }
 
-    private function mergeSuggestedNarrativePatch(string $currentContent, string $suggestedContent, array $weakSections = []): string
+    private function mergeSuggestedNarrativePatch(
+        string $currentContent,
+        string $suggestedContent,
+        array $weakSections = [],
+        array $blueprint = []
+    ): string
     {
         $currentHeadings = $this->headingsIndex($currentContent);
         $currentSections = $this->extractHtmlSections($currentContent);
@@ -474,7 +480,7 @@ class SeoRewriteService
                 continue;
             }
 
-            $replacementIndex = $this->findWeakSectionReplacementIndex($currentSections, $heading, $weakSections);
+            $replacementIndex = $this->findWeakSectionReplacementIndex($currentSections, $heading, $weakSections, $blueprint);
 
             if ($replacementIndex !== null) {
                 $currentSections[$replacementIndex] = $section;
@@ -551,8 +557,15 @@ class SeoRewriteService
      * @param  array<int,string>  $currentSections
      * @param  array<int,string>  $weakSections
      */
-    private function findWeakSectionReplacementIndex(array $currentSections, string $patchHeading, array $weakSections): ?int
+    private function findWeakSectionReplacementIndex(
+        array $currentSections,
+        string $patchHeading,
+        array $weakSections,
+        array $blueprint = []
+    ): ?int
     {
+        $patchPhase = $this->narrativePhaseForHeading($patchHeading, $blueprint);
+
         foreach ($currentSections as $index => $currentSection) {
             $currentHeading = $this->firstHeadingFromSection($currentSection);
 
@@ -565,6 +578,12 @@ class SeoRewriteService
             }
 
             if (! $this->headingsAreClose($currentHeading, $patchHeading)) {
+                continue;
+            }
+
+            $currentPhase = $this->narrativePhaseForHeading($currentHeading, $blueprint);
+
+            if (! $this->phasesAreCompatible($currentPhase, $patchPhase, $currentHeading, $patchHeading)) {
                 continue;
             }
 
@@ -626,6 +645,102 @@ class SeoRewriteService
         return $coverage >= 0.6;
     }
 
+    private function narrativePhaseForHeading(string $heading, array $blueprint = []): ?string
+    {
+        $slots = $blueprint['composition']['narrative_slots'] ?? null;
+
+        if (! is_array($slots) || $slots === []) {
+            return null;
+        }
+
+        $normalizedHeading = $this->normalizeHeading($heading);
+        $headingTokens = $this->headingTokens($heading);
+        $bestPhase = null;
+        $bestScore = 0.0;
+
+        foreach ($slots as $phase => $phaseHeadings) {
+            if (! is_string($phase) || ! is_array($phaseHeadings)) {
+                continue;
+            }
+
+            foreach ($phaseHeadings as $candidate) {
+                if (! is_string($candidate) || $candidate === '') {
+                    continue;
+                }
+
+                $normalizedCandidate = $this->normalizeHeading($candidate);
+
+                if ($normalizedCandidate === $normalizedHeading) {
+                    return $phase;
+                }
+
+                $candidateTokens = $this->headingTokens($candidate);
+                $shared = count(array_intersect($headingTokens, $candidateTokens));
+                $score = $shared / max(1, min(count($headingTokens), count($candidateTokens)));
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestPhase = $phase;
+                }
+            }
+        }
+
+        $heuristicPhase = $this->strongLexicalPhaseForHeading($heading);
+
+        if ($heuristicPhase !== null && in_array($heuristicPhase, ['faq', 'resources'], true)) {
+            return $heuristicPhase;
+        }
+
+        if ($bestScore >= 0.5) {
+            return $bestPhase;
+        }
+
+        return $heuristicPhase;
+    }
+
+    private function phasesAreCompatible(
+        ?string $currentPhase,
+        ?string $patchPhase,
+        string $currentHeading = '',
+        string $patchHeading = ''
+    ): bool
+    {
+        $currentStrongPhase = $this->strongLexicalPhaseForHeading($currentHeading);
+        $patchStrongPhase = $this->strongLexicalPhaseForHeading($patchHeading);
+
+        if ($currentStrongPhase !== null && $patchStrongPhase !== null && $currentStrongPhase !== $patchStrongPhase) {
+            return false;
+        }
+
+        if ($currentPhase === null || $patchPhase === null) {
+            return true;
+        }
+
+        return $currentPhase === $patchPhase;
+    }
+
+    private function strongLexicalPhaseForHeading(string $heading): ?string
+    {
+        $normalizedHeading = $this->normalizeHeading($heading);
+
+        if ($normalizedHeading === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_contains($normalizedHeading, 'question'), str_contains($normalizedHeading, 'faq') => 'faq',
+            str_contains($normalizedHeading, 'ressource'), str_contains($normalizedHeading, 'page utile') => 'resources',
+            str_contains($normalizedHeading, 'document'), str_contains($normalizedHeading, 'preuve'), str_contains($normalizedHeading, 'trace') => 'proof',
+            str_contains($normalizedHeading, 'matrice'), str_contains($normalizedHeading, 'controle') => 'control',
+            str_contains($normalizedHeading, 'cout'), str_contains($normalizedHeading, 'delai'), str_contains($normalizedHeading, 'arbitrage') => 'arbitrage',
+            str_contains($normalizedHeading, 'erreur'), str_contains($normalizedHeading, 'blocage'), str_contains($normalizedHeading, 'friction') => 'friction',
+            str_contains($normalizedHeading, 'processus'), str_contains($normalizedHeading, 'workflow') => 'workflow',
+            str_contains($normalizedHeading, 'checklist') => 'checklist',
+            str_contains($normalizedHeading, 'cas pratique'), str_contains($normalizedHeading, 'scenario') => 'cases',
+            default => null,
+        };
+    }
+
     private function normalizeHeading(string $heading): string
     {
         return Str::of($heading)
@@ -634,6 +749,20 @@ class SeoRewriteService
             ->replaceMatches('/[^a-z0-9]+/u', ' ')
             ->squish()
             ->value();
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function headingTokens(string $heading): array
+    {
+        $normalized = $this->normalizeHeading($heading);
+
+        if ($normalized === '') {
+            return [];
+        }
+
+        return array_values(array_filter(explode(' ', $normalized), static fn (string $token): bool => $token !== ''));
     }
 
     private function wordCount(string $content): int
