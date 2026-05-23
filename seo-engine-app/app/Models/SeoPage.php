@@ -35,6 +35,7 @@ class SeoPage extends Model
         'last_observed_at',
         'generation_source',
         'generation_error',
+        'generation_trace_json',
         'image_path',
         'image_alt',
         'image_prompt',
@@ -61,6 +62,7 @@ class SeoPage extends Model
             'internal_links_json' => 'array',
             'image_quality_json' => 'array',
             'review_issues_json' => 'array',
+            'generation_trace_json' => 'array',
             'forced_noindex' => 'boolean',
             'is_indexed' => 'boolean',
             'published_at' => 'datetime',
@@ -134,5 +136,29 @@ class SeoPage extends Model
             'fallback' => 'Fallback preset',
             default => 'Unknown',
         };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function generationMissingKeys(): array
+    {
+        $trace = $this->generation_trace_json;
+
+        return is_array($trace['missing_keys'] ?? null)
+            ? array_values(array_map('strval', $trace['missing_keys']))
+            : [];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function generationReturnedKeys(): array
+    {
+        $trace = $this->generation_trace_json;
+
+        return is_array($trace['returned_keys'] ?? null)
+            ? array_values(array_map('strval', $trace['returned_keys']))
+            : [];
     }
 }

@@ -162,6 +162,7 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertInstanceOf(SeoPage::class, $page);
         $this->assertSame('fallback', $page->generation_source);
         $this->assertStringStartsWith('Connexion OpenAI impossible', (string) $page->generation_error);
+        $this->assertSame('network_error', $page->generation_trace_json['error_type'] ?? null);
     }
 
     public function test_generate_marks_a_page_as_ai_when_openai_payload_is_complete(): void
@@ -214,6 +215,49 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertInstanceOf(SeoPage::class, $page);
         $this->assertContains($page->generation_source, ['ai', 'hybrid']);
         $this->assertNull($page->generation_error);
+        $this->assertContains('title', $page->generation_trace_json['returned_keys'] ?? []);
+    }
+
+    public function test_generate_persists_missing_keys_when_openai_returns_a_partial_payload(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output' => [[
+                    'content' => [[
+                        'text' => json_encode([
+                            'title' => 'Plan de retrait amiante en copropriete',
+                            'meta_description' => 'Meta partielle',
+                            'h1' => 'Plan de retrait amiante',
+                            'content' => '<section><h2>Contexte</h2><p>Contenu.</p></section>',
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-key');
+        config()->set('services.openai.model', 'gpt-4o-mini');
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        app(SeoEngineContext::class)->loadFromSite($site);
+
+        $page = app(SeoGeneratePageRunner::class)->run('Plan de retrait amiante en copropriete', 'draft', false)['page'];
+
+        $this->assertSame('fallback', $page->generation_source);
+        $this->assertStringContainsString('faq, schema', (string) $page->generation_error);
+        $this->assertSame(['title', 'meta_description', 'h1', 'content'], $page->generationReturnedKeys());
+        $this->assertSame(['faq', 'schema'], $page->generationMissingKeys());
+        $this->assertNotEmpty($page->generation_trace_json['response_excerpt'] ?? null);
     }
 
     public function test_applying_a_suggestion_updates_page_fields_and_marks_it_applied(): void

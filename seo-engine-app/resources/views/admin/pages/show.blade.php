@@ -213,6 +213,32 @@
                     <div class="mt-4 rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm text-slate-700">
                         <div class="font-medium text-slate-900">Dernière erreur AI</div>
                         <div class="mt-1">{{ $page->generation_error }}</div>
+                        @if($page->generationMissingKeys() !== [])
+                            <div class="mt-3">
+                                <div class="font-medium text-slate-900">Clés manquantes</div>
+                                <div class="mt-1 flex flex-wrap gap-2">
+                                    @foreach($page->generationMissingKeys() as $key)
+                                        <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">{{ $key }}</span>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                        @if($page->generationReturnedKeys() !== [])
+                            <div class="mt-3">
+                                <div class="font-medium text-slate-900">Clés renvoyées par OpenAI</div>
+                                <div class="mt-1 flex flex-wrap gap-2">
+                                    @foreach($page->generationReturnedKeys() as $key)
+                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{{ $key }}</span>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                        @if(filled($page->generation_trace_json['response_excerpt'] ?? null))
+                            <div class="mt-3">
+                                <div class="font-medium text-slate-900">Extrait brut de réponse</div>
+                                <div class="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600 whitespace-pre-wrap">{{ $page->generation_trace_json['response_excerpt'] }}</div>
+                            </div>
+                        @endif
                     </div>
                 @endif
             </div>
@@ -683,6 +709,12 @@
             <div class="text-gray-500">
                 <div class="font-medium text-gray-700 mb-1">Erreur AI mémorisée</div>
                 <div class="text-xs leading-relaxed">{{ $page->generation_error }}</div>
+            </div>
+            @endif
+            @if($page->generationMissingKeys() !== [])
+            <div class="text-gray-500">
+                <div class="font-medium text-gray-700 mb-1">Clés manquantes</div>
+                <div class="text-xs leading-relaxed">{{ implode(', ', $page->generationMissingKeys()) }}</div>
             </div>
             @endif
             <div class="flex justify-between text-gray-500">

@@ -42,6 +42,7 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
             'schema_json' => $result['payload']['schema'] ?? [],
             'generation_source' => (string) ($result['generation_source'] ?? 'unknown'),
             'generation_error' => $result['generation_error'] ?? null,
+            'generation_trace_json' => $result['generation_trace'] ?? null,
             'internal_links_json' => $this->generator->generateInternalLinks((object) [
                 'keyword' => $keyword,
                 'cluster' => $result['cluster'],

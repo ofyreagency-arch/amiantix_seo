@@ -27,7 +27,7 @@ class SeoGenerationService
     ) {}
 
     /**
-     * @return array{cluster:string,blueprint:array<string,mixed>,payload:array<string,mixed>,generation_source:string,generation_error:?string}
+     * @return array{cluster:string,blueprint:array<string,mixed>,payload:array<string,mixed>,generation_source:string,generation_error:?string,generation_trace:array<string,mixed>}
      */
     public function generatePayload(string $keyword): array
     {
@@ -48,6 +48,7 @@ class SeoGenerationService
             'payload' => $payload,
             'generation_source' => $source,
             'generation_error' => $aiResult['error'],
+            'generation_trace' => $aiResult['trace'],
         ];
     }
 
@@ -147,7 +148,7 @@ class SeoGenerationService
 
     /**
      * @param  array<string,mixed>  $blueprint
-     * @return array{payload:?array<string,mixed>,error:?string}
+     * @return array{payload:?array<string,mixed>,error:?string,trace:array<string,mixed>}
      */
     protected function generateWithAi(string $keyword, string $cluster, array $blueprint): array
     {
@@ -178,7 +179,7 @@ class SeoGenerationService
     }
 
     /**
-     * @return array{payload:?array<string,mixed>,error:?string}
+     * @return array{payload:?array<string,mixed>,error:?string,trace:array<string,mixed>}
      */
     protected function askAiResult(string $prompt, ?string $keyword = null): array
     {
@@ -208,6 +209,9 @@ class SeoGenerationService
             return [
                 'payload' => null,
                 'error' => 'OPENAI_API_KEY manquante : génération AI indisponible.',
+                'trace' => [
+                    'error_type' => 'missing_api_key',
+                ],
             ];
         }
 
@@ -248,6 +252,10 @@ class SeoGenerationService
                 'error' => $isTimeout
                     ? 'Connexion OpenAI expirée pendant la génération.'
                     : 'Connexion OpenAI impossible : '.$exception->getMessage(),
+                'trace' => [
+                    'error_type' => $isTimeout ? 'timeout' : 'network_error',
+                    'exception_message' => $exception->getMessage(),
+                ],
             ];
         }
 
@@ -266,6 +274,11 @@ class SeoGenerationService
             return [
                 'payload' => null,
                 'error' => 'OpenAI a répondu en erreur HTTP '.$response->status().'.',
+                'trace' => [
+                    'error_type' => 'openai_http_error',
+                    'http_status' => $response->status(),
+                    'response_excerpt' => Str::limit($response->body(), 500),
+                ],
             ];
         }
 
@@ -282,6 +295,9 @@ class SeoGenerationService
             return [
                 'payload' => null,
                 'error' => 'OpenAI a renvoyé une réponse vide.',
+                'trace' => [
+                    'error_type' => 'empty_generation',
+                ],
             ];
         }
 
@@ -300,21 +316,35 @@ class SeoGenerationService
             return [
                 'payload' => null,
                 'error' => 'OpenAI a renvoyé un JSON invalide : '.json_last_error_msg().'.',
+                'trace' => [
+                    'error_type' => 'invalid_json',
+                    'json_error' => json_last_error_msg(),
+                    'response_excerpt' => Str::limit($text, 500),
+                ],
             ];
         }
 
         if (! $this->isCompletePayload($decoded)) {
+            $missingKeys = $this->missingPayloadKeys($decoded);
+
             Log::warning('SEO generation returned partial payload.', [
                 'keyword' => $keyword,
                 'duration_ms' => $this->elapsedMs($startedAt),
                 'openai_duration_ms' => $openAiDurationMs,
                 'error_type' => 'partial_generation',
                 'keys' => array_keys($decoded),
+                'missing_keys' => $missingKeys,
             ]);
 
             return [
                 'payload' => null,
-                'error' => 'OpenAI a renvoyé un payload partiel, fallback activé.',
+                'error' => 'OpenAI a renvoyé un payload partiel, fallback activé. Clés manquantes : '.implode(', ', $missingKeys).'.',
+                'trace' => [
+                    'error_type' => 'partial_generation',
+                    'returned_keys' => array_values(array_map('strval', array_keys($decoded))),
+                    'missing_keys' => $missingKeys,
+                    'response_excerpt' => Str::limit($text, 500),
+                ],
             ];
         }
 
@@ -334,6 +364,11 @@ class SeoGenerationService
         return [
             'payload' => $decoded,
             'error' => null,
+            'trace' => [
+                'error_type' => null,
+                'returned_keys' => array_values(array_map('strval', array_keys($decoded))),
+                'missing_keys' => [],
+            ],
         ];
     }
 
@@ -438,6 +473,23 @@ class SeoGenerationService
             && is_string($payload['content'])
             && is_array($payload['faq'])
             && is_array($payload['schema']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<int, string>
+     */
+    protected function missingPayloadKeys(array $payload): array
+    {
+        $missing = [];
+
+        foreach (['title', 'meta_description', 'h1', 'content', 'faq', 'schema'] as $key) {
+            if (! array_key_exists($key, $payload)) {
+                $missing[] = $key;
+            }
+        }
+
+        return $missing;
     }
 
     protected function canonicalPathFor(object $page): string
