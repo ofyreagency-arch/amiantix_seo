@@ -463,11 +463,6 @@ class SeoRewriteService
         $currentHeadings = $this->headingsIndex($currentContent);
         $currentSections = $this->extractHtmlSections($currentContent);
         $patchSections = $this->extractHtmlSections($suggestedContent);
-        $normalizedWeakSections = collect($weakSections)
-            ->map(fn (string $heading): string => Str::lower(trim($heading)))
-            ->filter(fn (string $heading): bool => $heading !== '')
-            ->values()
-            ->all();
         $append = [];
         $replaced = false;
 
@@ -479,17 +474,13 @@ class SeoRewriteService
                 continue;
             }
 
-            if (in_array($normalizedHeading, $normalizedWeakSections, true)) {
-                foreach ($currentSections as $index => $currentSection) {
-                    if (Str::lower(trim($this->firstHeadingFromSection($currentSection))) !== $normalizedHeading) {
-                        continue;
-                    }
+            $replacementIndex = $this->findWeakSectionReplacementIndex($currentSections, $heading, $weakSections);
 
-                    $currentSections[$index] = $section;
-                    $replaced = true;
+            if ($replacementIndex !== null) {
+                $currentSections[$replacementIndex] = $section;
+                $replaced = true;
 
-                    continue 2;
-                }
+                continue;
             }
 
             if (isset($currentHeadings[$normalizedHeading])) {
@@ -554,6 +545,95 @@ class SeoRewriteService
             ->filter(fn (?string $heading): bool => is_string($heading) && trim($heading) !== '')
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<int,string>  $currentSections
+     * @param  array<int,string>  $weakSections
+     */
+    private function findWeakSectionReplacementIndex(array $currentSections, string $patchHeading, array $weakSections): ?int
+    {
+        foreach ($currentSections as $index => $currentSection) {
+            $currentHeading = $this->firstHeadingFromSection($currentSection);
+
+            if ($currentHeading === '') {
+                continue;
+            }
+
+            if (! $this->isWeakHeadingCandidate($currentHeading, $weakSections)) {
+                continue;
+            }
+
+            if (! $this->headingsAreClose($currentHeading, $patchHeading)) {
+                continue;
+            }
+
+            return $index;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int,string>  $weakSections
+     */
+    private function isWeakHeadingCandidate(string $heading, array $weakSections): bool
+    {
+        $normalizedHeading = $this->normalizeHeading($heading);
+
+        foreach ($weakSections as $weakHeading) {
+            if ($this->normalizeHeading($weakHeading) === $normalizedHeading) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function headingsAreClose(string $left, string $right): bool
+    {
+        $normalizedLeft = $this->normalizeHeading($left);
+        $normalizedRight = $this->normalizeHeading($right);
+
+        if ($normalizedLeft === '' || $normalizedRight === '') {
+            return false;
+        }
+
+        if ($normalizedLeft === $normalizedRight) {
+            return true;
+        }
+
+        similar_text($normalizedLeft, $normalizedRight, $similarity);
+
+        if ($similarity >= 68.0) {
+            return true;
+        }
+
+        $leftTokens = collect(explode(' ', $normalizedLeft))
+            ->filter(fn (string $token): bool => $token !== '')
+            ->values();
+        $rightTokens = collect(explode(' ', $normalizedRight))
+            ->filter(fn (string $token): bool => $token !== '')
+            ->values();
+
+        if ($leftTokens->isEmpty() || $rightTokens->isEmpty()) {
+            return false;
+        }
+
+        $common = $leftTokens->intersect($rightTokens)->count();
+        $coverage = $common / min($leftTokens->count(), $rightTokens->count());
+
+        return $coverage >= 0.6;
+    }
+
+    private function normalizeHeading(string $heading): string
+    {
+        return Str::of($heading)
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9]+/u', ' ')
+            ->squish()
+            ->value();
     }
 
     private function wordCount(string $content): int

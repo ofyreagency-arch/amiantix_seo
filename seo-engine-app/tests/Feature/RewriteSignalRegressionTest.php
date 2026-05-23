@@ -577,6 +577,51 @@ class RewriteSignalRegressionTest extends TestCase
         $this->assertStringNotContainsString('<p>Pieces a verifier.</p>', (string) $merged);
     }
 
+    public function test_rewrite_merge_helper_replaces_a_weak_section_when_the_patch_heading_is_close_but_reworded(): void
+    {
+        $service = new class(
+            new class implements RewriteAccessDecider
+            {
+                public function rewriteAllowed(object $page): bool
+                {
+                    return true;
+                }
+            },
+            $this->promptProfile(),
+            new DatabaseSeoSuggestionPersister(),
+            app(\Ofyre\SeoEngine\Contracts\NicheBlueprintProvider::class),
+            app(\Ofyre\SeoEngine\Contracts\NicheContentProvider::class),
+        ) extends SeoRewriteService
+        {
+            protected function rewriteWithAi(object $page, string $mode): ?array
+            {
+                return null;
+            }
+        };
+
+        $current = implode('', [
+            '<section><h2>Contexte et obligations</h2><p>'.str_repeat('Contexte documentaire et obligations terrain. ', 20).'</p></section>',
+            '<section><h2>Documents et preuves a conserver</h2><p>Pieces a verifier.</p></section>',
+        ]);
+        $patch = '<section><h2>Preuves documentaires et validations a conserver</h2><ul><li>Tracer les versions diffusees.</li><li>Conserver les validations et reserves formelles.</li></ul><p>Le patch renforce la section existante avec un heading reformule.</p></section>';
+
+        $ref = new \ReflectionClass($service);
+        $detect = $ref->getMethod('detectWeakSections');
+        $detect->setAccessible(true);
+        $weakSections = $detect->invoke($service, $current);
+
+        $merge = $ref->getMethod('mergeSuggestedNarrativePatch');
+        $merge->setAccessible(true);
+        $merged = $merge->invoke($service, $current, $patch, $weakSections);
+
+        $this->assertSame(['Documents et preuves a conserver'], $weakSections);
+        $this->assertSame(1, substr_count((string) $merged, '<h2>Contexte et obligations</h2>'));
+        $this->assertSame(1, substr_count((string) $merged, '<h2>Preuves documentaires et validations a conserver</h2>'));
+        $this->assertStringContainsString('Tracer les versions diffusees.', (string) $merged);
+        $this->assertStringNotContainsString('<p>Pieces a verifier.</p>', (string) $merged);
+        $this->assertStringNotContainsString('<h2>Documents et preuves a conserver</h2>', (string) $merged);
+    }
+
     private function rewriteService(RewriteAccessDecider $access, PromptProfileProvider $prompts): SeoRewriteService
     {
         return new class(
