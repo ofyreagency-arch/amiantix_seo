@@ -10,9 +10,11 @@ use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
+use App\Runtime\SeoEngineContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
 use Tests\TestCase;
 
 class AdminPageWorkflowRuntimeTest extends TestCase
@@ -90,6 +92,128 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertSee('Observed runtime');
         $response->assertSee('Suggestion active');
         $response->assertSee('Appliquer à la page');
+    }
+
+    public function test_generate_creates_a_new_page_when_a_keyword_slug_collides_with_an_existing_blog(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        config()->set('seo-engine.site.preset', 'amiantix');
+        config()->set('seo-engine.site.niche', 'amiante');
+
+        $this->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.generate', $site->site_id), [
+                'keyword' => 'Diagnostic Amiante Paris',
+                'status' => 'draft',
+            ])
+            ->assertRedirect();
+
+        $this->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.generate', $site->site_id), [
+                'keyword' => 'Diagnostic amiante paris!',
+                'status' => 'draft',
+            ])
+            ->assertRedirect();
+
+        $pages = SeoPage::query()
+            ->where('site_id', $site->site_id)
+            ->orderBy('id')
+            ->get(['keyword', 'slug']);
+
+        $this->assertCount(2, $pages);
+        $this->assertSame('diagnostic-amiante-paris', $pages[0]->slug);
+        $this->assertSame('diagnostic-amiante-paris-2', $pages[1]->slug);
+    }
+
+    public function test_generate_marks_a_page_as_fallback_and_surfaces_the_ai_error(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::failedConnection('cURL error 60: SSL certificate problem'),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-key');
+        config()->set('services.openai.model', 'gpt-4o-mini');
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        app(SeoEngineContext::class)->loadFromSite($site);
+
+        $result = app(SeoGeneratePageRunner::class)->run('Danger sante amiante', 'draft', false);
+        $page = $result['page'];
+
+        $this->assertInstanceOf(SeoPage::class, $page);
+        $this->assertSame('fallback', $page->generation_source);
+        $this->assertStringStartsWith('Connexion OpenAI impossible', (string) $page->generation_error);
+    }
+
+    public function test_generate_marks_a_page_as_ai_when_openai_payload_is_complete(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output' => [[
+                    'content' => [[
+                        'text' => json_encode([
+                            'title' => 'Danger Sante Amiante : obligations et coordination',
+                            'meta_description' => 'Une meta orientée coordination, preuves et arbitrages terrain.',
+                            'h1' => 'Danger Sante Amiante : ce qu il faut cadrer',
+                            'content' => '<section><h2>Contexte</h2><p>Contenu expert terrain.</p></section>',
+                            'faq' => [
+                                ['question' => 'Q1', 'answer' => 'A1'],
+                                ['question' => 'Q2', 'answer' => 'A2'],
+                                ['question' => 'Q3', 'answer' => 'A3'],
+                                ['question' => 'Q4', 'answer' => 'A4'],
+                                ['question' => 'Q5', 'answer' => 'A5'],
+                            ],
+                            'schema' => [
+                                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+                            ],
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-key');
+        config()->set('services.openai.model', 'gpt-4o-mini');
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        app(SeoEngineContext::class)->loadFromSite($site);
+
+        $result = app(SeoGeneratePageRunner::class)->run('Danger sante amiante', 'draft', false);
+        $page = $result['page'];
+
+        $this->assertInstanceOf(SeoPage::class, $page);
+        $this->assertContains($page->generation_source, ['ai', 'hybrid']);
+        $this->assertNull($page->generation_error);
     }
 
     public function test_applying_a_suggestion_updates_page_fields_and_marks_it_applied(): void
@@ -293,6 +417,56 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertGreaterThanOrEqual(65, $page->indexability_score);
         $this->assertNotContains('High spam risk or excessive genericness detected.', $page->review_issues_json ?? []);
         $response->assertDontSee('Risque spam détecté');
+    }
+
+    public function test_page_show_displays_the_real_generation_source_and_error(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'cluster' => 'reglementation',
+            'status' => 'draft',
+            'title' => 'Danger Sante Amiante',
+            'content' => '<p>Contenu fallback.</p>',
+            'generation_source' => 'fallback',
+            'generation_error' => 'Connexion OpenAI impossible : certificat SSL invalide.',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Source réelle de génération');
+        $response->assertSee('Fallback preset');
+        $response->assertSee('Connexion OpenAI impossible');
+    }
+
+    public function test_package_status_command_is_available(): void
+    {
+        $this->artisan('seo:package-status')
+            ->assertSuccessful();
+    }
+
+    public function test_openai_ssl_doctor_command_is_available(): void
+    {
+        $this->artisan('seo:doctor-openai-ssl')
+            ->assertSuccessful()
+            ->expectsOutputToContain('Diagnostic SSL OpenAI');
     }
 
     public function test_page_show_refresh_uses_site_preset_context(): void

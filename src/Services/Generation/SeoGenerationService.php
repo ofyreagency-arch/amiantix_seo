@@ -27,19 +27,27 @@ class SeoGenerationService
     ) {}
 
     /**
-     * @return array{cluster:string,blueprint:array<string,mixed>,payload:array<string,mixed>}
+     * @return array{cluster:string,blueprint:array<string,mixed>,payload:array<string,mixed>,generation_source:string,generation_error:?string}
      */
     public function generatePayload(string $keyword): array
     {
         $cluster = $this->internalLinking->clusterForKeyword($keyword);
         $blueprint = $this->blueprints->resolve($keyword, $cluster);
-        $payload = $this->generateWithAi($keyword, $cluster, $blueprint)
-            ?? $this->fallbackPayload($keyword, $cluster, $blueprint);
+        $aiResult = $this->generateWithAi($keyword, $cluster, $blueprint);
+        $source = $aiResult['payload'] !== null ? 'ai' : 'fallback';
+        $payload = $aiResult['payload'] ?? $this->fallbackPayload($keyword, $cluster, $blueprint);
+        [$payload, $enriched] = $this->ensurePremiumDepth($payload, $blueprint, $keyword, $cluster);
+
+        if ($source === 'ai' && $enriched) {
+            $source = 'hybrid';
+        }
 
         return [
             'cluster' => $cluster,
             'blueprint' => $blueprint,
-            'payload' => $this->ensurePremiumDepth($payload, $blueprint, $keyword, $cluster),
+            'payload' => $payload,
+            'generation_source' => $source,
+            'generation_error' => $aiResult['error'],
         ];
     }
 
@@ -65,7 +73,7 @@ class SeoGenerationService
         return [
             'cluster' => $cluster,
             'blueprint' => $blueprint,
-            'payload' => $this->ensurePremiumDepth($payload, $blueprint, (string) $page->keyword, $cluster),
+            'payload' => $this->ensurePremiumDepth($payload, $blueprint, (string) $page->keyword, $cluster)[0],
         ];
     }
 
@@ -139,11 +147,11 @@ class SeoGenerationService
 
     /**
      * @param  array<string,mixed>  $blueprint
-     * @return array{title:string,meta_description:string,h1:string,content:string,faq:array<int,array<string,string>>,schema:array<int,array<string,mixed>>}|null
+     * @return array{payload:?array<string,mixed>,error:?string}
      */
-    protected function generateWithAi(string $keyword, string $cluster, array $blueprint): ?array
+    protected function generateWithAi(string $keyword, string $cluster, array $blueprint): array
     {
-        return $this->askAi($this->prompts->generationPrompt(
+        return $this->askAiResult($this->prompts->generationPrompt(
             $keyword,
             $cluster,
             $blueprint,
@@ -160,16 +168,19 @@ class SeoGenerationService
     {
         $blueprint = $this->blueprints->resolve((string) $page->keyword, $page->cluster ?? null);
 
-        return $this->askAi($this->prompts->improvementPrompt(
+        return $this->askAiResult($this->prompts->improvementPrompt(
             $page,
             $blueprint,
             $audit,
             $this->blueprints->expectedEditorialSections($blueprint),
             $this->blueprints->expectedSignals($blueprint),
-        ), (string) $page->keyword);
+        ), (string) $page->keyword)['payload'];
     }
 
-    protected function askAi(string $prompt, ?string $keyword = null): ?array
+    /**
+     * @return array{payload:?array<string,mixed>,error:?string}
+     */
+    protected function askAiResult(string $prompt, ?string $keyword = null): array
     {
         $apiKey = config('services.openai.api_key');
         $startedAt = microtime(true);
@@ -194,7 +205,10 @@ class SeoGenerationService
                 'error_type' => 'missing_api_key',
             ]);
 
-            return null;
+            return [
+                'payload' => null,
+                'error' => 'OPENAI_API_KEY manquante : génération AI indisponible.',
+            ];
         }
 
         try {
@@ -229,7 +243,12 @@ class SeoGenerationService
                 'connect_timeout_seconds' => $connectTimeoutSeconds,
             ]);
 
-            return null;
+            return [
+                'payload' => null,
+                'error' => $isTimeout
+                    ? 'Connexion OpenAI expirée pendant la génération.'
+                    : 'Connexion OpenAI impossible : '.$exception->getMessage(),
+            ];
         }
 
         $openAiDurationMs = $this->elapsedMs($openAiStartedAt);
@@ -244,7 +263,10 @@ class SeoGenerationService
                 'response_excerpt' => Str::limit($response->body(), 500),
             ]);
 
-            return null;
+            return [
+                'payload' => null,
+                'error' => 'OpenAI a répondu en erreur HTTP '.$response->status().'.',
+            ];
         }
 
         $text = $response->json('output.0.content.0.text');
@@ -257,7 +279,10 @@ class SeoGenerationService
                 'error_type' => 'empty_generation',
             ]);
 
-            return null;
+            return [
+                'payload' => null,
+                'error' => 'OpenAI a renvoyé une réponse vide.',
+            ];
         }
 
         $decoded = json_decode($text, true);
@@ -272,7 +297,10 @@ class SeoGenerationService
                 'response_excerpt' => Str::limit($text, 500),
             ]);
 
-            return null;
+            return [
+                'payload' => null,
+                'error' => 'OpenAI a renvoyé un JSON invalide : '.json_last_error_msg().'.',
+            ];
         }
 
         if (! $this->isCompletePayload($decoded)) {
@@ -284,7 +312,10 @@ class SeoGenerationService
                 'keys' => array_keys($decoded),
             ]);
 
-            return null;
+            return [
+                'payload' => null,
+                'error' => 'OpenAI a renvoyé un payload partiel, fallback activé.',
+            ];
         }
 
         preg_match_all('/<h2\b/i', (string) ($decoded['content'] ?? ''), $matches);
@@ -300,7 +331,10 @@ class SeoGenerationService
             'section_count' => $sectionCount,
         ]);
 
-        return $decoded;
+        return [
+            'payload' => $decoded,
+            'error' => null,
+        ];
     }
 
     /**
@@ -342,11 +376,12 @@ class SeoGenerationService
     /**
      * @param  array<string,mixed>  $payload
      * @param  array<string,mixed>  $blueprint
-     * @return array<string,mixed>
+     * @return array{0:array<string,mixed>,1:bool}
      */
     protected function ensurePremiumDepth(array $payload, array $blueprint, string $keyword, string $cluster): array
     {
         $links = $this->internalLinkHtml($keyword, $cluster);
+        $originalPayload = $payload;
 
         $payload['content'] = $this->content->ensureContentDepth((string) ($payload['content'] ?? ''), $blueprint, [
             'keyword' => $keyword,
@@ -374,7 +409,10 @@ class SeoGenerationService
             ]);
         }
 
-        return $payload;
+        return [
+            $payload,
+            json_encode($payload) !== json_encode($originalPayload),
+        ];
     }
 
     protected function elapsedMs(float $startedAt): int

@@ -20,19 +20,24 @@
     $latestPendingSuggestion = $pendingSuggestions->first();
     $latestMetric = $latestMetric ?? null;
     $publicationSummary = session('publication_summary', $publicationSummary ?? null);
+    $enginePublished = $page->isPublishedInEngine();
+    $livePublished = $page->isPublishedLive();
+    $liveUrl = $page->live_url ?: rtrim((string) $site->url, '/').$page->canonicalPath();
     $pageIsHealthy = (float) ($page->seo_score ?? 0) >= 70 && (float) ($page->quality_score ?? 0) >= 80 && (float) ($page->indexability_score ?? 0) >= 65;
-    $pageIsApproved = ($page->status === 'published')
+    $pageIsApproved = $enginePublished
         || ($page->status === 'review' && $pendingSuggestions->isEmpty() && empty($page->review_issues_json));
     $imageApproved = ($page->image_status ?? null) === 'approved' || (float) ($page->image_quality_score ?? 0) >= 80;
     $workflowStates = [
         ['label' => 'Draft', 'active' => in_array($page->status, ['draft', 'review', 'published'], true)],
         ['label' => 'Preview', 'active' => filled($page->content)],
         ['label' => 'Review', 'active' => in_array($page->status, ['review', 'published'], true)],
-        ['label' => 'Publish', 'active' => $page->status === 'published' || filled($page->published_at)],
+        ['label' => 'Publish moteur', 'active' => $enginePublished],
+        ['label' => 'Push live', 'active' => $livePublished],
         ['label' => 'Monitor', 'active' => $latestMetric !== null || (($observedRewriteContext['matched'] ?? false) === true)],
     ];
     $heroBadges = array_filter([
-        $page->status === 'published' || filled($page->published_at) ? ['label' => 'Published', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
+        $enginePublished ? ['label' => 'Published engine', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
+        $livePublished ? ['label' => 'Live', 'tone' => 'bg-sky-100 text-sky-700'] : null,
         $pageIsHealthy ? ['label' => 'Healthy', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
         $pageIsApproved ? ['label' => 'Approved', 'tone' => 'bg-emerald-100 text-emerald-700'] : null,
         ($page->is_indexed || ($latestMetric?->is_indexed ?? false)) ? ['label' => 'Indexée', 'tone' => 'bg-sky-100 text-sky-700'] : null,
@@ -142,7 +147,7 @@
         <div class="space-y-5">
             <div class="rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
                 <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Statut éditorial moteur</div>
-                <div class="mt-2 text-4xl font-semibold text-slate-900">{{ filled($page->published_at) || $page->status === 'published' ? 'Publié côté moteur' : 'En préparation côté moteur' }}</div>
+                <div class="mt-2 text-4xl font-semibold text-slate-900">{{ $enginePublished ? 'Publié côté moteur' : 'En préparation côté moteur' }}</div>
                 <div class="mt-2 text-sm text-slate-500">Ce statut décrit l’état interne de `SeoPage`. Il ne prouve pas à lui seul qu’un CMS externe a publié la page ni qu’elle est déjà visible au crawl.</div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
@@ -185,6 +190,33 @@
                 </div>
             </div>
 
+            <div class="rounded-3xl border {{ ($page->generation_source ?? null) === 'fallback' ? 'border-rose-200 bg-rose-50' : (($page->generation_source ?? null) === 'hybrid' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50') }} px-5 py-5">
+                <div class="text-xs uppercase tracking-[0.25em] {{ ($page->generation_source ?? null) === 'fallback' ? 'text-rose-600' : (($page->generation_source ?? null) === 'hybrid' ? 'text-amber-600' : 'text-emerald-600') }}">Source réelle de génération</div>
+                <div class="mt-2 flex items-center justify-between gap-4">
+                    <div class="text-lg font-semibold {{ ($page->generation_source ?? null) === 'fallback' ? 'text-rose-900' : (($page->generation_source ?? null) === 'hybrid' ? 'text-amber-900' : 'text-emerald-900') }}">
+                        {{ $page->generationSourceLabel() }}
+                    </div>
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium {{ ($page->generation_source ?? null) === 'fallback' ? 'bg-white text-rose-700' : (($page->generation_source ?? null) === 'hybrid' ? 'bg-white text-amber-700' : 'bg-white text-emerald-700') }}">
+                        {{ $page->generation_error ? 'Erreur AI visible' : 'Aucune erreur AI' }}
+                    </span>
+                </div>
+                <div class="mt-2 text-sm {{ ($page->generation_source ?? null) === 'fallback' ? 'text-rose-800' : (($page->generation_source ?? null) === 'hybrid' ? 'text-amber-800' : 'text-emerald-800') }}">
+                    @if(($page->generation_source ?? null) === 'fallback')
+                        L’article visible sur cette fiche vient du preset de secours, pas d’une génération AI complète.
+                    @elseif(($page->generation_source ?? null) === 'hybrid')
+                        L’AI a bien répondu, mais le preset a complété une partie du payload avant sauvegarde.
+                    @else
+                        La page affichée vient d’une génération AI complète.
+                    @endif
+                </div>
+                @if($page->generation_error)
+                    <div class="mt-4 rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm text-slate-700">
+                        <div class="font-medium text-slate-900">Dernière erreur AI</div>
+                        <div class="mt-1">{{ $page->generation_error }}</div>
+                    </div>
+                @endif
+            </div>
+
             @if($latestPendingSuggestion)
             <div class="rounded-3xl border border-purple-100 bg-purple-50 px-5 py-5">
                 <div class="flex items-start justify-between gap-4">
@@ -223,38 +255,43 @@
             </div>
             @endif
 
-            <div class="rounded-3xl border {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'border-emerald-100 bg-emerald-50' : 'border-amber-100 bg-amber-50' }} px-5 py-5">
+            <div class="rounded-3xl border {{ $livePublished ? 'border-sky-100 bg-sky-50' : ($enginePublished ? 'border-emerald-100 bg-emerald-50' : 'border-amber-100 bg-amber-50') }} px-5 py-5">
                 <div class="flex items-start justify-between gap-4">
                     <div>
-                        <div class="text-xs uppercase tracking-[0.25em] {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-600' : 'text-amber-600' }}">Publication</div>
-                        <div class="mt-2 text-lg font-semibold {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-900' : 'text-amber-900' }}">
-                            {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'Prête à être marquée comme publiée' : 'Publication moteur bloquée' }}
+                        <div class="text-xs uppercase tracking-[0.25em] {{ $livePublished ? 'text-sky-600' : ($enginePublished ? 'text-emerald-600' : 'text-amber-600') }}">Publication live</div>
+                        <div class="mt-2 text-lg font-semibold {{ $livePublished ? 'text-sky-900' : ($enginePublished ? 'text-emerald-900' : 'text-amber-900') }}">
+                            {{ $livePublished ? 'Publiée sur le site public' : ($enginePublished ? 'Prête à être poussée en live' : 'Publication live indisponible') }}
                         </div>
-                        <div class="mt-2 text-sm {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'text-emerald-800' : 'text-amber-800' }}">
-                            {{ ($publicationSummary['live_message'] ?? '') !== '' ? $publicationSummary['live_message'] : 'Le moteur vérifie la cohérence éditoriale avant de marquer la page comme publiée dans son propre workflow.' }}
+                        <div class="mt-2 text-sm {{ $livePublished ? 'text-sky-800' : ($enginePublished ? 'text-emerald-800' : 'text-amber-800') }}">
+                            @if($livePublished)
+                                L’URL publique est maintenant servie par le site. Le sitemap et la couverture observed peuvent s’appuyer sur cette vraie publication live.
+                            @elseif($enginePublished)
+                                La page est validée dans le moteur. Il reste maintenant à la publier réellement sur le domaine public.
+                            @else
+                                Il faut d’abord passer la publication moteur avant de pouvoir créer une vraie URL publique.
+                            @endif
                         </div>
                     </div>
-                    @if($page->status !== 'published')
-                    <form method="POST" action="{{ route('admin.pages.publish', [$site->site_id, $page->id]) }}">
+                    @if($livePublished)
+                        <a href="{{ $liveUrl }}" target="_blank" class="inline-flex items-center rounded-full bg-sky-600 hover:bg-sky-700 px-5 py-2.5 text-sm font-medium text-white transition-colors">
+                            Ouvrir l’URL live
+                        </a>
+                    @elseif($enginePublished)
+                    <form method="POST" action="{{ route('admin.pages.publish-live', [$site->site_id, $page->id]) }}">
                         @csrf
-                        <button type="submit" class="inline-flex items-center rounded-full {{ empty($publicationSummary['blocking_reasons'] ?? []) ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700' }} px-5 py-2.5 text-sm font-medium text-white transition-colors">
-                            Marquer comme publié dans le moteur
+                        <button type="submit" class="inline-flex items-center rounded-full bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white transition-colors">
+                            Publier en live sur le site
                         </button>
                     </form>
                     @endif
                 </div>
 
-                @if(!empty($publicationSummary['blocking_reasons']))
-                    <div class="mt-4 space-y-2">
-                        @foreach(array_slice($publicationSummary['blocking_reasons'], 0, 5) as $reason)
-                            <div class="flex items-start gap-2 text-sm text-amber-900">
-                                <span class="mt-0.5 text-amber-500">•</span>
-                                <span>{{ $reason }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                @elseif($page->status !== 'published')
-                    <div class="mt-4 text-sm text-emerald-800">Les garde-fous actuels sont verts. Tu peux publier sans sortir du cockpit.</div>
+                @if($livePublished)
+                    <div class="mt-4 text-sm text-sky-800">Live URL : <a href="{{ $liveUrl }}" target="_blank" class="font-medium underline">{{ $liveUrl }}</a></div>
+                @elseif($enginePublished)
+                    <div class="mt-4 text-sm text-emerald-800">Le contenu est prêt. Cette action crée maintenant une vraie URL publique au lieu d’un simple statut en base.</div>
+                @else
+                    <div class="mt-4 text-sm text-amber-800">La publication live est volontairement séparée de la validation éditoriale moteur.</div>
                 @endif
             </div>
         </div>
@@ -635,6 +672,30 @@
                 <span class="font-medium text-gray-700">{{ ($observedRewriteContext['matched'] ?? false) ? 'SeoSitePage liée' : 'Aucune correspondance observée' }}</span>
             </div>
             <div class="flex justify-between text-gray-500">
+                <span>Source génération</span>
+                <span class="font-medium text-gray-700">{{ $page->generationSourceLabel() }}</span>
+            </div>
+            <div class="flex justify-between text-gray-500">
+                <span>Publié côté moteur</span>
+                <span class="font-medium text-gray-700">{{ $enginePublished ? 'Oui' : 'Non' }}</span>
+            </div>
+            @if($page->generation_error)
+            <div class="text-gray-500">
+                <div class="font-medium text-gray-700 mb-1">Erreur AI mémorisée</div>
+                <div class="text-xs leading-relaxed">{{ $page->generation_error }}</div>
+            </div>
+            @endif
+            <div class="flex justify-between text-gray-500">
+                <span>Publié en live</span>
+                <span class="font-medium text-gray-700">{{ $livePublished ? 'Oui' : 'Non' }}</span>
+            </div>
+            @if($page->live_url)
+            <div class="flex justify-between gap-4 text-gray-500">
+                <span>Live URL</span>
+                <a href="{{ $page->live_url }}" target="_blank" class="font-medium text-blue-700 underline text-right break-all">{{ $page->live_url }}</a>
+            </div>
+            @endif
+            <div class="flex justify-between text-gray-500">
                 <span>Règle de mapping</span>
                 <span class="font-medium text-gray-700">{{ $page->observed_page_match_rule ?: 'Aucune' }}</span>
             </div>
@@ -662,6 +723,18 @@
             <div class="flex justify-between text-gray-500">
                 <span>Publié côté moteur</span>
                 <span class="text-gray-700">{{ $page->published_at?->format('d/m/Y') }}</span>
+            </div>
+            @endif
+            @if($page->published_live_at)
+            <div class="flex justify-between text-gray-500">
+                <span>Publié en live</span>
+                <span class="text-gray-700">{{ $page->published_live_at?->format('d/m/Y H:i') }}</span>
+            </div>
+            @endif
+            @if($page->last_observed_at)
+            <div class="flex justify-between text-gray-500">
+                <span>Dernière observation</span>
+                <span class="text-gray-700">{{ $page->last_observed_at?->format('d/m/Y H:i') }}</span>
             </div>
             @endif
         </div>

@@ -78,7 +78,7 @@
             "type": "path",
             "url": "..",
             "options": {
-                "symlink": false
+                "symlink": true
             }
         }
     ],

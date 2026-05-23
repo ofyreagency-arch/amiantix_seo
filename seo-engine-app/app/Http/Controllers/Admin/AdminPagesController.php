@@ -11,6 +11,7 @@ use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
+use App\Services\Publication\SeoLivePublicationService;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
@@ -64,8 +65,22 @@ class AdminPagesController extends Controller
         $pageId = $result['page']->id ?? null;
 
         if ($pageId) {
-            return redirect()->route('admin.pages.show', [$siteId, $pageId])
-                ->with('success', 'Page générée avec succès.');
+            $page = $result['page'];
+            $redirect = redirect()->route('admin.pages.show', [$siteId, $pageId]);
+
+            if (($page->generation_source ?? null) === 'fallback') {
+                return $redirect
+                    ->with('success', 'Page générée en mode fallback preset.')
+                    ->with('warning', $page->generation_error ?: 'La génération AI a échoué, le preset fallback a pris la main.');
+            }
+
+            if (($page->generation_source ?? null) === 'hybrid') {
+                return $redirect
+                    ->with('success', 'Page générée en mode hybride AI + preset.')
+                    ->with('warning', 'La base vient de l’IA, mais le preset a complété certaines sections pour fermer les trous du payload.');
+            }
+
+            return $redirect->with('success', 'Page générée avec succès via AI.');
         }
 
         return redirect()->route('admin.sites.show', $siteId)
@@ -196,7 +211,28 @@ class AdminPagesController extends Controller
 
         return redirect()
             ->route('admin.pages.show', [$siteId, $pageId])
-            ->with('success', 'Page publiée.');
+            ->with('success', 'Page publiée côté moteur.');
+    }
+
+    public function publishLive(
+        string $siteId,
+        int $pageId,
+        SeoLivePublicationService $livePublication,
+    ): RedirectResponse {
+        $site = $this->loadSite($siteId);
+        $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+
+        if (! $page->isPublishedInEngine()) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $pageId])
+                ->with('warning', 'La page doit d’abord être publiée côté moteur avant de pouvoir être poussée en live.');
+        }
+
+        $page = $livePublication->publish($page, $site);
+
+        return redirect()
+            ->route('admin.pages.show', [$siteId, $pageId])
+            ->with('success', 'Page publiée en live sur le site public.');
     }
 
     public function quickFix(

@@ -22,7 +22,7 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
     public function generatePage(string $keyword, string $status): object
     {
         $result = $this->generator->generatePayload($keyword);
-        $slug = Str::slug(Str::lower($keyword));
+        $slug = $this->resolveSlug($keyword);
 
         $page = SeoPage::query()->firstOrNew([
             'site_id' => $this->context->siteId(),
@@ -40,6 +40,8 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
             'content' => (string) ($result['payload']['content'] ?? ''),
             'faq_json' => $result['payload']['faq'] ?? [],
             'schema_json' => $result['payload']['schema'] ?? [],
+            'generation_source' => (string) ($result['generation_source'] ?? 'unknown'),
+            'generation_error' => $result['generation_error'] ?? null,
             'internal_links_json' => $this->generator->generateInternalLinks((object) [
                 'keyword' => $keyword,
                 'cluster' => $result['cluster'],
@@ -51,6 +53,36 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
         ])->save();
 
         return $this->scoreRefresh->refresh($page->refresh(), createAudit: true);
+    }
+
+    private function resolveSlug(string $keyword): string
+    {
+        $siteId = $this->context->siteId();
+        $baseSlug = Str::slug(Str::lower($keyword));
+        $baseSlug = $baseSlug !== '' ? $baseSlug : 'page-seo';
+
+        $sameSitePage = SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where('slug', $baseSlug)
+            ->first();
+
+        if ($sameSitePage && Str::lower(trim((string) $sameSitePage->keyword)) === Str::lower(trim($keyword))) {
+            return $baseSlug;
+        }
+
+        if (! SeoPage::query()->where('slug', $baseSlug)->exists()) {
+            return $baseSlug;
+        }
+
+        $suffix = 2;
+
+        do {
+            $candidate = $baseSlug.'-'.$suffix;
+            $exists = SeoPage::query()->where('slug', $candidate)->exists();
+            $suffix++;
+        } while ($exists);
+
+        return $candidate;
     }
 
     public function improvePage(object $page, array $audit = []): object

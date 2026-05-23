@@ -29,6 +29,12 @@ class SeoPage extends Model
         'forced_noindex',
         'is_indexed',
         'published_at',
+        'published_live',
+        'published_live_at',
+        'live_url',
+        'last_observed_at',
+        'generation_source',
+        'generation_error',
         'image_path',
         'image_alt',
         'image_prompt',
@@ -58,6 +64,9 @@ class SeoPage extends Model
             'forced_noindex' => 'boolean',
             'is_indexed' => 'boolean',
             'published_at' => 'datetime',
+            'published_live' => 'boolean',
+            'published_live_at' => 'datetime',
+            'last_observed_at' => 'datetime',
             'last_audit_at' => 'datetime',
             'observed_page_linked_at' => 'datetime',
         ];
@@ -98,5 +107,32 @@ class SeoPage extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', 'published');
+    }
+
+    public function scopePublishedLive(Builder $query): Builder
+    {
+        return $query
+            ->where('published_live', true)
+            ->whereNotNull('published_live_at');
+    }
+
+    public function isPublishedInEngine(): bool
+    {
+        return $this->status === 'published' || $this->published_at !== null;
+    }
+
+    public function isPublishedLive(): bool
+    {
+        return (bool) $this->published_live && $this->published_live_at !== null;
+    }
+
+    public function generationSourceLabel(): string
+    {
+        return match ($this->generation_source) {
+            'ai' => 'AI',
+            'hybrid' => 'Hybrid',
+            'fallback' => 'Fallback preset',
+            default => 'Unknown',
+        };
     }
 }
