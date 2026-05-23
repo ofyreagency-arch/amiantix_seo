@@ -21,7 +21,10 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             'Mot-cle principal: '.$keyword."\n".
             'Cluster: '.$cluster."\n".
             'Sujet: '.$blueprint['topic']."\n".
+            'Famille editoriale: '.($blueprint['family'] ?? 'default')."\n".
+            'Archetype editorial: '.($blueprint['archetype'] ?? 'decision_guide')."\n".
             'Angle hero: '.$blueprint['hero_angle']."\n".
+            'Plan de composition: '.json_encode($blueprint['composition'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             'Sections editoriales attendues: '.json_encode($editorialSections, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             'Signaux metier obligatoires: '.json_encode($expectedSignals, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             'Risques terrain a couvrir: '.json_encode($blueprint['risk_rows'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".

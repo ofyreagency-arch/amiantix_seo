@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\SeoPresets\Amiantix;
 
+use App\Services\Preset\BlockSelectionStrategy;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\NicheContentProvider;
 
 final class AmiantixContentProfile implements NicheContentProvider
 {
+    public function __construct(
+        private readonly BlockSelectionStrategy $blockSelection,
+    ) {}
+
     public function fallbackPayload(string $keyword, string $cluster, array $blueprint, array $context = []): array
     {
         $title = $this->buildTitle($keyword, $cluster, $blueprint);
@@ -16,7 +21,7 @@ final class AmiantixContentProfile implements NicheContentProvider
         $h1 = $this->buildH1($keyword, $cluster, $blueprint);
         $links = $context['internal_links'] ?? [];
         $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
-        $content = collect($blueprint['editorial_sections'] ?? array_keys($catalog))
+        $content = collect($this->blockSelection->primaryHeadings($blueprint, $catalog))
             ->map(fn (string $heading): string => $catalog[$heading] ?? '')
             ->filter(fn (string $block): bool => $block !== '')
             ->implode('');
@@ -54,7 +59,7 @@ final class AmiantixContentProfile implements NicheContentProvider
         }
 
         $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
-        $enrichmentBlocks = collect($blueprint['support_sections'] ?? [])
+        $enrichmentBlocks = collect($this->blockSelection->enrichmentHeadings($blueprint, $catalog, $content))
             ->map(fn (string $heading): string => $catalog[$heading] ?? '')
             ->filter(fn (string $block): bool => $block !== '')
             ->all();
@@ -87,11 +92,16 @@ final class AmiantixContentProfile implements NicheContentProvider
     {
         $links = $context['internal_links'] ?? (($context['page']->internal_links_json ?? null) ?: []);
         $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
+        $requiredHeadings = $this->blockSelection->requiredHeadings($blueprint, $catalog);
 
-        return collect($catalog)
-            ->filter(function (string $block, string $heading) use ($content): bool {
-                return ! str_contains($content, $heading) && $block !== '';
+        return collect($requiredHeadings)
+            ->filter(function (string $heading) use ($content, $catalog): bool {
+                $block = (string) ($catalog[$heading] ?? '');
+                $marker = $this->sectionMarker($heading, $block);
+
+                return $block !== '' && ! str_contains($content, $marker);
             })
+            ->map(fn (string $heading): string => (string) ($catalog[$heading] ?? ''))
             ->values()
             ->all();
     }
@@ -124,6 +134,15 @@ final class AmiantixContentProfile implements NicheContentProvider
             'Site occupe, acces sensibles et zones grises' => $this->siteOccupationBlock($blueprint),
             'Routine documentaire et trace utile' => $this->documentRoutineBlock($blueprint),
         ];
+    }
+
+    private function sectionMarker(string $heading, string $block): string
+    {
+        if (preg_match('/<h2>(.*?)<\/h2>/i', $block, $matches) === 1) {
+            return html_entity_decode(trim(strip_tags((string) ($matches[1] ?? ''))));
+        }
+
+        return $heading;
     }
 
     /**

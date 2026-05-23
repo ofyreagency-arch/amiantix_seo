@@ -14,11 +14,15 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
         $topic = $this->topicFromKeyword($keyword);
         $resolvedCluster = $cluster ?: $this->clusterFromKeyword($topic);
         $family = $this->familyFromKeyword($topic, $resolvedCluster);
+        $archetype = $this->archetypeForFamily($family);
+        $composition = $this->compositionFor($family, $archetype);
 
         return [
             'topic' => $topic,
             'cluster' => $resolvedCluster,
             'family' => $family,
+            'archetype' => $archetype,
+            'composition' => $composition,
             'hero_angle' => 'coordination terrain et maitrise documentaire autour de '.$topic,
             'risk_terms' => [
                 'amiante',
@@ -34,8 +38,8 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                 'donneur d ordre',
                 $topic,
             ],
-            'editorial_sections' => $this->editorialSectionsForFamily($family),
-            'support_sections' => $this->supportSectionsForFamily($family),
+            'editorial_sections' => $this->editorialSectionsForFamily($composition),
+            'support_sections' => $this->supportSectionsForFamily($composition),
             'risk_rows' => [
                 ['Exposition a l amiante', 'Travaux dans des zones mal caracterisees ou hypotheses de travaux incomplètes', 'Repérage adapte, cadrage des zones, lecture des diagnostics et validation du scenario d intervention'],
                 ['Empoussierement et dispersion', 'Percement, decoupe, demolition ou maintenance sans confinement adapte', 'Mode operatoire, confinement, captation, verification des acces et suivi des mesures'],
@@ -71,82 +75,135 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
     /**
      * @return array<int, string>
      */
-    private function editorialSectionsForFamily(string $family): array
+    private function editorialSectionsForFamily(array $composition): array
     {
-        return match ($family) {
-            'appel_offre' => [
-                'Contexte et obligations',
-                'Documents et preuves a conserver',
-                'Points de vigilance pour le donneur d ordre',
-                'Processus d intervention et coordination',
-                'Erreurs frequentes et blocages evitables',
-                'Couts, delais et arbitrages chantier',
-                'Questions terrain qui reviennent souvent',
-                'Ressources et pages utiles a croiser',
-                'Passer du constat a une intervention maitrisée',
-            ],
-            'copropriete' => [
-                'Contexte et obligations',
-                'Situations a risque sur le terrain',
-                'Checklist operationnelle avant intervention',
-                'Cas pratiques terrain a cadrer',
-                'Documents et preuves a conserver',
-                'Copropriete, ERP et site occupe : ce qui change vraiment',
-                'Matrice de controle documentaire et terrain',
-                'Questions terrain qui reviennent souvent',
-                'Passer du constat a une intervention maitrisée',
-            ],
-            'reperage' => [
-                'Repérage, SS3, SS4 et responsabilites de coordination',
-                'Documents et preuves a conserver',
-                'Points de vigilance pour le donneur d ordre',
-                'Tableau de priorisation des risques',
-                'Processus d intervention et coordination',
-                'Erreurs frequentes et blocages evitables',
-                'Questions terrain qui reviennent souvent',
-                'Ressources et pages utiles a croiser',
-                'Passer du constat a une intervention maitrisée',
-            ],
-            default => [
-                'Contexte et obligations',
-                'Tableau de priorisation des risques',
-                'Situations a risque sur le terrain',
-                'Processus d intervention et coordination',
-                'Documents et preuves a conserver',
-                'Points de vigilance pour le donneur d ordre',
-                'Couts, delais et arbitrages chantier',
-                'Erreurs frequentes et blocages evitables',
-                'Questions terrain qui reviennent souvent',
-                'Passer du constat a une intervention maitrisée',
-            ],
-        };
+        return array_values(array_unique(array_filter([
+            $composition['opening_block'] ?? null,
+            ...($composition['required_blocks'] ?? []),
+        ])));
     }
 
     /**
      * @return array<int, string>
      */
-    private function supportSectionsForFamily(string $family): array
+    private function supportSectionsForFamily(array $composition): array
+    {
+        return array_values(array_unique($composition['optional_blocks'] ?? []));
+    }
+
+    private function archetypeForFamily(string $family): string
+    {
+        return match ($family) {
+            'appel_offre' => 'consultation_checklist',
+            'copropriete' => 'terrain_casebook',
+            'reperage' => 'documentary_audit',
+            default => 'decision_guide',
+        };
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function compositionFor(string $family, string $archetype): array
     {
         return match ($family) {
             'appel_offre' => [
-                'Repérage, SS3, SS4 et responsabilites de coordination',
-                'Matrice de controle documentaire et terrain',
-                'Checklist operationnelle avant intervention',
+                'archetype' => $archetype,
+                'opening_block' => 'Contexte et obligations',
+                'required_blocks' => [
+                    'Documents et preuves a conserver',
+                    'Points de vigilance pour le donneur d ordre',
+                    'Couts, delais et arbitrages chantier',
+                    'Matrice de controle documentaire et terrain',
+                    'Ressources et pages utiles a croiser',
+                    'Passer du constat a une intervention maitrisée',
+                ],
+                'optional_blocks' => [
+                    'Repérage, SS3, SS4 et responsabilites de coordination',
+                    'Processus d intervention et coordination',
+                    'Checklist operationnelle avant intervention',
+                    'Cas pratiques terrain a cadrer',
+                    'Erreurs frequentes et blocages evitables',
+                    'Copropriete, ERP et site occupe : ce qui change vraiment',
+                    'Questions terrain qui reviennent souvent',
+                    'Routine documentaire et trace utile',
+                ],
+                'max_optional_blocks' => 4,
+                'table_mode' => 'control_matrix',
+                'faq_mode' => 'consultation_decision',
             ],
             'copropriete' => [
-                'Tableau de priorisation des risques',
-                'Couts, delais et arbitrages chantier',
-                'Ressources et pages utiles a croiser',
+                'archetype' => $archetype,
+                'opening_block' => 'Contexte et obligations',
+                'required_blocks' => [
+                    'Situations a risque sur le terrain',
+                    'Checklist operationnelle avant intervention',
+                    'Cas pratiques terrain a cadrer',
+                    'Documents et preuves a conserver',
+                    'Copropriete, ERP et site occupe : ce qui change vraiment',
+                    'Questions terrain qui reviennent souvent',
+                    'Passer du constat a une intervention maitrisée',
+                ],
+                'optional_blocks' => [
+                    'Repérage, SS3, SS4 et responsabilites de coordination',
+                    'Tableau de priorisation des risques',
+                    'Matrice de controle documentaire et terrain',
+                    'Points de vigilance pour le donneur d ordre',
+                    'Couts, delais et arbitrages chantier',
+                    'Ressources et pages utiles a croiser',
+                ],
+                'max_optional_blocks' => 4,
+                'table_mode' => 'risk_priority',
+                'faq_mode' => 'terrain_cases',
             ],
             'reperage' => [
-                'Checklist operationnelle avant intervention',
-                'Matrice de controle documentaire et terrain',
-                'Couts, delais et arbitrages chantier',
+                'archetype' => $archetype,
+                'opening_block' => 'Repérage, SS3, SS4 et responsabilites de coordination',
+                'required_blocks' => [
+                    'Documents et preuves a conserver',
+                    'Points de vigilance pour le donneur d ordre',
+                    'Tableau de priorisation des risques',
+                    'Questions terrain qui reviennent souvent',
+                    'Ressources et pages utiles a croiser',
+                    'Passer du constat a une intervention maitrisée',
+                ],
+                'optional_blocks' => [
+                    'Contexte et obligations',
+                    'Processus d intervention et coordination',
+                    'Erreurs frequentes et blocages evitables',
+                    'Checklist operationnelle avant intervention',
+                    'Matrice de controle documentaire et terrain',
+                    'Couts, delais et arbitrages chantier',
+                ],
+                'max_optional_blocks' => 4,
+                'table_mode' => 'document_controls',
+                'faq_mode' => 'documentary_precision',
             ],
             default => [
-                'Checklist operationnelle avant intervention',
-                'Matrice de controle documentaire et terrain',
-                'Ressources et pages utiles a croiser',
+                'archetype' => $archetype,
+                'opening_block' => 'Contexte et obligations',
+                'required_blocks' => [
+                    'Tableau de priorisation des risques',
+                    'Situations a risque sur le terrain',
+                    'Processus d intervention et coordination',
+                    'Documents et preuves a conserver',
+                    'Points de vigilance pour le donneur d ordre',
+                    'Couts, delais et arbitrages chantier',
+                    'Questions terrain qui reviennent souvent',
+                    'Passer du constat a une intervention maitrisée',
+                ],
+                'optional_blocks' => [
+                    'Repérage, SS3, SS4 et responsabilites de coordination',
+                    'Checklist operationnelle avant intervention',
+                    'Erreurs frequentes et blocages evitables',
+                    'Ressources et pages utiles a croiser',
+                    'Matrice de controle documentaire et terrain',
+                    'Site occupe, acces sensibles et zones grises',
+                    'Routine documentaire et trace utile',
+                ],
+                'max_optional_blocks' => 4,
+                'table_mode' => 'risk_priority',
+                'faq_mode' => 'decision_support',
             ],
         };
     }

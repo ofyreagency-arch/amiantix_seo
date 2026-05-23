@@ -15,12 +15,17 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
     {
         $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
 
+        $this->assertSame('decision_guide', $blueprint['archetype']);
+        $this->assertIsArray($blueprint['composition']);
         $this->assertNotEmpty($blueprint['risk_rows']);
         $this->assertNotEmpty($blueprint['obligations']);
         $this->assertNotEmpty($blueprint['cases']);
         $this->assertNotEmpty($blueprint['inspection_focus']);
         $this->assertNotEmpty($blueprint['evidence_examples']);
         $this->assertContains('Tableau de priorisation des risques', $blueprint['editorial_sections']);
+        $this->assertArrayHasKey('required_blocks', $blueprint['composition']);
+        $this->assertArrayHasKey('optional_blocks', $blueprint['composition']);
+        $this->assertArrayHasKey('opening_block', $blueprint['composition']);
     }
 
     public function test_amiantix_fallback_payload_contains_structural_blocks_and_depth(): void
@@ -36,13 +41,12 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
 
         $content = (string) $payload['content'];
 
-        $this->assertStringContainsString('Repérage, SS3, SS4 et responsabilites de coordination', $content);
+        $this->assertStringContainsString('Contexte et obligations', $content);
         $this->assertStringContainsString('Tableau de priorisation des risques', $content);
-        $this->assertStringContainsString('Checklist operationnelle avant intervention', $content);
         $this->assertStringContainsString('Documents et preuves a conserver', $content);
-        $this->assertStringContainsString('Blocages, sanctions et signaux d alerte a ne pas banaliser', $content);
-        $this->assertStringContainsString('Copropriete, ERP et site occupe : ce qui change vraiment', $content);
-        $this->assertStringContainsString('Matrice de controle documentaire et terrain', $content);
+        $this->assertStringContainsString('Couts, delais et arbitrages chantier', $content);
+        $this->assertStringContainsString('Questions terrain qui reviennent souvent', $content);
+        $this->assertStringContainsString('Passer du constat a une intervention maitrisée', $content);
         $this->assertStringContainsString('<table>', $content);
         $this->assertStringContainsString('<ul>', $content);
         $this->assertGreaterThanOrEqual(5, count($payload['faq']));
@@ -56,10 +60,9 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
 
         $content = $provider->ensureContentDepth('<h2>Contexte et obligations</h2><p>Texte tres court.</p>', $blueprint);
 
-        $this->assertStringContainsString('Repérage, SS3, SS4 et responsabilites de coordination', $content);
         $this->assertStringContainsString('Tableau de priorisation des risques', $content);
-        $this->assertStringContainsString('Checklist operationnelle avant intervention', $content);
-        $this->assertStringContainsString('Blocages, sanctions et signaux d alerte a ne pas banaliser', $content);
+        $this->assertStringContainsString('Documents et preuves a conserver', $content);
+        $this->assertStringContainsString('Couts, delais et arbitrages chantier', $content);
         $this->assertStringContainsString('Questions terrain qui reviennent souvent', $content);
         $this->assertStringContainsString('Passer du constat a une intervention maitrisée', $content);
         $this->assertGreaterThanOrEqual(1450, str_word_count(strtolower(strip_tags($content))));
@@ -82,6 +85,8 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('coordination SPS, MOA/MOE', $prompt);
         $this->assertStringContainsString('checklists, des points de vigilance', $prompt);
         $this->assertStringContainsString('1400 mots minimum', $prompt);
+        $this->assertStringContainsString('Archetype editorial', $prompt);
+        $this->assertStringContainsString('Plan de composition', $prompt);
     }
 
     public function test_amiantix_blueprint_varies_structure_for_appel_offre_keywords(): void
@@ -93,10 +98,15 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $content = (string) $payload['content'];
 
         $this->assertSame('appel_offre', $blueprint['family']);
+        $this->assertSame('consultation_checklist', $blueprint['archetype']);
+        $this->assertSame('control_matrix', $blueprint['composition']['table_mode'] ?? null);
         $this->assertContains('Documents et preuves a conserver', $blueprint['editorial_sections']);
         $this->assertContains('Points de vigilance pour le donneur d ordre', $blueprint['editorial_sections']);
+        $this->assertNotContains('Tableau de priorisation des risques', $blueprint['editorial_sections']);
         $this->assertStringContainsString('appel d offre', $content);
         $this->assertStringContainsString('DCE', $content);
+        $this->assertStringContainsString('Matrice de controle documentaire et terrain', $content);
+        $this->assertStringNotContainsString('Tableau de priorisation des risques', $content);
         $this->assertStringNotContainsString('Une renovation en copropriete demarre', $content);
         $this->assertStringNotContainsString('Scenario copropriete ou site occupe', $content);
     }
