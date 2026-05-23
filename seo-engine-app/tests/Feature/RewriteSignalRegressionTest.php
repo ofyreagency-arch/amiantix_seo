@@ -420,6 +420,16 @@ class RewriteSignalRegressionTest extends TestCase
                 return 'generation';
             }
 
+            public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
+            {
+                return 'generation-core';
+            }
+
+            public function generationFaqPrompt(string $keyword, string $cluster, array $blueprint, string $title, string $metaDescription, string $h1, string $content): string
+            {
+                return 'generation-faq';
+            }
+
             public function improvementPrompt(object $page, array $blueprint, array $audit, array $editorialSections, array $expectedSignals): string
             {
                 return 'improvement';

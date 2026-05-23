@@ -129,6 +129,7 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                     'Routine documentaire et trace utile',
                 ],
                 'max_optional_blocks' => 4,
+                'disallowed_optional_terms' => ['copropriete', 'erp', 'site occupe', 'occupation'],
                 'table_mode' => 'control_matrix',
                 'faq_mode' => 'consultation_decision',
             ],

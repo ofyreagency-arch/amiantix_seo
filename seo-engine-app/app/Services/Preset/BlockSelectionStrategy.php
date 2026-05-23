@@ -4,8 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services\Preset;
 
+use Ofyre\SeoEngine\Services\Composition\BlockRelevanceScorer;
+use Ofyre\SeoEngine\Services\Composition\CoverageInspector;
+use Ofyre\SeoEngine\Services\Composition\EnrichmentBudget;
+
 final class BlockSelectionStrategy
 {
+    public function __construct(
+        private readonly CoverageInspector $coverage,
+        private readonly BlockRelevanceScorer $relevance,
+        private readonly EnrichmentBudget $budget,
+    ) {}
+
     /**
      * @param  array<string,mixed>  $blueprint
      * @param  array<string,string>  $catalog
@@ -44,16 +54,37 @@ final class BlockSelectionStrategy
     public function enrichmentHeadings(array $blueprint, array $catalog, string $content = ''): array
     {
         $plan = $this->compositionPlan($blueprint);
-        $optional = $this->filterKnownHeadings($this->rotateOptionals($blueprint, $plan['optional_blocks'] ?? []), $catalog);
-        $limit = max(0, (int) ($plan['max_optional_blocks'] ?? count($optional)));
+        $optional = $this->filterKnownHeadings(
+            $this->rotateOptionals($blueprint, $plan['optional_blocks'] ?? []),
+            $catalog
+        );
 
-        if ($content !== '') {
-            $optional = array_values(array_filter($optional, function (string $heading) use ($content): bool {
-                return ! str_contains($content, $heading);
-            }));
+        if ($content === '') {
+            $limit = max(0, (int) ($plan['max_optional_blocks'] ?? count($optional)));
+
+            return array_slice($optional, 0, $limit);
         }
 
-        return array_slice($optional, 0, $limit);
+        $required = $this->requiredHeadings($blueprint, $catalog);
+        $requiredCoverageRatio = $this->coverage->headingCoverageRatio($content, $required);
+        $wordCount = str_word_count($this->coverage->normalize($content));
+        $limit = $this->budget->allowedOptionalBlocks($blueprint, $wordCount, $requiredCoverageRatio);
+
+        if ($limit === 0) {
+            return [];
+        }
+
+        $scored = collect($optional)
+            ->map(fn (string $heading): array => [
+                'heading' => $heading,
+                'score' => $this->relevance->score($heading, $blueprint, $content, false),
+            ])
+            ->filter(fn (array $row): bool => $row['score'] > 0)
+            ->sortByDesc('score')
+            ->values()
+            ->all();
+
+        return array_slice(array_column($scored, 'heading'), 0, $limit);
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
 use App\SeoPresets\Amiantix\AmiantixContentProfile;
 use App\SeoPresets\Amiantix\AmiantixPromptProfile;
+use App\Services\Preset\BlockSelectionStrategy;
 use Tests\TestCase;
 
 class AmiantixPresetGenerationRegressionTest extends TestCase
@@ -144,5 +145,40 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringNotContainsString('Tableau de priorisation des risques', $content);
         $this->assertStringNotContainsString('Une renovation en copropriete demarre', $content);
         $this->assertStringNotContainsString('Scenario copropriete ou site occupe', $content);
+    }
+
+    public function test_appel_offre_enrichment_prioritizes_relevant_optional_blocks_over_transverse_noise(): void
+    {
+        $strategy = app(BlockSelectionStrategy::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+
+        $catalog = [];
+
+        foreach (array_merge(
+            [$blueprint['composition']['opening_block'] ?? null],
+            $blueprint['composition']['required_blocks'] ?? [],
+            $blueprint['composition']['optional_blocks'] ?? [],
+        ) as $heading) {
+            if (is_string($heading) && $heading !== '') {
+                $catalog[$heading] = '<section><h2>'.$heading.'</h2><p>'.$heading.' content.</p></section>';
+            }
+        }
+
+        $content = implode('', [
+            '<section><h2>Contexte et obligations</h2><p>Appel d offre amiante, DCE, consultation, variantes, lots, perimetre documentaire et hypothese de travaux.</p></section>',
+            '<section><h2>Documents et preuves a conserver</h2><p>DCE, consultation, clarifications, plans, lotissement, hypotheses de travaux, variantes et traces de diffusion.</p></section>',
+            '<section><h2>Points de vigilance pour le donneur d ordre</h2><p>Le donneur d ordre arbitre le DCE, la consultation, les hypotheses de travaux et le cadrage documentaire.</p></section>',
+            '<section><h2>Couts, delais et arbitrages chantier</h2><p>Le DCE, les lots, les variantes et la consultation structurent les delais, les arbitrages et le budget.</p></section>',
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle du DCE, des lots, des clarifications, de la consultation et des hypotheses de travaux.</p></section>',
+            '<section><h2>Ressources et pages utiles a croiser</h2><p>Liens vers consultation, DCE, lotissement, coordination et cadrage documentaire.</p></section>',
+            '<section><h2>Passer du constat a une intervention maitrisée</h2><p>Le parcours editorial reste centre sur l appel d offre, le DCE, la consultation et le perimetre documentaire.</p></section>',
+            '<section><p>'.str_repeat('appel d offre dce consultation lots variantes perimetre documentaire hypotheses de travaux coordination ', 140).'</p></section>',
+        ]);
+
+        $headings = $strategy->enrichmentHeadings($blueprint, $catalog, $content);
+
+        $this->assertLessThanOrEqual(2, count($headings));
+        $this->assertNotContains('Copropriete, ERP et site occupe : ce qui change vraiment', $headings);
+        $this->assertNotContains('Routine documentaire et trace utile', $headings);
     }
 }
