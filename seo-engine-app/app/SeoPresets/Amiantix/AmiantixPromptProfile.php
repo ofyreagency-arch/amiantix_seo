@@ -90,12 +90,14 @@ final class AmiantixPromptProfile implements PromptProfileProvider
     public function rewritePrompt(object $page, string $mode): string
     {
         $weakSections = is_array($page->rewrite_weak_sections ?? null) ? $page->rewrite_weak_sections : [];
+        $weakSectionProfiles = is_array($page->rewrite_weak_section_profiles ?? null) ? $page->rewrite_weak_section_profiles : [];
 
         return "Reecris un article Amiantix sur le risque amiante.\n".
             'Mode: '.$mode."\n".
             'Mot-cle: '.($page->keyword ?? '')."\n".
             'Cluster: '.($page->cluster ?? 'amiante')."\n".
             'Sections faibles a renforcer en priorite: '.json_encode(array_values($weakSections), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
+            'Raisons de faiblesse par section: '.json_encode(array_values($weakSectionProfiles), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             "Objectif: un contenu concret, expert, credibilise par le terrain, les obligations et les preuves documentaires.\n".
             "Interdictions: ne pas parler de SEO, d IA, de Google, de premium content ou de structure de page.\n".
             "Exigences:\n".
@@ -103,6 +105,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- conserver les H2/H3 solides, les tableaux, les checklists, les workflows, les scenarios terrain, les preuves et les transitions utiles quand ils existent deja\n".
             "- reecrire en preservant l angle, la profondeur metier et la progression narrative avant d ajouter de nouveaux blocs\n".
             "- si une partie est faible, la renforcer localement section par section au lieu de raccourcir tout l article\n".
+            "- comprendre pourquoi chaque section faible est ciblee: manque de longueur, manque de structure utile, ou les deux\n".
             "- situations reelles de site occupe, maintenance, travaux ou copropriete quand c est pertinent\n".
             "- coordination entre donneur d ordre, diagnostiqueur, entreprise et occupants\n".
             "- references aux documents, validations, hypotheses de travaux et points de controle\n".

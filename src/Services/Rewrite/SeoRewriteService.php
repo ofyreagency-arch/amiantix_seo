@@ -33,7 +33,7 @@ class SeoRewriteService
             static fn (array $profile): string => (string) ($profile['heading'] ?? ''),
             $weakSectionProfiles
         ));
-        $page = $this->pageWithRewriteContext($page, $context, $weakSections);
+        $page = $this->pageWithRewriteContext($page, $context, $weakSections, $weakSectionProfiles);
 
         if (! $this->overrides->rewriteAllowed($page)) {
             return $this->suggestions->persist($page, [
@@ -55,7 +55,7 @@ class SeoRewriteService
         }
 
         $suggestions = $this->rewriteWithAi($page, $mode) ?? $this->prompts->fallbackRewrite($page, $mode);
-        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context, $weakSections);
+        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context, $weakSections, $weakSectionProfiles);
         $suggestions = $this->ensureProposedContent($page, $suggestions, $mode);
 
         return $this->suggestions->replacePending($page, 'rewrite_engine:'.$mode, [
@@ -148,12 +148,18 @@ class SeoRewriteService
     /**
      * @param  array<string,mixed>  $context
      */
-    private function pageWithRewriteContext(object $page, array $context, array $weakSections = []): object
+    private function pageWithRewriteContext(
+        object $page,
+        array $context,
+        array $weakSections = [],
+        array $weakSectionProfiles = []
+    ): object
     {
         $clone = clone $page;
         $clone->rewrite_signal_context = $context;
         $clone->rewrite_signal_summary = $this->signalContextSummary($context);
         $clone->rewrite_weak_sections = $weakSections;
+        $clone->rewrite_weak_section_profiles = $weakSectionProfiles;
 
         return $clone;
     }
@@ -163,7 +169,12 @@ class SeoRewriteService
      * @param  array<string,mixed>  $context
      * @return array<string,mixed>
      */
-    private function mergeSignalContextIntoSuggestions(array $suggestions, array $context, array $weakSections = []): array
+    private function mergeSignalContextIntoSuggestions(
+        array $suggestions,
+        array $context,
+        array $weakSections = [],
+        array $weakSectionProfiles = []
+    ): array
     {
         $suggestions['sections'] = collect($suggestions['sections'] ?? [])
             ->merge($context['sections'])
@@ -201,6 +212,7 @@ class SeoRewriteService
                 'pending_rewrite_signals' => (int) ($context['pending_count'] ?? 0),
                 'sources' => $context['sources'] ?? [],
                 'weak_sections' => $weakSections,
+                'weak_section_reasons' => $this->weakSectionReasonMap($weakSectionProfiles),
             ],
         );
 
@@ -214,6 +226,23 @@ class SeoRewriteService
         }
 
         return $suggestions;
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}>  $weakSectionProfiles
+     * @return array<string,array<int,string>>
+     */
+    private function weakSectionReasonMap(array $weakSectionProfiles): array
+    {
+        return collect($weakSectionProfiles)
+            ->filter(fn (mixed $profile): bool => is_array($profile) && is_string($profile['heading'] ?? null))
+            ->mapWithKeys(fn (array $profile): array => [
+                (string) $profile['heading'] => array_values(array_filter(
+                    $profile['reasons'] ?? [],
+                    static fn (mixed $reason): bool => is_string($reason) && trim($reason) !== ''
+                )),
+            ])
+            ->all();
     }
 
     /**

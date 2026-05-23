@@ -127,6 +127,34 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('Plan de composition', $prompt);
     }
 
+    public function test_amiantix_rewrite_prompt_includes_weak_section_reasons(): void
+    {
+        $page = (object) [
+            'keyword' => 'diagnostic amiante Paris',
+            'cluster' => 'diagnostics',
+            'content' => '<section><h2>Documents et preuves a conserver</h2><p>Pieces a verifier.</p></section>',
+            'rewrite_weak_sections' => ['Documents et preuves a conserver'],
+            'rewrite_weak_section_profiles' => [
+                [
+                    'heading' => 'Documents et preuves a conserver',
+                    'reasons' => ['too_short', 'missing_structure'],
+                    'word_count' => 3,
+                    'has_structure' => false,
+                    'expects_structure' => true,
+                ],
+            ],
+        ];
+
+        $prompt = app(AmiantixPromptProfile::class)->rewritePrompt($page, 'enrich');
+
+        $this->assertStringContainsString('Sections faibles a renforcer en priorite', $prompt);
+        $this->assertStringContainsString('Raisons de faiblesse par section', $prompt);
+        $this->assertStringContainsString('Documents et preuves a conserver', $prompt);
+        $this->assertStringContainsString('too_short', $prompt);
+        $this->assertStringContainsString('missing_structure', $prompt);
+        $this->assertStringContainsString('comprendre pourquoi chaque section faible est ciblee', $prompt);
+    }
+
     public function test_amiantix_blueprint_varies_structure_for_appel_offre_keywords(): void
     {
         $provider = app(AmiantixContentProfile::class);
