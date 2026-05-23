@@ -34,8 +34,20 @@ class SeoGenerationService
         $cluster = $this->internalLinking->clusterForKeyword($keyword);
         $blueprint = $this->blueprints->resolve($keyword, $cluster);
         $aiResult = $this->generateWithAi($keyword, $cluster, $blueprint);
-        $source = $aiResult['payload'] !== null ? 'ai' : 'fallback';
-        $payload = $aiResult['payload'] ?? $this->fallbackPayload($keyword, $cluster, $blueprint);
+        $fallbackPayload = $this->fallbackPayload($keyword, $cluster, $blueprint);
+        $errorType = (string) ($aiResult['trace']['error_type'] ?? '');
+
+        if ($aiResult['payload'] === null) {
+            $source = 'fallback';
+            $payload = $fallbackPayload;
+        } elseif ($errorType === 'partial_generation') {
+            $source = 'hybrid';
+            $payload = $this->mergePartialPayloadWithFallback($aiResult['payload'], $fallbackPayload);
+        } else {
+            $source = 'ai';
+            $payload = $aiResult['payload'];
+        }
+
         [$payload, $enriched] = $this->ensurePremiumDepth($payload, $blueprint, $keyword, $cluster);
 
         if ($source === 'ai' && $enriched) {
@@ -337,7 +349,7 @@ class SeoGenerationService
             ]);
 
             return [
-                'payload' => null,
+                'payload' => $decoded,
                 'error' => 'OpenAI a renvoyé un payload partiel, fallback activé. Clés manquantes : '.implode(', ', $missingKeys).'.',
                 'trace' => [
                     'error_type' => 'partial_generation',
@@ -490,6 +502,24 @@ class SeoGenerationService
         }
 
         return $missing;
+    }
+
+    /**
+     * @param  array<string, mixed>  $partialPayload
+     * @param  array<string, mixed>  $fallbackPayload
+     * @return array<string, mixed>
+     */
+    protected function mergePartialPayloadWithFallback(array $partialPayload, array $fallbackPayload): array
+    {
+        $merged = $fallbackPayload;
+
+        foreach (['title', 'meta_description', 'h1', 'content', 'faq', 'schema'] as $key) {
+            if (array_key_exists($key, $partialPayload) && $partialPayload[$key] !== null) {
+                $merged[$key] = $partialPayload[$key];
+            }
+        }
+
+        return $merged;
     }
 
     protected function canonicalPathFor(object $page): string

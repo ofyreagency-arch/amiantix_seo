@@ -253,11 +253,14 @@ class AdminPageWorkflowRuntimeTest extends TestCase
 
         $page = app(SeoGeneratePageRunner::class)->run('Plan de retrait amiante en copropriete', 'draft', false)['page'];
 
-        $this->assertSame('fallback', $page->generation_source);
+        $this->assertSame('hybrid', $page->generation_source);
         $this->assertStringContainsString('faq, schema', (string) $page->generation_error);
         $this->assertSame(['title', 'meta_description', 'h1', 'content'], $page->generationReturnedKeys());
         $this->assertSame(['faq', 'schema'], $page->generationMissingKeys());
         $this->assertNotEmpty($page->generation_trace_json['response_excerpt'] ?? null);
+        $this->assertStringContainsString('Plan de retrait amiante', (string) $page->title);
+        $this->assertStringStartsWith('<section><h2>Contexte</h2><p>Contenu.</p></section>', (string) $page->content);
+        $this->assertCount(5, $page->faq_json ?? []);
     }
 
     public function test_applying_a_suggestion_updates_page_fields_and_marks_it_applied(): void
