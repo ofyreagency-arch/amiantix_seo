@@ -8,6 +8,7 @@ use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
 use App\SeoPresets\Amiantix\AmiantixContentProfile;
 use App\SeoPresets\Amiantix\AmiantixPromptProfile;
 use App\Services\Preset\BlockSelectionStrategy;
+use Ofyre\SeoEngine\Services\Composition\NarrativeAssembler;
 use Tests\TestCase;
 
 class AmiantixPresetGenerationRegressionTest extends TestCase
@@ -246,5 +247,46 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
             'Repérage, SS3, SS4 et responsabilites de coordination',
             'Questions terrain qui reviennent souvent',
         ], $headings);
+    }
+
+    public function test_narrative_assembler_inserts_a_contextual_bridge_before_the_first_enrichment_block(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+        ];
+
+        $html = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Documents et preuves a conserver</h2><p>Versions, traces et diffusion.</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.</p></section>',
+            $html
+        );
+        $this->assertStringContainsString('<h2>Questions terrain qui reviennent souvent</h2>', $html);
+    }
+
+    public function test_narrative_assembler_skips_bridge_when_enrichment_stays_in_the_same_phase(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $catalog = [
+            'Routine documentaire et trace utile' => '<section><h2>Routine documentaire et trace utile</h2><p>Routine.</p></section>',
+        ];
+
+        $html = $assembler->assembleHtml(
+            ['Routine documentaire et trace utile'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Documents et preuves a conserver</h2><p>Pieces et preuves.</p></section>'
+        );
+
+        $this->assertStringNotContainsString('<section><p>', $html);
+        $this->assertStringStartsWith('<section><h2>Routine documentaire et trace utile</h2>', $html);
     }
 }

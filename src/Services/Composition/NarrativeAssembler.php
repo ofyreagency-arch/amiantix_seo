@@ -80,7 +80,7 @@ final class NarrativeAssembler
      * @param  array<string,string>  $catalog
      * @param  array<string,mixed>  $blueprint
      */
-    public function assembleHtml(array $headings, array $catalog, array $blueprint): string
+    public function assembleHtml(array $headings, array $catalog, array $blueprint, string $existingContent = ''): string
     {
         $ordered = $this->orderHeadings($headings, $blueprint);
 
@@ -89,9 +89,9 @@ final class NarrativeAssembler
         }
 
         $html = '';
-        $previousPhase = null;
+        $previousPhase = $this->lastCoveredPhase($existingContent, $blueprint);
 
-        foreach ($ordered as $index => $heading) {
+        foreach ($ordered as $heading) {
             $block = (string) ($catalog[$heading] ?? '');
 
             if ($block === '') {
@@ -100,7 +100,7 @@ final class NarrativeAssembler
 
             $phase = $this->phaseForHeading($heading, $blueprint);
 
-            if ($index > 0) {
+            if ($previousPhase !== null) {
                 $bridge = $this->bridgeForTransition($previousPhase, $phase, $blueprint);
 
                 if ($bridge !== '') {
@@ -144,9 +144,64 @@ final class NarrativeAssembler
     /**
      * @param  array<string,mixed>  $blueprint
      */
+    private function lastCoveredPhase(string $content, array $blueprint): ?string
+    {
+        if ($content === '') {
+            return null;
+        }
+
+        $slots = $blueprint['composition']['narrative_slots'] ?? [];
+        $flow = $blueprint['composition']['narrative_flow'] ?? [];
+
+        if (! is_array($slots) || ! is_array($flow) || $slots === [] || $flow === []) {
+            return null;
+        }
+
+        $normalizedContent = $this->normalize($content);
+        $covered = [];
+
+        foreach ($slots as $phase => $phaseHeadings) {
+            if (! is_string($phase) || ! is_array($phaseHeadings)) {
+                continue;
+            }
+
+            foreach ($phaseHeadings as $heading) {
+                if (! is_string($heading) || $heading === '') {
+                    continue;
+                }
+
+                if (str_contains($normalizedContent, $this->normalize($heading))) {
+                    $covered[$phase] = true;
+                    break;
+                }
+            }
+        }
+
+        if ($covered === []) {
+            return null;
+        }
+
+        $lastPhase = null;
+
+        foreach ($flow as $phase) {
+            if (is_string($phase) && isset($covered[$phase])) {
+                $lastPhase = $phase;
+            }
+        }
+
+        return $lastPhase;
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
     private function bridgeForTransition(?string $fromPhase, ?string $toPhase, array $blueprint): string
     {
         if ($toPhase === null) {
+            return '';
+        }
+
+        if ($fromPhase !== null && $fromPhase === $toPhase) {
             return '';
         }
 
@@ -167,5 +222,19 @@ final class NarrativeAssembler
         }
 
         return '';
+    }
+
+    private function normalize(string $value): string
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', strip_tags($value));
+
+        if ($ascii === false) {
+            $ascii = strip_tags($value);
+        }
+
+        $ascii = strtolower($ascii);
+        $ascii = preg_replace('/[^a-z0-9]+/u', ' ', $ascii) ?? '';
+
+        return trim(preg_replace('/\s+/u', ' ', $ascii) ?? '');
     }
 }

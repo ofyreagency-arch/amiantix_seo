@@ -63,32 +63,38 @@ final class AmiantixContentProfile implements NicheContentProvider
 
         $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
         $enrichmentHeadings = $this->blockSelection->enrichmentHeadings($blueprint, $catalog, $content);
-        $enrichmentBlocks = array_values(array_filter(array_map(
-            fn (string $heading): string => (string) ($catalog[$heading] ?? ''),
-            $enrichmentHeadings
-        ), static fn (string $block): bool => $block !== ''));
+        $selectedEnrichmentHeadings = [];
+        $previewContent = $content;
 
-        foreach ($enrichmentBlocks as $block) {
-            if ($this->contentWordCount($content) >= 1325) {
+        foreach ($enrichmentHeadings as $heading) {
+            if ($this->contentWordCount($previewContent) >= 1325) {
                 break;
             }
 
-            if (! $this->contentContainsMarker($content, $this->sectionMarker('', $block))) {
-                $content .= $block;
+            $block = (string) ($catalog[$heading] ?? '');
+
+            if ($block === '') {
+                continue;
             }
+
+            if ($this->contentContainsMarker($content, $this->sectionMarker($heading, $block))) {
+                continue;
+            }
+
+            $selectedEnrichmentHeadings[] = $heading;
+            $previewContent .= $block;
         }
 
-        if ($enrichmentHeadings !== []) {
-            $narrativeEnrichment = $this->narrative->assembleHtml($enrichmentHeadings, $catalog, $blueprint);
+        if ($selectedEnrichmentHeadings !== []) {
+            $enrichmentHtml = $this->narrative->assembleHtml(
+                $selectedEnrichmentHeadings,
+                $catalog,
+                $blueprint,
+                $content
+            );
 
-            if ($narrativeEnrichment !== '') {
-                foreach ($enrichmentBlocks as $block) {
-                    $narrativeEnrichment = str_replace($block, '', $narrativeEnrichment);
-                }
-
-                if (trim($narrativeEnrichment) !== '') {
-                    $content .= $narrativeEnrichment;
-                }
+            if (trim($enrichmentHtml) !== '') {
+                $content .= $enrichmentHtml;
             }
         }
 
