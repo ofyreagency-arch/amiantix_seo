@@ -181,4 +181,33 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertNotContains('Copropriete, ERP et site occupe : ce qui change vraiment', $headings);
         $this->assertNotContains('Routine documentaire et trace utile', $headings);
     }
+
+    public function test_appel_offre_enrichment_detects_documentary_coverage_without_exact_heading_match(): void
+    {
+        $strategy = app(BlockSelectionStrategy::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+
+        $catalog = [];
+
+        foreach (array_merge(
+            [$blueprint['composition']['opening_block'] ?? null],
+            $blueprint['composition']['required_blocks'] ?? [],
+            $blueprint['composition']['optional_blocks'] ?? [],
+        ) as $heading) {
+            if (is_string($heading) && $heading !== '') {
+                $catalog[$heading] = '<section><h2>'.$heading.'</h2><p>'.$heading.' content.</p></section>';
+            }
+        }
+
+        $content = implode('', [
+            '<section><h2>Contexte et obligations</h2><p>Appel d offre amiante, DCE, consultation et hypotheses de travaux.</p></section>',
+            '<section><h2>Documents et preuves a conserver</h2><p>Le contenu suit deja les versions documentaires, les traces de diffusion, les clarifications et les hypotheses de travaux avant attribution.</p></section>',
+            '<section><h2>Points de vigilance pour le donneur d ordre</h2><p>Le donneur d ordre arbitre les clarifications de consultation et la diffusion des pieces.</p></section>',
+            '<section><p>'.str_repeat('dce consultation clarifications traces de diffusion hypotheses de travaux documents versions attribution ', 120).'</p></section>',
+        ]);
+
+        $headings = $strategy->enrichmentHeadings($blueprint, $catalog, $content);
+
+        $this->assertNotContains('Routine documentaire et trace utile', $headings);
+    }
 }

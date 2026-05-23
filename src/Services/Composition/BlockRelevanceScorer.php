@@ -15,7 +15,7 @@ final class BlockRelevanceScorer
      */
     public function score(string $heading, array $blueprint, string $content, bool $required = false): int
     {
-        if ($this->coverage->coversHeading($content, $heading)) {
+        if ($this->coverage->coversHeading($content, $heading, $blueprint)) {
             return PHP_INT_MIN;
         }
 

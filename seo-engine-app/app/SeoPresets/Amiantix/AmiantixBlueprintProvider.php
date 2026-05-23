@@ -130,6 +130,13 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                 ],
                 'max_optional_blocks' => 4,
                 'disallowed_optional_terms' => ['copropriete', 'erp', 'site occupe', 'occupation'],
+                'coverage_markers' => [
+                    'Routine documentaire et trace utile' => [
+                        'traces de diffusion',
+                        'clarifications',
+                        'hypotheses de travaux',
+                    ],
+                ],
                 'table_mode' => 'control_matrix',
                 'faq_mode' => 'consultation_decision',
             ],

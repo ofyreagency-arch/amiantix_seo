@@ -10,15 +10,16 @@ final class CoverageInspector
 {
     /**
      * @param  array<int,string>  $headings
+     * @param  array<string,mixed>  $blueprint
      * @return array<string,bool>
      */
-    public function headingCoverageMap(string $content, array $headings): array
+    public function headingCoverageMap(string $content, array $headings, array $blueprint = []): array
     {
         $normalizedContent = $this->normalize($content);
         $coverage = [];
 
         foreach ($headings as $heading) {
-            $coverage[$heading] = $this->containsNormalized($normalizedContent, $heading);
+            $coverage[$heading] = $this->coversHeading($content, $heading, $blueprint, $normalizedContent);
         }
 
         return $coverage;
@@ -26,22 +27,36 @@ final class CoverageInspector
 
     /**
      * @param  array<int,string>  $headings
+     * @param  array<string,mixed>  $blueprint
      */
-    public function headingCoverageRatio(string $content, array $headings): float
+    public function headingCoverageRatio(string $content, array $headings, array $blueprint = []): float
     {
         if ($headings === []) {
             return 1.0;
         }
 
-        $coverage = $this->headingCoverageMap($content, $headings);
+        $coverage = $this->headingCoverageMap($content, $headings, $blueprint);
         $covered = count(array_filter($coverage, static fn (bool $state): bool => $state));
 
         return $covered / max(1, count($headings));
     }
 
-    public function coversHeading(string $content, string $heading): bool
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
+    public function coversHeading(string $content, string $heading, array $blueprint = [], ?string $normalizedContent = null): bool
     {
-        return $this->containsNormalized($this->normalize($content), $heading);
+        $normalizedContent ??= $this->normalize($content);
+
+        if ($this->containsNormalized($normalizedContent, $heading)) {
+            return true;
+        }
+
+        if ($this->matchesCoverageMarkers($normalizedContent, $heading, $blueprint)) {
+            return true;
+        }
+
+        return $this->tokenCoverageRatio($normalizedContent, $heading) >= 0.75;
     }
 
     /**
@@ -125,5 +140,56 @@ final class CoverageInspector
         }
 
         return str_contains($normalizedContent, $normalizedNeedle);
+    }
+
+    /**
+     * @param  array<string,mixed>  $blueprint
+     */
+    private function matchesCoverageMarkers(string $normalizedContent, string $heading, array $blueprint): bool
+    {
+        $markerMap = $blueprint['composition']['coverage_markers'] ?? [];
+
+        if (! is_array($markerMap)) {
+            return false;
+        }
+
+        $markers = $markerMap[$heading] ?? null;
+
+        if (! is_array($markers) || $markers === []) {
+            return false;
+        }
+
+        $matched = 0;
+
+        foreach ($markers as $marker) {
+            if (! is_string($marker) || $marker === '') {
+                continue;
+            }
+
+            if ($this->containsNormalized($normalizedContent, $marker)) {
+                $matched++;
+            }
+        }
+
+        return $matched >= max(1, min(2, count($markers)));
+    }
+
+    private function tokenCoverageRatio(string $normalizedContent, string $heading): float
+    {
+        $headingTokens = $this->tokens($heading);
+
+        if (count($headingTokens) < 2) {
+            return 0.0;
+        }
+
+        $matched = 0;
+
+        foreach ($headingTokens as $token) {
+            if ($token !== '' && str_contains($normalizedContent, $token)) {
+                $matched++;
+            }
+        }
+
+        return $matched / max(1, count($headingTokens));
     }
 }

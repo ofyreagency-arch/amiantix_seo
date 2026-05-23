@@ -75,7 +75,7 @@ final class AmiantixContentProfile implements NicheContentProvider
         }
 
         $cycle = 1;
-        while ($this->contentWordCount($content) < 1400 && $cycle <= 6) {
+        while ($this->contentWordCount($content) < 1450 && $cycle <= 6) {
             $content .= $this->deepeningBlock($blueprint, $cycle);
             $cycle++;
         }

@@ -66,7 +66,7 @@ final class BlockSelectionStrategy
         }
 
         $required = $this->requiredHeadings($blueprint, $catalog);
-        $requiredCoverageRatio = $this->coverage->headingCoverageRatio($content, $required);
+        $requiredCoverageRatio = $this->coverage->headingCoverageRatio($content, $required, $blueprint);
         $wordCount = str_word_count($this->coverage->normalize($content));
         $limit = $this->budget->allowedOptionalBlocks($blueprint, $wordCount, $requiredCoverageRatio);
 
