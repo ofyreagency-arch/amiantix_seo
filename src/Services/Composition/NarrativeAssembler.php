@@ -101,7 +101,7 @@ final class NarrativeAssembler
             $phase = $this->phaseForHeading($heading, $blueprint);
 
             if ($previousPhase !== null) {
-                $bridge = $this->bridgeForTransition($previousPhase, $phase, $blueprint);
+                $bridge = $this->bridgeForTransition($previousPhase, $phase, $blueprint, $existingContent.$html);
 
                 if ($bridge !== '') {
                     $html .= '<section><p>'.$bridge.'</p></section>';
@@ -195,7 +195,7 @@ final class NarrativeAssembler
     /**
      * @param  array<string,mixed>  $blueprint
      */
-    private function bridgeForTransition(?string $fromPhase, ?string $toPhase, array $blueprint): string
+    private function bridgeForTransition(?string $fromPhase, ?string $toPhase, array $blueprint, string $existingContent = ''): string
     {
         if ($toPhase === null) {
             return '';
@@ -214,11 +214,15 @@ final class NarrativeAssembler
         $pairKey = ($fromPhase ?? 'start').':'.$toPhase;
 
         if (is_string($bridges[$pairKey] ?? null) && $bridges[$pairKey] !== '') {
-            return (string) $bridges[$pairKey];
+            $bridge = (string) $bridges[$pairKey];
+
+            return $this->tailAlreadyCoversBridge($existingContent, $bridge) ? '' : $bridge;
         }
 
         if (is_string($bridges[$toPhase] ?? null) && $bridges[$toPhase] !== '') {
-            return (string) $bridges[$toPhase];
+            $bridge = (string) $bridges[$toPhase];
+
+            return $this->tailAlreadyCoversBridge($existingContent, $bridge) ? '' : $bridge;
         }
 
         return '';
@@ -236,5 +240,55 @@ final class NarrativeAssembler
         $ascii = preg_replace('/[^a-z0-9]+/u', ' ', $ascii) ?? '';
 
         return trim(preg_replace('/\s+/u', ' ', $ascii) ?? '');
+    }
+
+    private function tailAlreadyCoversBridge(string $content, string $bridge): bool
+    {
+        $normalizedBridge = $this->normalize($bridge);
+
+        if ($normalizedBridge === '') {
+            return false;
+        }
+
+        $tailTokens = $this->tokens($this->tailWindow($content));
+        $bridgeTokens = $this->tokens($normalizedBridge);
+
+        if ($tailTokens === [] || $bridgeTokens === []) {
+            return false;
+        }
+
+        $shared = array_intersect($bridgeTokens, $tailTokens);
+        $sharedCount = count($shared);
+
+        if ($sharedCount === 0) {
+            return false;
+        }
+
+        return $sharedCount >= 5 || ($sharedCount / max(1, count($bridgeTokens))) >= 0.6;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function tokens(string $value): array
+    {
+        $normalized = $this->normalize($value);
+
+        if ($normalized === '') {
+            return [];
+        }
+
+        return array_values(array_filter(explode(' ', $normalized), static fn (string $token): bool => $token !== ''));
+    }
+
+    private function tailWindow(string $content, int $words = 45): string
+    {
+        $tokens = $this->tokens($content);
+
+        if ($tokens === []) {
+            return '';
+        }
+
+        return implode(' ', array_slice($tokens, -$words));
     }
 }

@@ -289,4 +289,23 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringNotContainsString('<section><p>', $html);
         $this->assertStringStartsWith('<section><h2>Routine documentaire et trace utile</h2>', $html);
     }
+
+    public function test_narrative_assembler_skips_a_bridge_that_is_already_covered_by_the_recent_tail(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+        $catalog = [
+            'Questions terrain qui reviennent souvent' => '<section><h2>Questions terrain qui reviennent souvent</h2><p>FAQ.</p></section>',
+        ];
+
+        $html = $assembler->assembleHtml(
+            ['Questions terrain qui reviennent souvent'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article, tout en gardant le raisonnement centré sur la consultation.</p></section>'
+        );
+
+        $this->assertStringNotContainsString('À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.', $html);
+        $this->assertStringStartsWith('<section><h2>Questions terrain qui reviennent souvent</h2>', $html);
+    }
 }
