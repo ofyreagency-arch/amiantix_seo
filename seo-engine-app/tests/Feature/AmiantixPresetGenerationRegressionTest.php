@@ -86,6 +86,23 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('Matrice de controle documentaire et terrain', $content);
     }
 
+    public function test_amiantix_depth_enrichment_recognizes_headings_despite_apostrophes_and_punctuation(): void
+    {
+        $provider = app(AmiantixContentProfile::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('appel offre amiante', 'reglementation');
+
+        $content = $provider->ensureContentDepth(
+            '<h2>Processus d\'Intervention et Coordination</h2><p>Bloc AI.</p>'
+            .'<h2>Points de Vigilance pour le Donneur d\'Ordre</h2><p>Bloc AI.</p>'
+            .'<h2>Coûts, Délais et Arbitrages Chantier</h2><p>Bloc AI.</p>',
+            $blueprint
+        );
+
+        $this->assertSame(1, substr_count($content, "Processus d'Intervention et Coordination"));
+        $this->assertSame(1, substr_count($content, "Points de Vigilance pour le Donneur d'Ordre"));
+        $this->assertSame(1, substr_count($content, 'Coûts, Délais et Arbitrages Chantier'));
+    }
+
     public function test_amiantix_generation_prompt_demands_expert_structure(): void
     {
         $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');

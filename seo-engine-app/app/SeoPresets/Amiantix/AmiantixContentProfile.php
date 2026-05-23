@@ -161,6 +161,7 @@ final class AmiantixContentProfile implements NicheContentProvider
         return Str::of(strip_tags($value))
             ->lower()
             ->ascii()
+            ->replaceMatches('/[^a-z0-9]+/u', ' ')
             ->replace(['&nbsp;', "\r", "\n", "\t"], ' ')
             ->squish()
             ->value();
