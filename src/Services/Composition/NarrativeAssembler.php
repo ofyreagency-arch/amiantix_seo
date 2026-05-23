@@ -285,6 +285,18 @@ final class NarrativeAssembler
             return ['text' => (string) $phaseBridges[$fromPhase], 'skip_tail_dedupe' => false];
         }
 
+        $densityBridges = $entry['by_density_signal'] ?? null;
+        $densitySignal = $this->densitySignalForContent($existingContent);
+
+        if (
+            $densitySignal !== null
+            && is_array($densityBridges)
+            && is_string($densityBridges[$densitySignal] ?? null)
+            && $densityBridges[$densitySignal] !== ''
+        ) {
+            return ['text' => (string) $densityBridges[$densitySignal], 'skip_tail_dedupe' => false];
+        }
+
         if (is_string($entry[$heading] ?? null) && $entry[$heading] !== '') {
             return ['text' => (string) $entry[$heading], 'skip_tail_dedupe' => false];
         }
@@ -425,6 +437,42 @@ final class NarrativeAssembler
         }
 
         return implode(' ', array_slice($tokens, -$words));
+    }
+
+    private function densitySignalForContent(string $content): ?string
+    {
+        if ($content === '') {
+            return null;
+        }
+
+        $recentPassage = $this->recentPassageText($content);
+        $wordCount = count($this->tokens($recentPassage));
+
+        if ($wordCount === 0) {
+            return null;
+        }
+
+        if ($wordCount <= 18) {
+            return 'concise';
+        }
+
+        if ($wordCount >= 42) {
+            return 'dense';
+        }
+
+        return 'balanced';
+    }
+
+    private function recentPassageText(string $content): string
+    {
+        preg_match_all('/<section\b[^>]*>.*?<\/section>/is', $content, $matches);
+        $sections = $matches[0] ?? [];
+
+        if ($sections !== []) {
+            return (string) end($sections);
+        }
+
+        return $content;
     }
 
     /**

@@ -498,4 +498,73 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
             $defaultHtml
         );
     }
+
+    public function test_narrative_assembler_prefers_a_density_signal_variant_when_available(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $blueprint['composition']['narrative_phase_bridges']['resources'] = [
+            'default' => 'Bridge ressources générique.',
+            'by_density_signal' => [
+                'concise' => 'Bridge ressources concis.',
+                'dense' => 'Bridge ressources dense.',
+            ],
+        ];
+        $catalog = [
+            'Ressources et pages utiles a croiser' => '<section><h2>Ressources et pages utiles a croiser</h2><p>Ressources.</p></section>',
+        ];
+
+        $conciseHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>Point bref.</p></section>'
+        );
+
+        $denseHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>'
+            .str_repeat('Bloc precedent dense pour simuler une FAQ deja tres chargee et pleine de precision utile. ', 8)
+            .'</p></section>'
+        );
+
+        $this->assertStringStartsWith('<section><p>Bridge ressources concis.</p></section>', $conciseHtml);
+        $this->assertStringStartsWith('<section><p>Bridge ressources dense.</p></section>', $denseHtml);
+    }
+
+    public function test_narrative_assembler_uses_real_preset_density_variants(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $defaultBlueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $catalog = [
+            'Ressources et pages utiles a croiser' => '<section><h2>Ressources et pages utiles a croiser</h2><p>Ressources.</p></section>',
+        ];
+
+        $conciseHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $defaultBlueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>Point final bref sur le dossier.</p></section>'
+        );
+
+        $denseHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $defaultBlueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>'
+            .str_repeat('Cette FAQ precedente detaille deja plusieurs cas, arbitrages, preuves, controles et decisions utiles pour le lecteur. ', 8)
+            .'</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>Le passage précédent allant à l essentiel, quelques ressources bien choisies permettent d ouvrir la suite sans casser le rythme.</p></section>',
+            $conciseHtml
+        );
+        $this->assertStringStartsWith(
+            '<section><p>Après cette séquence déjà dense, quelques ressources ciblées valent mieux qu une nouvelle couche de détails.</p></section>',
+            $denseHtml
+        );
+    }
 }
