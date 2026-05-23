@@ -28,7 +28,11 @@ class SeoRewriteService
     public function createSuggestion(object $page, string $mode): mixed
     {
         $context = $this->rewriteSignalContext($page);
-        $weakSections = $this->detectWeakSections((string) ($page->content ?? ''));
+        $weakSectionProfiles = $this->detectWeakSectionProfiles((string) ($page->content ?? ''));
+        $weakSections = array_values(array_map(
+            static fn (array $profile): string => (string) ($profile['heading'] ?? ''),
+            $weakSectionProfiles
+        ));
         $page = $this->pageWithRewriteContext($page, $context, $weakSections);
 
         if (! $this->overrides->rewriteAllowed($page)) {
@@ -322,7 +326,8 @@ class SeoRewriteService
                     $currentContent,
                     $suggestedContent,
                     $this->detectWeakSections($currentContent),
-                    $blueprint
+                    $blueprint,
+                    $this->detectWeakSectionProfiles($currentContent)
                 );
             }
         }
@@ -463,7 +468,8 @@ class SeoRewriteService
         string $currentContent,
         string $suggestedContent,
         array $weakSections = [],
-        array $blueprint = []
+        array $blueprint = [],
+        array $weakSectionProfiles = []
     ): string
     {
         $currentHeadings = $this->headingsIndex($currentContent);
@@ -483,6 +489,17 @@ class SeoRewriteService
             $replacementIndex = $this->findWeakSectionReplacementIndex($currentSections, $heading, $weakSections, $blueprint);
 
             if ($replacementIndex !== null) {
+                $currentHeading = $this->firstHeadingFromSection($currentSections[$replacementIndex]);
+                $profile = $this->weakProfileForHeading($currentHeading, $weakSectionProfiles);
+
+                if (! $this->shouldReplaceWeakSection($currentSections[$replacementIndex], $section, $profile)) {
+                    if (! isset($currentHeadings[$normalizedHeading])) {
+                        $append[] = $section;
+                    }
+
+                    continue;
+                }
+
                 $currentSections[$replacementIndex] = $section;
                 $replaced = true;
 
@@ -512,8 +529,20 @@ class SeoRewriteService
      */
     private function detectWeakSections(string $content): array
     {
+        return collect($this->detectWeakSectionProfiles($content))
+            ->map(fn (array $profile): string => (string) ($profile['heading'] ?? ''))
+            ->filter(fn (string $heading): bool => trim($heading) !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}>
+     */
+    private function detectWeakSectionProfiles(string $content): array
+    {
         return collect($this->extractHtmlSections($content))
-            ->map(function (string $section): ?string {
+            ->map(function (string $section): ?array {
                 $heading = $this->firstHeadingFromSection($section);
 
                 if ($heading === '') {
@@ -521,34 +550,31 @@ class SeoRewriteService
                 }
 
                 $sectionWords = $this->wordCount($section);
-                $normalizedHeading = Str::lower(Str::ascii($heading));
-                $expectsStructuredSupport = Str::contains($normalizedHeading, [
-                    'tableau',
-                    'matrice',
-                    'checklist',
-                    'questions',
-                    'faq',
-                    'documents',
-                    'preuves',
-                    'processus',
-                    'workflow',
-                ]);
-                $hasStructuredSupport = str_contains(Str::lower($section), '<table')
-                    || str_contains(Str::lower($section), '<ul')
-                    || str_contains(Str::lower($section), '<ol')
-                    || str_contains(Str::lower($section), '<h3');
+                $expectsStructure = $this->sectionExpectsStructuredSupport($heading);
+                $hasStructure = $this->sectionHasStructuredSupport($section);
+                $reasons = [];
 
                 if ($sectionWords < 55) {
-                    return $heading;
+                    $reasons[] = 'too_short';
                 }
 
-                if ($expectsStructuredSupport && ! $hasStructuredSupport && $sectionWords < 120) {
-                    return $heading;
+                if ($expectsStructure && ! $hasStructure && $sectionWords < 120) {
+                    $reasons[] = 'missing_structure';
                 }
 
-                return null;
+                if ($reasons === []) {
+                    return null;
+                }
+
+                return [
+                    'heading' => $heading,
+                    'reasons' => $reasons,
+                    'word_count' => $sectionWords,
+                    'has_structure' => $hasStructure,
+                    'expects_structure' => $expectsStructure,
+                ];
             })
-            ->filter(fn (?string $heading): bool => is_string($heading) && trim($heading) !== '')
+            ->filter(fn (?array $profile): bool => is_array($profile))
             ->values()
             ->all();
     }
@@ -739,6 +765,79 @@ class SeoRewriteService
             str_contains($normalizedHeading, 'cas pratique'), str_contains($normalizedHeading, 'scenario') => 'cases',
             default => null,
         };
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}>  $profiles
+     * @return array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}|null
+     */
+    private function weakProfileForHeading(string $heading, array $profiles): ?array
+    {
+        $normalizedHeading = $this->normalizeHeading($heading);
+
+        foreach ($profiles as $profile) {
+            if ($this->normalizeHeading((string) ($profile['heading'] ?? '')) === $normalizedHeading) {
+                return $profile;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}|null  $profile
+     */
+    private function shouldReplaceWeakSection(string $currentSection, string $patchSection, ?array $profile): bool
+    {
+        if ($profile === null) {
+            return true;
+        }
+
+        $reasons = $profile['reasons'] ?? [];
+        $patchWords = $this->wordCount($patchSection);
+        $patchHasStructure = $this->sectionHasStructuredSupport($patchSection);
+        $currentWords = (int) ($profile['word_count'] ?? $this->wordCount($currentSection));
+
+        if (in_array('missing_structure', $reasons, true) && ! $patchHasStructure) {
+            return false;
+        }
+
+        if (in_array('too_short', $reasons, true)) {
+            $enoughExpansion = $patchWords >= max(55, $currentWords + 20);
+
+            if (! $enoughExpansion && ! $patchHasStructure) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function sectionExpectsStructuredSupport(string $heading): bool
+    {
+        $normalizedHeading = Str::lower(Str::ascii($heading));
+
+        return Str::contains($normalizedHeading, [
+            'tableau',
+            'matrice',
+            'checklist',
+            'questions',
+            'faq',
+            'documents',
+            'preuves',
+            'processus',
+            'workflow',
+        ]);
+    }
+
+    private function sectionHasStructuredSupport(string $section): bool
+    {
+        $normalizedSection = Str::lower($section);
+
+        return str_contains($normalizedSection, '<table')
+            || str_contains($normalizedSection, '<ul')
+            || str_contains($normalizedSection, '<ol')
+            || str_contains($normalizedSection, '<h3');
     }
 
     private function normalizeHeading(string $heading): string
