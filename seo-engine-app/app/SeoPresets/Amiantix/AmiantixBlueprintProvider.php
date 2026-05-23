@@ -13,11 +13,13 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
     {
         $topic = $this->topicFromKeyword($keyword);
         $resolvedCluster = $cluster ?: $this->clusterFromKeyword($topic);
+        $family = $this->familyFromKeyword($topic, $resolvedCluster);
 
         return [
             'topic' => $topic,
             'cluster' => $resolvedCluster,
-            'hero_angle' => 'coordination terrain et maitrise documentaire du risque amiante',
+            'family' => $family,
+            'hero_angle' => 'coordination terrain et maitrise documentaire autour de '.$topic,
             'risk_terms' => [
                 'amiante',
                 'diagnostic amiante',
@@ -32,7 +34,80 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                 'donneur d ordre',
                 $topic,
             ],
-            'editorial_sections' => [
+            'editorial_sections' => $this->editorialSectionsForFamily($family),
+            'support_sections' => $this->supportSectionsForFamily($family),
+            'risk_rows' => [
+                ['Exposition a l amiante', 'Travaux dans des zones mal caracterisees ou hypotheses de travaux incomplètes', 'Repérage adapte, cadrage des zones, lecture des diagnostics et validation du scenario d intervention'],
+                ['Empoussierement et dispersion', 'Percement, decoupe, demolition ou maintenance sans confinement adapte', 'Mode operatoire, confinement, captation, verification des acces et suivi des mesures'],
+                ['Defaut documentaire', 'DTA absent, repérage incomplet, transmission tardive des pieces ou plans contradictoires', 'Centraliser les pieces, dater les versions, tracer les diffusions et verrouiller les hypothèses'],
+                ['Desorganisation chantier', 'Coordination insuffisante entre MOA, diagnostiqueur, entreprise et occupants', 'Planning clarifie, interlocuteurs identifies, jalons de validation et gestion des zones sensibles'],
+                ['Blocage de site ou surcout', 'Decouverte tardive d amiante, zone non preparée ou arbitrage retardé', 'Anticipation, scenario de replis, budget documentaire et verification des dependances chantier'],
+            ],
+            'obligations' => $this->obligationsForFamily($family),
+            'cases' => $this->casesForFamily($family, $topic),
+            'mistakes' => $this->mistakesForFamily($family),
+            'inspection_focus' => $this->inspectionFocusForFamily($family),
+            'evidence_examples' => $this->evidenceExamplesForFamily($family),
+            'daily_constraints' => $this->dailyConstraintsForFamily($family),
+            'work_units' => $this->workUnitsForFamily($family),
+            'faq' => $this->faqForFamily($family, $topic),
+        ];
+    }
+
+    public function expectedEditorialSections(array $profile): array
+    {
+        return $profile['editorial_sections'] ?? [];
+    }
+
+    public function expectedSignals(array $profile): array
+    {
+        return array_values(array_unique(array_merge(
+            ['amiante', 'diagnostic amiante', 'repérage', 'donneur d ordre', 'coordination chantier'],
+            $profile['risk_terms'] ?? [],
+            $profile['work_units'] ?? []
+        )));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function editorialSectionsForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'Contexte et obligations',
+                'Documents et preuves a conserver',
+                'Points de vigilance pour le donneur d ordre',
+                'Processus d intervention et coordination',
+                'Erreurs frequentes et blocages evitables',
+                'Couts, delais et arbitrages chantier',
+                'Questions terrain qui reviennent souvent',
+                'Ressources et pages utiles a croiser',
+                'Passer du constat a une intervention maitrisée',
+            ],
+            'copropriete' => [
+                'Contexte et obligations',
+                'Situations a risque sur le terrain',
+                'Checklist operationnelle avant intervention',
+                'Cas pratiques terrain a cadrer',
+                'Documents et preuves a conserver',
+                'Copropriete, ERP et site occupe : ce qui change vraiment',
+                'Matrice de controle documentaire et terrain',
+                'Questions terrain qui reviennent souvent',
+                'Passer du constat a une intervention maitrisée',
+            ],
+            'reperage' => [
+                'Repérage, SS3, SS4 et responsabilites de coordination',
+                'Documents et preuves a conserver',
+                'Points de vigilance pour le donneur d ordre',
+                'Tableau de priorisation des risques',
+                'Processus d intervention et coordination',
+                'Erreurs frequentes et blocages evitables',
+                'Questions terrain qui reviennent souvent',
+                'Ressources et pages utiles a croiser',
+                'Passer du constat a une intervention maitrisée',
+            ],
+            default => [
                 'Contexte et obligations',
                 'Tableau de priorisation des risques',
                 'Situations a risque sur le terrain',
@@ -41,60 +116,231 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                 'Points de vigilance pour le donneur d ordre',
                 'Couts, delais et arbitrages chantier',
                 'Erreurs frequentes et blocages evitables',
-                'FAQ',
+                'Questions terrain qui reviennent souvent',
+                'Passer du constat a une intervention maitrisée',
             ],
-            'risk_rows' => [
-                ['Exposition a l amiante', 'Travaux dans des zones mal caracterisees ou hypotheses de travaux incomplètes', 'Repérage adapte, cadrage des zones, lecture des diagnostics et validation du scenario d intervention'],
-                ['Empoussierement et dispersion', 'Percement, decoupe, demolition ou maintenance sans confinement adapte', 'Mode operatoire, confinement, captation, verification des acces et suivi des mesures'],
-                ['Defaut documentaire', 'DTA absent, repérage incomplet, transmission tardive des pieces ou plans contradictoires', 'Centraliser les pieces, dater les versions, tracer les diffusions et verrouiller les hypothèses'],
-                ['Desorganisation chantier', 'Coordination insuffisante entre MOA, diagnostiqueur, entreprise et occupants', 'Planning clarifie, interlocuteurs identifies, jalons de validation et gestion des zones sensibles'],
-                ['Blocage de site ou surcout', 'Decouverte tardive d amiante, zone non preparée ou arbitrage retardé', 'Anticipation, scenario de replis, budget documentaire et verification des dependances chantier'],
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function supportSectionsForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'Repérage, SS3, SS4 et responsabilites de coordination',
+                'Matrice de controle documentaire et terrain',
+                'Checklist operationnelle avant intervention',
             ],
-            'obligations' => [
+            'copropriete' => [
+                'Tableau de priorisation des risques',
+                'Couts, delais et arbitrages chantier',
+                'Ressources et pages utiles a croiser',
+            ],
+            'reperage' => [
+                'Checklist operationnelle avant intervention',
+                'Matrice de controle documentaire et terrain',
+                'Couts, delais et arbitrages chantier',
+            ],
+            default => [
+                'Checklist operationnelle avant intervention',
+                'Matrice de controle documentaire et terrain',
+                'Ressources et pages utiles a croiser',
+            ],
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function obligationsForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'Verifier que l appel d offre decrit bien les zones, hypotheses de travaux et contraintes d acces reellement visees.',
+                'Exiger des pieces de consultation coherentes entre DCE, diagnostics, plans, variantes et hypotheses de phasage.',
+                'Rendre explicites les jalons de clarification documentaire avant remise, attribution et ordre de service.',
+                'Tracer ce qui releve du donneur d ordre, de la MOE, du coordonnateur SPS et des entreprises consultées.',
+            ],
+            default => [
                 'Identifier qui commande le repérage, sur quel perimetre et avec quelles hypotheses de travaux ou de maintenance.',
                 'Tracer les pieces utiles: DTA, repérage avant travaux, plans, comptes rendus, restrictions d acces et validations de diffusion.',
                 'Verifier la coherence entre diagnostic, mode operatoire, entreprise engagee et contexte d occupation du site.',
                 'Rendre visible ce qui releve de la preparation documentaire, de la coordination terrain et de la preuve finale conservee.',
             ],
-            'cases' => [
-                'Une renovation en copropriete demarre avec un repérage ancien et un descriptif travaux trop flou : le vrai risque est autant documentaire que technique.',
-                'Une intervention de maintenance en site occupe combine acces contraints, circulation des tiers et incertitude sur les materiaux : la coordination decide une grande partie du niveau de risque.',
-                'Une demolition partielle revele des materiaux amiantés non anticipes : sans scenario de repli, le chantier se bloque et la chaine documentaire se fissure.',
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function casesForFamily(string $family, string $topic): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'Sur le sujet '.$topic.', un appel d offre part avec un DCE incomplet, des diagnostics mal relies aux lots et des hypotheses de phasage trop vagues : le risque est autant contractuel que technique.',
+                'Dans un contexte '.$topic.', la consultation des entreprises est lancee alors que les zones sensibles, les restrictions d acces et les preuves documentaires ne sont pas encore alignees.',
+                'Autour de '.$topic.', une variante proposee en cours de consultation revele que les pieces techniques ne racontent pas toutes la meme histoire : sans arbitrage, l attribution se fait sur une base fragile.',
             ],
-            'mistakes' => [
+            'copropriete' => [
+                'Sur le sujet '.$topic.', une renovation en copropriete demarre avec un repérage ancien et un descriptif travaux trop flou : le vrai risque est autant documentaire que technique.',
+                'Dans un contexte '.$topic.', la circulation des occupants, l acces aux parties communes et les contraintes de planning rendent chaque arbitrage plus sensible qu en site vide.',
+                'Autour de '.$topic.', des travaux par tranches font apparaitre des dependances entre lots, accès, autorisations et validations documentaires qui ne peuvent pas etre traitées au dernier moment.',
+            ],
+            'reperage' => [
+                'Sur le sujet '.$topic.', un repérage est utilise hors de son perimetre reel et cree une illusion de couverture qui fragilise toute la suite.',
+                'Dans un contexte '.$topic.', les hypotheses de travaux evoluent plus vite que les pieces remises aux intervenants, ce qui ouvre des zones grises documentaires.',
+                'Autour de '.$topic.', une mise a jour partielle des diagnostics suffit a creer des contradictions entre plans, zones et methode d intervention.',
+            ],
+            default => [
+                'Sur le sujet '.$topic.', une renovation en copropriete demarre avec un repérage ancien et un descriptif travaux trop flou : le vrai risque est autant documentaire que technique.',
+                'Dans un contexte '.$topic.', une intervention de maintenance en site occupe combine acces contraints, circulation des tiers et incertitude sur les materiaux : la coordination decide une grande partie du niveau de risque.',
+                'Autour de '.$topic.', une demolition partielle revele des materiaux amiantés non anticipes : sans scenario de repli, le chantier se bloque et la chaine documentaire se fissure.',
+            ],
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function mistakesForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'Lancer la consultation avec un DCE qui melange hypotheses de travaux, diagnostics incomplets et variantes non bornées.',
+                'Croire qu un repérage suffit sans relier les pieces aux lots, options, contraintes d acces et sequence chantier.',
+                'Sous-estimer les effets d un flou documentaire sur les prix, les exclusions, les reserves et les demandes de clarification.',
+                'Traiter la coordination comme un sujet d execution alors qu une grande partie du risque se joue dès la consultation.',
+            ],
+            default => [
                 'Parler du diagnostic comme d une formalite sans traiter les hypotheses de travaux, les zones grises et la qualite des pieces remises.',
                 'Confondre repérage, retrait, SS3 et SS4 alors que ces cadres changent la methode, la coordination et la preuve attendue.',
                 'Oublier les contraintes de site occupe, de copropriete, de maintenance ou de phasage alors qu elles structurent les vrais arbitrages.',
                 'Rediger un contenu trop theorique sans montrer ce qui fait perdre du temps, de l argent ou de la maitrise documentaire sur le terrain.',
             ],
-            'inspection_focus' => [
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function inspectionFocusForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'coherence entre le DCE, les hypotheses de travaux et le perimetre reel des diagnostics',
+                'presence des pieces de consultation utiles avant remise et attribution',
+                'alignement entre contraintes d acces, phasage et obligations documentaires',
+                'preuves de clarification, reserves et arbitrages avant ordre de service',
+            ],
+            default => [
                 'coherence entre les hypotheses de travaux et le perimetre reel du repérage amiante',
                 'presence, version et diffusion des documents techniques utiles avant intervention',
                 'organisation des acces, des confinements, des protections et de la circulation sur site occupe',
                 'preuves de coordination entre donneur d ordre, diagnostiqueur, entreprise et exploitation du site',
             ],
-            'evidence_examples' => [
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function evidenceExamplesForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'DCE date avec hypotheses de travaux, lots, options et perimetres documentes',
+                'questions/reponses de consultation tracees avec version de reference partagee',
+                'synthese des diagnostics, plans et contraintes d acces annexee aux pieces de consultation',
+                'compte rendu d arbitrage avant attribution sur zones sensibles, variantes et reserves',
+                'ordre de service ou cadrage d execution aligne sur les clarifications retenues',
+            ],
+            default => [
                 'repérage avant travaux date, avec hypothèses clairement formulees et plans joints',
                 'DTA ou documents techniques transmis avec trace de diffusion et version de reference',
                 'compte rendu de visite ou de coordination precissant zones, acces, occupation et points de vigilance',
                 'mode operatoire, protocole d intervention ou validation de scenario SS3/SS4 selon le cas',
                 'preuve de levee de doute, arbitrage chantier ou adaptation documentaire apres decouverte terrain',
             ],
-            'daily_constraints' => [
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function dailyConstraintsForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'DCE incomplet ou versions contradictoires',
+                'clarifications entreprises trop tardives',
+                'lots dependants et sequence chantier mal bordee',
+                'contraintes d acces ou occupation insuffisamment decrites',
+                'risque de reserves, variantes ou exclusions mal encadrées',
+            ],
+            default => [
                 'site occupe ou partiellement exploite',
                 'acces sensibles et circulation de tiers',
                 'phasage travaux et dependances entre lots',
                 'pression planning avant intervention',
                 'pieces techniques eparses ou versions contradictoires',
             ],
-            'work_units' => [
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function workUnitsForFamily(string $family): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                'cadrage du dce',
+                'clarification documentaire',
+                'analyse des variantes',
+                'attribution et reserves',
+                'ordre de service et transfert vers execution',
+            ],
+            default => [
                 'preparation documentaire',
                 'visite et cadrage terrain',
                 'coordination avant intervention',
                 'intervention en zone sensible',
                 'suivi de preuve et cloture documentaire',
             ],
-            'faq' => [
+        };
+    }
+
+    /**
+     * @return array<int, array{question:string,answer:string}>
+     */
+    private function faqForFamily(string $family, string $topic): array
+    {
+        return match ($family) {
+            'appel_offre' => [
+                [
+                    'question' => 'Pourquoi un appel d offre amiante se bloque-t-il souvent avant meme l attribution ?',
+                    'answer' => 'Parce que les pieces de consultation ne cadrent pas assez les zones, hypotheses de travaux, diagnostics utiles et contraintes d execution reelles.',
+                ],
+                [
+                    'question' => 'Quelles pieces doivent etre stabilisees avant consultation ?',
+                    'answer' => 'Le DCE, les diagnostics relies aux lots, les plans, les contraintes d acces, le phasage et les clarifications qui changent la methode ou le prix.',
+                ],
+                [
+                    'question' => 'Comment limiter les variantes et reserves non maitrisees ?',
+                    'answer' => 'En bornant mieux les hypotheses de travaux, les zones sensibles, les attentes documentaires et les questions/reponses pendant la consultation.',
+                ],
+                [
+                    'question' => 'Pourquoi le sujet '.$topic.' ne releve-t-il pas seulement du juridique ?',
+                    'answer' => 'Parce que les erreurs d appel d offre finissent tres vite en problemes terrain, blocages de coordination et surcouts d execution.',
+                ],
+                [
+                    'question' => 'Quel est le bon niveau de detail pour rester exploitable ?',
+                    'answer' => 'Assez de detail pour cadrer les zones, les pieces et les arbitrages, sans diluer l information critique dans un dossier trop abstrait.',
+                ],
+            ],
+            default => [
                 [
                     'question' => 'Quand un diagnostic amiante devient-il insuffisant pour un chantier ?',
                     'answer' => 'Quand les hypotheses de travaux sont floues, que le perimetre reel n est pas clair ou que les zones a ouvrir n ont pas ete correctement documentees avant intervention.',
@@ -116,21 +362,17 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                     'answer' => 'Quand il parle seulement du risque en theorie sans montrer les arbitrages de terrain, les blocages documentaires, les situations de site occupe et les vraies decisions du donneur d ordre.',
                 ],
             ],
-        ];
+        };
     }
 
-    public function expectedEditorialSections(array $profile): array
+    private function familyFromKeyword(string $topic, string $cluster): string
     {
-        return $profile['editorial_sections'] ?? [];
-    }
-
-    public function expectedSignals(array $profile): array
-    {
-        return array_values(array_unique(array_merge(
-            ['amiante', 'diagnostic amiante', 'repérage', 'donneur d ordre', 'coordination chantier'],
-            $profile['risk_terms'] ?? [],
-            $profile['work_units'] ?? []
-        )));
+        return match (true) {
+            str_contains($topic, 'appel d offre'), str_contains($topic, 'appel offre'), str_contains($topic, 'consultation'), str_contains($topic, 'dce') => 'appel_offre',
+            $cluster === 'copropriete' => 'copropriete',
+            in_array($cluster, ['reperage', 'dta'], true) => 'reperage',
+            default => 'default',
+        };
     }
 
     private function topicFromKeyword(string $keyword): string

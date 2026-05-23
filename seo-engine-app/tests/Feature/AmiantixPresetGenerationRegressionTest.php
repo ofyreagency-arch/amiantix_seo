@@ -83,4 +83,21 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('checklists, des points de vigilance', $prompt);
         $this->assertStringContainsString('1400 mots minimum', $prompt);
     }
+
+    public function test_amiantix_blueprint_varies_structure_for_appel_offre_keywords(): void
+    {
+        $provider = app(AmiantixContentProfile::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+
+        $payload = $provider->fallbackPayload("gestion du risque amiante appel d offre", 'reglementation', $blueprint);
+        $content = (string) $payload['content'];
+
+        $this->assertSame('appel_offre', $blueprint['family']);
+        $this->assertContains('Documents et preuves a conserver', $blueprint['editorial_sections']);
+        $this->assertContains('Points de vigilance pour le donneur d ordre', $blueprint['editorial_sections']);
+        $this->assertStringContainsString('appel d offre', $content);
+        $this->assertStringContainsString('DCE', $content);
+        $this->assertStringNotContainsString('Une renovation en copropriete demarre', $content);
+        $this->assertStringNotContainsString('Scenario copropriete ou site occupe', $content);
+    }
 }

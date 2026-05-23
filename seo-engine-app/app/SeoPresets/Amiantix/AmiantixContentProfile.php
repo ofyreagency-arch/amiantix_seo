@@ -15,25 +15,11 @@ final class AmiantixContentProfile implements NicheContentProvider
         $description = $this->buildMetaDescription($keyword, $cluster, $blueprint);
         $h1 = $this->buildH1($keyword, $cluster, $blueprint);
         $links = $context['internal_links'] ?? [];
-
-        $content = implode('', [
-            $this->openingSituationBlock($blueprint),
-            $this->regulatoryScopeBlock($blueprint),
-            $this->riskTableBlock($blueprint),
-            $this->terrainRisksBlock($blueprint),
-            $this->interventionFlowBlock($blueprint),
-            $this->operationalChecklistBlock($blueprint),
-            $this->documentsBlock($blueprint),
-            $this->donneurOrdreBlock($blueprint),
-            $this->practicalCasesBlock($blueprint),
-            $this->mistakesBlock($blueprint),
-            $this->sanctionsBlock($blueprint),
-            $this->erpOccupationBlock($blueprint),
-            $this->evidenceBlock($blueprint),
-            $this->faqPreviewBlock($blueprint),
-            $this->internalLinksBlock(is_array($links) ? $links : [], $blueprint),
-            $this->finalActionBlock($blueprint),
-        ]);
+        $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
+        $content = collect($blueprint['editorial_sections'] ?? array_keys($catalog))
+            ->map(fn (string $heading): string => $catalog[$heading] ?? '')
+            ->filter(fn (string $block): bool => $block !== '')
+            ->implode('');
 
         return [
             'title' => $title,
@@ -67,17 +53,11 @@ final class AmiantixContentProfile implements NicheContentProvider
             }
         }
 
-        $enrichmentBlocks = [
-            $this->regulatoryScopeBlock($blueprint),
-            $this->costsDelaysBlock($blueprint),
-            $this->controlMatrixBlock($blueprint),
-            $this->operationalChecklistBlock($blueprint),
-            $this->siteOccupationBlock($blueprint),
-            $this->erpOccupationBlock($blueprint),
-            $this->documentRoutineBlock($blueprint),
-            $this->sanctionsBlock($blueprint),
-            $this->internalLinksBlock(is_array($links) ? $links : [], $blueprint),
-        ];
+        $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
+        $enrichmentBlocks = collect($blueprint['support_sections'] ?? [])
+            ->map(fn (string $heading): string => $catalog[$heading] ?? '')
+            ->filter(fn (string $block): bool => $block !== '')
+            ->all();
 
         foreach ($enrichmentBlocks as $block) {
             if ($this->contentWordCount($content) >= 1325) {
@@ -106,7 +86,23 @@ final class AmiantixContentProfile implements NicheContentProvider
     private function missingStructuralBlocks(string $content, array $blueprint, array $context = []): array
     {
         $links = $context['internal_links'] ?? (($context['page']->internal_links_json ?? null) ?: []);
-        $catalog = [
+        $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
+
+        return collect($catalog)
+            ->filter(function (string $block, string $heading) use ($content): bool {
+                return ! str_contains($content, $heading) && $block !== '';
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{label:string,url:string,reason:string}>  $links
+     * @return array<string,string>
+     */
+    private function sectionCatalog(array $blueprint, array $links): array
+    {
+        return [
             'Contexte et obligations' => $this->openingSituationBlock($blueprint),
             'Repérage, SS3, SS4 et responsabilites de coordination' => $this->regulatoryScopeBlock($blueprint),
             'Tableau de priorisation des risques' => $this->riskTableBlock($blueprint),
@@ -119,18 +115,15 @@ final class AmiantixContentProfile implements NicheContentProvider
             'Erreurs frequentes et blocages evitables' => $this->mistakesBlock($blueprint),
             'Blocages, sanctions et signaux d alerte a ne pas banaliser' => $this->sanctionsBlock($blueprint),
             'Copropriete, ERP et site occupe : ce qui change vraiment' => $this->erpOccupationBlock($blueprint),
+            'Ce qui rend la demarche defendable' => $this->evidenceBlock($blueprint),
+            'Couts, delais et arbitrages chantier' => $this->costsDelaysBlock($blueprint),
             'Matrice de controle documentaire et terrain' => $this->controlMatrixBlock($blueprint),
             'Questions terrain qui reviennent souvent' => $this->faqPreviewBlock($blueprint),
-            'Ressources et pages utiles a croiser' => $this->internalLinksBlock(is_array($links) ? $links : [], $blueprint),
+            'Ressources et pages utiles a croiser' => $this->internalLinksBlock($links, $blueprint),
             'Passer du constat a une intervention maitrisée' => $this->finalActionBlock($blueprint),
+            'Site occupe, acces sensibles et zones grises' => $this->siteOccupationBlock($blueprint),
+            'Routine documentaire et trace utile' => $this->documentRoutineBlock($blueprint),
         ];
-
-        return collect($catalog)
-            ->filter(function (string $block, string $heading) use ($content): bool {
-                return ! str_contains($content, $heading) && $block !== '';
-            })
-            ->values()
-            ->all();
     }
 
     /**
@@ -254,14 +247,27 @@ final class AmiantixContentProfile implements NicheContentProvider
      */
     private function practicalCasesBlock(array $blueprint): string
     {
+        $family = (string) ($blueprint['family'] ?? 'default');
         $cases = collect($blueprint['cases'] ?? [])
             ->values()
-            ->map(function (string $item, int $index): string {
-                $labels = [
-                    'Scenario copropriete ou site occupe',
-                    'Scenario maintenance ou intervention contrainte',
-                    'Scenario decouverte tardive et blocage chantier',
-                ];
+            ->map(function (string $item, int $index) use ($family): string {
+                $labels = match ($family) {
+                    'appel_offre' => [
+                        'Scenario DCE incomplet ou mal borne',
+                        'Scenario clarifications tardives pendant consultation',
+                        'Scenario attribution fragile et reserves mal maitrisees',
+                    ],
+                    'reperage' => [
+                        'Scenario perimetre de repérage mal cadre',
+                        'Scenario hypotheses de travaux qui bougent',
+                        'Scenario contradiction entre pieces techniques',
+                    ],
+                    default => [
+                        'Scenario copropriete ou site occupe',
+                        'Scenario maintenance ou intervention contrainte',
+                        'Scenario decouverte tardive et blocage chantier',
+                    ],
+                };
 
                 return '<h3>'.($labels[$index] ?? 'Scenario terrain').'</h3><p>'.$item.'</p>';
             })
@@ -295,6 +301,12 @@ final class AmiantixContentProfile implements NicheContentProvider
      */
     private function erpOccupationBlock(array $blueprint): string
     {
+        $family = (string) ($blueprint['family'] ?? 'default');
+
+        if ($family === 'appel_offre') {
+            return '<section><h2>Consultation, phasage et contraintes d acces : ce qui change vraiment</h2><p>Un appel d offre amiante solide ne peut pas rester au niveau d une simple description de principe. Les contraintes d acces, d occupation, de sequence chantier, de variantes et de diffusion des pieces changent directement la façon dont les entreprises lisent le risque, chiffrent la methode et posent leurs reserves.</p><h3>Ce qu un bon contenu doit expliciter</h3><ul><li>Quelles hypotheses de travaux sont fermes et lesquelles restent a clarifier.</li><li>Comment les zones sensibles, acces et contraintes d occupation influencent la consultation.</li><li>Quels jalons documentaires doivent etre stabilises avant attribution.</li><li>Comment eviter que le flou du DCE devienne un probleme d execution plus tard.</li></ul></section>';
+        }
+
         return '<section><h2>Copropriete, ERP et site occupe : ce qui change vraiment</h2><p>Les environnements occupes demandent des arbitrages plus fins qu un simple rappel technique. En copropriete, il faut souvent composer avec les parties communes, les occupations successives, les zones mal documentees et la communication avec plusieurs interlocuteurs. En ERP, la circulation du public, la continuite de service et les restrictions d acces changent directement la facon de preparer l intervention.</p><h3>Ce qu un bon contenu doit expliciter</h3><ul><li>Qui est informe et a quel moment.</li><li>Quelles zones doivent etre securisees ou requalifiees avant intervention.</li><li>Comment le phasage limite la coactivite, la circulation et les reprises de chantier.</li><li>Quelles preuves documentaires doivent suivre le chantier jusqu a la cloture.</li></ul></section>';
     }
 
@@ -430,12 +442,13 @@ final class AmiantixContentProfile implements NicheContentProvider
     private function buildTitle(string $keyword, string $cluster, array $blueprint): string
     {
         $normalizedKeyword = Str::lower(Str::ascii($keyword));
+        $headlineKeyword = Str::headline($keyword);
 
         return match (true) {
-            str_contains($normalizedKeyword, 'diagnostic') => 'Diagnostic amiante : obligations, coordination chantier et points de vigilance terrain',
-            str_contains($normalizedKeyword, 'reperage') => 'Repérage amiante avant travaux : comment cadrer le perimetre et eviter les angles morts',
-            str_contains($normalizedKeyword, 'dta') => 'DTA amiante : role, transmission et points de vigilance pour un pilotage utile',
-            default => Str::headline($keyword).' : obligations, preuves et coordination du risque amiante',
+            str_contains($normalizedKeyword, 'diagnostic') => $headlineKeyword.' : obligations, coordination chantier et points de vigilance terrain',
+            str_contains($normalizedKeyword, 'reperage') => $headlineKeyword.' : comment cadrer le perimetre et eviter les angles morts',
+            str_contains($normalizedKeyword, 'dta') => $headlineKeyword.' : role, transmission et points de vigilance pour un pilotage utile',
+            default => $headlineKeyword.' : obligations, preuves et coordination du risque amiante',
         };
     }
 
@@ -445,11 +458,12 @@ final class AmiantixContentProfile implements NicheContentProvider
     private function buildMetaDescription(string $keyword, string $cluster, array $blueprint): string
     {
         $normalizedKeyword = Str::lower(Str::ascii($keyword));
+        $topic = (string) ($blueprint['topic'] ?? $keyword);
 
         return match (true) {
-            str_contains($normalizedKeyword, 'diagnostic') => 'Guide Amiantix sur le diagnostic amiante avec obligations, documents, coordination chantier, blocages evitables et preuves a conserver.',
-            str_contains($normalizedKeyword, 'reperage') => 'Comprendre le repérage amiante avant travaux: perimetre, hypothèses, coordination, site occupe et pieces a verifier.',
-            default => 'Contenu Amiantix sur le risque amiante avec situations terrain, preuves documentaires, coordination et arbitrages utiles avant intervention.',
+            str_contains($normalizedKeyword, 'diagnostic') => 'Guide Amiantix sur '.$topic.' avec obligations, documents, coordination chantier, blocages evitables et preuves a conserver.',
+            str_contains($normalizedKeyword, 'reperage') => 'Comprendre '.$topic.' : perimetre, hypothèses, coordination, site occupe et pieces a verifier.',
+            default => 'Contenu Amiantix sur '.$topic.' avec situations terrain, preuves documentaires, coordination et arbitrages utiles avant intervention.',
         };
     }
 
@@ -459,11 +473,12 @@ final class AmiantixContentProfile implements NicheContentProvider
     private function buildH1(string $keyword, string $cluster, array $blueprint): string
     {
         $normalizedKeyword = Str::lower(Str::ascii($keyword));
+        $headlineKeyword = Str::headline($keyword);
 
         return match (true) {
-            str_contains($normalizedKeyword, 'diagnostic') => 'Diagnostic amiante : ce qu il faut verifier avant de lancer une intervention',
-            str_contains($normalizedKeyword, 'reperage') => 'Repérage amiante avant travaux : ce qui doit etre cadré pour une intervention maitrisée',
-            default => Str::headline($keyword).' : points de vigilance et coordination utile',
+            str_contains($normalizedKeyword, 'diagnostic') => $headlineKeyword.' : ce qu il faut verifier avant de lancer une intervention',
+            str_contains($normalizedKeyword, 'reperage') => $headlineKeyword.' : ce qui doit etre cadré pour une intervention maitrisée',
+            default => $headlineKeyword.' : points de vigilance et coordination utile',
         };
     }
 
