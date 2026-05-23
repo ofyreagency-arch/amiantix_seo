@@ -28,7 +28,8 @@ class SeoRewriteService
     public function createSuggestion(object $page, string $mode): mixed
     {
         $context = $this->rewriteSignalContext($page);
-        $page = $this->pageWithRewriteContext($page, $context);
+        $weakSections = $this->detectWeakSections((string) ($page->content ?? ''));
+        $page = $this->pageWithRewriteContext($page, $context, $weakSections);
 
         if (! $this->overrides->rewriteAllowed($page)) {
             return $this->suggestions->persist($page, [
@@ -50,7 +51,7 @@ class SeoRewriteService
         }
 
         $suggestions = $this->rewriteWithAi($page, $mode) ?? $this->prompts->fallbackRewrite($page, $mode);
-        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context);
+        $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context, $weakSections);
         $suggestions = $this->ensureProposedContent($page, $suggestions, $mode);
 
         return $this->suggestions->replacePending($page, 'rewrite_engine:'.$mode, [
@@ -143,11 +144,12 @@ class SeoRewriteService
     /**
      * @param  array<string,mixed>  $context
      */
-    private function pageWithRewriteContext(object $page, array $context): object
+    private function pageWithRewriteContext(object $page, array $context, array $weakSections = []): object
     {
         $clone = clone $page;
         $clone->rewrite_signal_context = $context;
         $clone->rewrite_signal_summary = $this->signalContextSummary($context);
+        $clone->rewrite_weak_sections = $weakSections;
 
         return $clone;
     }
@@ -157,10 +159,11 @@ class SeoRewriteService
      * @param  array<string,mixed>  $context
      * @return array<string,mixed>
      */
-    private function mergeSignalContextIntoSuggestions(array $suggestions, array $context): array
+    private function mergeSignalContextIntoSuggestions(array $suggestions, array $context, array $weakSections = []): array
     {
         $suggestions['sections'] = collect($suggestions['sections'] ?? [])
             ->merge($context['sections'])
+            ->merge($weakSections)
             ->filter(fn (mixed $section): bool => is_string($section) && trim($section) !== '')
             ->unique()
             ->values()
@@ -193,8 +196,18 @@ class SeoRewriteService
             [
                 'pending_rewrite_signals' => (int) ($context['pending_count'] ?? 0),
                 'sources' => $context['sources'] ?? [],
+                'weak_sections' => $weakSections,
             ],
         );
+
+        if ($weakSections !== []) {
+            $suggestions['rationale'][] = 'Target the currently weak sections before compacting the full article.';
+            $suggestions['rationale'] = collect($suggestions['rationale'])
+                ->filter(fn (mixed $item): bool => is_string($item) && trim($item) !== '')
+                ->unique()
+                ->values()
+                ->all();
+        }
 
         return $suggestions;
     }
@@ -305,7 +318,11 @@ class SeoRewriteService
             $baseContent = $currentContent;
 
             if ($currentContent !== '' && $suggestedContent !== '') {
-                $baseContent = $this->mergeSuggestedNarrativePatch($currentContent, $suggestedContent);
+                $baseContent = $this->mergeSuggestedNarrativePatch(
+                    $currentContent,
+                    $suggestedContent,
+                    $this->detectWeakSections($currentContent)
+                );
             }
         }
 
@@ -441,24 +458,49 @@ class SeoRewriteService
         return '<section><h2>'.$heading.'</h2><ul>'.$items.'</ul></section>';
     }
 
-    private function mergeSuggestedNarrativePatch(string $currentContent, string $suggestedContent): string
+    private function mergeSuggestedNarrativePatch(string $currentContent, string $suggestedContent, array $weakSections = []): string
     {
         $currentHeadings = $this->headingsIndex($currentContent);
+        $currentSections = $this->extractHtmlSections($currentContent);
         $patchSections = $this->extractHtmlSections($suggestedContent);
+        $normalizedWeakSections = collect($weakSections)
+            ->map(fn (string $heading): string => Str::lower(trim($heading)))
+            ->filter(fn (string $heading): bool => $heading !== '')
+            ->values()
+            ->all();
         $append = [];
+        $replaced = false;
 
         foreach ($patchSections as $section) {
             $heading = $this->firstHeadingFromSection($section);
+            $normalizedHeading = Str::lower(trim($heading));
 
             if ($heading === '') {
                 continue;
             }
 
-            if (isset($currentHeadings[Str::lower($heading)])) {
+            if (in_array($normalizedHeading, $normalizedWeakSections, true)) {
+                foreach ($currentSections as $index => $currentSection) {
+                    if (Str::lower(trim($this->firstHeadingFromSection($currentSection))) !== $normalizedHeading) {
+                        continue;
+                    }
+
+                    $currentSections[$index] = $section;
+                    $replaced = true;
+
+                    continue 2;
+                }
+            }
+
+            if (isset($currentHeadings[$normalizedHeading])) {
                 continue;
             }
 
             $append[] = $section;
+        }
+
+        if ($currentSections !== [] && $replaced) {
+            $currentContent = implode('', $currentSections);
         }
 
         if ($append === []) {
@@ -466,6 +508,52 @@ class SeoRewriteService
         }
 
         return $currentContent.implode('', $append);
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function detectWeakSections(string $content): array
+    {
+        return collect($this->extractHtmlSections($content))
+            ->map(function (string $section): ?string {
+                $heading = $this->firstHeadingFromSection($section);
+
+                if ($heading === '') {
+                    return null;
+                }
+
+                $sectionWords = $this->wordCount($section);
+                $normalizedHeading = Str::lower(Str::ascii($heading));
+                $expectsStructuredSupport = Str::contains($normalizedHeading, [
+                    'tableau',
+                    'matrice',
+                    'checklist',
+                    'questions',
+                    'faq',
+                    'documents',
+                    'preuves',
+                    'processus',
+                    'workflow',
+                ]);
+                $hasStructuredSupport = str_contains(Str::lower($section), '<table')
+                    || str_contains(Str::lower($section), '<ul')
+                    || str_contains(Str::lower($section), '<ol')
+                    || str_contains(Str::lower($section), '<h3');
+
+                if ($sectionWords < 55) {
+                    return $heading;
+                }
+
+                if ($expectsStructuredSupport && ! $hasStructuredSupport && $sectionWords < 120) {
+                    return $heading;
+                }
+
+                return null;
+            })
+            ->filter(fn (?string $heading): bool => is_string($heading) && trim($heading) !== '')
+            ->values()
+            ->all();
     }
 
     private function wordCount(string $content): int
