@@ -210,4 +210,40 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
 
         $this->assertNotContains('Routine documentaire et trace utile', $headings);
     }
+
+    public function test_appel_offre_enrichment_respects_narrative_flow_order(): void
+    {
+        $strategy = app(BlockSelectionStrategy::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve("gestion du risque amiante appel d offre", 'reglementation');
+
+        $catalog = [];
+
+        foreach (array_merge(
+            [$blueprint['composition']['opening_block'] ?? null],
+            $blueprint['composition']['required_blocks'] ?? [],
+            $blueprint['composition']['optional_blocks'] ?? [],
+        ) as $heading) {
+            if (is_string($heading) && $heading !== '') {
+                $catalog[$heading] = '<section><h2>'.$heading.'</h2><p>'.$heading.' content.</p></section>';
+            }
+        }
+
+        $content = implode('', [
+            '<section><h2>Contexte et obligations</h2><p>Appel d offre amiante, DCE et consultation.</p></section>',
+            '<section><h2>Documents et preuves a conserver</h2><p>Documents et consultation.</p></section>',
+            '<section><h2>Points de vigilance pour le donneur d ordre</h2><p>Arbitrages et DCE.</p></section>',
+            '<section><h2>Couts, delais et arbitrages chantier</h2><p>Delais et arbitrages.</p></section>',
+            '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle documentaire.</p></section>',
+            '<section><h2>Ressources et pages utiles a croiser</h2><p>Ressources utiles.</p></section>',
+            '<section><h2>Passer du constat a une intervention maitrisée</h2><p>Conclusion.</p></section>',
+            '<section><p>'.str_repeat('appel d offre dce consultation lots variantes coordination entreprise chantier scenario reserve attribution ', 90).'</p></section>',
+        ]);
+
+        $headings = $strategy->enrichmentHeadings($blueprint, $catalog, $content);
+
+        $this->assertSame([
+            'Repérage, SS3, SS4 et responsabilites de coordination',
+            'Questions terrain qui reviennent souvent',
+        ], $headings);
+    }
 }

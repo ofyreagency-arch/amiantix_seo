@@ -7,6 +7,7 @@ namespace App\Services\Preset;
 use Ofyre\SeoEngine\Services\Composition\BlockRelevanceScorer;
 use Ofyre\SeoEngine\Services\Composition\CoverageInspector;
 use Ofyre\SeoEngine\Services\Composition\EnrichmentBudget;
+use Ofyre\SeoEngine\Services\Composition\NarrativeAssembler;
 
 final class BlockSelectionStrategy
 {
@@ -14,6 +15,7 @@ final class BlockSelectionStrategy
         private readonly CoverageInspector $coverage,
         private readonly BlockRelevanceScorer $relevance,
         private readonly EnrichmentBudget $budget,
+        private readonly NarrativeAssembler $narrative,
     ) {}
 
     /**
@@ -25,10 +27,10 @@ final class BlockSelectionStrategy
     {
         $plan = $this->compositionPlan($blueprint);
 
-        return $this->filterKnownHeadings(array_values(array_unique(array_filter([
+        return $this->narrative->orderHeadings($this->filterKnownHeadings(array_values(array_unique(array_filter([
             $plan['opening_block'] ?? null,
             ...($plan['required_blocks'] ?? []),
-        ]))), $catalog);
+        ]))), $catalog), $blueprint);
     }
 
     /**
@@ -40,10 +42,10 @@ final class BlockSelectionStrategy
     {
         $plan = $this->compositionPlan($blueprint);
 
-        return $this->filterKnownHeadings(array_values(array_unique(array_filter([
+        return $this->narrative->orderHeadings($this->filterKnownHeadings(array_values(array_unique(array_filter([
             $plan['opening_block'] ?? null,
             ...($plan['required_blocks'] ?? []),
-        ]))), $catalog);
+        ]))), $catalog), $blueprint);
     }
 
     /**
@@ -84,7 +86,10 @@ final class BlockSelectionStrategy
             ->values()
             ->all();
 
-        return array_slice(array_column($scored, 'heading'), 0, $limit);
+        return $this->narrative->orderHeadings(
+            array_slice(array_column($scored, 'heading'), 0, $limit),
+            $blueprint
+        );
     }
 
     /**
