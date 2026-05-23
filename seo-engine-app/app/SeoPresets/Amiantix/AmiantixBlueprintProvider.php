@@ -158,8 +158,18 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                     'checklist' => 'À partir de là, le lecteur a besoin d un passage opérationnel très concret pour vérifier ce qui doit être figé avant lancement.',
                     'cases' => 'Ce cadrage devient beaucoup plus parlant lorsqu on le relie à des situations de consultation ou de chantier qui dérapent réellement.',
                     'friction' => 'C est aussi là qu apparaissent les erreurs récurrentes qui font glisser un bon dossier vers un blocage évitable.',
-                    'arbitrage' => 'Après ces points de friction, l article doit revenir sur les arbitrages qui incombent au donneur d ordre et aux décideurs du dossier.',
-                    'proof' => 'Ces arbitrages ne tiennent que s ils sont reliés à des pièces, versions et traces réellement conservées.',
+                    'arbitrage' => [
+                        'default' => 'Après ces points de friction, l article doit revenir sur les arbitrages qui incombent au donneur d ordre et aux décideurs du dossier.',
+                        'by_heading' => [
+                            'Couts, delais et arbitrages chantier' => 'Avant de parler budget et calendrier, il faut remettre les décideurs face aux arbitrages concrets que le dossier documentaire leur impose.',
+                        ],
+                    ],
+                    'proof' => [
+                        'default' => 'Ces arbitrages ne tiennent que s ils sont reliés à des pièces, versions et traces réellement conservées.',
+                        'by_heading' => [
+                            'Routine documentaire et trace utile' => 'Avant de multiplier les annexes, la page peut montrer comment la routine documentaire maintient le dossier exploitable quand la consultation évolue.',
+                        ],
+                    ],
                     'control' => 'Une fois les preuves posées, il devient plus simple de montrer comment les contrôles documentaires et terrain s enchaînent.',
                     'faq' => 'À ce stade, la FAQ peut traiter les hésitations qui restent sans casser le fil principal de l article.',
                     'resources' => 'Le lecteur peut ensuite croiser ce cadre avec les ressources les plus proches de son besoin immédiat.',
@@ -209,7 +219,12 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                     'checklist' => 'Une fois ces situations identifiées, le lecteur attend naturellement une vérification simple de ce qui doit être sécurisé avant intervention.',
                     'cases' => 'Ces vérifications prennent encore plus de sens lorsqu on les confronte à des cas de copropriété ou de site occupé vécus sur le terrain.',
                     'proof' => 'Pour que ces cas restent défendables, il faut ensuite revenir aux pièces et preuves à conserver.',
-                    'arbitrage' => 'Ces preuves servent justement à étayer les arbitrages pris lorsque le contexte d occupation complique le dossier.',
+                    'arbitrage' => [
+                        'default' => 'Ces preuves servent justement à étayer les arbitrages pris lorsque le contexte d occupation complique le dossier.',
+                        'by_heading' => [
+                            'Couts, delais et arbitrages chantier' => 'À partir de là, le lecteur peut mesurer comment l occupation du site rejaillit sur les délais, les interfaces et les arbitrages de chantier.',
+                        ],
+                    ],
                     'control' => 'On peut alors refermer la boucle par une logique de contrôle, à la fois documentaire et terrain.',
                     'faq' => 'La FAQ vient ensuite absorber les hésitations qui restent sans réouvrir le cœur du raisonnement.',
                     'resources' => 'Enfin, quelques ressources connexes aident à prolonger la lecture sans la disperser.',
@@ -255,8 +270,18 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                     'legal' => 'Le repérage n a de valeur que si le cadre réglementaire et les hypothèses de travaux sont clarifiés dès le départ.',
                     'workflow' => 'À partir de là, le lecteur doit voir comment ce cadre se traduit en séquence opérationnelle et en vérifications concrètes.',
                     'friction' => 'C est justement dans cette séquence que se nichent les erreurs documentaires ou de périmètre les plus coûteuses.',
-                    'proof' => 'Pour éviter ces glissements, la page doit ensuite revenir sur les pièces et preuves qui verrouillent réellement le dossier.',
-                    'arbitrage' => 'Une fois les preuves posées, les arbitrages du donneur d ordre et des acteurs techniques deviennent plus lisibles.',
+                    'proof' => [
+                        'default' => 'Pour éviter ces glissements, la page doit ensuite revenir sur les pièces et preuves qui verrouillent réellement le dossier.',
+                        'by_heading' => [
+                            'Documents et preuves a conserver' => 'Pour éviter ces glissements, la page doit revenir d abord aux pièces qui verrouillent réellement le périmètre et les hypothèses de travaux.',
+                        ],
+                    ],
+                    'arbitrage' => [
+                        'default' => 'Une fois les preuves posées, les arbitrages du donneur d ordre et des acteurs techniques deviennent plus lisibles.',
+                        'by_heading' => [
+                            'Couts, delais et arbitrages chantier' => 'Une fois le dossier verrouillé, l article peut ouvrir plus directement sur les arbitrages de délai, de coût et de coordination qui en découlent.',
+                        ],
+                    ],
                     'control' => 'La logique de contrôle peut alors s exprimer sans casser le fil principal du repérage.',
                     'faq' => 'La FAQ vient ensuite absorber les questions pratiques qui restent en suspens.',
                     'resources' => 'Quelques ressources bien choisies prolongent enfin la lecture sans diluer l angle.',
@@ -307,8 +332,18 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                     'terrain' => 'Ce socle posé, l article peut montrer où le risque se manifeste vraiment sur le terrain.',
                     'workflow' => 'Le lecteur attend ensuite un passage vers la manière concrète de préparer et conduire l intervention.',
                     'friction' => 'C est dans ce passage que les erreurs, blocages et zones grises deviennent les plus utiles à nommer.',
-                    'proof' => 'Une fois ces points de friction visibles, il faut revenir à ce qui rend l ensemble défendable dans les pièces et les traces.',
-                    'arbitrage' => 'Ces preuves soutiennent ensuite les arbitrages économiques, techniques et organisationnels.',
+                    'proof' => [
+                        'default' => 'Une fois ces points de friction visibles, il faut revenir à ce qui rend l ensemble défendable dans les pièces et les traces.',
+                        'by_heading' => [
+                            'Routine documentaire et trace utile' => 'Une fois les points de friction nommés, la page peut montrer comment une routine documentaire simple évite que le dossier se dégrade entre deux arbitrages.',
+                        ],
+                    ],
+                    'arbitrage' => [
+                        'default' => 'Ces preuves soutiennent ensuite les arbitrages économiques, techniques et organisationnels.',
+                        'by_heading' => [
+                            'Couts, delais et arbitrages chantier' => 'Ces preuves servent ensuite de base pour parler plus franchement des délais, des coûts et des arbitrages qui suivent sur le chantier.',
+                        ],
+                    ],
                     'control' => 'La logique de contrôle peut alors fermer le raisonnement sans repartir dans un simple catalogue de points.',
                     'faq' => 'La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.',
                     'resources' => 'Quelques ressources connexes permettent enfin d élargir la lecture avec méthode.',

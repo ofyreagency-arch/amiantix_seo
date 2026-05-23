@@ -336,4 +336,37 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         );
         $this->assertStringNotContainsString('La FAQ vient ensuite absorber les hésitations restantes sans casser la progression.', $html);
     }
+
+    public function test_narrative_assembler_uses_real_preset_bridge_variants_for_specific_optional_blocks(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $catalog = [
+            'Routine documentaire et trace utile' => '<section><h2>Routine documentaire et trace utile</h2><p>Routine.</p></section>',
+            'Couts, delais et arbitrages chantier' => '<section><h2>Couts, delais et arbitrages chantier</h2><p>Arbitrages.</p></section>',
+        ];
+
+        $proofHtml = $assembler->assembleHtml(
+            ['Routine documentaire et trace utile'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Erreurs frequentes et blocages evitables</h2><p>Blocages et zones grises.</p></section>'
+        );
+
+        $arbitrageHtml = $assembler->assembleHtml(
+            ['Couts, delais et arbitrages chantier'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Documents et preuves a conserver</h2><p>Pieces et traces.</p></section>'
+        );
+
+        $this->assertStringStartsWith(
+            '<section><p>Une fois les points de friction nommés, la page peut montrer comment une routine documentaire simple évite que le dossier se dégrade entre deux arbitrages.</p></section>',
+            $proofHtml
+        );
+        $this->assertStringStartsWith(
+            '<section><p>Ces preuves servent ensuite de base pour parler plus franchement des délais, des coûts et des arbitrages qui suivent sur le chantier.</p></section>',
+            $arbitrageHtml
+        );
+    }
 }
