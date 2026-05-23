@@ -18,6 +18,27 @@
     $observedRewriteContext = session('observed_rewrite_context', $observedRewriteContext ?? null);
     $pendingSuggestions = $pendingSuggestions ?? collect();
     $latestPendingSuggestion = $pendingSuggestions->first();
+    $extractRewriteTargetPlan = function ($payload): array {
+        $summary = is_array($payload['signals_summary'] ?? null) ? $payload['signals_summary'] : [];
+        return collect(\Illuminate\Support\Arr::wrap($summary['rewrite_target_plan'] ?? []))
+            ->filter(fn ($item) => is_array($item) && is_string($item['heading'] ?? null))
+            ->map(function (array $item): array {
+                return [
+                    'heading' => (string) ($item['heading'] ?? ''),
+                    'phase' => is_string($item['phase'] ?? null) ? (string) $item['phase'] : null,
+                    'patch_intent' => (string) ($item['patch_intent'] ?? 'local_reinforcement'),
+                    'replacement_mode' => (string) ($item['replacement_mode'] ?? 'replace_if_better'),
+                    'instruction' => (string) ($item['instruction'] ?? ''),
+                    'reasons' => collect(\Illuminate\Support\Arr::wrap($item['reasons'] ?? []))
+                        ->filter(fn ($reason) => is_string($reason) && trim($reason) !== '')
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->values()
+            ->all();
+    };
+    $latestPendingTargetPlan = $latestPendingSuggestion ? $extractRewriteTargetPlan(is_array($latestPendingSuggestion->suggestions_json ?? null) ? $latestPendingSuggestion->suggestions_json : []) : [];
     $latestMetric = $latestMetric ?? null;
     $publicationSummary = session('publication_summary', $publicationSummary ?? null);
     $enginePublished = $page->isPublishedInEngine();
@@ -264,6 +285,36 @@
                                 <span>{{ $section }}</span>
                             </div>
                         @endforeach
+                    </div>
+                @endif
+
+                @if(!empty($latestPendingTargetPlan))
+                    <div class="mt-4 rounded-2xl border border-purple-200 bg-white/80 px-4 py-4">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-purple-700">Plan de patch ciblé</div>
+                        <div class="mt-3 space-y-3">
+                            @foreach(array_slice($latestPendingTargetPlan, 0, 3) as $target)
+                                <div class="rounded-xl border border-purple-100 bg-purple-50/50 px-3 py-3">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <div class="text-sm font-medium text-gray-900">{{ $target['heading'] }}</div>
+                                        @if(!empty($target['phase']))
+                                            <span class="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600">phase {{ $target['phase'] }}</span>
+                                        @endif
+                                        <span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-700">{{ $target['patch_intent'] }}</span>
+                                    </div>
+                                    @if(!empty($target['reasons']))
+                                        <div class="mt-2 flex flex-wrap gap-1.5">
+                                            @foreach($target['reasons'] as $reason)
+                                                <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">{{ $reason }}</span>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                    @if(!empty($target['instruction']))
+                                        <div class="mt-2 text-xs text-gray-600">{{ $target['instruction'] }}</div>
+                                    @endif
+                                    <div class="mt-1 text-[11px] text-gray-400">{{ $target['replacement_mode'] }}</div>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
                 @endif
 
@@ -585,6 +636,37 @@
                         </div>
                     </div>
                 @endif
+            @endif
+
+            @php $rewriteTargetPlan = $extractRewriteTargetPlan(is_array($suggestion) ? $suggestion : []); @endphp
+            @if(!empty($rewriteTargetPlan))
+                <div class="mt-4 rounded-2xl border border-purple-200 bg-white/80 px-4 py-4">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-purple-700">Plan de patch ciblé</div>
+                    <div class="mt-3 space-y-3">
+                        @foreach(array_slice($rewriteTargetPlan, 0, 3) as $target)
+                            <div class="rounded-xl border border-purple-100 bg-purple-50/50 px-3 py-3">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <div class="text-sm font-medium text-gray-900">{{ $target['heading'] }}</div>
+                                    @if(!empty($target['phase']))
+                                        <span class="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600">phase {{ $target['phase'] }}</span>
+                                    @endif
+                                    <span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-700">{{ $target['patch_intent'] }}</span>
+                                </div>
+                                @if(!empty($target['reasons']))
+                                    <div class="mt-2 flex flex-wrap gap-1.5">
+                                        @foreach($target['reasons'] as $reason)
+                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">{{ $reason }}</span>
+                                        @endforeach
+                                    </div>
+                                @endif
+                                @if(!empty($target['instruction']))
+                                    <div class="mt-2 text-xs text-gray-600">{{ $target['instruction'] }}</div>
+                                @endif
+                                <div class="mt-1 text-[11px] text-gray-400">{{ $target['replacement_mode'] }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
             @endif
         </div>
         @endif

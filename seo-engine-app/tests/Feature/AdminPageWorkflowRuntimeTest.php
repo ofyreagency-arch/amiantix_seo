@@ -76,6 +76,18 @@ class AdminPageWorkflowRuntimeTest extends TestCase
                 'rationale' => [
                     'Le contenu est déjà bon sur le fond, mais il manque encore un dernier cran de lisibilité et de workflow.',
                 ],
+                'signals_summary' => [
+                    'rewrite_target_plan' => [
+                        [
+                            'heading' => 'Documents et preuves a conserver',
+                            'phase' => 'proof',
+                            'patch_intent' => 'expand_and_structure',
+                            'replacement_mode' => 'replace_only_if_patch_adds_structure',
+                            'instruction' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+                            'reasons' => ['too_short', 'missing_structure'],
+                        ],
+                    ],
+                ],
             ],
             'status' => 'pending',
         ]);
@@ -93,6 +105,13 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertSee('Observed runtime');
         $response->assertSee('Suggestion active');
         $response->assertSee('Appliquer à la page');
+        $response->assertSee('Plan de patch ciblé');
+        $response->assertSee('Documents et preuves a conserver');
+        $response->assertSee('phase proof');
+        $response->assertSee('expand_and_structure');
+        $response->assertSee('replace_only_if_patch_adds_structure');
+        $response->assertSee('too_short');
+        $response->assertSee('missing_structure');
     }
 
     public function test_generate_creates_a_new_page_when_a_keyword_slug_collides_with_an_existing_blog(): void
@@ -518,6 +537,65 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertNotNull($suggestion);
         $this->assertStringContainsString('<h2>Priorité 1</h2>', (string) $suggestion->suggestions_json['proposed_content']);
         $this->assertStringContainsString('Ajouter un cadrage documentaire plus concret.', (string) $suggestion->suggestions_json['proposed_content']);
+    }
+
+    public function test_page_show_displays_rewrite_target_plan_from_fresh_rewrite_session_payload(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'preset' => 'amiantix',
+            'locale' => 'fr',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'plan de retrait amiante en copropriete',
+            'slug' => 'plan-de-retrait-amiante-en-copropriete',
+            'cluster' => 'copropriete',
+            'status' => 'draft',
+            'title' => 'Ancien titre',
+            'meta_description' => 'Ancienne meta',
+            'content' => '<p>Contenu initial.</p>',
+        ]);
+
+        $response = $this
+            ->withSession([
+                'admin_authenticated' => true,
+                'rewrite_suggestion' => [
+                    'title' => 'Titre réécrit',
+                    'rationale' => ['Renforcer une section faible avant publication.'],
+                    'signals_summary' => [
+                        'rewrite_target_plan' => [
+                            [
+                                'heading' => 'Documents et preuves a conserver',
+                                'phase' => 'proof',
+                                'patch_intent' => 'expand_and_structure',
+                                'replacement_mode' => 'replace_only_if_patch_adds_structure',
+                                'instruction' => 'developper et structurer cette section avec des listes, sous-parties ou tableaux utiles',
+                                'reasons' => ['too_short', 'missing_structure'],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Suggestion créée');
+        $response->assertSee('Plan de patch ciblé');
+        $response->assertSee('Documents et preuves a conserver');
+        $response->assertSee('phase proof');
+        $response->assertSee('expand_and_structure');
+        $response->assertSee('replace_only_if_patch_adds_structure');
+        $response->assertSee('too_short');
+        $response->assertSee('missing_structure');
     }
 
     public function test_review_page_can_be_published_when_quality_gates_are_green(): void
