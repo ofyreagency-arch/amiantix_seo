@@ -534,7 +534,44 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringStartsWith('<section><p>Bridge ressources dense.</p></section>', $denseHtml);
     }
 
-    public function test_narrative_assembler_uses_real_preset_density_variants(): void
+    public function test_narrative_assembler_prefers_a_length_signal_variant_inside_a_selected_bridge(): void
+    {
+        $assembler = app(NarrativeAssembler::class);
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
+        $blueprint['composition']['narrative_phase_bridges']['resources'] = [
+            'default' => [
+                'default' => 'Bridge longueur standard.',
+                'by_length_signal' => [
+                    'expanded' => 'Bridge longueur developpee.',
+                    'compact' => 'Bridge longueur compacte.',
+                ],
+            ],
+        ];
+        $catalog = [
+            'Ressources et pages utiles a croiser' => '<section><h2>Ressources et pages utiles a croiser</h2><p>Ressources.</p></section>',
+        ];
+
+        $expandedHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>Point bref.</p></section>'
+        );
+
+        $compactHtml = $assembler->assembleHtml(
+            ['Ressources et pages utiles a croiser'],
+            $catalog,
+            $blueprint,
+            '<section><h2>Questions terrain qui reviennent souvent</h2><p>'
+            .str_repeat('Bloc precedent dense pour simuler une FAQ deja tres chargee et pleine de precision utile. ', 8)
+            .'</p></section>'
+        );
+
+        $this->assertStringStartsWith('<section><p>Bridge longueur developpee.</p></section>', $expandedHtml);
+        $this->assertStringStartsWith('<section><p>Bridge longueur compacte.</p></section>', $compactHtml);
+    }
+
+    public function test_narrative_assembler_uses_real_preset_length_variants(): void
     {
         $assembler = app(NarrativeAssembler::class);
         $defaultBlueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');

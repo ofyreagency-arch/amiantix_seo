@@ -246,6 +246,14 @@ final class NarrativeAssembler
             return ['text' => $entry, 'skip_tail_dedupe' => false];
         }
 
+        if (is_array($entry) && $this->isTextVariantEntry($entry)) {
+            $directText = $this->textForSelectedValue($entry, $existingContent);
+
+            if ($directText !== '') {
+                return ['text' => $directText, 'skip_tail_dedupe' => false];
+            }
+        }
+
         if (! is_array($entry) || $entry === []) {
             return ['text' => '', 'skip_tail_dedupe' => false];
         }
@@ -262,16 +270,22 @@ final class NarrativeAssembler
             is_string($fromPhase)
             && is_array($headingPhaseBridges)
             && is_array($headingPhaseBridges[$heading] ?? null)
-            && is_string($headingPhaseBridges[$heading][$fromPhase] ?? null)
-            && $headingPhaseBridges[$heading][$fromPhase] !== ''
         ) {
-            return ['text' => (string) $headingPhaseBridges[$heading][$fromPhase], 'skip_tail_dedupe' => false];
+            $headingPhaseText = $this->textForSelectedValue($headingPhaseBridges[$heading][$fromPhase] ?? null, $existingContent);
+
+            if ($headingPhaseText !== '') {
+                return ['text' => $headingPhaseText, 'skip_tail_dedupe' => false];
+            }
         }
 
         $headingBridges = $entry['by_heading'] ?? null;
 
-        if (is_array($headingBridges) && is_string($headingBridges[$heading] ?? null) && $headingBridges[$heading] !== '') {
-            return ['text' => (string) $headingBridges[$heading], 'skip_tail_dedupe' => false];
+        if (is_array($headingBridges)) {
+            $headingText = $this->textForSelectedValue($headingBridges[$heading] ?? null, $existingContent);
+
+            if ($headingText !== '') {
+                return ['text' => $headingText, 'skip_tail_dedupe' => false];
+            }
         }
 
         $phaseBridges = $entry['by_from_phase'] ?? null;
@@ -279,10 +293,12 @@ final class NarrativeAssembler
         if (
             is_string($fromPhase)
             && is_array($phaseBridges)
-            && is_string($phaseBridges[$fromPhase] ?? null)
-            && $phaseBridges[$fromPhase] !== ''
         ) {
-            return ['text' => (string) $phaseBridges[$fromPhase], 'skip_tail_dedupe' => false];
+            $phaseText = $this->textForSelectedValue($phaseBridges[$fromPhase] ?? null, $existingContent);
+
+            if ($phaseText !== '') {
+                return ['text' => $phaseText, 'skip_tail_dedupe' => false];
+            }
         }
 
         $densityBridges = $entry['by_density_signal'] ?? null;
@@ -291,18 +307,24 @@ final class NarrativeAssembler
         if (
             $densitySignal !== null
             && is_array($densityBridges)
-            && is_string($densityBridges[$densitySignal] ?? null)
-            && $densityBridges[$densitySignal] !== ''
         ) {
-            return ['text' => (string) $densityBridges[$densitySignal], 'skip_tail_dedupe' => false];
+            $densityText = $this->textForSelectedValue($densityBridges[$densitySignal] ?? null, $existingContent);
+
+            if ($densityText !== '') {
+                return ['text' => $densityText, 'skip_tail_dedupe' => false];
+            }
         }
 
-        if (is_string($entry[$heading] ?? null) && $entry[$heading] !== '') {
-            return ['text' => (string) $entry[$heading], 'skip_tail_dedupe' => false];
+        $namedText = $this->textForSelectedValue($entry[$heading] ?? null, $existingContent);
+
+        if ($namedText !== '') {
+            return ['text' => $namedText, 'skip_tail_dedupe' => false];
         }
 
-        if (is_string($entry['default'] ?? null) && $entry['default'] !== '') {
-            return ['text' => (string) $entry['default'], 'skip_tail_dedupe' => false];
+        $defaultText = $this->textForSelectedValue($entry['default'] ?? null, $existingContent);
+
+        if ($defaultText !== '') {
+            return ['text' => $defaultText, 'skip_tail_dedupe' => false];
         }
 
         return ['text' => '', 'skip_tail_dedupe' => false];
@@ -461,6 +483,85 @@ final class NarrativeAssembler
         }
 
         return 'balanced';
+    }
+
+    private function bridgeLengthSignalForContent(string $content): ?string
+    {
+        if ($content === '') {
+            return null;
+        }
+
+        $recentPassage = $this->recentPassageText($content);
+        $wordCount = count($this->tokens($recentPassage));
+
+        if ($wordCount === 0) {
+            return null;
+        }
+
+        if ($wordCount <= 18) {
+            return 'expanded';
+        }
+
+        if ($wordCount >= 42) {
+            return 'compact';
+        }
+
+        return 'standard';
+    }
+
+    private function textForSelectedValue(mixed $value, string $existingContent): string
+    {
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        if (! is_array($value) || $value === []) {
+            return '';
+        }
+
+        $lengthSignal = $this->bridgeLengthSignalForContent($existingContent);
+        $lengthVariants = $value['by_length_signal'] ?? null;
+
+        if (
+            $lengthSignal !== null
+            && is_array($lengthVariants)
+            && is_string($lengthVariants[$lengthSignal] ?? null)
+            && $lengthVariants[$lengthSignal] !== ''
+        ) {
+            return (string) $lengthVariants[$lengthSignal];
+        }
+
+        if (is_string($value['default'] ?? null) && $value['default'] !== '') {
+            return (string) $value['default'];
+        }
+
+        return '';
+    }
+
+    /**
+     * @param  array<string,mixed>  $value
+     */
+    private function isTextVariantEntry(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        $selectionKeys = [
+            'by_context_signal',
+            'by_heading_and_from_phase',
+            'by_heading',
+            'by_from_phase',
+            'by_density_signal',
+        ];
+
+        foreach ($selectionKeys as $key) {
+            if (array_key_exists($key, $value)) {
+                return false;
+            }
+        }
+
+        return array_key_exists('default', $value) || array_key_exists('by_length_signal', $value);
     }
 
     private function recentPassageText(string $content): string

@@ -380,10 +380,12 @@ final class AmiantixBlueprintProvider implements NicheBlueprintProvider
                         ],
                     ],
                     'resources' => [
-                        'default' => 'Quelques ressources connexes permettent enfin d élargir la lecture avec méthode.',
-                        'by_density_signal' => [
-                            'concise' => 'Le passage précédent allant à l essentiel, quelques ressources bien choisies permettent d ouvrir la suite sans casser le rythme.',
-                            'dense' => 'Après cette séquence déjà dense, quelques ressources ciblées valent mieux qu une nouvelle couche de détails.',
+                        'default' => [
+                            'default' => 'Quelques ressources connexes permettent enfin d élargir la lecture avec méthode.',
+                            'by_length_signal' => [
+                                'expanded' => 'Le passage précédent allant à l essentiel, quelques ressources bien choisies permettent d ouvrir la suite sans casser le rythme.',
+                                'compact' => 'Après cette séquence déjà dense, quelques ressources ciblées valent mieux qu une nouvelle couche de détails.',
+                            ],
                         ],
                     ],
                     'close' => 'La conclusion doit ramener l ensemble vers une action maîtrisée plutôt que vers une nouvelle pile d informations.',
