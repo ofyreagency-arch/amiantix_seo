@@ -7,11 +7,13 @@ namespace App\SeoPresets\Amiantix;
 use App\Services\Preset\BlockSelectionStrategy;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\NicheContentProvider;
+use Ofyre\SeoEngine\Services\Composition\NarrativeAssembler;
 
 final class AmiantixContentProfile implements NicheContentProvider
 {
     public function __construct(
         private readonly BlockSelectionStrategy $blockSelection,
+        private readonly NarrativeAssembler $narrative,
     ) {}
 
     public function fallbackPayload(string $keyword, string $cluster, array $blueprint, array $context = []): array
@@ -21,10 +23,11 @@ final class AmiantixContentProfile implements NicheContentProvider
         $h1 = $this->buildH1($keyword, $cluster, $blueprint);
         $links = $context['internal_links'] ?? [];
         $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
-        $content = collect($this->blockSelection->primaryHeadings($blueprint, $catalog))
-            ->map(fn (string $heading): string => $catalog[$heading] ?? '')
-            ->filter(fn (string $block): bool => $block !== '')
-            ->implode('');
+        $content = $this->narrative->assembleHtml(
+            $this->blockSelection->primaryHeadings($blueprint, $catalog),
+            $catalog,
+            $blueprint
+        );
 
         return [
             'title' => $title,
@@ -59,10 +62,11 @@ final class AmiantixContentProfile implements NicheContentProvider
         }
 
         $catalog = $this->sectionCatalog($blueprint, is_array($links) ? $links : []);
-        $enrichmentBlocks = collect($this->blockSelection->enrichmentHeadings($blueprint, $catalog, $content))
-            ->map(fn (string $heading): string => $catalog[$heading] ?? '')
-            ->filter(fn (string $block): bool => $block !== '')
-            ->all();
+        $enrichmentHeadings = $this->blockSelection->enrichmentHeadings($blueprint, $catalog, $content);
+        $enrichmentBlocks = array_values(array_filter(array_map(
+            fn (string $heading): string => (string) ($catalog[$heading] ?? ''),
+            $enrichmentHeadings
+        ), static fn (string $block): bool => $block !== ''));
 
         foreach ($enrichmentBlocks as $block) {
             if ($this->contentWordCount($content) >= 1325) {
@@ -71,6 +75,20 @@ final class AmiantixContentProfile implements NicheContentProvider
 
             if (! $this->contentContainsMarker($content, $this->sectionMarker('', $block))) {
                 $content .= $block;
+            }
+        }
+
+        if ($enrichmentHeadings !== []) {
+            $narrativeEnrichment = $this->narrative->assembleHtml($enrichmentHeadings, $catalog, $blueprint);
+
+            if ($narrativeEnrichment !== '') {
+                foreach ($enrichmentBlocks as $block) {
+                    $narrativeEnrichment = str_replace($block, '', $narrativeEnrichment);
+                }
+
+                if (trim($narrativeEnrichment) !== '') {
+                    $content .= $narrativeEnrichment;
+                }
             }
         }
 

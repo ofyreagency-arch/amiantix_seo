@@ -50,6 +50,7 @@ class AmiantixPresetGenerationRegressionTest extends TestCase
         $this->assertStringContainsString('Passer du constat a une intervention maitrisée', $content);
         $this->assertStringContainsString('<table>', $content);
         $this->assertStringContainsString('<ul>', $content);
+        $this->assertStringContainsString('Ce socle posé, l article peut montrer où le risque se manifeste vraiment sur le terrain.', $content);
         $this->assertGreaterThanOrEqual(5, count($payload['faq']));
         $this->assertGreaterThanOrEqual(1450, str_word_count(strtolower(strip_tags($content))));
     }
