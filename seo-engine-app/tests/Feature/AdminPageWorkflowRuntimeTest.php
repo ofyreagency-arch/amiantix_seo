@@ -106,6 +106,8 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertSee('Suggestion active');
         $response->assertSee('Appliquer à la page');
         $response->assertSee('Plan de patch ciblé');
+        $response->assertSee('Pourquoi ça baisse');
+        $response->assertSee('1 section(s) faible(s) tirent encore la page vers le bas.');
         $response->assertSee('Documents et preuves a conserver');
         $response->assertSee('phase proof');
         $response->assertSee('expand_and_structure');
@@ -590,6 +592,8 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertOk();
         $response->assertSee('Suggestion créée');
         $response->assertSee('Plan de patch ciblé');
+        $response->assertSee('Pourquoi ça baisse');
+        $response->assertSee('1 section(s) faible(s) tirent encore la page vers le bas.');
         $response->assertSee('Documents et preuves a conserver');
         $response->assertSee('phase proof');
         $response->assertSee('expand_and_structure');

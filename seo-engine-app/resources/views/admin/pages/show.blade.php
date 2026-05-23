@@ -38,7 +38,26 @@
             ->values()
             ->all();
     };
+    $rewriteTargetSummary = function (array $targets): array {
+        $reasonCounts = collect($targets)
+            ->flatMap(fn (array $target) => $target['reasons'] ?? [])
+            ->filter(fn ($reason) => is_string($reason) && trim($reason) !== '')
+            ->countBy()
+            ->sortDesc();
+        $phaseCounts = collect($targets)
+            ->pluck('phase')
+            ->filter(fn ($phase) => is_string($phase) && trim($phase) !== '')
+            ->countBy()
+            ->sortDesc();
+
+        return [
+            'sections' => count($targets),
+            'top_reasons' => $reasonCounts->keys()->take(3)->values()->all(),
+            'phases' => $phaseCounts->keys()->take(3)->values()->all(),
+        ];
+    };
     $latestPendingTargetPlan = $latestPendingSuggestion ? $extractRewriteTargetPlan(is_array($latestPendingSuggestion->suggestions_json ?? null) ? $latestPendingSuggestion->suggestions_json : []) : [];
+    $latestPendingTargetSummary = $rewriteTargetSummary($latestPendingTargetPlan);
     $latestMetric = $latestMetric ?? null;
     $publicationSummary = session('publication_summary', $publicationSummary ?? null);
     $enginePublished = $page->isPublishedInEngine();
@@ -289,6 +308,21 @@
                 @endif
 
                 @if(!empty($latestPendingTargetPlan))
+                    <div class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-4">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-rose-700">Pourquoi ça baisse</div>
+                        <div class="mt-2 text-sm text-gray-700">
+                            {{ $latestPendingTargetSummary['sections'] }} section(s) faible(s) tirent encore la page vers le bas.
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            @foreach($latestPendingTargetSummary['top_reasons'] as $reason)
+                                <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-rose-700">{{ $reason }}</span>
+                            @endforeach
+                            @foreach($latestPendingTargetSummary['phases'] as $phase)
+                                <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">phase {{ $phase }}</span>
+                            @endforeach
+                        </div>
+                    </div>
+
                     <div class="mt-4 rounded-2xl border border-purple-200 bg-white/80 px-4 py-4">
                         <div class="text-xs font-semibold uppercase tracking-wide text-purple-700">Plan de patch ciblé</div>
                         <div class="mt-3 space-y-3">
@@ -638,8 +672,26 @@
                 @endif
             @endif
 
-            @php $rewriteTargetPlan = $extractRewriteTargetPlan(is_array($suggestion) ? $suggestion : []); @endphp
+            @php
+                $rewriteTargetPlan = $extractRewriteTargetPlan(is_array($suggestion) ? $suggestion : []);
+                $rewriteTargetSummary = $rewriteTargetSummary($rewriteTargetPlan);
+            @endphp
             @if(!empty($rewriteTargetPlan))
+                <div class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-4">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-rose-700">Pourquoi ça baisse</div>
+                    <div class="mt-2 text-sm text-gray-700">
+                        {{ $rewriteTargetSummary['sections'] }} section(s) faible(s) tirent encore la page vers le bas.
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        @foreach($rewriteTargetSummary['top_reasons'] as $reason)
+                            <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-rose-700">{{ $reason }}</span>
+                        @endforeach
+                        @foreach($rewriteTargetSummary['phases'] as $phase)
+                            <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">phase {{ $phase }}</span>
+                        @endforeach
+                    </div>
+                </div>
+
                 <div class="mt-4 rounded-2xl border border-purple-200 bg-white/80 px-4 py-4">
                     <div class="text-xs font-semibold uppercase tracking-wide text-purple-700">Plan de patch ciblé</div>
                     <div class="mt-3 space-y-3">
