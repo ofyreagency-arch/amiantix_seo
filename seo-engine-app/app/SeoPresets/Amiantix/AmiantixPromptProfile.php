@@ -96,13 +96,18 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "Objectif: un contenu concret, expert, credibilise par le terrain, les obligations et les preuves documentaires.\n".
             "Interdictions: ne pas parler de SEO, d IA, de Google, de premium content ou de structure de page.\n".
             "Exigences:\n".
+            "- si le contenu de depart est deja riche, ne jamais le compresser en mini resume SEO\n".
+            "- conserver les H2/H3 solides, les tableaux, les checklists, les workflows, les scenarios terrain, les preuves et les transitions utiles quand ils existent deja\n".
+            "- reecrire en preservant l angle, la profondeur metier et la progression narrative avant d ajouter de nouveaux blocs\n".
+            "- si une partie est faible, la renforcer localement au lieu de raccourcir tout l article\n".
             "- situations reelles de site occupe, maintenance, travaux ou copropriete quand c est pertinent\n".
             "- coordination entre donneur d ordre, diagnostiqueur, entreprise et occupants\n".
             "- references aux documents, validations, hypotheses de travaux et points de controle\n".
             "- ajouter de l air visuel avec listes, checklists et sections courtes quand le texte est trop compact\n".
             "- style simple, humain, professionnel, sans prose marketing\n".
-            "- proposer un vrai contenu de remplacement ou d enrichissement dans proposed_content\n".
-            "Retourne un JSON avec title, meta_description, h1, proposed_content, sections, faq, internal_links et rationale.\n".
+            "- proposed_content doit etre un vrai contenu long et publiable, pas une passe de synthese ni une mini note de travail\n".
+            "- maintenir un niveau de detail compatible avec un article expert deja bien structure\n".
+            "Retourne un JSON avec title, meta_description, h1, proposed_content, sections, faq, internal_links, rationale et schema.\n".
             "Contenu actuel:\n".($page->content ?? '');
     }
 
@@ -115,7 +120,6 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             'title' => $mode === 'improve-ctr' ? $topic.' : obligations, coordination chantier et points de vigilance terrain' : null,
             'meta_description' => $mode === 'improve-ctr' ? 'Guide Amiantix pour comprendre les obligations amiante, le repérage, la coordination chantier et les preuves a conserver.' : null,
             'h1' => null,
-            'proposed_content' => '<section><h2>Passe de réécriture</h2><p>Le contenu doit mieux cadrer le repérage avant travaux, les responsabilités documentaires et les situations de chantier qui font basculer le risque amiante.</p><p>Il faut aussi mieux relier le diagnostic, les hypothèses de travaux, la coordination des acteurs et les preuves à conserver avant publication.</p></section>',
             'sections' => [
                 'Ajouter un cadrage clair sur les hypotheses de travaux, le perimetre du repérage et les documents attendus avant intervention.',
                 'Renforcer la partie terrain avec des cas de site occupe, de copropriete, de maintenance ou de coordination entre acteurs.',

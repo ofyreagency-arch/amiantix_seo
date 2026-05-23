@@ -400,9 +400,55 @@ class RewriteSignalRegressionTest extends TestCase
         );
     }
 
+    public function test_rewrite_fallback_preserves_a_rich_existing_article_instead_of_collapsing_it_into_a_short_patch(): void
+    {
+        $page = SeoPage::query()->create([
+            'site_id' => 'rewrite-site',
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'cluster' => 'diagnostics',
+            'title' => 'Diagnostic amiante Paris',
+            'content' => implode('', [
+                '<section><h2>Contexte et obligations</h2><p>'.str_repeat('Contexte documentaire et obligations terrain. ', 25).'</p></section>',
+                '<section><h2>Processus d intervention et coordination</h2><p>'.str_repeat('Workflow, coordination, hypothese de travaux et preparation. ', 25).'</p></section>',
+                '<section><h2>Documents et preuves a conserver</h2><p>'.str_repeat('Pieces, traces, diffusion et validations documentaires. ', 25).'</p></section>',
+                '<section><h2>Matrice de controle documentaire et terrain</h2><p>Controle.</p><table><tr><td>amiante</td></tr></table></section>',
+                '<section><h2>Passer du constat a une intervention maitrisée</h2><p>'.str_repeat('Decision, arbitrage et verification finale. ', 25).'</p></section>',
+            ]),
+            'seo_score' => 72,
+            'indexability_score' => 88,
+            'spam_risk' => 'low',
+            'internal_links_json' => [],
+        ]);
+
+        $service = $this->rewriteService(
+            new class implements RewriteAccessDecider
+            {
+                public function rewriteAllowed(object $page): bool
+                {
+                    return true;
+                }
+            },
+            $this->promptProfile(),
+        );
+
+        $suggestion = $service->createSuggestion($page, 'enrich');
+
+        $this->assertStringContainsString('<h2>Contexte et obligations</h2>', (string) $suggestion->suggestions_json['proposed_content']);
+        $this->assertStringContainsString('<h2>Processus d intervention et coordination</h2>', (string) $suggestion->suggestions_json['proposed_content']);
+        $this->assertStringContainsString('<table>', (string) $suggestion->suggestions_json['proposed_content']);
+        $this->assertStringNotContainsString('<h2>Passe de réécriture</h2>', (string) $suggestion->suggestions_json['proposed_content']);
+    }
+
     private function rewriteService(RewriteAccessDecider $access, PromptProfileProvider $prompts): SeoRewriteService
     {
-        return new class($access, $prompts, new DatabaseSeoSuggestionPersister()) extends SeoRewriteService
+        return new class(
+            $access,
+            $prompts,
+            new DatabaseSeoSuggestionPersister(),
+            app(\Ofyre\SeoEngine\Contracts\NicheBlueprintProvider::class),
+            app(\Ofyre\SeoEngine\Contracts\NicheContentProvider::class),
+        ) extends SeoRewriteService
         {
             protected function rewriteWithAi(object $page, string $mode): ?array
             {

@@ -7,6 +7,8 @@ namespace Ofyre\SeoEngine\Services\Rewrite;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Ofyre\SeoEngine\Contracts\NicheBlueprintProvider;
+use Ofyre\SeoEngine\Contracts\NicheContentProvider;
 use Ofyre\SeoEngine\Contracts\PromptProfileProvider;
 use Ofyre\SeoEngine\Contracts\RewriteAccessDecider;
 use Ofyre\SeoEngine\Contracts\SeoSuggestionPersister;
@@ -19,6 +21,8 @@ class SeoRewriteService
         private readonly RewriteAccessDecider $overrides,
         private readonly PromptProfileProvider $prompts,
         private readonly SeoSuggestionPersister $suggestions,
+        private readonly NicheBlueprintProvider $blueprints,
+        private readonly NicheContentProvider $content,
     ) {}
 
     public function createSuggestion(object $page, string $mode): mixed
@@ -286,45 +290,53 @@ class SeoRewriteService
      */
     private function ensureProposedContent(object $page, array $suggestions, string $mode): array
     {
-        $existing = trim($this->normalizeSuggestedContent($suggestions['content'] ?? $suggestions['proposed_content'] ?? ''));
-
-        if ($existing !== '') {
-            $suggestions['proposed_content'] = $existing;
-
-            return $suggestions;
-        }
-
+        $cluster = (string) ($page->cluster ?? '');
+        $blueprint = $this->blueprints->resolve((string) ($page->keyword ?? ''), $cluster !== '' ? $cluster : null);
+        $currentContent = trim((string) ($page->content ?? ''));
+        $suggestedContent = trim($this->normalizeSuggestedContent($suggestions['content'] ?? $suggestions['proposed_content'] ?? ''));
         $sections = collect($suggestions['sections'] ?? [])
             ->filter(fn (mixed $item): bool => is_string($item) && trim($item) !== '')
-            ->values();
+            ->values()
+            ->all();
 
-        if ($sections->isEmpty()) {
+        $baseContent = $suggestedContent;
+
+        if ($baseContent === '' || $this->shouldPreserveExistingNarrative($currentContent, $baseContent, $mode)) {
+            $baseContent = $currentContent;
+        }
+
+        if ($baseContent === '') {
+            $baseContent = (string) ($this->content->fallbackPayload(
+                (string) ($page->keyword ?? ''),
+                $cluster,
+                $blueprint,
+                [
+                    'page' => $page,
+                    'rewrite_mode' => $mode,
+                    'rewrite_sections' => $sections,
+                    'rewrite_rationale' => $suggestions['rationale'] ?? [],
+                    'internal_links' => $suggestions['internal_links'] ?? $page->internal_links_json ?? [],
+                ]
+            )['content'] ?? '');
+        }
+
+        if ($suggestedContent === '' && $baseContent !== '' && $sections !== []) {
+            $baseContent .= $this->renderRewriteFocusSection($mode, $sections);
+        }
+
+        if ($baseContent === '') {
             return $suggestions;
         }
 
-        $opening = match ($mode) {
-            'rewrite' => 'Cette passe propose une réécriture complète de la page avec un angle plus net et plus utile.',
-            'de-duplicate' => 'Cette passe clarifie l intention de recherche et différencie la page des contenus proches.',
-            'improve-ctr' => 'Cette passe renforce surtout la promesse éditoriale visible dans le titre et la meta.',
-            'improve-indexability' => 'Cette passe vise une page plus propre à publier et plus facile à indexer.',
-            default => 'Cette passe enrichit la page existante en gardant son angle principal tout en la rendant plus utile.',
-        };
-
-        $body = $sections
-            ->map(function (string $section, int $index): string {
-                $heading = 'Amélioration prioritaire '.($index + 1);
-
-                return '<section><h2>'.$heading.'</h2><p>'.$section.'</p></section>';
-            })
-            ->implode('');
-
-        $faq = collect($suggestions['faq'] ?? [])
-            ->filter(fn (mixed $item): bool => is_array($item) && isset($item['question']))
-            ->take(3)
-            ->map(fn (array $item): string => '<section><h3>'.((string) ($item['question'] ?? 'Question')).'</h3><p>'.((string) ($item['answer'] ?? '')).'</p></section>')
-            ->implode('');
-
-        $suggestions['proposed_content'] = '<section><h2>Passe de réécriture</h2><p>'.$opening.'</p><p>'.((string) ($page->meta_description ?? $page->keyword ?? '')).'</p></section>'.$body.$faq;
+        $suggestions['proposed_content'] = $this->content->ensureContentDepth($baseContent, $blueprint, [
+            'keyword' => (string) ($page->keyword ?? ''),
+            'cluster' => $cluster,
+            'page' => $page,
+            'rewrite_mode' => $mode,
+            'rewrite_sections' => $sections,
+            'rewrite_rationale' => $suggestions['rationale'] ?? [],
+            'internal_links' => $suggestions['internal_links'] ?? $page->internal_links_json ?? [],
+        ]);
 
         return $suggestions;
     }
@@ -372,5 +384,68 @@ class SeoRewriteService
             })
             ->filter(fn (string $section): bool => $section !== '')
             ->implode('');
+    }
+
+    private function shouldPreserveExistingNarrative(string $currentContent, string $suggestedContent, string $mode): bool
+    {
+        if ($currentContent === '' || $suggestedContent === '') {
+            return false;
+        }
+
+        $currentWords = $this->wordCount($currentContent);
+        $suggestedWords = $this->wordCount($suggestedContent);
+        $currentHeadings = $this->headingCount($currentContent);
+        $suggestedHeadings = $this->headingCount($suggestedContent);
+        $currentHasTable = str_contains(Str::lower($currentContent), '<table');
+        $suggestedHasTable = str_contains(Str::lower($suggestedContent), '<table');
+
+        if ($currentWords < 900 || $currentHeadings < 5) {
+            return false;
+        }
+
+        if ($mode === 'improve-ctr' && $suggestedWords >= 350 && $suggestedHeadings >= 2) {
+            return false;
+        }
+
+        return $suggestedWords < (int) round($currentWords * 0.65)
+            || $suggestedHeadings < max(2, (int) floor($currentHeadings / 2))
+            || ($currentHasTable && ! $suggestedHasTable);
+    }
+
+    /**
+     * @param  array<int,string>  $sections
+     */
+    private function renderRewriteFocusSection(string $mode, array $sections): string
+    {
+        $heading = match ($mode) {
+            'rewrite' => 'Points a renforcer dans la reecriture',
+            'de-duplicate' => 'Points a clarifier pour differencier la page',
+            'improve-ctr' => 'Promesses a rendre plus visibles',
+            'improve-indexability' => 'Points a fiabiliser avant publication',
+            default => 'Points a renforcer dans cette version',
+        };
+
+        $items = collect($sections)
+            ->take(4)
+            ->map(fn (string $section): string => '<li>'.$section.'</li>')
+            ->implode('');
+
+        if ($items === '') {
+            return '';
+        }
+
+        return '<section><h2>'.$heading.'</h2><ul>'.$items.'</ul></section>';
+    }
+
+    private function wordCount(string $content): int
+    {
+        return str_word_count(Str::ascii(strip_tags($content)));
+    }
+
+    private function headingCount(string $content): int
+    {
+        preg_match_all('/<h2\b/i', $content, $matches);
+
+        return count($matches[0] ?? []);
     }
 }
