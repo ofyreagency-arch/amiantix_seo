@@ -286,7 +286,7 @@ class SeoRewriteService
      */
     private function ensureProposedContent(object $page, array $suggestions, string $mode): array
     {
-        $existing = trim((string) ($suggestions['content'] ?? $suggestions['proposed_content'] ?? ''));
+        $existing = trim($this->normalizeSuggestedContent($suggestions['content'] ?? $suggestions['proposed_content'] ?? ''));
 
         if ($existing !== '') {
             $suggestions['proposed_content'] = $existing;
@@ -327,5 +327,50 @@ class SeoRewriteService
         $suggestions['proposed_content'] = '<section><h2>Passe de réécriture</h2><p>'.$opening.'</p><p>'.((string) ($page->meta_description ?? $page->keyword ?? '')).'</p></section>'.$body.$faq;
 
         return $suggestions;
+    }
+
+    private function normalizeSuggestedContent(mixed $content): string
+    {
+        if (is_string($content)) {
+            return $content;
+        }
+
+        if (! is_array($content)) {
+            return '';
+        }
+
+        return collect($content)
+            ->map(function (mixed $section): string {
+                if (is_string($section)) {
+                    return trim($section);
+                }
+
+                if (! is_array($section)) {
+                    return '';
+                }
+
+                $heading = trim((string) ($section['H2'] ?? $section['h2'] ?? $section['title'] ?? ''));
+                $paragraph = trim((string) ($section['paragraph'] ?? $section['content'] ?? $section['text'] ?? ''));
+
+                if ($heading === '' && $paragraph === '') {
+                    return '';
+                }
+
+                $html = '<section>';
+
+                if ($heading !== '') {
+                    $html .= '<h2>'.$heading.'</h2>';
+                }
+
+                if ($paragraph !== '') {
+                    $html .= '<p>'.$paragraph.'</p>';
+                }
+
+                $html .= '</section>';
+
+                return $html;
+            })
+            ->filter(fn (string $section): bool => $section !== '')
+            ->implode('');
     }
 }

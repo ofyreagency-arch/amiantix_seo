@@ -15,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
+use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 use Tests\TestCase;
 
 class AdminPageWorkflowRuntimeTest extends TestCase
@@ -263,6 +264,62 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertCount(5, $page->faq_json ?? []);
     }
 
+    public function test_generate_keeps_ai_content_when_openai_returns_structured_content_array(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output' => [[
+                    'content' => [[
+                        'text' => json_encode([
+                            'title' => 'Plan de retrait amiante en copropriete',
+                            'meta_description' => 'Meta complète',
+                            'h1' => 'Plan de retrait amiante',
+                            'content' => [
+                                [
+                                    'H2' => 'Contexte et obligations',
+                                    'paragraph' => 'Le phasage doit être cadré avant intervention.',
+                                    'items' => ['Repérage', 'Coordination', 'Preuves'],
+                                ],
+                                [
+                                    'H2' => 'Blocages fréquents',
+                                    'paragraph' => 'Les accès et versions documentaires doivent être alignés.',
+                                ],
+                            ],
+                            'faq' => [
+                                ['question' => 'Quand faut-il cadrer ?', 'answer' => 'Avant diffusion du scénario travaux.'],
+                                ['question' => 'Qui coordonne ?', 'answer' => 'Le donneur d ordre avec les acteurs du chantier.'],
+                                ['question' => 'Pourquoi tracer ?', 'answer' => 'Pour éviter les zones grises documentaires.'],
+                                ['question' => 'Que vérifier ?', 'answer' => 'Zones, hypothèses et accès.'],
+                                ['question' => 'Quel risque majeur ?', 'answer' => 'Le décalage entre hypothèse et terrain.'],
+                            ],
+                            'schema' => [['@type' => 'Article'], ['@type' => 'FAQPage']],
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'preset' => 'amiantix',
+            'locale' => 'fr',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        app(SeoEngineContext::class)->loadFromSite($site);
+
+        $page = app(SeoGeneratePageRunner::class)->run('Plan de retrait amiante en copropriete', 'draft', false)['page'];
+
+        $this->assertSame('hybrid', $page->generation_source);
+        $this->assertStringContainsString('<h2>Contexte et obligations</h2>', (string) $page->content);
+        $this->assertStringContainsString('<ul><li>Repérage</li><li>Coordination</li><li>Preuves</li></ul>', (string) $page->content);
+        $this->assertNull($page->generation_error);
+    }
+
     public function test_applying_a_suggestion_updates_page_fields_and_marks_it_applied(): void
     {
         $site = SeoSite::query()->create([
@@ -324,6 +381,75 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertNotNull($suggestion->applied_at);
         $this->assertSame('Quand faut-il agir ?', $page->faq_json[0]['question']);
         $this->assertSame('Diagnostic amiante', $page->internal_links_json[0]['label']);
+    }
+
+    public function test_rewrite_suggestion_accepts_structured_content_without_triggering_array_to_string_error(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output' => [[
+                    'content' => [[
+                        'text' => json_encode([
+                            'title' => 'Titre réécrit',
+                            'meta_description' => 'Meta réécrite',
+                            'content' => [
+                                [
+                                    'H2' => 'Priorité 1',
+                                    'paragraph' => 'Ajouter un cadrage documentaire plus concret.',
+                                ],
+                                [
+                                    'H2' => 'Priorité 2',
+                                    'paragraph' => 'Clarifier les rôles MOA, MOE et SPS.',
+                                ],
+                            ],
+                            'sections' => [
+                                'Ajouter un cadrage documentaire plus concret.',
+                                'Clarifier les rôles MOA, MOE et SPS.',
+                            ],
+                            'rationale' => [
+                                'Le contenu doit mieux différencier les blocages terrain.',
+                            ],
+                            'faq' => [
+                                ['question' => 'Quand faut-il agir ?', 'answer' => 'Avant diffusion des hypothèses.'],
+                            ],
+                            'internal_links' => [
+                                ['url' => '/diagnostic-amiante-copropriete', 'label' => 'Diagnostic amiante copropriete'],
+                            ],
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'preset' => 'amiantix',
+            'locale' => 'fr',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        app(SeoEngineContext::class)->loadFromSite($site);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'plan de retrait amiante en copropriete',
+            'slug' => 'plan-de-retrait-amiante-en-copropriete',
+            'cluster' => 'copropriete',
+            'status' => 'draft',
+            'title' => 'Ancien titre',
+            'meta_description' => 'Ancienne meta',
+            'content' => '<p>Contenu initial.</p>',
+        ]);
+
+        $suggestion = app(SeoRewriteService::class)->createSuggestion($page, 'enrich');
+
+        $this->assertNotNull($suggestion);
+        $this->assertStringContainsString('<h2>Priorité 1</h2>', (string) $suggestion->suggestions_json['proposed_content']);
+        $this->assertStringContainsString('Ajouter un cadrage documentaire plus concret.', (string) $suggestion->suggestions_json['proposed_content']);
     }
 
     public function test_review_page_can_be_published_when_quality_gates_are_green(): void

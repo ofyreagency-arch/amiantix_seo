@@ -336,6 +336,8 @@ class SeoGenerationService
             ];
         }
 
+        $decoded = $this->normalizeAiPayload($decoded);
+
         if (! $this->isCompletePayload($decoded)) {
             $missingKeys = $this->missingPayloadKeys($decoded);
 
@@ -350,7 +352,7 @@ class SeoGenerationService
 
             return [
                 'payload' => $decoded,
-                'error' => 'OpenAI a renvoyé un payload partiel, fallback activé. Clés manquantes : '.implode(', ', $missingKeys).'.',
+                'error' => 'OpenAI a renvoyé un payload partiel, complément preset requis. Clés manquantes : '.implode(', ', $missingKeys).'.',
                 'trace' => [
                     'error_type' => 'partial_generation',
                     'returned_keys' => array_values(array_map('strval', array_keys($decoded))),
@@ -520,6 +522,77 @@ class SeoGenerationService
         }
 
         return $merged;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function normalizeAiPayload(array $payload): array
+    {
+        if (array_key_exists('content', $payload)) {
+            $payload['content'] = $this->normalizeAiContent($payload['content']);
+        }
+
+        return $payload;
+    }
+
+    protected function normalizeAiContent(mixed $content): string
+    {
+        if (is_string($content)) {
+            return $content;
+        }
+
+        if (! is_array($content)) {
+            return '';
+        }
+
+        $sections = collect($content)
+            ->map(function (mixed $section): string {
+                if (is_string($section)) {
+                    return trim($section);
+                }
+
+                if (! is_array($section)) {
+                    return '';
+                }
+
+                $heading = trim((string) ($section['H2'] ?? $section['h2'] ?? $section['title'] ?? ''));
+                $paragraph = trim((string) ($section['paragraph'] ?? $section['content'] ?? $section['text'] ?? ''));
+
+                if ($heading === '' && $paragraph === '') {
+                    return '';
+                }
+
+                $html = '<section>';
+
+                if ($heading !== '') {
+                    $html .= '<h2>'.$heading.'</h2>';
+                }
+
+                if ($paragraph !== '') {
+                    $html .= '<p>'.$paragraph.'</p>';
+                }
+
+                if (is_array($section['items'] ?? null)) {
+                    $items = collect($section['items'])
+                        ->filter(fn (mixed $item): bool => is_scalar($item) && trim((string) $item) !== '')
+                        ->map(fn (mixed $item): string => '<li>'.trim((string) $item).'</li>')
+                        ->implode('');
+
+                    if ($items !== '') {
+                        $html .= '<ul>'.$items.'</ul>';
+                    }
+                }
+
+                $html .= '</section>';
+
+                return $html;
+            })
+            ->filter(fn (string $section): bool => $section !== '')
+            ->implode('');
+
+        return $sections;
     }
 
     protected function canonicalPathFor(object $page): string
