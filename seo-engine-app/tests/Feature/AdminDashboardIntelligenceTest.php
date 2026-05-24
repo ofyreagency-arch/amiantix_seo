@@ -166,14 +166,14 @@ class AdminDashboardIntelligenceTest extends TestCase
             ->get(route('admin.dashboard'));
 
         $response->assertOk();
-        $response->assertSee('SEO Brain Runtime');
-        $response->assertSee('Queues réelles du moteur');
-        $response->assertSee('Sources de vérité du cockpit');
+        $response->assertSee('Dashboard Intelligence');
+        $response->assertSee('Queues du moteur');
         $response->assertSee('Backlog prioritaire');
+        $response->assertSee('Queues réelles du moteur');
+        $response->assertSee('Lifecycle des actions');
         $response->assertSee('Santé multi-sites');
         $response->assertSee('Dashboard Site');
         $response->assertSee('Strengthen weak observed page');
-        $response->assertSee('Lifecycle des actions');
         $response->assertSee('Hotspots du graph');
         $response->assertSee('Query hotspots');
         $response->assertSee('Pages observées sous tension');

@@ -162,10 +162,23 @@ class AdminPagesController extends Controller
         $result = $workflow->apply($suggestion);
         $updatedFields = $result['updated_fields'];
         $bodyApplied = $result['body_applied'];
+        $contentBlockedForRegression = $result['content_blocked_for_regression'] ?? false;
 
         $page = SeoPage::query()->find($pageId);
         if ($page) {
-            $scoreRefresh->refresh($page->refresh());
+            $page = $scoreRefresh->refresh($page->refresh());
+
+            if ($contentBlockedForRegression) {
+                $page->update([
+                    'review_issues_json' => collect($page->review_issues_json ?? [])
+                        ->map(fn (mixed $item): string => is_array($item) ? (string) ($item['message'] ?? json_encode($item)) : (string) $item)
+                        ->push('Content patch skipped because it would degrade the current article quality.')
+                        ->filter(fn (string $item): bool => trim($item) !== '')
+                        ->unique()
+                        ->values()
+                        ->all(),
+                ]);
+            }
         }
 
         $message = $bodyApplied
@@ -181,6 +194,10 @@ class AdminPagesController extends Controller
 
         if (! $bodyApplied && $result['signal_notes_applied']) {
             $redirect->with('warning', 'Cette suggestion ne contenait pas de corps complet à injecter. Ses recommandations ont été ramenées dans la fiche page pour guider la prochaine passe éditoriale.');
+        }
+
+        if ($contentBlockedForRegression) {
+            $redirect->with('warning', 'Le patch de contenu a été bloqué pour éviter de dégrader un article déjà plus fort. Les autres améliorations sûres ont été conservées.');
         }
 
         return $redirect;

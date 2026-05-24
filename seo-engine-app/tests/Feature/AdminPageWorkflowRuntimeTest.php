@@ -100,14 +100,14 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             ->get(route('admin.pages.show', [$site->site_id, $page->id]));
 
         $response->assertOk();
-        $response->assertSee('Statut éditorial moteur');
+        $response->assertSee('Diagnostic de publication moteur');
         $response->assertSee('Workflow éditorial');
-        $response->assertSee('Observed runtime');
+        $response->assertSee('Source observée');
         $response->assertSee('Suggestion active');
         $response->assertSee('Appliquer à la page');
         $response->assertSee('Plan de patch ciblé');
         $response->assertSee('Pourquoi ça baisse');
-        $response->assertSee('1 section(s) faible(s) tirent encore la page vers le bas.');
+        $response->assertSee('1 section(s) faible(s) tirent la page vers le bas.');
         $response->assertSee('Documents et preuves a conserver');
         $response->assertSee('phase proof');
         $response->assertSee('expand_and_structure');
@@ -472,6 +472,91 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertSame('Diagnostic amiante', $page->internal_links_json[0]['label']);
     }
 
+    public function test_applying_a_regressive_suggestion_preserves_a_strong_article_body_and_faq_depth(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante paris', 'diagnostics');
+        $payload = app(AmiantixContentProfile::class)->fallbackPayload('diagnostic amiante paris', 'diagnostics', $blueprint);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'cluster' => 'diagnostics',
+            'status' => 'draft',
+            'title' => $payload['title'],
+            'h1' => $payload['h1'],
+            'meta_description' => $payload['meta_description'],
+            'content' => $payload['content'],
+            'faq_json' => $payload['faq'],
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/diagnostic-amiante', 'label' => 'Diagnostic amiante'],
+                ['url' => '/reperage-amiante-avant-travaux', 'label' => 'Repérage amiante avant travaux'],
+                ['url' => '/ss4-amiante', 'label' => 'SS4 amiante'],
+                ['url' => '/dta-amiante', 'label' => 'DTA amiante'],
+                ['url' => '/coordination-amiante', 'label' => 'Coordination amiante'],
+            ],
+            'image_prompt' => 'Illustration editoriale amiante chantier coordination documentaire',
+        ]);
+
+        $originalContent = (string) $page->content;
+        $originalFaqCount = count($page->faq_json ?? []);
+
+        $suggestion = SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:enrich',
+            'signals_json' => ['seo_score' => 84],
+            'suggestions_json' => [
+                'title' => 'Diagnostic amiante Paris : version plus claire',
+                'meta_description' => 'Meta plus concise.',
+                'content' => '<section><h2>Contexte</h2><p>Texte bref.</p></section><section><h2>FAQ</h2><p>Réponse rapide.</p></section>',
+                'faq' => [
+                    ['question' => 'Q1', 'answer' => 'R1'],
+                    ['question' => 'Q2', 'answer' => 'R2'],
+                    ['question' => 'Q3', 'answer' => 'R3'],
+                ],
+                'internal_links' => [
+                    ['url' => '/diagnostic-amiante-prix', 'text' => 'Diagnostic amiante prix'],
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.suggestions.apply', [$site->site_id, $page->id, $suggestion->id]));
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+        $response->assertSessionHas('warning');
+
+        $page->refresh();
+        $suggestion->refresh();
+
+        $this->assertSame('review', $page->status);
+        $this->assertSame('Diagnostic amiante Paris : version plus claire', $page->title);
+        $this->assertSame('Meta plus concise.', $page->meta_description);
+        $this->assertSame($originalContent, (string) $page->content);
+        $this->assertGreaterThanOrEqual($originalFaqCount, count($page->faq_json ?? []));
+        $this->assertContains('Content patch skipped because it would degrade the current article quality.', $page->review_issues_json ?? []);
+        $this->assertSame('applied', $suggestion->status);
+        $this->assertNotNull($suggestion->applied_at);
+        $this->assertCount(6, $page->internal_links_json ?? []);
+    }
+
     public function test_rewrite_suggestion_accepts_structured_content_without_triggering_array_to_string_error(): void
     {
         Http::fake([
@@ -593,7 +678,7 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertSee('Suggestion créée');
         $response->assertSee('Plan de patch ciblé');
         $response->assertSee('Pourquoi ça baisse');
-        $response->assertSee('1 section(s) faible(s) tirent encore la page vers le bas.');
+        $response->assertSee('1 section(s) faible(s).');
         $response->assertSee('Documents et preuves a conserver');
         $response->assertSee('phase proof');
         $response->assertSee('expand_and_structure');
@@ -774,7 +859,7 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             ->get(route('admin.pages.show', [$site->site_id, $page->id]));
 
         $response->assertOk();
-        $response->assertSee('Source réelle de génération');
+        $response->assertSee('Source de génération');
         $response->assertSee('Fallback preset');
         $response->assertSee('Connexion OpenAI impossible');
     }
