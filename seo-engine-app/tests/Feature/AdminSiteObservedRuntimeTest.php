@@ -121,7 +121,7 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertOk();
         $response->assertSee('Couche observée');
         $response->assertSee('Alertes observed');
-        $response->assertSee('Pages moteur');
+        $response->assertSee('Articles');
         $response->assertSee('Site Runtime');
         $response->assertSee('/page-bloquee');
         $response->assertSee('critical');

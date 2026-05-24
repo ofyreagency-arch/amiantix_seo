@@ -181,7 +181,9 @@ class RewriteSignalRegressionTest extends TestCase
 
         $suggestion = $service->createSuggestion($page->fresh(['suggestions']), 'totally-invalid-mode');
 
-        $this->assertSame('rewrite_engine:enrich', $suggestion->source);
+        $this->assertSame('rewrite_engine:add-faq-only', $suggestion->source);
+        $this->assertSame('add-faq-only', $suggestion->suggestions_json['mode']);
+        $this->assertSame('enrich', $suggestion->suggestions_json['requested_mode']);
         $this->assertContains('Ajouter un comparatif opérationnel.', $suggestion->suggestions_json['sections']);
         $this->assertSame(1, $suggestion->suggestions_json['signals_summary']['pending_rewrite_signals']);
     }
@@ -200,9 +202,13 @@ class RewriteSignalRegressionTest extends TestCase
 
         SeoSuggestion::query()->create([
             'seo_page_id' => $page->id,
-            'source' => 'rewrite_engine:enrich',
+            'source' => 'rewrite_engine:add-faq-only',
             'signals_json' => ['legacy' => true],
-            'suggestions_json' => ['mode' => 'enrich', 'sections' => ['Ancienne suggestion']],
+            'suggestions_json' => [
+                'mode' => 'add-faq-only',
+                'requested_mode' => 'enrich',
+                'sections' => ['Ancienne suggestion'],
+            ],
             'status' => 'pending',
         ]);
 
@@ -219,11 +225,11 @@ class RewriteSignalRegressionTest extends TestCase
 
         $suggestion = $service->createSuggestion($page, 'enrich');
 
-        $this->assertSame('rewrite_engine:enrich', $suggestion->source);
+        $this->assertSame('rewrite_engine:add-faq-only', $suggestion->source);
         $this->assertDatabaseCount('seo_suggestions', 1);
         $this->assertDatabaseMissing('seo_suggestions', [
             'seo_page_id' => $page->id,
-            'source' => 'rewrite_engine:enrich',
+            'source' => 'rewrite_engine:add-faq-only',
             'status' => 'pending',
             'id' => 1,
         ]);
@@ -570,6 +576,99 @@ class RewriteSignalRegressionTest extends TestCase
             'Target the currently weak sections before compacting the full article.',
             $suggestion->suggestions_json['rationale']
         );
+    }
+
+    public function test_enrich_auto_resolves_to_add_heading_depth_only_when_the_article_lacks_h2_h3_depth(): void
+    {
+        $page = SeoPage::query()->create([
+            'site_id' => 'rewrite-site',
+            'keyword' => 'dta amiante copropriete',
+            'slug' => 'dta-amiante-copropriete',
+            'cluster' => 'dta',
+            'title' => 'DTA amiante copropriete',
+            'content' => implode('', [
+                '<section><h2>Obligations du DTA</h2><p>'.str_repeat('Obligations du syndic et diffusion du dossier. ', 35).'</p></section>',
+                '<section><h2>Mise a jour du dossier</h2><p>'.str_repeat('Mise a jour apres travaux et nouvelles informations utiles. ', 35).'</p></section>',
+                '<section><h2>Documents a conserver</h2><p>'.str_repeat('Documents, traces et validations utiles. ', 20).'</p></section>',
+            ]),
+            'seo_score' => 72,
+            'indexability_score' => 72,
+            'spam_risk' => 'low',
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'internal_links_json' => [],
+        ]);
+
+        $service = $this->rewriteService(
+            new class implements RewriteAccessDecider
+            {
+                public function rewriteAllowed(object $page): bool
+                {
+                    return true;
+                }
+            },
+            $this->promptProfile(),
+        );
+
+        $suggestion = $service->createSuggestion($page, 'enrich');
+
+        $this->assertSame('rewrite_engine:add-heading-depth-only', $suggestion->source);
+        $this->assertSame('add-heading-depth-only', $suggestion->suggestions_json['mode']);
+        $this->assertSame('enrich', $suggestion->suggestions_json['requested_mode']);
+        $this->assertSame('add-heading-depth-only', $suggestion->suggestions_json['signals_summary']['effective_mode']);
+        $this->assertSame('enrich', $suggestion->suggestions_json['signals_summary']['requested_mode']);
+    }
+
+    public function test_micro_fix_is_rejected_when_the_same_target_signature_was_already_applied_before(): void
+    {
+        $page = SeoPage::query()->create([
+            'site_id' => 'rewrite-site',
+            'keyword' => 'dta amiante copropriete',
+            'slug' => 'dta-amiante-copropriete',
+            'cluster' => 'dta',
+            'title' => 'DTA amiante copropriete',
+            'content' => implode('', [
+                '<section><h2>Obligations du DTA</h2><p>'.str_repeat('Obligations du syndic et diffusion du dossier. ', 35).'</p></section>',
+                '<section><h2>Mise a jour du dossier</h2><p>'.str_repeat('Mise a jour apres travaux et nouvelles informations utiles. ', 35).'</p></section>',
+                '<section><h2>Documents a conserver</h2><p>'.str_repeat('Documents, traces et validations utiles. ', 20).'</p></section>',
+            ]),
+            'seo_score' => 72,
+            'indexability_score' => 72,
+            'spam_risk' => 'low',
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'internal_links_json' => [],
+        ]);
+
+        $service = $this->rewriteService(
+            new class implements RewriteAccessDecider
+            {
+                public function rewriteAllowed(object $page): bool
+                {
+                    return true;
+                }
+            },
+            $this->promptProfile(),
+        );
+
+        $firstSuggestion = $service->createSuggestion($page, 'enrich');
+        $this->assertSame('rewrite_engine:add-heading-depth-only', $firstSuggestion->source);
+
+        $firstSuggestion->forceFill([
+            'status' => 'applied',
+        ])->save();
+
+        $suggestion = $service->createSuggestion($page->fresh(), 'enrich');
+
+        $this->assertSame('rewrite_engine:add-heading-depth-only', $suggestion->source);
+        $this->assertSame('rejected', $suggestion->status);
+        $this->assertTrue($suggestion->suggestions_json['blocked']);
+        $this->assertSame('add-heading-depth-only', $suggestion->suggestions_json['mode']);
+        $this->assertSame('enrich', $suggestion->suggestions_json['requested_mode']);
+        $this->assertSame(1, $suggestion->suggestions_json['signals_summary']['repeat_attempts']);
+        $this->assertSame(
+            $firstSuggestion->suggestions_json['signals_summary']['rewrite_target_signature'],
+            $suggestion->suggestions_json['signals_summary']['rewrite_target_signature']
+        );
+        $this->assertStringContainsString('already been targeted enough times', $suggestion->suggestions_json['reason']);
     }
 
     public function test_rewrite_merge_helper_replaces_an_existing_weak_section_when_the_patch_targets_the_same_heading(): void

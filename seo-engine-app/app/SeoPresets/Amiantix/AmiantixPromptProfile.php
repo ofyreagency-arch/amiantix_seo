@@ -93,6 +93,13 @@ final class AmiantixPromptProfile implements PromptProfileProvider
         $weakSectionProfiles = is_array($page->rewrite_weak_section_profiles ?? null) ? $page->rewrite_weak_section_profiles : [];
         $weakSectionInstructions = is_array($page->rewrite_weak_section_instructions ?? null) ? $page->rewrite_weak_section_instructions : [];
         $rewriteTargetPlan = is_array($page->rewrite_target_plan ?? null) ? $page->rewrite_target_plan : [];
+        $modeInstruction = match ($mode) {
+            'add-table-only' => 'Tu dois surtout ajouter ou renforcer un vrai tableau HTML utile, sans rewriter tout l article.',
+            'add-heading-depth-only' => 'Tu dois surtout ajouter des H2/H3 manquants et mieux distribuer la structure, sans changer inutilement le fond.',
+            'add-faq-only' => 'Tu dois surtout renforcer ou completer la FAQ utile, sans toucher au reste de l article si ce n est pas necessaire.',
+            'add-internal-links-only' => 'Tu dois surtout proposer un meilleur maillage interne utile a l indexation et a la navigation, sans reecriture large.',
+            default => 'Tu peux enrichir localement les zones faibles, mais sans compresser le contenu deja fort.',
+        };
 
         return "Reecris un article Amiantix sur le risque amiante.\n".
             'Mode: '.$mode."\n".
@@ -103,6 +110,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             'Consignes de patch par section faible: '.json_encode($weakSectionInstructions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             'Plan de patch cible par section: '.json_encode(array_values($rewriteTargetPlan), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n".
             "Objectif: un contenu concret, expert, credibilise par le terrain, les obligations et les preuves documentaires.\n".
+            $modeInstruction."\n".
             "Interdictions: ne pas parler de SEO, d IA, de Google, de premium content ou de structure de page.\n".
             "Exigences:\n".
             "- si le contenu de depart est deja riche, ne jamais le compresser en mini resume SEO\n".
@@ -127,22 +135,53 @@ final class AmiantixPromptProfile implements PromptProfileProvider
     {
         $topic = Str::headline((string) ($page->keyword ?? 'Risque amiante'));
 
+        $sections = match ($mode) {
+            'add-table-only' => [
+                'Ajouter un tableau HTML qui relie situation reelle, risque, consequence, mesure, responsable et preuve documentaire a conserver.',
+                'Nommer clairement le tableau pour qu il soit visible comme bloc de synthese exploitable.',
+            ],
+            'add-heading-depth-only' => [
+                'Ajouter plusieurs H2/H3 couvrant obligations, mise a jour, documents a conserver, points de vigilance et cas pratiques.',
+                'Decouper les parties trop compactes en sous-sections claires et respirables.',
+            ],
+            'add-faq-only' => [
+                'Ajouter une FAQ utile qui repond aux questions terrain les plus frequentes sans rewriter tout l article.',
+            ],
+            'add-internal-links-only' => [
+                'Ajouter un maillage interne utile vers les pages piliers, les obligations, les diagnostics et les guides complementaires.',
+            ],
+            default => [
+                'Ajouter un cadrage clair sur les hypotheses de travaux, le perimetre du repérage et les documents attendus avant intervention.',
+                'Renforcer la partie terrain avec des cas de site occupe, de copropriete, de maintenance ou de coordination entre acteurs.',
+                'Ajouter un tableau qui relie risque, situation reelle, mesure, responsable et preuve documentaire a conserver.',
+            ],
+        };
+
+        $faq = $mode === 'add-faq-only'
+            ? [
+                [
+                    'question' => 'Quand faut il mettre a jour le DTA amiante en copropriete ?',
+                    'answer' => 'A chaque nouvelle information utile, apres travaux ou quand un repérage modifie les donnees deja diffusees.',
+                ],
+                [
+                    'question' => 'Qui doit pouvoir consulter le DTA ?',
+                    'answer' => 'Le syndic, les entreprises intervenantes, les occupants concernes et plus largement les acteurs qui doivent connaitre le risque avant intervention.',
+                ],
+            ]
+            : [
+                [
+                    'question' => 'Quel point verifier en premier avant intervention ?',
+                    'answer' => 'Verifier la coherence entre le perimetre du repérage, les hypotheses de travaux, les documents transmis et la realite du site a traiter.',
+                ],
+            ];
+
         return [
             'mode' => $mode,
             'title' => $mode === 'improve-ctr' ? $topic.' : obligations, coordination chantier et points de vigilance terrain' : null,
             'meta_description' => $mode === 'improve-ctr' ? 'Guide Amiantix pour comprendre les obligations amiante, le repérage, la coordination chantier et les preuves a conserver.' : null,
             'h1' => null,
-            'sections' => [
-                'Ajouter un cadrage clair sur les hypotheses de travaux, le perimetre du repérage et les documents attendus avant intervention.',
-                'Renforcer la partie terrain avec des cas de site occupe, de copropriete, de maintenance ou de coordination entre acteurs.',
-                'Ajouter un tableau qui relie risque, situation reelle, mesure, responsable et preuve documentaire a conserver.',
-            ],
-            'faq' => [
-                [
-                    'question' => 'Quel point verifier en premier avant intervention ?',
-                    'answer' => 'Verifier la coherence entre le perimetre du repérage, les hypotheses de travaux, les documents transmis et la realite du site a traiter.',
-                ],
-            ],
+            'sections' => $sections,
+            'faq' => $faq,
             'internal_links' => $page->internal_links_json ?? [],
             'rationale' => [
                 'La reecriture renforce la credibilite metier, la preparation documentaire et la valeur decisionnelle du contenu.',

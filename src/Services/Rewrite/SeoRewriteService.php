@@ -15,7 +15,17 @@ use Ofyre\SeoEngine\Contracts\SeoSuggestionPersister;
 
 class SeoRewriteService
 {
-    private const MODES = ['enrich', 'rewrite', 'de-duplicate', 'improve-ctr', 'improve-indexability'];
+    private const MODES = [
+        'enrich',
+        'rewrite',
+        'de-duplicate',
+        'improve-ctr',
+        'improve-indexability',
+        'add-table-only',
+        'add-heading-depth-only',
+        'add-faq-only',
+        'add-internal-links-only',
+    ];
 
     public function __construct(
         private readonly RewriteAccessDecider $overrides,
@@ -64,9 +74,47 @@ class SeoRewriteService
             $mode = 'enrich';
         }
 
+        $requestedMode = $mode;
+        $mode = $this->resolveEffectiveMode($page, $requestedMode, $weakSectionProfiles, $weakSectionTargetPlan);
+
+        if ($loopGuard = $this->loopProtectionDecision($page, $mode, $weakSectionTargetPlan)) {
+            return $this->suggestions->persist($page, [
+                'source' => 'rewrite_engine:'.$mode,
+                'signals_json' => [
+                    'seo_score' => $page->seo_score ?? null,
+                    'indexability_score' => $page->indexability_score ?? null,
+                    'cluster' => $page->cluster ?? null,
+                    'rewrite_context' => $this->signalContextSummary($context),
+                ],
+                'suggestions_json' => [
+                    'blocked' => true,
+                    'mode' => $mode,
+                    'requested_mode' => $requestedMode,
+                    'reason' => $loopGuard['reason'],
+                    'signals_summary' => [
+                        'rewrite_target_plan' => $weakSectionTargetPlan,
+                        'rewrite_target_signature' => $loopGuard['target_signature'],
+                        'repeat_attempts' => $loopGuard['attempts'],
+                        'loop_guard' => $loopGuard['reason'],
+                    ],
+                ],
+                'status' => 'rejected',
+            ]);
+        }
+
         $suggestions = $this->rewriteWithAi($page, $mode) ?? $this->prompts->fallbackRewrite($page, $mode);
         $suggestions = $this->mergeSignalContextIntoSuggestions($suggestions, $context, $weakSections, $weakSectionProfiles, $weakSectionTargetPlan);
         $suggestions = $this->ensureProposedContent($page, $suggestions, $mode);
+        $suggestions['mode'] = $mode;
+        $suggestions['requested_mode'] = $requestedMode;
+        $suggestions['signals_summary'] = array_merge(
+            is_array($suggestions['signals_summary'] ?? null) ? $suggestions['signals_summary'] : [],
+            [
+                'effective_mode' => $mode,
+                'requested_mode' => $requestedMode,
+                'rewrite_target_signature' => $this->rewriteTargetSignature($mode, $weakSectionTargetPlan),
+            ],
+        );
 
         return $this->suggestions->replacePending($page, 'rewrite_engine:'.$mode, [
             'source' => 'rewrite_engine:'.$mode,
@@ -372,6 +420,174 @@ class SeoRewriteService
         }
 
         return 'Rewrite informed by '.$count.' pending engine signal(s)'.($sources !== '' ? ' ['.$sources.'].' : '.');
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool,patch_intent?:string,replacement_mode?:string}>  $weakSectionProfiles
+     * @param  array<int,array{heading:string,reasons:array<int,string>,instruction:string,phase:string|null,word_count:int,has_structure:bool,expects_structure:bool,patch_intent:string,replacement_mode:string}>  $weakSectionTargetPlan
+     */
+    private function resolveEffectiveMode(object $page, string $requestedMode, array $weakSectionProfiles, array $weakSectionTargetPlan): string
+    {
+        if ($requestedMode !== 'enrich') {
+            return $requestedMode;
+        }
+
+        $content = (string) ($page->content ?? '');
+        $faqCount = count($page->faq_json ?? []);
+
+        if ($faqCount < 5) {
+            return 'add-faq-only';
+        }
+
+        if ($this->contentNeedsHeadingDepth($content)) {
+            return 'add-heading-depth-only';
+        }
+
+        if ($this->contentNeedsStructuredTable($content, $weakSectionTargetPlan)) {
+            return 'add-table-only';
+        }
+
+        if ($this->internalLinkSupportWouldHelp($page, $weakSectionProfiles, $weakSectionTargetPlan)) {
+            return 'add-internal-links-only';
+        }
+
+        return $requestedMode;
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,instruction:string,phase:string|null,word_count:int,has_structure:bool,expects_structure:bool,patch_intent:string,replacement_mode:string}>  $weakSectionTargetPlan
+     * @return array{reason:string,target_signature:string,attempts:int}|null
+     */
+    private function loopProtectionDecision(object $page, string $mode, array $weakSectionTargetPlan): ?array
+    {
+        $targetSignature = $this->rewriteTargetSignature($mode, $weakSectionTargetPlan);
+
+        if ($targetSignature === '' || ! method_exists($page, 'suggestions')) {
+            return null;
+        }
+
+        $existing = $page->relationLoaded('suggestions')
+            ? collect($page->suggestions ?? [])
+            : $page->suggestions()->where('source', 'like', 'rewrite_engine:%')->latest('id')->get();
+
+        $matching = collect($existing)
+            ->filter(fn (mixed $suggestion): bool => is_object($suggestion))
+            ->filter(function (object $suggestion) use ($targetSignature): bool {
+                $summary = is_array($suggestion->suggestions_json['signals_summary'] ?? null)
+                    ? $suggestion->suggestions_json['signals_summary']
+                    : [];
+
+                return (string) ($summary['rewrite_target_signature'] ?? '') === $targetSignature;
+            })
+            ->values();
+
+        if ($matching->contains(fn (object $suggestion): bool => ($suggestion->status ?? null) === 'pending')) {
+            return [
+                'reason' => 'A pending suggestion already targets the same weakness. Review it before generating another one.',
+                'target_signature' => $targetSignature,
+                'attempts' => (int) $matching->count(),
+            ];
+        }
+
+        $appliedAttempts = $matching
+            ->filter(fn (object $suggestion): bool => ($suggestion->status ?? null) === 'applied')
+            ->count();
+
+        $limit = $this->repeatAttemptLimit($mode);
+
+        if ($appliedAttempts >= $limit) {
+            return [
+                'reason' => 'This weakness has already been targeted enough times without a reliable improvement. Stop and review the article manually.',
+                'target_signature' => $targetSignature,
+                'attempts' => $appliedAttempts,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,instruction:string,phase:string|null,word_count:int,has_structure:bool,expects_structure:bool,patch_intent:string,replacement_mode:string}>  $weakSectionTargetPlan
+     */
+    private function rewriteTargetSignature(string $mode, array $weakSectionTargetPlan): string
+    {
+        if ($weakSectionTargetPlan === []) {
+            return in_array($mode, ['add-heading-depth-only', 'add-faq-only', 'add-internal-links-only'], true)
+                ? sha1($mode)
+                : '';
+        }
+
+        $payload = collect($weakSectionTargetPlan)
+            ->map(function (array $item): array {
+                return [
+                    'heading' => $this->normalizeHeading((string) ($item['heading'] ?? '')),
+                    'patch_intent' => (string) ($item['patch_intent'] ?? ''),
+                    'reasons' => array_values(array_filter(
+                        $item['reasons'] ?? [],
+                        static fn (mixed $reason): bool => is_string($reason) && trim($reason) !== ''
+                    )),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return sha1($mode.'|'.json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    private function repeatAttemptLimit(string $mode): int
+    {
+        return in_array($mode, ['add-table-only', 'add-heading-depth-only', 'add-faq-only', 'add-internal-links-only'], true)
+            ? 1
+            : 2;
+    }
+
+    private function contentNeedsHeadingDepth(string $content): bool
+    {
+        if (trim($content) === '') {
+            return false;
+        }
+
+        $h2Count = preg_match_all('/<h2[^>]*>/i', $content);
+        $h3Count = preg_match_all('/<h3[^>]*>/i', $content);
+
+        return $h2Count < 6 || $h3Count < 5;
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,instruction:string,phase:string|null,word_count:int,has_structure:bool,expects_structure:bool,patch_intent:string,replacement_mode:string}>  $weakSectionTargetPlan
+     */
+    private function contentNeedsStructuredTable(string $content, array $weakSectionTargetPlan): bool
+    {
+        if (str_contains(Str::lower($content), '<table')) {
+            return false;
+        }
+
+        return collect($weakSectionTargetPlan)->contains(function (array $item): bool {
+            $heading = Str::lower((string) ($item['heading'] ?? ''));
+
+            return str_contains($heading, 'tableau')
+                || str_contains($heading, 'matrice')
+                || str_contains($heading, 'priorisation')
+                || str_contains($heading, 'priorite')
+                || str_contains($heading, 'comparatif');
+        });
+    }
+
+    /**
+     * @param  array<int,array{heading:string,reasons:array<int,string>,word_count:int,has_structure:bool,expects_structure:bool}>  $weakSectionProfiles
+     * @param  array<int,array{heading:string,reasons:array<int,string>,instruction:string,phase:string|null,word_count:int,has_structure:bool,expects_structure:bool,patch_intent:string,replacement_mode:string}>  $weakSectionTargetPlan
+     */
+    private function internalLinkSupportWouldHelp(object $page, array $weakSectionProfiles, array $weakSectionTargetPlan): bool
+    {
+        if (($page->indexability_score ?? 0) >= 65) {
+            return false;
+        }
+
+        if ($weakSectionProfiles !== [] || $weakSectionTargetPlan !== []) {
+            return false;
+        }
+
+        return count($page->internal_links_json ?? []) < 3;
     }
 
     /**
