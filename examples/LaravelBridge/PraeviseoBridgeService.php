@@ -1,0 +1,109 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Models\PraeviseoPublishedPage;
+use Illuminate\Http\Request;
+use RuntimeException;
+
+class PraeviseoBridgeService
+{
+    /**
+     * @return array<string,mixed>
+     */
+    public function publishFromRequest(Request $request): array
+    {
+        $this->assertSignedRequest($request);
+
+        $payload = $request->validate([
+            'source' => ['required', 'string'],
+            'site.site_id' => ['required', 'string'],
+            'page.id' => ['required', 'integer'],
+            'page.slug' => ['required', 'string'],
+            'page.title' => ['required', 'string'],
+            'page.h1' => ['nullable', 'string'],
+            'page.meta_description' => ['nullable', 'string'],
+            'page.content' => ['required', 'string'],
+            'page.faq' => ['nullable', 'array'],
+            'page.schema' => ['nullable', 'array'],
+            'page.internal_links' => ['nullable', 'array'],
+            'page.canonical_url' => ['nullable', 'string'],
+            'page.cluster' => ['nullable', 'string'],
+            'page.forced_noindex' => ['nullable', 'boolean'],
+            'page.suggested_live_url' => ['nullable', 'string'],
+            'page.image.path' => ['nullable', 'string'],
+            'page.image.alt' => ['nullable', 'string'],
+        ]);
+
+        $siteId = (string) data_get($payload, 'site.site_id');
+        $prefix = trim((string) env('PRAEVISEO_BRIDGE_PREFIX', 'ressources'), '/');
+        $slug = trim((string) data_get($payload, 'page.slug'), '/');
+        $liveUrl = rtrim((string) config('app.url'), '/').'/'.$prefix.'/'.$slug;
+
+        $page = PraeviseoPublishedPage::query()->updateOrCreate(
+            [
+                'praeviseo_site_id' => $siteId,
+                'external_page_id' => (int) data_get($payload, 'page.id'),
+            ],
+            [
+                'slug' => $slug,
+                'title' => (string) data_get($payload, 'page.title'),
+                'h1' => data_get($payload, 'page.h1'),
+                'meta_description' => data_get($payload, 'page.meta_description'),
+                'content_html' => (string) data_get($payload, 'page.content'),
+                'faq_json' => data_get($payload, 'page.faq', []),
+                'schema_json' => data_get($payload, 'page.schema', []),
+                'internal_links_json' => data_get($payload, 'page.internal_links', []),
+                'canonical_url' => data_get($payload, 'page.canonical_url') ?: $liveUrl,
+                'live_url' => data_get($payload, 'page.suggested_live_url') ?: $liveUrl,
+                'cluster' => data_get($payload, 'page.cluster'),
+                'is_noindex' => (bool) data_get($payload, 'page.forced_noindex', false),
+                'image_path' => data_get($payload, 'page.image.path'),
+                'image_alt' => data_get($payload, 'page.image.alt'),
+                'publication_state' => 'published',
+                'last_published_at' => now(),
+            ],
+        );
+
+        return [
+            'status' => 'ok',
+            'updated' => true,
+            'slug' => $page->slug,
+            'live_url' => $page->live_url ?: $liveUrl,
+        ];
+    }
+
+    private function assertSignedRequest(Request $request): void
+    {
+        $configuredSiteId = trim((string) env('PRAEVISEO_BRIDGE_SITE_ID', ''));
+        $secret = trim((string) env('PRAEVISEO_BRIDGE_SECRET', ''));
+
+        if ($secret === '') {
+            throw new RuntimeException('PRAEVISEO_BRIDGE_SECRET manquant.');
+        }
+
+        $headerSiteId = trim((string) $request->header('X-Praeviseo-Site-Id', ''));
+        $timestamp = trim((string) $request->header('X-Praeviseo-Timestamp', ''));
+        $signature = trim((string) $request->header('X-Praeviseo-Signature', ''));
+
+        if ($configuredSiteId !== '' && $headerSiteId !== $configuredSiteId) {
+            throw new RuntimeException('Site Praeviseo non autorisé.');
+        }
+
+        if ($timestamp === '' || $signature === '') {
+            throw new RuntimeException('Headers de signature manquants.');
+        }
+
+        if (abs(now()->timestamp - (int) $timestamp) > 300) {
+            throw new RuntimeException('Timestamp Praeviseo expiré.');
+        }
+
+        $expected = hash_hmac('sha256', $timestamp.'.'.$request->getContent(), $secret);
+
+        if (! hash_equals($expected, $signature)) {
+            throw new RuntimeException('Signature Praeviseo invalide.');
+        }
+    }
+}

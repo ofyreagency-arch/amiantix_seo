@@ -15,6 +15,7 @@ use App\Services\Publication\SeoLivePublicationService;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Runtime\GscOpportunityService;
 use App\Runtime\IndexationBacklogService;
+use App\Runtime\PageLiveMonitoringService;
 use App\Runtime\PageWorkflowLifecycleService;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
@@ -39,6 +40,7 @@ class AdminPagesController extends Controller
         SeoScoreRefreshService $scoreRefresh,
         IndexationBacklogService $indexationBacklog,
         GscOpportunityService $gscOpportunities,
+        PageLiveMonitoringService $liveMonitoring,
         PageWorkflowLifecycleService $pageWorkflowLifecycle,
         SeoLivePublicationService $livePublication,
     ): View
@@ -62,6 +64,11 @@ class AdminPagesController extends Controller
             ->where('page_id', $page->id)
             ->sortByDesc('priority_score')
             ->first();
+        $pageLiveMonitoring = $liveMonitoring->summarize(
+            $page,
+            $site,
+            is_array($pageGscOpportunity) ? $pageGscOpportunity : null,
+        );
         $pageLifecycleSummary = $pageWorkflowLifecycle->summarize(
             $page,
             $publicationSummary,
@@ -71,7 +78,7 @@ class AdminPagesController extends Controller
             $pendingSuggestions->count(),
         );
 
-        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog', 'pageGscOpportunity', 'pageLifecycleSummary', 'publicationTargetStatus'));
+        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog', 'pageGscOpportunity', 'pageLifecycleSummary', 'publicationTargetStatus', 'pageLiveMonitoring'));
     }
 
     public function generate(Request $request, string $siteId, SeoGeneratePageRunner $runner): RedirectResponse

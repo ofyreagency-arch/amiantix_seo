@@ -108,7 +108,7 @@ class SeoSite extends Model
     {
         $mode = trim((string) data_get($this->settings_json, 'publication.mode', ''));
 
-        return in_array($mode, ['runtime', 'webhook_api', 'disabled'], true)
+        return in_array($mode, ['runtime', 'laravel_bridge', 'webhook_api', 'disabled'], true)
             ? $mode
             : 'runtime';
     }
@@ -116,6 +116,7 @@ class SeoSite extends Model
     public function resolvedPublicationModeLabel(): string
     {
         return match ($this->resolvedPublicationMode()) {
+            'laravel_bridge' => 'Bridge Laravel',
             'webhook_api' => 'Webhook CMS/API',
             'disabled' => 'Publication externe désactivée',
             default => 'Runtime interne',
@@ -125,6 +126,13 @@ class SeoSite extends Model
     public function publicationWebhookUrl(): ?string
     {
         return $this->webhook_url ?: data_get($this->settings_json, 'publication.webhook_url');
+    }
+
+    public function publicationSharedSecret(): ?string
+    {
+        $secret = trim((string) data_get($this->settings_json, 'publication.shared_secret', ''));
+
+        return $secret !== '' ? $secret : null;
     }
 
     public static function resolveByToken(string $rawToken): ?self

@@ -54,6 +54,17 @@
     $pageIndexationBacklog = $pageIndexationBacklog ?? ['items' => [], 'total' => 0, 'actionable_count' => 0, 'manual_count' => 0, 'google_state' => [], 'observed_state' => [], 'publication_state' => []];
     $pageGscOpportunity = is_array($pageGscOpportunity ?? null) ? $pageGscOpportunity : null;
     $publicationTargetStatus = is_array($publicationTargetStatus ?? null) ? $publicationTargetStatus : ['label' => 'Runtime interne', 'detail' => 'Aucune cible CMS/API dédiée n est encore configurée.', 'mode' => 'runtime'];
+    $pageLiveMonitoring = is_array($pageLiveMonitoring ?? null) ? $pageLiveMonitoring : [
+        'public_url' => $liveUrl,
+        'state' => 'pre_live',
+        'state_label' => 'Avant publication live',
+        'detail' => 'La vraie page publique n est pas encore en observation.',
+        'manual_required' => false,
+        'reopen_actionable' => false,
+        'observed' => [],
+        'google' => [],
+        'opportunity' => $pageGscOpportunity,
+    ];
     $pageLifecycleSummary = $pageLifecycleSummary ?? [
         'current_stage_label' => 'Préparation éditoriale',
         'next_action' => [
@@ -787,6 +798,55 @@
                   {{ (string) ($lifecycleMonitoring['label'] ?? 'Monitoring à confirmer') }}
               </div>
               <p class="mt-3 text-sm font-semibold text-gray-900">{{ (string) ($lifecycleMonitoring['detail'] ?? 'Le runtime n a pas encore assez de recul pour rouvrir une action.') }}</p>
+              <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 space-y-2 text-xs text-gray-600">
+                  <div class="flex justify-between gap-4">
+                      <span>URL publique</span>
+                      <span class="font-semibold text-gray-700 truncate max-w-[16rem]">{{ $pageLiveMonitoring['public_url'] ?? $liveUrl }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>HTTP réel</span>
+                      <span class="font-semibold text-gray-700">{{ $pageLiveMonitoring['observed']['http_status'] ?? '—' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Canonical réelle</span>
+                      <span class="font-semibold text-gray-700 truncate max-w-[16rem]">{{ $pageLiveMonitoring['observed']['canonical'] ?? '—' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Noindex réel</span>
+                      <span class="font-semibold text-gray-700">
+                          @if(!empty($pageLiveMonitoring['observed']['matched']))
+                              {{ !empty($pageLiveMonitoring['observed']['noindex']) ? 'Oui' : 'Non' }}
+                          @else
+                              —
+                          @endif
+                      </span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Impressions</span>
+                      <span class="font-semibold text-gray-700">{{ isset($pageLiveMonitoring['google']['impressions']) ? (string) $pageLiveMonitoring['google']['impressions'] : '—' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>CTR</span>
+                      <span class="font-semibold text-gray-700">{{ isset($pageLiveMonitoring['google']['ctr']) ? number_format((float) $pageLiveMonitoring['google']['ctr'] * 100, 2).'%' : '—' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Position</span>
+                      <span class="font-semibold text-gray-700">{{ isset($pageLiveMonitoring['google']['position']) ? number_format((float) $pageLiveMonitoring['google']['position'], 1) : '—' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Queries observées</span>
+                      <span class="font-semibold text-gray-700">{{ (string) ($pageLiveMonitoring['google']['query_metric_count'] ?? 0) }}</span>
+                  </div>
+              </div>
+
+              <div class="mt-3 rounded-xl {{ !empty($pageLiveMonitoring['manual_required']) ? 'border border-rose-200 bg-rose-50' : 'border border-slate-200 bg-white' }} px-3 py-3">
+                  <p class="text-sm font-semibold {{ !empty($pageLiveMonitoring['manual_required']) ? 'text-rose-800' : 'text-slate-800' }}">
+                      {{ $pageLiveMonitoring['state_label'] ?? 'Surveillance réelle' }}
+                  </p>
+                  <p class="mt-1 text-xs {{ !empty($pageLiveMonitoring['manual_required']) ? 'text-rose-700' : 'text-slate-600' }}">
+                      {{ $pageLiveMonitoring['detail'] ?? 'Le moteur observe la vraie page publique sans inventer de correction technique.' }}
+                  </p>
+              </div>
 
               @if($lifecycleGscOpportunity)
               <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">

@@ -50,7 +50,8 @@ class AdminSitesController extends Controller
             'locale'      => ['required', 'string', 'max:10'],
             'preset'      => ['required', 'string', 'in:generic,amiantix'],
             'webhook_url' => ['nullable', 'url', 'max:255'],
-            'publication_mode' => ['nullable', 'string', 'in:runtime,webhook_api,disabled'],
+            'publication_mode' => ['nullable', 'string', 'in:runtime,laravel_bridge,webhook_api,disabled'],
+            'publication_shared_secret' => ['nullable', 'string', 'max:255'],
             'gsc_connection_mode' => ['nullable', 'string', 'in:service_account,oauth_google'],
             'gsc_property_url' => ['nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
@@ -146,8 +147,9 @@ class AdminSitesController extends Controller
         $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
 
         $data = $request->validate([
-            'publication_mode' => ['required', 'string', 'in:runtime,webhook_api,disabled'],
+            'publication_mode' => ['required', 'string', 'in:runtime,laravel_bridge,webhook_api,disabled'],
             'webhook_url' => ['nullable', 'url', 'max:500'],
+            'publication_shared_secret' => ['nullable', 'string', 'max:255'],
         ]);
 
         $site->forceFill([
@@ -377,7 +379,9 @@ class AdminSitesController extends Controller
      */
     private function syncPublicationTarget(SeoSite $site, array $data): void
     {
-        if (! array_key_exists('publication_mode', $data) && ! array_key_exists('webhook_url', $data)) {
+        if (! array_key_exists('publication_mode', $data)
+            && ! array_key_exists('webhook_url', $data)
+            && ! array_key_exists('publication_shared_secret', $data)) {
             return;
         }
 
@@ -390,6 +394,10 @@ class AdminSitesController extends Controller
 
         if (array_key_exists('webhook_url', $data)) {
             $publication['webhook_url'] = $data['webhook_url'] ?: null;
+        }
+
+        if (array_key_exists('publication_shared_secret', $data)) {
+            $publication['shared_secret'] = $data['publication_shared_secret'] ?: null;
         }
 
         $settings['publication'] = $publication;

@@ -18,6 +18,7 @@ class SeoLivePublicationService
     {
         return match ($site->resolvedPublicationMode()) {
             'disabled' => throw new RuntimeException('La publication réelle est désactivée pour ce site.'),
+            'laravel_bridge' => $this->publishViaWebhook($page, $site, signed: true),
             'webhook_api' => $this->publishViaWebhook($page, $site),
             default => $this->publishToRuntime($page, $site),
         };
@@ -39,6 +40,17 @@ class SeoLivePublicationService
                 'detail' => 'Le moteur peut valider ses pages, mais aucune publication réelle CMS/site client n est activée pour ce site.',
                 'engine_actionable' => false,
                 'manual_required' => true,
+            ],
+            'laravel_bridge' => [
+                'mode' => 'laravel_bridge',
+                'label' => 'Bridge Laravel',
+                'state' => ($webhookUrl && $site->publicationSharedSecret()) ? 'ok' : 'critical',
+                'detail' => ($webhookUrl && $site->publicationSharedSecret())
+                    ? 'Le moteur peut pousser une page validée vers un vrai site Laravel via un endpoint signé Praeviseo.'
+                    : 'Le bridge Laravel demande un endpoint CMS et un secret partagé pour publier réellement sur le site client.',
+                'engine_actionable' => (bool) ($webhookUrl && $site->publicationSharedSecret()),
+                'manual_required' => ! ($webhookUrl && $site->publicationSharedSecret()),
+                'target' => $webhookUrl ?: '—',
             ],
             'webhook_api' => [
                 'mode' => 'webhook_api',
@@ -79,22 +91,33 @@ class SeoLivePublicationService
         return $page->refresh();
     }
 
-    private function publishViaWebhook(SeoPage $page, SeoSite $site): SeoPage
+    private function publishViaWebhook(SeoPage $page, SeoSite $site, bool $signed = false): SeoPage
     {
         if (! $this->supportsLivePublication()) {
             throw new RuntimeException('Le suivi live n est pas disponible dans ce runtime tant que les colonnes de publication ne sont pas présentes.');
         }
 
         $endpoint = $site->publicationWebhookUrl();
+        $payload = $this->webhookPayload($page, $site);
 
         if (! $endpoint) {
             throw new RuntimeException('Aucun endpoint de publication CMS/API n est configuré pour ce site.');
         }
 
+        if ($signed && ! $site->publicationSharedSecret()) {
+            throw new RuntimeException('Le bridge Laravel demande un secret partagé avant toute publication réelle.');
+        }
+
         try {
-            $response = Http::timeout(12)
+            $request = Http::timeout(12)
                 ->acceptJson()
-                ->post($endpoint, $this->webhookPayload($page, $site));
+                ->asJson();
+
+            if ($signed) {
+                $request = $request->withHeaders($this->signedHeaders($site, $payload));
+            }
+
+            $response = $request->post($endpoint, $payload);
 
             if (! $response->successful()) {
                 $preview = trim((string) $response->body());
@@ -114,7 +137,7 @@ class SeoLivePublicationService
             ])->save();
 
             $this->rememberPublicationEvent($site, [
-                'mode' => 'webhook_api',
+                'mode' => $site->resolvedPublicationMode(),
                 'last_push_at' => now()->toIso8601String(),
                 'last_push_status' => 'ok',
                 'last_push_target' => $endpoint,
@@ -125,7 +148,7 @@ class SeoLivePublicationService
             return $page->refresh();
         } catch (\Throwable $exception) {
             $this->rememberPublicationEvent($site, [
-                'mode' => 'webhook_api',
+                'mode' => $site->resolvedPublicationMode(),
                 'last_push_at' => now()->toIso8601String(),
                 'last_push_status' => 'error',
                 'last_push_target' => $endpoint,
@@ -229,5 +252,23 @@ class SeoLivePublicationService
         $settings = $site->settings_json ?? [];
         $settings['publication'] = array_merge($settings['publication'] ?? [], $publicationSettings);
         $site->forceFill(['settings_json' => $settings])->save();
+    }
+
+    /**
+     * @param  array<string,mixed>  $payload
+     * @return array<string,string>
+     */
+    private function signedHeaders(SeoSite $site, array $payload): array
+    {
+        $timestamp = (string) now()->timestamp;
+        $body = (string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$body, (string) $site->publicationSharedSecret());
+
+        return [
+            'User-Agent' => 'Praeviseo-LaravelBridge/1.0',
+            'X-Praeviseo-Site-Id' => (string) $site->site_id,
+            'X-Praeviseo-Timestamp' => $timestamp,
+            'X-Praeviseo-Signature' => $signature,
+        ];
     }
 }

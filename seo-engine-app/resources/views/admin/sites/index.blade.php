@@ -200,9 +200,14 @@
                     <label class="{{ $labelCls }}">Publication réelle</label>
                     <select name="publication_mode" class="{{ $inputCls }}">
                         <option value="runtime" @selected(old('publication_mode', 'runtime') === 'runtime')>Runtime interne</option>
+                        <option value="laravel_bridge" @selected(old('publication_mode') === 'laravel_bridge')>Bridge Laravel</option>
                         <option value="webhook_api" @selected(old('publication_mode') === 'webhook_api')>Webhook CMS/API</option>
                         <option value="disabled" @selected(old('publication_mode') === 'disabled')>Désactivée</option>
                     </select>
+                </div>
+                <div>
+                    <label class="{{ $labelCls }}">Secret bridge/client</label>
+                    <input type="text" name="publication_shared_secret" value="{{ old('publication_shared_secret') }}" placeholder="secret partagé pour le bridge Laravel" class="{{ $inputCls }}">
                 </div>
 
                 {{-- GSC Section --}}

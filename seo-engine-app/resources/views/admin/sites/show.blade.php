@@ -480,13 +480,18 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 <label class="{{ $labelCls }}">Mode de publication réelle</label>
                 <select name="publication_mode" class="{{ $inputCls }}">
                     <option value="runtime" @selected($site->resolvedPublicationMode() === 'runtime')>Runtime interne</option>
+                    <option value="laravel_bridge" @selected($site->resolvedPublicationMode() === 'laravel_bridge')>Bridge Laravel</option>
                     <option value="webhook_api" @selected($site->resolvedPublicationMode() === 'webhook_api')>Webhook CMS/API</option>
                     <option value="disabled" @selected($site->resolvedPublicationMode() === 'disabled')>Désactivée</option>
                 </select>
             </div>
             <div>
                 <label class="{{ $labelCls }}">Endpoint CMS/API</label>
-                <input type="url" name="webhook_url" value="{{ old('webhook_url', $site->publicationWebhookUrl()) }}" placeholder="https://client.com/api/praeviseo/publish" class="{{ $inputCls }}">
+                <input type="url" name="webhook_url" value="{{ old('webhook_url', $site->publicationWebhookUrl()) }}" placeholder="https://client.com/api/praeviseo/bridge/publish" class="{{ $inputCls }}">
+            </div>
+            <div>
+                <label class="{{ $labelCls }}">Secret bridge/client</label>
+                <input type="text" name="publication_shared_secret" value="{{ old('publication_shared_secret', $site->publicationSharedSecret()) }}" placeholder="secret partagé pour le bridge Laravel" class="{{ $inputCls }}">
             </div>
             <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">État actuel</div>
@@ -494,6 +499,9 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 <div class="mt-1 text-xs text-gray-500">{{ $publicationTargetStatus['detail'] ?? 'La cible de publication réelle n est pas encore configurée.' }}</div>
                 @if(!empty($publicationTargetStatus['target']))
                     <div class="mt-2 text-xs text-gray-500">Endpoint : <span class="font-semibold text-gray-700">{{ $publicationTargetStatus['target'] }}</span></div>
+                @endif
+                @if($site->publicationSharedSecret())
+                    <div class="mt-2 text-xs text-gray-500">Auth : <span class="font-semibold text-gray-700">secret partagé configuré</span></div>
                 @endif
             </div>
             <button type="submit"

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Models\SeoSitePage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -214,6 +216,67 @@ class LivePublicationPipelineTest extends TestCase
         $this->assertSame('ok', data_get($site->settings_json, 'publication.last_push_status'));
     }
 
+    public function test_engine_published_page_can_be_pushed_live_via_laravel_bridge_target(): void
+    {
+        Http::fake([
+            'https://client.test/api/praeviseo/bridge/publish' => Http::response([
+                'live_url' => 'https://client.test/ressources/danger-sante-amiante',
+            ], 200),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+            'webhook_url' => 'https://client.test/api/praeviseo/bridge/publish',
+            'settings_json' => [
+                'publication' => [
+                    'mode' => 'laravel_bridge',
+                    'webhook_url' => 'https://client.test/api/praeviseo/bridge/publish',
+                    'shared_secret' => 'bridge-secret',
+                ],
+            ],
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'status' => 'published',
+            'published_at' => now(),
+            'title' => 'Danger Sante Amiante',
+            'content' => '<p>Contenu.</p>',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.publish-live', [$site->site_id, $page->id]));
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+        $response->assertSessionHas('success', 'Page publiée en live sur le site public.');
+
+        Http::assertSent(function ($request): bool {
+            $siteHeader = $request->header('X-Praeviseo-Site-Id');
+            $timestampHeader = $request->header('X-Praeviseo-Timestamp');
+            $signatureHeader = $request->header('X-Praeviseo-Signature');
+
+            return $request->url() === 'https://client.test/api/praeviseo/bridge/publish'
+                && (($siteHeader[0] ?? null) === 'amiantix')
+                && ! empty($timestampHeader[0] ?? null)
+                && ! empty($signatureHeader[0] ?? null);
+        });
+
+        $page->refresh();
+
+        $this->assertTrue($page->published_live);
+        $this->assertSame('https://client.test/ressources/danger-sante-amiante', $page->live_url);
+    }
+
     public function test_publish_live_warns_when_webhook_target_is_missing(): void
     {
         $site = SeoSite::query()->create([
@@ -254,5 +317,83 @@ class LivePublicationPipelineTest extends TestCase
 
         $this->assertFalse((bool) $page->published_live);
         $this->assertNull($page->published_live_at);
+    }
+
+    public function test_page_show_surfaces_true_live_monitoring_signals(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'status' => 'published',
+            'published_at' => now(),
+            'published_live' => true,
+            'published_live_at' => now(),
+            'live_url' => 'https://amiantix.test/danger-sante-amiante',
+            'title' => 'Danger Sante Amiante',
+            'content' => '<p>Contenu.</p>',
+        ]);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://amiantix.test/danger-sante-amiante',
+            'url_hash' => sha1('https://amiantix.test/danger-sante-amiante'),
+            'path' => '/danger-sante-amiante',
+            'canonical_url' => 'https://amiantix.test/danger-sante-amiante',
+            'indexability_state' => 'indexable',
+            'last_status_code' => 200,
+            'discovered_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->toDateString(),
+            'window_days' => 28,
+            'url' => 'https://amiantix.test/danger-sante-amiante',
+            'clicks' => 4,
+            'impressions' => 18,
+            'ctr' => 0.2222,
+            'position' => 8.4,
+            'is_indexed' => true,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->toDateString(),
+            'window_days' => 28,
+            'query' => 'danger amiante',
+            'url' => 'https://amiantix.test/danger-sante-amiante',
+            'clicks' => 1,
+            'impressions' => 3,
+            'ctr' => 0.3333,
+            'position' => 9.2,
+            'is_indexed' => true,
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Monitoring post-publication');
+        $response->assertSee('URL publique');
+        $response->assertSee('https://amiantix.test/danger-sante-amiante');
+        $response->assertSee('HTTP réel');
+        $response->assertSee('Surveillance active');
+        $response->assertSee('Queries observées');
     }
 }

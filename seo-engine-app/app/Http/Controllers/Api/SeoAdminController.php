@@ -51,7 +51,8 @@ class SeoAdminController extends Controller
             'locale'               => ['nullable', 'string', 'max:20'],
             'preset'               => ['nullable', 'string', 'in:generic,amiantix'],
             'webhook_url'          => ['nullable', 'url', 'max:500'],
-            'publication_mode'     => ['nullable', 'string', 'in:runtime,webhook_api,disabled'],
+            'publication_mode'     => ['nullable', 'string', 'in:runtime,laravel_bridge,webhook_api,disabled'],
+            'publication_shared_secret' => ['nullable', 'string', 'max:255'],
             'gsc_site_url'         => ['nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
             'gsc_connection_mode'  => ['nullable', 'string', 'in:service_account,oauth_google'],
@@ -113,7 +114,8 @@ class SeoAdminController extends Controller
             'locale'               => ['sometimes', 'string', 'max:20'],
             'preset'               => ['sometimes', 'string', 'in:generic,amiantix'],
             'webhook_url'          => ['sometimes', 'nullable', 'url', 'max:500'],
-            'publication_mode'     => ['sometimes', 'nullable', 'string', 'in:runtime,webhook_api,disabled'],
+            'publication_mode'     => ['sometimes', 'nullable', 'string', 'in:runtime,laravel_bridge,webhook_api,disabled'],
+            'publication_shared_secret' => ['sometimes', 'nullable', 'string', 'max:255'],
             'gsc_site_url'         => ['sometimes', 'nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['sometimes', 'nullable', 'string', 'max:500'],
             'gsc_connection_mode'  => ['sometimes', 'nullable', 'string', 'in:service_account,oauth_google'],
@@ -200,7 +202,9 @@ class SeoAdminController extends Controller
      */
     private function syncPublicationTarget(SeoSite $site, array $data): void
     {
-        if (! array_key_exists('publication_mode', $data) && ! array_key_exists('webhook_url', $data)) {
+        if (! array_key_exists('publication_mode', $data)
+            && ! array_key_exists('webhook_url', $data)
+            && ! array_key_exists('publication_shared_secret', $data)) {
             return;
         }
 
@@ -213,6 +217,10 @@ class SeoAdminController extends Controller
 
         if (array_key_exists('webhook_url', $data)) {
             $publication['webhook_url'] = $data['webhook_url'] ?: null;
+        }
+
+        if (array_key_exists('publication_shared_secret', $data)) {
+            $publication['shared_secret'] = $data['publication_shared_secret'] ?: null;
         }
 
         $settings['publication'] = $publication;
