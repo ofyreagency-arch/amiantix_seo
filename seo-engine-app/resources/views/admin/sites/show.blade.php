@@ -274,6 +274,11 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Action suggérée</div>
                     <div class="text-sm font-semibold text-gray-800">{{ ucfirst((string) $item['action']) }}</div>
                     @if(!empty($item['page_id']))
+                    @if(!empty($item['pending_suggestion']))
+                    <div class="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+                        Suggestion déjà en attente
+                    </div>
+                    @else
                     <form method="POST" action="{{ route('admin.sites.gsc-opportunities.run', $site->site_id) }}" class="mt-3">
                         @csrf
                         <input type="hidden" name="page_id" value="{{ $item['page_id'] }}">
@@ -283,6 +288,7 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                             Lancer cette action
                         </button>
                     </form>
+                    @endif
                     @endif
                 </div>
             </div>

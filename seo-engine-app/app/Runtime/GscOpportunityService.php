@@ -6,6 +6,7 @@ namespace App\Runtime;
 
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSuggestion;
 use Illuminate\Support\Collection;
 
 class GscOpportunityService
@@ -63,6 +64,12 @@ class GscOpportunityService
             ->get()
             ->groupBy('seo_page_id');
 
+        $pendingSuggestions = SeoSuggestion::query()
+            ->whereIn('seo_page_id', $pages->keys())
+            ->where('status', 'pending')
+            ->get(['id', 'seo_page_id', 'source', 'signals_json', 'created_at'])
+            ->groupBy('seo_page_id');
+
         $items = collect();
 
         foreach ($pages as $pageId => $page) {
@@ -72,6 +79,8 @@ class GscOpportunityService
             $olderRows = $olderPageMetrics->get($pageId, collect());
             /** @var Collection<int, SeoSearchConsoleMetric> $queryRows */
             $queryRows = $recentQueryMetrics->get($pageId, collect());
+            /** @var Collection<int, SeoSuggestion> $suggestionRows */
+            $suggestionRows = $pendingSuggestions->get($pageId, collect());
 
             $recentImpressions = (float) $pageRows->sum('impressions');
             $recentClicks = (float) $pageRows->sum('clicks');
@@ -83,6 +92,7 @@ class GscOpportunityService
             $label = trim((string) ($page->title ?: $page->keyword ?: $page->slug));
 
             if ($recentImpressions >= 100 && $recentCtr > 0.0 && $recentCtr < 0.02) {
+                $existingPending = $this->findPendingSuggestion($suggestionRows, 'improve-ctr', 'low_ctr');
                 $items->push([
                     'type' => 'low_ctr',
                     'label' => $label,
@@ -91,6 +101,8 @@ class GscOpportunityService
                     'reason' => 'La page est visible dans Google mais trop peu de personnes cliquent.',
                     'action' => 'relancer le CTR',
                     'mode' => 'improve-ctr',
+                    'pending_suggestion_id' => $existingPending?->id,
+                    'pending_suggestion' => $existingPending !== null,
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'ctr' => round($recentCtr * 100, 2),
@@ -100,6 +112,7 @@ class GscOpportunityService
             }
 
             if ($recentImpressions >= 50 && $recentPosition >= 8.0 && $recentPosition <= 15.0) {
+                $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'near_top_10');
                 $items->push([
                     'type' => 'near_top_10',
                     'label' => $label,
@@ -108,6 +121,8 @@ class GscOpportunityService
                     'reason' => 'La page est proche de la zone qui compte et peut gagner vite avec un refresh ciblé.',
                     'action' => 'rafraichir la page',
                     'mode' => 'enrich',
+                    'pending_suggestion_id' => $existingPending?->id,
+                    'pending_suggestion' => $existingPending !== null,
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'ctr' => round($recentCtr * 100, 2),
@@ -117,6 +132,7 @@ class GscOpportunityService
             }
 
             if ($olderImpressions >= 80 && $dropRatio !== null && $dropRatio <= 0.7) {
+                $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'sustained_drop');
                 $items->push([
                     'type' => 'sustained_drop',
                     'label' => $label,
@@ -125,6 +141,8 @@ class GscOpportunityService
                     'reason' => 'La visibilité récente baisse durablement par rapport à la fenêtre précédente.',
                     'action' => 'verifier puis relancer',
                     'mode' => 'enrich',
+                    'pending_suggestion_id' => $existingPending?->id,
+                    'pending_suggestion' => $existingPending !== null,
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'previous_impressions' => (int) round($olderImpressions),
@@ -135,7 +153,7 @@ class GscOpportunityService
 
             $queryRows
                 ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
-                ->each(function (Collection $queryMetrics, string $query) use (&$items, $page, $label): void {
+                ->each(function (Collection $queryMetrics, string $query) use (&$items, $page, $label, $suggestionRows): void {
                     if ($query === '') {
                         return;
                     }
@@ -149,6 +167,8 @@ class GscOpportunityService
                         return;
                     }
 
+                    $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'emerging_query', $query);
+
                     $items->push([
                         'type' => 'emerging_query',
                         'label' => $label,
@@ -158,6 +178,8 @@ class GscOpportunityService
                         'reason' => 'Une requête émergente mérite une réponse plus explicite dans la page.',
                         'action' => 'creer une section utile',
                         'mode' => 'enrich',
+                        'pending_suggestion_id' => $existingPending?->id,
+                        'pending_suggestion' => $existingPending !== null,
                         'metrics' => [
                             'impressions' => (int) round($impressions),
                             'ctr' => round($ctr * 100, 2),
@@ -207,5 +229,31 @@ class GscOpportunityService
         );
 
         return $weighted / $impressions;
+    }
+
+    /**
+     * @param  Collection<int,SeoSuggestion>  $suggestions
+     */
+    private function findPendingSuggestion(Collection $suggestions, string $mode, string $type, ?string $query = null): ?SeoSuggestion
+    {
+        return $suggestions->first(function (SeoSuggestion $suggestion) use ($mode, $type, $query): bool {
+            if ($suggestion->source !== 'rewrite_engine:'.$mode) {
+                return false;
+            }
+
+            $trigger = is_array($suggestion->signals_json['gsc_trigger'] ?? null)
+                ? $suggestion->signals_json['gsc_trigger']
+                : [];
+
+            if (($trigger['type'] ?? null) !== $type) {
+                return false;
+            }
+
+            if ($query !== null && mb_strtolower((string) ($trigger['query'] ?? '')) !== mb_strtolower($query)) {
+                return false;
+            }
+
+            return true;
+        });
     }
 }

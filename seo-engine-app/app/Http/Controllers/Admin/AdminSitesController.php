@@ -9,6 +9,7 @@ use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteGoogleConnection;
+use App\Models\SeoSuggestion;
 use App\ObservedSite\SiteHealthService;
 use App\Runtime\GscOpportunityService;
 use App\Runtime\RuntimeSeoMonitoringService;
@@ -175,7 +176,31 @@ class AdminSitesController extends Controller
         }
 
         $mode = (string) ($opportunity['mode'] ?? 'enrich');
+        $existingPending = $this->findExistingPendingGscSuggestion(
+            $page->id,
+            $mode,
+            (string) $data['type'],
+            isset($opportunity['query']) ? (string) $opportunity['query'] : null,
+        );
+
+        if ($existingPending !== null) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $page->id])
+                ->with('warning', 'Une suggestion GSC de ce type existe déjà pour cette page.');
+        }
+
         $suggestion = $rewrite->createSuggestion($page->fresh(['suggestions']), $mode);
+        $suggestion->forceFill([
+            'signals_json' => array_merge($suggestion->signals_json ?? [], [
+                'gsc_trigger' => array_filter([
+                    'type' => (string) $data['type'],
+                    'mode' => $mode,
+                    'action' => (string) ($opportunity['action'] ?? ''),
+                    'reason' => (string) ($opportunity['reason'] ?? ''),
+                    'query' => isset($opportunity['query']) ? (string) $opportunity['query'] : null,
+                ], static fn (mixed $value): bool => $value !== null && $value !== ''),
+            ]),
+        ])->save();
 
         return redirect()
             ->route('admin.pages.show', [$siteId, $page->id])
@@ -236,5 +261,29 @@ class AdminSitesController extends Controller
             ->with('googleConnection')
             ->where('site_id', $siteId)
             ->firstOrFail();
+    }
+
+    private function findExistingPendingGscSuggestion(int $pageId, string $mode, string $type, ?string $query = null): ?SeoSuggestion
+    {
+        return SeoSuggestion::query()
+            ->where('seo_page_id', $pageId)
+            ->where('status', 'pending')
+            ->where('source', 'rewrite_engine:'.$mode)
+            ->get()
+            ->first(function (SeoSuggestion $suggestion) use ($type, $query): bool {
+                $trigger = is_array($suggestion->signals_json['gsc_trigger'] ?? null)
+                    ? $suggestion->signals_json['gsc_trigger']
+                    : [];
+
+                if (($trigger['type'] ?? null) !== $type) {
+                    return false;
+                }
+
+                if ($query !== null && mb_strtolower((string) ($trigger['query'] ?? '')) !== mb_strtolower($query)) {
+                    return false;
+                }
+
+                return true;
+            });
     }
 }
