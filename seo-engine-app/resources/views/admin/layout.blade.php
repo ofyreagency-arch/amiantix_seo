@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css'])
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
@@ -26,7 +27,7 @@
     </style>
     @stack('styles')
 </head>
-<body class="bg-[#f7f8fa] antialiased h-full" style="font-family:'Inter',sans-serif;">
+<body class="admin-body antialiased h-full" style="font-family:'Inter',sans-serif;">
 
 {{-- Mobile overlay --}}
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/30 z-20 hidden lg:hidden" onclick="toggleSidebar()"></div>
@@ -190,6 +191,7 @@
 
         {{-- Main Scrollable Area --}}
         <main class="flex-1 overflow-y-auto p-5 lg:p-6">
+            <div class="admin-main max-w-[1480px] mx-auto">
 
             {{-- Flash messages --}}
             @if(session('success'))
@@ -220,6 +222,7 @@
             @endif
 
             @yield('content')
+            </div>
         </main>
     </div>
 </div>

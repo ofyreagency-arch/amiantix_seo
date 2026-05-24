@@ -112,6 +112,8 @@
     ];
 @endphp
 
+<div class="admin-page-shell">
+
 {{-- ═══════════════════════════════════════════
      HEADER CARD
 ════════════════════════════════════════════ --}}
@@ -900,6 +902,7 @@
     </div>{{-- /sidebar --}}
 
 </div>{{-- /grid --}}
+</div>{{-- /admin-page-shell --}}
 @endsection
 
 @push('scripts')
