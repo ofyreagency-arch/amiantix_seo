@@ -58,6 +58,7 @@ use Ofyre\SeoEngine\Contracts\VectorStore;
 use Ofyre\SeoEngine\Services\Console\SeoImportHistoryRunner;
 use Ofyre\SeoEngine\Services\Scoring\SeoScoringService;
 use Ofyre\SeoEngine\Services\SearchConsole\GoogleServiceAccountTokenService;
+use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
 
 class SeoRuntimeServiceProvider extends ServiceProvider
 {
@@ -80,6 +81,7 @@ class SeoRuntimeServiceProvider extends ServiceProvider
         $this->app->singleton(SeoSuggestionPersister::class, DatabaseSeoSuggestionPersister::class);
         $this->app->singleton(SeoCockpitRepository::class, DatabaseSeoCockpitRepository::class);
         $this->app->singleton(SearchConsoleTokenProvider::class, GoogleServiceAccountTokenService::class);
+        $this->app->singleton(SearchConsoleService::class);
         $this->app->singleton(RewriteAccessDecider::class, SeoOverrideService::class);
         $this->app->singleton(ContentSignalProvider::class, PresetContentSignalProvider::class);
         $this->app->singleton(SeoScoringService::class, RuntimeSeoScoringService::class);
