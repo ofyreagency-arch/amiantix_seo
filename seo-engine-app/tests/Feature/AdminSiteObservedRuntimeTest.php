@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
+use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,13 +33,49 @@ class AdminSiteObservedRuntimeTest extends TestCase
             'is_active' => true,
         ]);
 
-        SeoPage::query()->create([
+        $page = SeoPage::query()->create([
             'site_id' => $site->site_id,
             'keyword' => 'diagnostic amiante paris',
             'slug' => 'diagnostic-amiante-paris',
+            'title' => 'Diagnostic amiante Paris',
             'status' => 'published',
             'seo_score' => 60,
             'quality_score' => 55,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDays(3)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/diagnostic-amiante-paris',
+            'clicks' => 1,
+            'impressions' => 160,
+            'ctr' => 0.00625,
+            'position' => 12.4,
+            'payload_json' => [],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDays(2)->toDateString(),
+            'window_days' => 30,
+            'query' => 'diagnostic amiante paris',
+            'url' => 'https://runtime-site.test/diagnostic-amiante-paris',
+            'clicks' => 0,
+            'impressions' => 42,
+            'ctr' => 0.0,
+            'position' => 11.8,
+            'payload_json' => [],
+        ]);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'configured',
         ]);
 
         $healthy = SeoSitePage::query()->create([
@@ -122,9 +160,55 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertSee('Couche observée');
         $response->assertSee('Alertes observed');
         $response->assertSee('Articles');
+        $response->assertSee('Google Search Console');
+        $response->assertSee('CTR à relancer');
+        $response->assertSee('Proches du top 10');
+        $response->assertSee('Requêtes émergentes');
+        $response->assertSee('Connexion Google');
+        $response->assertSee('sc-domain:runtime-site.test');
         $response->assertSee('Site Runtime');
         $response->assertSee('/page-bloquee');
         $response->assertSee('critical');
         $response->assertSee('health score');
+    }
+
+    public function test_site_google_connection_can_be_updated_per_site_from_the_admin_page(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.sites.google-connection.update', $site->site_id), [
+                'gsc_connection_mode' => 'service_account',
+                'gsc_property_url' => 'sc-domain:runtime-site.test',
+                'gsc_credentials_path' => '/var/www/runtime-site.json',
+                'gsc_account_email' => 'svc@runtime-site.test',
+            ]);
+
+        $response->assertRedirect(route('admin.sites.show', $site->site_id));
+
+        $this->assertDatabaseHas('seo_sites', [
+            'site_id' => $site->site_id,
+            'gsc_site_url' => 'sc-domain:runtime-site.test',
+            'gsc_credentials_path' => '/var/www/runtime-site.json',
+        ]);
+
+        $this->assertDatabaseHas('seo_site_google_connections', [
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'configured',
+        ]);
     }
 }

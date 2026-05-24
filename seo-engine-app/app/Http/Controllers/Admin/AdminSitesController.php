@@ -10,6 +10,7 @@ use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteGoogleConnection;
 use App\ObservedSite\SiteHealthService;
+use App\Runtime\GscOpportunityService;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
@@ -72,6 +73,7 @@ class AdminSitesController extends Controller
         string $siteId,
         SiteHealthService $siteHealth,
         RuntimeSeoMonitoringService $monitoring,
+        GscOpportunityService $gscOpportunities,
     ): View
     {
         $site  = SeoSite::query()->with('googleConnection')->where('site_id', $siteId)->firstOrFail();
@@ -105,6 +107,11 @@ class AdminSitesController extends Controller
             ->take(4)
             ->values();
 
+        $gscOpportunitySummary = $gscOpportunities->summarize(
+            $siteId,
+            $site->hasSearchConsoleConfigured()
+        );
+
         return view('admin.sites.show', compact(
             'site',
             'pages',
@@ -113,7 +120,31 @@ class AdminSitesController extends Controller
             'observedMetrics',
             'observedAlerts',
             'latestCrawl',
+            'gscOpportunitySummary',
         ));
+    }
+
+    public function updateGoogleConnection(string $siteId, Request $request): RedirectResponse
+    {
+        $site = SeoSite::query()->with('googleConnection')->where('site_id', $siteId)->firstOrFail();
+
+        $data = $request->validate([
+            'gsc_connection_mode' => ['nullable', 'string', 'in:service_account,oauth_google'],
+            'gsc_property_url' => ['nullable', 'string', 'max:500'],
+            'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
+            'gsc_account_email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $site->forceFill([
+            'gsc_site_url' => $data['gsc_property_url'] ?: null,
+            'gsc_credentials_path' => $data['gsc_credentials_path'] ?: null,
+        ])->save();
+
+        $this->syncGoogleConnection($site, $data);
+
+        return redirect()
+            ->route('admin.sites.show', $siteId)
+            ->with('success', 'Connexion Google mise à jour.');
     }
 
     public function rotateToken(string $siteId): RedirectResponse

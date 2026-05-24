@@ -190,6 +190,149 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
     </div>
 </div>
 
+{{-- ═══ GSC OPPORTUNITIES ═══ --}}
+<div class="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6 mb-6 anim-fade-up delay-125">
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="font-bold text-gray-900">Google Search Console</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Ce que Google remonte vraiment et ce qui mérite une action.</p>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold {{ $gscOpportunitySummary['connected'] ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200' }}">
+                {{ $gscOpportunitySummary['connected'] ? 'Connecté' : 'Non connecté' }}
+            </span>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-px" style="background:#f3f4f6;">
+            @foreach([
+                ['label' => 'CTR à relancer', 'value' => $gscOpportunitySummary['summary']['low_ctr'], 'cls' => 'text-amber-600'],
+                ['label' => 'Proches du top 10', 'value' => $gscOpportunitySummary['summary']['near_top_10'], 'cls' => 'text-blue-600'],
+                ['label' => 'Requêtes émergentes', 'value' => $gscOpportunitySummary['summary']['emerging_queries'], 'cls' => 'text-violet-600'],
+                ['label' => 'Baisses durables', 'value' => $gscOpportunitySummary['summary']['sustained_drop'], 'cls' => 'text-rose-600'],
+            ] as $metric)
+            <div class="bg-white px-5 py-4">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ $metric['label'] }}</div>
+                <div class="text-xl font-black {{ $metric['cls'] }}">{{ $metric['value'] }}</div>
+            </div>
+            @endforeach
+        </div>
+
+        <div class="divide-y divide-gray-50">
+            @forelse($gscOpportunitySummary['items'] as $item)
+            <div class="px-6 py-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                            @php
+                                $badgeCls = match ($item['type']) {
+                                    'low_ctr' => 'bg-amber-50 text-amber-700 border-amber-100',
+                                    'near_top_10' => 'bg-blue-50 text-blue-700 border-blue-100',
+                                    'emerging_query' => 'bg-violet-50 text-violet-700 border-violet-100',
+                                    'sustained_drop' => 'bg-rose-50 text-rose-700 border-rose-100',
+                                    default => 'bg-gray-100 text-gray-600 border-gray-200',
+                                };
+                                $badgeLabel = match ($item['type']) {
+                                    'low_ctr' => 'CTR à relancer',
+                                    'near_top_10' => 'Proche du top 10',
+                                    'emerging_query' => 'Requête émergente',
+                                    'sustained_drop' => 'Baisse récente',
+                                    default => 'À revoir',
+                                };
+                            @endphp
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border {{ $badgeCls }}">{{ $badgeLabel }}</span>
+                            @if(!empty($item['query']))
+                                <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{{ $item['query'] }}</span>
+                            @else
+                                <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">/{{ $item['slug'] }}</span>
+                            @endif
+                        </div>
+                        <div class="text-sm font-semibold text-gray-900">{{ $item['label'] }}</div>
+                        <div class="mt-1 text-sm text-gray-500">{{ $item['reason'] }}</div>
+                        <div class="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
+                            @if(isset($item['metrics']['impressions']))
+                                <span>{{ $item['metrics']['impressions'] }} impressions</span>
+                            @endif
+                            @if(isset($item['metrics']['ctr']))
+                                <span>CTR {{ number_format((float) $item['metrics']['ctr'], 2, ',', ' ') }}%</span>
+                            @endif
+                            @if(isset($item['metrics']['position']))
+                                <span>Pos {{ number_format((float) $item['metrics']['position'], 1, ',', ' ') }}</span>
+                            @endif
+                            @if(isset($item['metrics']['previous_impressions']))
+                                <span>Avant {{ $item['metrics']['previous_impressions'] }}</span>
+                            @endif
+                        </div>
+                    </div>
+                    @if(!empty($item['page_id']))
+                    <a href="{{ route('admin.pages.show', [$site->site_id, $item['page_id']]) }}"
+                       class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shrink-0">
+                        Ouvrir
+                    </a>
+                    @endif
+                </div>
+                <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                    <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Action suggérée</div>
+                    <div class="text-sm font-semibold text-gray-800">{{ ucfirst((string) $item['action']) }}</div>
+                </div>
+            </div>
+            @empty
+            <div class="px-6 py-10 text-center">
+                <div class="text-sm font-semibold text-gray-500">Aucune opportunité GSC prioritaire.</div>
+                <div class="text-xs text-gray-400 mt-1">
+                    @if($gscOpportunitySummary['connected'])
+                        Le site est connecté, mais aucune page ne remonte un signal assez fort pour rouvrir une action.
+                    @else
+                        Connectez ce site à Google Search Console pour alimenter l’autogestion avec des vraies données.
+                    @endif
+                </div>
+            </div>
+            @endforelse
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-bold text-gray-900">Connexion Google</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Chaque site peut avoir sa propre propriété et ses propres credentials.</p>
+        </div>
+        <form method="POST" action="{{ route('admin.sites.google-connection.update', $site->site_id) }}" class="px-6 py-5 space-y-4">
+            @csrf
+            <div>
+                <label class="{{ $labelCls }}">Mode de connexion</label>
+                <select name="gsc_connection_mode" class="{{ $inputCls }}">
+                    <option value="">Aucune connexion</option>
+                    <option value="service_account" @selected($site->resolvedGscConnectionMode() === 'service_account')>Service account</option>
+                    <option value="oauth_google" @selected($site->resolvedGscConnectionMode() === 'oauth_google')>OAuth Google</option>
+                </select>
+            </div>
+            <div>
+                <label class="{{ $labelCls }}">Propriété GSC</label>
+                <input type="text" name="gsc_property_url" value="{{ old('gsc_property_url', $site->resolvedGscSiteUrl()) }}" placeholder="sc-domain:monsite.com" class="{{ $inputCls }}">
+            </div>
+            <div>
+                <label class="{{ $labelCls }}">Chemin credentials</label>
+                <input type="text" name="gsc_credentials_path" value="{{ old('gsc_credentials_path', $site->resolvedGscCredentialsPath()) }}" placeholder="/var/www/seo-engine-app/storage/google/service-account.json" class="{{ $inputCls }}">
+            </div>
+            <div>
+                <label class="{{ $labelCls }}">Compte Google</label>
+                <input type="email" name="gsc_account_email" value="{{ old('gsc_account_email', $site->resolvedGoogleConnection()?->google_account_email) }}" placeholder="service-account@project.iam.gserviceaccount.com" class="{{ $inputCls }}">
+            </div>
+            <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">État actuel</div>
+                <div class="text-sm font-semibold text-gray-800">{{ str_replace('_', ' ', $site->resolvedGscConnectionStatus()) }}</div>
+                @if($site->resolvedGoogleConnection()?->last_error)
+                    <div class="text-xs text-rose-600 mt-2">{{ $site->resolvedGoogleConnection()?->last_error }}</div>
+                @endif
+            </div>
+            <button type="submit"
+                    class="w-full font-bold rounded-xl px-4 py-3 text-sm text-white transition-all hover:-translate-y-0.5"
+                    style="background:linear-gradient(135deg,#0f172a,#1e293b);box-shadow:0 4px 14px rgba(15,23,42,0.25);">
+                Enregistrer la connexion Google
+            </button>
+        </form>
+    </div>
+</div>
+
 {{-- ═══ PAGES TABLE + SIDEBAR ═══ --}}
 <div class="flex items-start gap-6 anim-fade-up delay-150">
 

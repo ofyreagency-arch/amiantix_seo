@@ -39,6 +39,7 @@ Route::middleware('admin.auth')->prefix('admin')->name('admin.')->group(function
     Route::get('/sites', [AdminSitesController::class, 'index'])->name('sites.index');
     Route::post('/sites', [AdminSitesController::class, 'store'])->name('sites.store');
     Route::get('/sites/{siteId}', [AdminSitesController::class, 'show'])->name('sites.show');
+    Route::post('/sites/{siteId}/google-connection', [AdminSitesController::class, 'updateGoogleConnection'])->name('sites.google-connection.update');
     Route::post('/sites/{siteId}/rotate-token', [AdminSitesController::class, 'rotateToken'])->name('sites.rotate-token');
     Route::delete('/sites/{siteId}', [AdminSitesController::class, 'destroy'])->name('sites.destroy');
 
