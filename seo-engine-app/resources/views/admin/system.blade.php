@@ -15,6 +15,7 @@
     $diskPct    = (int) $diskUsedPct;
     $envIsProd  = ($infrastructure['environment'] ?? '') === 'production';
     $debugOn    = (bool) ($infrastructure['debug_mode'] ?? false);
+    $criticalRuntime = ($runtimeSummary['critical'] ?? 0) > 0;
 @endphp
 
 {{-- ═══ PAGE HEADER ═══ --}}
@@ -66,6 +67,81 @@
 </div>
 @endif
 
+{{-- ═══ RUNTIME HEALTH BOARD ═══ --}}
+<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6 anim-fade-up delay-25"
+     style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+        <div>
+            <h2 class="font-bold text-gray-900">System Health / Runtime Status</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Vue instantanée des modules réels du moteur, sans faux OK.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-100">
+                {{ $runtimeSummary['ok'] ?? 0 }} OK
+            </span>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold border bg-amber-50 text-amber-700 border-amber-100">
+                {{ $runtimeSummary['warning'] ?? 0 }} warning
+            </span>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold border {{ $criticalRuntime ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-gray-100 text-gray-500 border-gray-200' }}">
+                {{ $runtimeSummary['critical'] ?? 0 }} critical
+            </span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-px" style="background:#f3f4f6;">
+        @foreach($runtimeModules as $module)
+        @php
+            $statusCls = match ($module['status']) {
+                'ok' => 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                'warning' => 'bg-amber-50 text-amber-700 border-amber-100',
+                default => 'bg-rose-50 text-rose-700 border-rose-100',
+            };
+            $dotCls = match ($module['status']) {
+                'ok' => 'bg-emerald-500',
+                'warning' => 'bg-amber-400',
+                default => 'bg-rose-500',
+            };
+        @endphp
+        <div class="bg-white px-5 py-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full {{ $dotCls }} shrink-0"></div>
+                        <h3 class="text-sm font-bold text-gray-900">{{ $module['label'] }}</h3>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1.5">{{ $module['summary'] }}</p>
+                </div>
+                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold border {{ $statusCls }}">
+                    {{ $module['status'] }}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mt-4">
+                @foreach($module['details'] as $detailLabel => $detailValue)
+                <div class="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                    <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{{ $detailLabel }}</div>
+                    <div class="text-sm font-semibold text-gray-800 mt-1 break-words">{{ $detailValue }}</div>
+                </div>
+                @endforeach
+            </div>
+
+            <div class="mt-4 flex flex-col gap-1 text-xs">
+                <div class="text-gray-400">
+                    Dernière exécution :
+                    <span class="font-semibold text-gray-700">{{ $module['last_run'] ?: 'non détectée' }}</span>
+                </div>
+                <div class="text-gray-400">
+                    Dernière erreur :
+                    <span class="font-semibold {{ $module['last_error'] ? 'text-rose-600' : 'text-gray-500' }}">
+                        {{ $module['last_error'] ?: 'aucune' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        @endforeach
+    </div>
+</div>
+
 {{-- ═══ 3-COL GRID ═══ --}}
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 anim-fade-up delay-50">
 
@@ -112,7 +188,7 @@
             <div class="px-5 py-3">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-gray-500 text-sm">Disque</span>
-                    <span class="text-xs font-semibold text-gray-600">{{ $diskPct }}% · {{ $fmt($diskFree) }} libre</span>
+                    <span class="text-xs font-semibold text-gray-600">{{ $diskPct }}% · {{ $diskFreeHuman }} libre</span>
                 </div>
                 <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
                     @if($diskPct >= 90)
