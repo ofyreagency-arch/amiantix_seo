@@ -223,6 +223,82 @@ class AdminSitesController extends Controller
             ->with('success', 'Suggestion créée depuis Google Search Console : '.$opportunity['action'].'.');
     }
 
+    public function runIndexationBacklogAction(
+        string $siteId,
+        Request $request,
+        IndexationBacklogService $indexationBacklog,
+        SeoRewriteService $rewrite,
+    ): RedirectResponse {
+        $this->loadSite($siteId);
+
+        $data = $request->validate([
+            'page_id' => ['required', 'integer'],
+            'type' => ['required', 'string'],
+        ]);
+
+        $page = SeoPage::query()
+            ->where('site_id', $siteId)
+            ->findOrFail((int) $data['page_id']);
+
+        $backlogItems = collect($indexationBacklog->summarize($siteId)['items'] ?? []);
+        $item = $backlogItems->first(
+            fn (array $row): bool => (int) ($row['page_id'] ?? 0) === (int) $page->id
+                && (string) ($row['type'] ?? '') === (string) $data['type']
+        );
+
+        if (! is_array($item)) {
+            return redirect()
+                ->route('admin.sites.show', $siteId)
+                ->with('warning', 'Ce point d indexation n est plus disponible ou a deja change.');
+        }
+
+        if (($item['action_kind'] ?? null) === 'quick_fix' && ($item['quick_fix_action'] ?? null) === 'clear_noindex') {
+            $page->forceFill(['forced_noindex' => false])->save();
+
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $page->id])
+                ->with('success', 'Le noindex moteur a été retiré pour cette page.');
+        }
+
+        if (($item['action_kind'] ?? null) !== 'engine_rewrite') {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $page->id])
+                ->with('warning', 'Ce point demande une revue technique côté site client, pas une action moteur directe.');
+        }
+
+        if (! empty($item['cooldown_active'])) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $page->id])
+                ->with('warning', 'Cette page est encore en cooldown pour ce point d indexation.');
+        }
+
+        $mode = (string) ($item['mode'] ?? 'improve-indexability');
+        $existingPending = $this->findExistingPendingIndexationSuggestion($page->id, $mode, (string) $data['type']);
+
+        if ($existingPending !== null) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $page->id])
+                ->with('warning', 'Une suggestion d indexation de ce type existe déjà pour cette page.');
+        }
+
+        $suggestion = $rewrite->createSuggestion($page->fresh(['suggestions']), $mode);
+        $suggestion->forceFill([
+            'signals_json' => array_merge($suggestion->signals_json ?? [], [
+                'indexation_backlog_trigger' => array_filter([
+                    'type' => (string) $data['type'],
+                    'mode' => $mode,
+                    'action' => (string) ($item['action_label'] ?? ''),
+                    'reason' => (string) ($item['reason'] ?? ''),
+                ], static fn (mixed $value): bool => $value !== null && $value !== ''),
+            ]),
+        ])->save();
+
+        return redirect()
+            ->route('admin.pages.show', [$siteId, $page->id])
+            ->with('rewrite_suggestion', method_exists($suggestion, 'toArray') ? $suggestion->toArray() : (array) $suggestion)
+            ->with('success', 'Action moteur créée depuis le backlog d indexation : '.($item['action_label'] ?? 'correction ciblée').'.');
+    }
+
     public function rotateToken(string $siteId): RedirectResponse
     {
         $site  = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
@@ -299,6 +375,22 @@ class AdminSitesController extends Controller
                 }
 
                 return true;
+            });
+    }
+
+    private function findExistingPendingIndexationSuggestion(int $pageId, string $mode, string $type): ?SeoSuggestion
+    {
+        return SeoSuggestion::query()
+            ->where('seo_page_id', $pageId)
+            ->where('status', 'pending')
+            ->where('source', 'rewrite_engine:'.$mode)
+            ->get()
+            ->first(function (SeoSuggestion $suggestion) use ($type): bool {
+                $trigger = is_array($suggestion->signals_json['indexation_backlog_trigger'] ?? null)
+                    ? $suggestion->signals_json['indexation_backlog_trigger']
+                    : [];
+
+                return ($trigger['type'] ?? null) === $type;
             });
     }
 }

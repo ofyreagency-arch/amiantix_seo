@@ -237,6 +237,11 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 'observed_noindex' => 'Observee en noindex',
                 default => 'A verifier',
             };
+            $backlogActionBadgeCls = match ($item['action_kind'] ?? 'manual_review') {
+                'engine_rewrite' => 'border-indigo-200 bg-indigo-50 text-indigo-700',
+                'quick_fix' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                default => 'border-gray-200 bg-gray-50 text-gray-600',
+            };
         @endphp
         <div class="px-6 py-4">
             <div class="flex items-start justify-between gap-3">
@@ -254,14 +259,55 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                         <div class="mt-2 text-xs text-gray-400">URL observée : {{ $item['observed_path'] }}</div>
                     @endif
                 </div>
-                <a href="{{ route('admin.pages.show', [$site->site_id, $item['page_id']]) }}"
-                   class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shrink-0">
-                    Ouvrir
-                </a>
+                <div class="flex flex-col items-end gap-2 shrink-0">
+                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold {{ $backlogActionBadgeCls }}">
+                        {{ $item['action_state_label'] ?? 'Revue manuelle requise' }}
+                    </span>
+                    <a href="{{ route('admin.pages.show', [$site->site_id, $item['page_id']]) }}"
+                       class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                        Ouvrir
+                    </a>
+                </div>
             </div>
             <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Quoi verifier maintenant</div>
                 <div class="text-sm font-semibold text-gray-800">{{ $item['action'] }}</div>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center rounded-full border {{ $backlogActionBadgeCls }} px-3 py-1 text-xs font-bold">
+                        {{ $item['action_label'] ?? 'Revue technique requise' }}
+                    </span>
+                    @if(($item['action_kind'] ?? null) === 'engine_rewrite')
+                        @if(!empty($item['pending_suggestion']))
+                            <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                                Suggestion déjà en attente
+                            </span>
+                        @elseif(!empty($item['cooldown_active']))
+                            <span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                                Cooldown actif
+                            </span>
+                        @else
+                            <form method="POST" action="{{ route('admin.sites.indexation-backlog.run', $site->site_id) }}">
+                                @csrf
+                                <input type="hidden" name="page_id" value="{{ $item['page_id'] }}">
+                                <input type="hidden" name="type" value="{{ $item['type'] }}">
+                                <button type="submit"
+                                        class="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-50">
+                                    Lancer la correction moteur
+                                </button>
+                            </form>
+                        @endif
+                    @elseif(($item['action_kind'] ?? null) === 'quick_fix')
+                        <form method="POST" action="{{ route('admin.sites.indexation-backlog.run', $site->site_id) }}">
+                            @csrf
+                            <input type="hidden" name="page_id" value="{{ $item['page_id'] }}">
+                            <input type="hidden" name="type" value="{{ $item['type'] }}">
+                            <button type="submit"
+                                    class="inline-flex items-center rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">
+                                Appliquer ce correctif
+                            </button>
+                        </form>
+                    @endif
+                </div>
             </div>
         </div>
         @empty

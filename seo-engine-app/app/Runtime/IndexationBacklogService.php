@@ -6,11 +6,15 @@ namespace App\Runtime;
 
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSuggestion;
 use App\ObservedSite\SeoPageObservedLinkService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 class IndexationBacklogService
 {
+    public const COOLDOWN_DAYS = 7;
+
     public function __construct(
         private readonly SeoPageObservedLinkService $observedLinks,
     ) {}
@@ -33,6 +37,7 @@ class IndexationBacklogService
             'status',
             'canonical_url',
             'is_indexed',
+            'forced_noindex',
         ];
 
         if (Schema::hasColumns('seo_pages', ['published_live', 'published_live_at'])) {
@@ -67,14 +72,26 @@ class IndexationBacklogService
             ->groupBy('seo_page_id')
             ->map(fn ($group) => $group->first());
 
+        $recentSuggestions = SeoSuggestion::query()
+            ->whereIn('seo_page_id', $pages->pluck('id'))
+            ->where('created_at', '>=', now()->subDays(self::COOLDOWN_DAYS))
+            ->get(['id', 'seo_page_id', 'source', 'status', 'signals_json', 'created_at'])
+            ->groupBy('seo_page_id');
+
         $items = collect();
 
         foreach ($pages as $page) {
             $metric = $latestMetrics->get($page->id);
             $observed = $this->observedLinks->resolveMatch($page)['page'] ?? null;
+            /** @var Collection<int,SeoSuggestion> $suggestionRows */
+            $suggestionRows = $recentSuggestions->get($page->id, collect());
             $label = trim((string) ($page->title ?: $page->keyword ?: $page->slug));
 
             if ($metric && $metric->is_indexed === false) {
+                $action = $page->forced_noindex
+                    ? $this->decorateQuickFixAction('clear_noindex', 'Retirer le noindex moteur')
+                    : $this->decorateRewriteAction($suggestionRows, 'improve-indexability', 'google_not_indexed', 'Créer une correction moteur');
+
                 $items->push($this->makeItem(
                     type: 'google_not_indexed',
                     label: $label,
@@ -83,6 +100,7 @@ class IndexationBacklogService
                     reason: $this->coverageReason($metric->coverage_json),
                     action: 'Verifier canonical, sitemap, maillage et qualite avant nouvelle demande d indexation.',
                     priorityScore: 520,
+                    actionPlan: $action,
                 ));
             }
 
@@ -95,6 +113,7 @@ class IndexationBacklogService
                     reason: 'Page publiee cote moteur sans signal Google recent exploitable.',
                     action: 'Verifier la publication publique, le sitemap et les liens internes avant d attendre des impressions.',
                     priorityScore: $this->isPublishedLive($page) ? 320 : 240,
+                    actionPlan: $this->decorateRewriteAction($suggestionRows, 'add-internal-links-only', 'without_google_signal', 'Renforcer le maillage'),
                 ));
             }
 
@@ -108,6 +127,7 @@ class IndexationBacklogService
                     action: 'Corriger la destination publiee ou supprimer la page casse cote site client.',
                     priorityScore: 500,
                     observedPath: $observed->path,
+                    actionPlan: $this->decorateManualAction('Revue technique requise'),
                 ));
             }
 
@@ -121,10 +141,15 @@ class IndexationBacklogService
                     action: 'Verifier l URL finale, la canonical et eviter de pousser une ancienne route en production.',
                     priorityScore: 360,
                     observedPath: $observed->path,
+                    actionPlan: $this->decorateManualAction('Verifier la destination live'),
                 ));
             }
 
             if ($observed && in_array((string) $observed->indexability_state, ['noindex', 'non_indexable', 'blocked'], true)) {
+                $action = $page->forced_noindex
+                    ? $this->decorateQuickFixAction('clear_noindex', 'Retirer le noindex moteur')
+                    : $this->decorateManualAction('Verifier le noindex cote site');
+
                 $items->push($this->makeItem(
                     type: 'observed_noindex',
                     label: $label,
@@ -134,6 +159,7 @@ class IndexationBacklogService
                     action: 'Verifier robots, meta noindex, canonicals et etat reel de la page cote site client.',
                     priorityScore: 340,
                     observedPath: $observed->path,
+                    actionPlan: $action,
                 ));
             }
         }
@@ -168,6 +194,7 @@ class IndexationBacklogService
         string $action,
         int $priorityScore,
         ?string $observedPath = null,
+        array $actionPlan = [],
     ): array {
         return [
             'type' => $type,
@@ -180,6 +207,7 @@ class IndexationBacklogService
             'action' => $action,
             'observed_path' => $observedPath,
             'priority_score' => $priorityScore,
+            ...$actionPlan,
         ];
     }
 
@@ -209,5 +237,100 @@ class IndexationBacklogService
         }
 
         return $page->isPublishedLive();
+    }
+
+    /**
+     * @param  Collection<int,SeoSuggestion>  $suggestions
+     * @return array<string,mixed>
+     */
+    private function decorateRewriteAction(Collection $suggestions, string $mode, string $type, string $label): array
+    {
+        $existingPending = $this->findPendingSuggestion($suggestions, $mode, $type);
+        $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestions, $mode, $type);
+        $actionState = $existingPending !== null
+            ? 'pending'
+            : ($cooldownSuggestion !== null ? 'cooldown' : 'ready');
+
+        return [
+            'action_kind' => 'engine_rewrite',
+            'action_label' => $label,
+            'mode' => $mode,
+            'pending_suggestion' => $existingPending !== null,
+            'pending_suggestion_id' => $existingPending?->id,
+            'cooldown_active' => $cooldownSuggestion !== null,
+            'cooldown_suggestion_id' => $cooldownSuggestion?->id,
+            'action_state' => $actionState,
+            'action_state_label' => match ($actionState) {
+                'pending' => 'Suggestion deja en attente',
+                'cooldown' => 'Cooldown actif',
+                default => 'Action moteur possible',
+            },
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function decorateQuickFixAction(string $quickFixAction, string $label): array
+    {
+        return [
+            'action_kind' => 'quick_fix',
+            'action_label' => $label,
+            'quick_fix_action' => $quickFixAction,
+            'action_state' => 'ready',
+            'action_state_label' => 'Correctif direct possible',
+            'pending_suggestion' => false,
+            'cooldown_active' => false,
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function decorateManualAction(string $label): array
+    {
+        return [
+            'action_kind' => 'manual_review',
+            'action_label' => $label,
+            'action_state' => 'manual',
+            'action_state_label' => 'Revue manuelle requise',
+            'pending_suggestion' => false,
+            'cooldown_active' => false,
+        ];
+    }
+
+    /**
+     * @param  Collection<int,SeoSuggestion>  $suggestions
+     */
+    private function findPendingSuggestion(Collection $suggestions, string $mode, string $type): ?SeoSuggestion
+    {
+        return $suggestions->first(function (SeoSuggestion $suggestion) use ($mode, $type): bool {
+            if ($suggestion->status !== 'pending') {
+                return false;
+            }
+
+            return $this->matchesTrigger($suggestion, $mode, $type);
+        });
+    }
+
+    /**
+     * @param  Collection<int,SeoSuggestion>  $suggestions
+     */
+    private function findRecentTriggeredSuggestion(Collection $suggestions, string $mode, string $type): ?SeoSuggestion
+    {
+        return $suggestions->first(fn (SeoSuggestion $suggestion): bool => $this->matchesTrigger($suggestion, $mode, $type));
+    }
+
+    private function matchesTrigger(SeoSuggestion $suggestion, string $mode, string $type): bool
+    {
+        if ($suggestion->source !== 'rewrite_engine:'.$mode) {
+            return false;
+        }
+
+        $trigger = is_array($suggestion->signals_json['indexation_backlog_trigger'] ?? null)
+            ? $suggestion->signals_json['indexation_backlog_trigger']
+            : [];
+
+        return ($trigger['type'] ?? null) === $type;
     }
 }

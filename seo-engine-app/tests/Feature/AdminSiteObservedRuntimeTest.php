@@ -283,6 +283,159 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertSee('Page sans signal');
         $response->assertSee('Page 404');
         $response->assertSee('Detected, currently not indexed');
+        $response->assertSee('Créer une correction moteur');
+        $response->assertSee('Renforcer le maillage');
+        $response->assertSee('Revue technique requise');
+    }
+
+    public function test_site_indexation_backlog_can_trigger_a_targeted_engine_action(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output' => [[
+                    'content' => [[
+                        'text' => json_encode([
+                            'title' => 'Page non indexee : fiabiliser la publication',
+                            'meta_description' => 'Version renforcee pour soutenir l indexation, le maillage et les preuves utiles.',
+                            'h1' => 'Page non indexee : fiabiliser la publication',
+                            'content' => '<section><h2>Publication et maillage</h2><p>Renforcer le contexte d indexation, les liens internes et les signaux utiles.</p></section>',
+                            'faq' => [
+                                ['question' => 'Q1', 'answer' => 'A1'],
+                                ['question' => 'Q2', 'answer' => 'A2'],
+                                ['question' => 'Q3', 'answer' => 'A3'],
+                                ['question' => 'Q4', 'answer' => 'A4'],
+                                ['question' => 'Q5', 'answer' => 'A5'],
+                            ],
+                            'internal_links' => [],
+                            'rationale' => ['Renforcer la page pour aider la reprise Google.'],
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'connected',
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page non indexee',
+            'slug' => 'page-non-indexee',
+            'title' => 'Page non indexee',
+            'content' => '<section><h2>Contexte</h2><p>'.str_repeat('Contexte utile pour Google et le lecteur. ', 60).'</p></section>',
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'internal_links_json' => [],
+            'status' => 'published',
+            'indexability_score' => 60,
+            'seo_score' => 68,
+            'quality_score' => 90,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-non-indexee',
+            'clicks' => 0,
+            'impressions' => 12,
+            'ctr' => 0.0,
+            'position' => 18.2,
+            'is_indexed' => false,
+            'coverage_json' => ['coverage_state:Detected, currently not indexed'],
+            'payload_json' => [],
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.sites.indexation-backlog.run', $site->site_id), [
+                'page_id' => $page->id,
+                'type' => 'google_not_indexed',
+            ]);
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $this->assertDatabaseHas('seo_suggestions', [
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:improve-indexability',
+            'status' => 'pending',
+        ]);
+
+        $suggestion = SeoSuggestion::query()->where('seo_page_id', $page->id)->latest('id')->first();
+        $this->assertNotNull($suggestion);
+        $this->assertSame('google_not_indexed', $suggestion->signals_json['indexation_backlog_trigger']['type']);
+        $this->assertSame('improve-indexability', $suggestion->signals_json['indexation_backlog_trigger']['mode']);
+    }
+
+    public function test_site_indexation_backlog_can_clear_forced_noindex_directly(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page bloquee',
+            'slug' => 'page-bloquee',
+            'title' => 'Page bloquee',
+            'status' => 'published',
+            'forced_noindex' => true,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-bloquee',
+            'clicks' => 0,
+            'impressions' => 10,
+            'ctr' => 0.0,
+            'position' => 22.0,
+            'is_indexed' => false,
+            'coverage_json' => ['coverage_state:Blocked by noindex'],
+            'payload_json' => [],
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.sites.indexation-backlog.run', $site->site_id), [
+                'page_id' => $page->id,
+                'type' => 'google_not_indexed',
+            ]);
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+        $this->assertDatabaseHas('seo_pages', [
+            'id' => $page->id,
+            'forced_noindex' => false,
+        ]);
+        $this->assertDatabaseCount('seo_suggestions', 0);
     }
 
     public function test_site_show_prioritizes_actionable_gsc_opportunities(): void
