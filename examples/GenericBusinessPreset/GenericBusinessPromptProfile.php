@@ -11,6 +11,11 @@ final class GenericBusinessPromptProfile implements PromptProfileProvider
 {
     public function generationPrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
     {
+        return $this->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
+    }
+
+    public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
+    {
         return "Write a business article for a professional SaaS knowledge base.\n".
             'Primary keyword: '.$keyword."\n".
             'Cluster: '.$cluster."\n".
@@ -24,6 +29,23 @@ final class GenericBusinessPromptProfile implements PromptProfileProvider
             "- include a clear checklist, real friction points, FAQ and a grounded conclusion\n".
             "- minimum 1200 words\n".
             'Return JSON only with: title, meta_description, h1, content, faq, schema.';
+    }
+
+    public function generationFaqPrompt(string $keyword, string $cluster, array $blueprint, string $title, string $metaDescription, string $h1, string $content): string
+    {
+        return "Write a practical FAQ for a professional business article.\n".
+            'Primary keyword: '.$keyword."\n".
+            'Cluster: '.$cluster."\n".
+            'Topic: '.$blueprint['topic']."\n".
+            'Title: '.$title."\n".
+            'Meta description: '.$metaDescription."\n".
+            'H1: '.$h1."\n".
+            "Current content:\n".$content."\n".
+            "Constraints:\n".
+            "- create 4 to 6 concrete business questions\n".
+            "- focus on workflow, ownership, documents, tradeoffs and implementation issues\n".
+            "- avoid SEO talk, AI talk and filler\n".
+            'Return JSON only with: faq.';
     }
 
     public function improvementPrompt(object $page, array $blueprint, array $audit, array $editorialSections, array $expectedSignals): string

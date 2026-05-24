@@ -270,9 +270,20 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                     </a>
                     @endif
                 </div>
-                <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-                    <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Action suggérée</div>
+                    <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Action suggérée</div>
                     <div class="text-sm font-semibold text-gray-800">{{ ucfirst((string) $item['action']) }}</div>
+                    @if(!empty($item['page_id']))
+                    <form method="POST" action="{{ route('admin.sites.gsc-opportunities.run', $site->site_id) }}" class="mt-3">
+                        @csrf
+                        <input type="hidden" name="page_id" value="{{ $item['page_id'] }}">
+                        <input type="hidden" name="type" value="{{ $item['type'] }}">
+                        <button type="submit"
+                                class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                            Lancer cette action
+                        </button>
+                    </form>
+                    @endif
                 </div>
             </div>
             @empty

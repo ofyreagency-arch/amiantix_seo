@@ -90,6 +90,7 @@ class GscOpportunityService
                     'page_id' => $page->id,
                     'reason' => 'La page est visible dans Google mais trop peu de personnes cliquent.',
                     'action' => 'relancer le CTR',
+                    'mode' => 'improve-ctr',
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'ctr' => round($recentCtr * 100, 2),
@@ -106,6 +107,7 @@ class GscOpportunityService
                     'page_id' => $page->id,
                     'reason' => 'La page est proche de la zone qui compte et peut gagner vite avec un refresh ciblé.',
                     'action' => 'rafraichir la page',
+                    'mode' => 'enrich',
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'ctr' => round($recentCtr * 100, 2),
@@ -122,6 +124,7 @@ class GscOpportunityService
                     'page_id' => $page->id,
                     'reason' => 'La visibilité récente baisse durablement par rapport à la fenêtre précédente.',
                     'action' => 'verifier puis relancer',
+                    'mode' => 'enrich',
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'previous_impressions' => (int) round($olderImpressions),
@@ -154,6 +157,7 @@ class GscOpportunityService
                         'query' => $query,
                         'reason' => 'Une requête émergente mérite une réponse plus explicite dans la page.',
                         'action' => 'creer une section utile',
+                        'mode' => 'enrich',
                         'metrics' => [
                             'impressions' => (int) round($impressions),
                             'ctr' => round($ctr * 100, 2),

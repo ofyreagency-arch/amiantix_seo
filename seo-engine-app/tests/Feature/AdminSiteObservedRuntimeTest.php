@@ -11,6 +11,8 @@ use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
+use App\Models\SeoSuggestion;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -210,5 +212,102 @@ class AdminSiteObservedRuntimeTest extends TestCase
             'credentials_path' => '/var/www/runtime-site.json',
             'connection_status' => 'configured',
         ]);
+    }
+
+    public function test_site_gsc_opportunity_can_trigger_a_targeted_rewrite_suggestion(): void
+    {
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output' => [[
+                    'content' => [[
+                        'text' => json_encode([
+                            'title' => 'Diagnostic amiante Paris : relancer les clics utiles',
+                            'meta_description' => 'Une version plus engageante centrée sur les obligations, les preuves et les bons réflexes avant travaux.',
+                            'h1' => 'Diagnostic amiante Paris : comment relancer l intérêt utile',
+                            'content' => '<section><h2>Contexte et obligations</h2><p>Cadrez les obligations, les livrables et le point de départ du lecteur.</p></section>',
+                            'faq' => [
+                                ['question' => 'Q1', 'answer' => 'A1'],
+                                ['question' => 'Q2', 'answer' => 'A2'],
+                                ['question' => 'Q3', 'answer' => 'A3'],
+                                ['question' => 'Q4', 'answer' => 'A4'],
+                                ['question' => 'Q5', 'answer' => 'A5'],
+                            ],
+                            'internal_links' => [],
+                            'rationale' => ['Relancer un angle plus cliquable sans casser la page existante.'],
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'configured',
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'title' => 'Diagnostic amiante Paris',
+            'content' => implode('', [
+                '<section><h2>Contexte et obligations</h2><p>'.str_repeat('Contexte documentaire et obligations terrain. ', 40).'</p></section>',
+                '<section><h2>Points de vigilance</h2><p>'.str_repeat('Vigilance, coordination et verification documentaire. ', 35).'</p></section>',
+                '<section><h2>Documents a conserver</h2><p>'.str_repeat('Documents, preuves et traces utiles. ', 30).'</p></section>',
+            ]),
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'internal_links_json' => [],
+            'status' => 'published',
+            'seo_score' => 70,
+            'quality_score' => 90,
+            'indexability_score' => 72,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDays(3)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/diagnostic-amiante-paris',
+            'clicks' => 1,
+            'impressions' => 160,
+            'ctr' => 0.00625,
+            'position' => 12.4,
+            'payload_json' => [],
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.sites.gsc-opportunities.run', $site->site_id), [
+                'page_id' => $page->id,
+                'type' => 'low_ctr',
+            ]);
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $this->assertDatabaseHas('seo_suggestions', [
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:improve-ctr',
+            'status' => 'pending',
+        ]);
+
+        $suggestion = SeoSuggestion::query()->where('seo_page_id', $page->id)->latest('id')->first();
+        $this->assertNotNull($suggestion);
+        $this->assertSame('improve-ctr', $suggestion->suggestions_json['mode']);
     }
 }

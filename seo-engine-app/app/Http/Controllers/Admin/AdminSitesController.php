@@ -16,6 +16,7 @@ use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 
 class AdminSitesController extends Controller
 {
@@ -147,6 +148,41 @@ class AdminSitesController extends Controller
             ->with('success', 'Connexion Google mise à jour.');
     }
 
+    public function runGscOpportunity(
+        string $siteId,
+        Request $request,
+        GscOpportunityService $gscOpportunities,
+        SeoRewriteService $rewrite,
+    ): RedirectResponse {
+        $site = $this->loadSite($siteId);
+
+        $data = $request->validate([
+            'page_id' => ['required', 'integer'],
+            'type' => ['required', 'string'],
+        ]);
+
+        $page = SeoPage::query()
+            ->where('site_id', $siteId)
+            ->findOrFail((int) $data['page_id']);
+
+        $opportunities = collect($gscOpportunities->summarize($siteId, $site->hasSearchConsoleConfigured())['items'] ?? []);
+        $opportunity = $opportunities->first(fn (array $item): bool => (int) ($item['page_id'] ?? 0) === (int) $page->id && (string) ($item['type'] ?? '') === (string) $data['type']);
+
+        if (! is_array($opportunity)) {
+            return redirect()
+                ->route('admin.sites.show', $siteId)
+                ->with('warning', 'Cette opportunité GSC n est plus disponible ou a déjà changé.');
+        }
+
+        $mode = (string) ($opportunity['mode'] ?? 'enrich');
+        $suggestion = $rewrite->createSuggestion($page->fresh(['suggestions']), $mode);
+
+        return redirect()
+            ->route('admin.pages.show', [$siteId, $page->id])
+            ->with('rewrite_suggestion', method_exists($suggestion, 'toArray') ? $suggestion->toArray() : (array) $suggestion)
+            ->with('success', 'Suggestion créée depuis Google Search Console : '.$opportunity['action'].'.');
+    }
+
     public function rotateToken(string $siteId): RedirectResponse
     {
         $site  = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
@@ -192,5 +228,13 @@ class AdminSitesController extends Controller
                 'last_error' => null,
             ],
         );
+    }
+
+    private function loadSite(string $siteId): SeoSite
+    {
+        return SeoSite::query()
+            ->with('googleConnection')
+            ->where('site_id', $siteId)
+            ->firstOrFail();
     }
 }
