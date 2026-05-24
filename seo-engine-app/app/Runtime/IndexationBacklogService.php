@@ -7,6 +7,7 @@ namespace App\Runtime;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\ObservedSite\SeoPageObservedLinkService;
+use Illuminate\Support\Facades\Schema;
 
 class IndexationBacklogService
 {
@@ -22,21 +23,26 @@ class IndexationBacklogService
      */
     public function summarize(string $siteId): array
     {
+        $pageColumns = [
+            'id',
+            'site_id',
+            'observed_site_page_id',
+            'keyword',
+            'slug',
+            'title',
+            'status',
+            'canonical_url',
+            'is_indexed',
+        ];
+
+        if (Schema::hasColumns('seo_pages', ['published_live', 'published_live_at'])) {
+            $pageColumns[] = 'published_live';
+            $pageColumns[] = 'published_live_at';
+        }
+
         $pages = SeoPage::query()
             ->where('site_id', $siteId)
-            ->get([
-                'id',
-                'site_id',
-                'observed_site_page_id',
-                'keyword',
-                'slug',
-                'title',
-                'status',
-                'canonical_url',
-                'published_live',
-                'published_live_at',
-                'is_indexed',
-            ]);
+            ->get($pageColumns);
 
         if ($pages->isEmpty()) {
             return [
@@ -88,7 +94,7 @@ class IndexationBacklogService
                     source: 'Moteur + GSC',
                     reason: 'Page publiee cote moteur sans signal Google recent exploitable.',
                     action: 'Verifier la publication publique, le sitemap et les liens internes avant d attendre des impressions.',
-                    priorityScore: $page->isPublishedLive() ? 320 : 240,
+                    priorityScore: $this->isPublishedLive($page) ? 320 : 240,
                 ));
             }
 
@@ -194,5 +200,14 @@ class IndexationBacklogService
         }
 
         return 'Google confirme un probleme d indexation sur cette page.';
+    }
+
+    private function isPublishedLive(SeoPage $page): bool
+    {
+        if (! Schema::hasColumns('seo_pages', ['published_live', 'published_live_at'])) {
+            return false;
+        }
+
+        return $page->isPublishedLive();
     }
 }
