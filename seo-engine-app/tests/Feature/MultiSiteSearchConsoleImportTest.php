@@ -138,6 +138,82 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         );
     }
 
+    public function test_import_history_uses_site_level_gsc_even_when_global_flag_is_disabled(): void
+    {
+        config([
+            'seo-engine.search_console.enabled' => false,
+            'services.google_search_console.enabled' => false,
+        ]);
+
+        [$siteA, $siteB, $pageA, $pageB] = $this->seedTwoGscSites();
+
+        $searchConsole = Mockery::mock(SearchConsoleService::class);
+        $searchConsole->shouldReceive('getTopPages')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [[
+                    'url' => 'https://alpha.test/page-alpha',
+                    'clicks' => 12.0,
+                    'impressions' => 180.0,
+                    'ctr' => 0.066,
+                    'position' => 8.3,
+                ]],
+                'sc-domain:beta.test' => [[
+                    'url' => 'https://beta.test/page-beta',
+                    'clicks' => 8.0,
+                    'impressions' => 130.0,
+                    'ctr' => 0.061,
+                    'position' => 10.2,
+                ]],
+                default => [],
+            };
+        });
+        $searchConsole->shouldReceive('getTopQueryPages')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [[
+                    'query' => 'amiante alpha',
+                    'url' => 'https://alpha.test/page-alpha',
+                    'clicks' => 6.0,
+                    'impressions' => 70.0,
+                    'ctr' => 0.085,
+                    'position' => 7.9,
+                ]],
+                'sc-domain:beta.test' => [[
+                    'query' => 'amiante beta',
+                    'url' => 'https://beta.test/page-beta',
+                    'clicks' => 5.0,
+                    'impressions' => 55.0,
+                    'ctr' => 0.09,
+                    'position' => 9.4,
+                ]],
+                default => [],
+            };
+        });
+        $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturn([
+            'top_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+            'top_query_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+        ]);
+
+        $this->app->instance(SearchConsoleService::class, $searchConsole);
+
+        $this->artisan('seo:import-history', [
+            '--windows' => '7',
+            '--limit' => 10,
+        ])->assertExitCode(0);
+
+        $this->assertDatabaseHas('seo_search_console_metrics', [
+            'site_id' => $siteA->site_id,
+            'seo_page_id' => $pageA->id,
+            'query' => null,
+            'url' => 'https://alpha.test/page-alpha',
+        ]);
+        $this->assertDatabaseHas('seo_search_console_metrics', [
+            'site_id' => $siteB->site_id,
+            'seo_page_id' => $pageB->id,
+            'query' => null,
+            'url' => 'https://beta.test/page-beta',
+        ]);
+    }
+
     public function test_import_history_marks_site_error_without_blocking_other_sites(): void
     {
         [$siteA, $siteB, $pageA] = $this->seedTwoGscSites();

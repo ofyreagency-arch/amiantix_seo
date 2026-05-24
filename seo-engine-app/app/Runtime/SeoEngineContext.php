@@ -32,7 +32,6 @@ class SeoEngineContext
         $this->preset              = $site->resolvedPreset();
         $this->gscSiteUrl          = $googleConnection?->property_url ?: $site->gsc_site_url;
         $this->gscCredentialsPath  = $googleConnection?->credentials_path ?: $site->gsc_credentials_path;
-
         // Inject per-site SEO + GSC config so the engine reads the correct site context.
         config([
             'seo-engine.site.id' => $this->siteId,
@@ -42,6 +41,14 @@ class SeoEngineContext
             'seo-engine.site.locale' => $this->locale,
             'seo-engine.site.preset' => $this->preset,
         ]);
+
+        // Only override the global GSC enablement when this site explicitly carries GSC config.
+        if ($this->gscSiteUrl || $this->gscCredentialsPath) {
+            config([
+                'seo-engine.search_console.enabled' => true,
+                'services.google_search_console.enabled' => true,
+            ]);
+        }
 
         if ($this->gscSiteUrl) {
             config([
