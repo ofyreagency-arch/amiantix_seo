@@ -40,6 +40,7 @@ class AdminPagesController extends Controller
         IndexationBacklogService $indexationBacklog,
         GscOpportunityService $gscOpportunities,
         PageWorkflowLifecycleService $pageWorkflowLifecycle,
+        SeoLivePublicationService $livePublication,
     ): View
     {
         $site = $this->loadSite($siteId);
@@ -56,6 +57,7 @@ class AdminPagesController extends Controller
         $pendingSuggestions = $page->suggestions->where('status', 'pending')->values();
         $publicationSummary = $statusService->summarize($page, true);
         $pageIndexationBacklog = $indexationBacklog->summarizeForPage($page);
+        $publicationTargetStatus = $livePublication->targetStatusForSite($site);
         $pageGscOpportunity = collect($gscOpportunities->summarize($siteId, $site->hasSearchConsoleConfigured())['items'] ?? [])
             ->where('page_id', $page->id)
             ->sortByDesc('priority_score')
@@ -64,11 +66,12 @@ class AdminPagesController extends Controller
             $page,
             $publicationSummary,
             $pageIndexationBacklog,
+            $publicationTargetStatus,
             is_array($pageGscOpportunity) ? $pageGscOpportunity : null,
             $pendingSuggestions->count(),
         );
 
-        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog', 'pageGscOpportunity', 'pageLifecycleSummary'));
+        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog', 'pageGscOpportunity', 'pageLifecycleSummary', 'publicationTargetStatus'));
     }
 
     public function generate(Request $request, string $siteId, SeoGeneratePageRunner $runner): RedirectResponse
@@ -269,7 +272,13 @@ class AdminPagesController extends Controller
                 ->with('warning', 'La page doit d’abord être publiée côté moteur avant de pouvoir être poussée en live.');
         }
 
-        $page = $livePublication->publish($page, $site);
+        try {
+            $page = $livePublication->publish($page, $site);
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $pageId])
+                ->with('warning', $exception->getMessage());
+        }
 
         return redirect()
             ->route('admin.pages.show', [$siteId, $pageId])

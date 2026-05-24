@@ -17,6 +17,7 @@ class PageWorkflowLifecycleService
     /**
      * @param  array<string,mixed>  $publicationSummary
      * @param  array<string,mixed>  $pageIndexationBacklog
+     * @param  array<string,mixed>  $publicationTargetStatus
      * @param  array<string,mixed>|null  $pageGscOpportunity
      * @return array<string,mixed>
      */
@@ -24,6 +25,7 @@ class PageWorkflowLifecycleService
         SeoPage $page,
         array $publicationSummary,
         array $pageIndexationBacklog,
+        array $publicationTargetStatus,
         ?array $pageGscOpportunity,
         int $pendingSuggestionCount,
     ): array {
@@ -39,9 +41,10 @@ class PageWorkflowLifecycleService
         $enginePublished = $page->isPublishedInEngine();
         $livePublished = $page->isPublishedLive();
         $hasBlockingRules = ($publicationSummary['failed_rules'] ?? []) !== [];
+        $targetActionable = (bool) ($publicationTargetStatus['engine_actionable'] ?? false);
 
         $canPublishEngine = ! $enginePublished && ! $hasBlockingRules && $pendingSuggestionCount === 0;
-        $canPublishLive = $liveSupported && $enginePublished && ! $livePublished;
+        $canPublishLive = $liveSupported && $enginePublished && ! $livePublished && $targetActionable;
 
         $gscActionState = is_array($pageGscOpportunity) ? (string) ($pageGscOpportunity['action_state'] ?? 'ready') : null;
         $gscActionReady = is_array($pageGscOpportunity) && $gscActionState === 'ready';
@@ -82,10 +85,18 @@ class PageWorkflowLifecycleService
             $canPublishLive => [
                 'kind' => 'publish_live',
                 'label' => 'Publier sur le site client',
-                'detail' => 'La page est validée côté moteur. Il reste à créer sa vraie URL publique côté site client.',
+                'detail' => 'La page est validée côté moteur. Il reste à la pousser vers la vraie cible publique configurée pour ce site.',
                 'impact_expected' => 'La page pourra être crawlée, remonter dans le sitemap public et recevoir de vrais signaux Google.',
                 'manual_required' => false,
                 'engine_actionable' => true,
+            ],
+            $enginePublished && ! $livePublished && ! $targetActionable => [
+                'kind' => 'manual_publication_setup',
+                'label' => (string) ($publicationTargetStatus['label'] ?? 'Configurer la publication réelle'),
+                'detail' => (string) ($publicationTargetStatus['detail'] ?? 'Le moteur ne peut pas encore pousser cette page vers le vrai site client.'),
+                'impact_expected' => 'Aucune vraie publication publique tant que la cible CMS/API n est pas configurée proprement.',
+                'manual_required' => (bool) ($publicationTargetStatus['manual_required'] ?? true),
+                'engine_actionable' => false,
             ],
             $livePublished && $gscActionReady => [
                 'kind' => 'gsc_opportunity',
@@ -180,6 +191,7 @@ class PageWorkflowLifecycleService
                 'live_supported' => $liveSupported,
                 'can_publish_engine' => $canPublishEngine,
                 'can_publish_live' => $canPublishLive,
+                'target' => $publicationTargetStatus,
             ],
             'next_action' => $nextAction,
             'monitoring' => $monitoring,

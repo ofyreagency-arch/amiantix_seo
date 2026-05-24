@@ -53,6 +53,7 @@
     $publicationSummary = session('publication_summary', $publicationSummary ?? null);
     $pageIndexationBacklog = $pageIndexationBacklog ?? ['items' => [], 'total' => 0, 'actionable_count' => 0, 'manual_count' => 0, 'google_state' => [], 'observed_state' => [], 'publication_state' => []];
     $pageGscOpportunity = is_array($pageGscOpportunity ?? null) ? $pageGscOpportunity : null;
+    $publicationTargetStatus = is_array($publicationTargetStatus ?? null) ? $publicationTargetStatus : ['label' => 'Runtime interne', 'detail' => 'Aucune cible CMS/API dédiée n est encore configurée.', 'mode' => 'runtime'];
     $pageLifecycleSummary = $pageLifecycleSummary ?? [
         'current_stage_label' => 'Préparation éditoriale',
         'next_action' => [
@@ -74,6 +75,7 @@
             'live_supported' => false,
             'can_publish_engine' => false,
             'can_publish_live' => false,
+            'target' => $publicationTargetStatus,
         ],
         'reopen_needed' => false,
         'backlog_actionable_item' => null,
@@ -726,6 +728,11 @@
               <div class="mt-4 inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700">
                   Revue technique humaine
               </div>
+              @elseif(($lifecycleNext['kind'] ?? null) === 'manual_publication_setup')
+              <a href="{{ route('admin.sites.show', $site->site_id) }}"
+                 class="mt-4 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">
+                  Configurer la cible client
+              </a>
               @endif
           </div>
 
@@ -742,6 +749,10 @@
               </p>
               <div class="mt-3 space-y-2 text-xs text-gray-500">
                   <div class="flex justify-between gap-4">
+                      <span>Cible</span>
+                      <span class="font-semibold text-gray-700">{{ (string) (($lifecyclePublication['target']['label'] ?? null) ?: 'Runtime interne') }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
                       <span>Publié moteur</span>
                       <span class="font-semibold text-gray-700">{{ !empty($lifecyclePublication['engine_published']) ? 'Oui' : 'Non' }}</span>
                   </div>
@@ -755,6 +766,9 @@
                   </div>
               </div>
               <p class="mt-3 text-xs text-gray-500">
+                  {{ (string) (($lifecyclePublication['target']['detail'] ?? null) ?: '') }}
+              </p>
+              <p class="mt-2 text-xs text-gray-500">
                   @if(!empty($lifecyclePublication['can_publish_engine']))
                   Le moteur peut publier cette page maintenant.
                   @elseif(!empty($lifecyclePublication['can_publish_live']))

@@ -31,6 +31,7 @@ class SeoAdminController extends Controller
                 'preset' => $site->preset,
                 'is_active' => $site->is_active,
                 'webhook_url' => $site->webhook_url,
+                'publication_mode' => $site->resolvedPublicationMode(),
                 'gsc_property_url' => $site->resolvedGscSiteUrl(),
                 'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
                 'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
@@ -50,6 +51,7 @@ class SeoAdminController extends Controller
             'locale'               => ['nullable', 'string', 'max:20'],
             'preset'               => ['nullable', 'string', 'in:generic,amiantix'],
             'webhook_url'          => ['nullable', 'url', 'max:500'],
+            'publication_mode'     => ['nullable', 'string', 'in:runtime,webhook_api,disabled'],
             'gsc_site_url'         => ['nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
             'gsc_connection_mode'  => ['nullable', 'string', 'in:service_account,oauth_google'],
@@ -71,10 +73,12 @@ class SeoAdminController extends Controller
         ]);
 
         $this->syncGoogleConnection($site, $data);
+        $this->syncPublicationTarget($site, $data);
 
         return response()->json([
             'site'      => [
                 ...$site->only(['id', 'site_id', 'name', 'url', 'niche', 'locale', 'preset', 'created_at']),
+                'publication_mode' => $site->resolvedPublicationMode(),
                 'gsc_property_url' => $site->resolvedGscSiteUrl(),
                 'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
                 'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
@@ -109,6 +113,7 @@ class SeoAdminController extends Controller
             'locale'               => ['sometimes', 'string', 'max:20'],
             'preset'               => ['sometimes', 'string', 'in:generic,amiantix'],
             'webhook_url'          => ['sometimes', 'nullable', 'url', 'max:500'],
+            'publication_mode'     => ['sometimes', 'nullable', 'string', 'in:runtime,webhook_api,disabled'],
             'gsc_site_url'         => ['sometimes', 'nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['sometimes', 'nullable', 'string', 'max:500'],
             'gsc_connection_mode'  => ['sometimes', 'nullable', 'string', 'in:service_account,oauth_google'],
@@ -123,12 +128,14 @@ class SeoAdminController extends Controller
 
         $site->update($data);
         $this->syncGoogleConnection($site, $data, clearWhenExplicitlyEmpty: true);
+        $this->syncPublicationTarget($site, $data);
 
         $site = $site->fresh(['googleConnection']);
 
         return response()->json([
             'site' => [
                 ...$site->toArray(),
+                'publication_mode' => $site->resolvedPublicationMode(),
                 'gsc_property_url' => $site->resolvedGscSiteUrl(),
                 'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
                 'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
@@ -186,5 +193,29 @@ class SeoAdminController extends Controller
                 'last_error' => null,
             ],
         );
+    }
+
+    /**
+     * @param  array<string,mixed>  $data
+     */
+    private function syncPublicationTarget(SeoSite $site, array $data): void
+    {
+        if (! array_key_exists('publication_mode', $data) && ! array_key_exists('webhook_url', $data)) {
+            return;
+        }
+
+        $settings = $site->settings_json ?? [];
+        $publication = is_array($settings['publication'] ?? null) ? $settings['publication'] : [];
+
+        if (array_key_exists('publication_mode', $data)) {
+            $publication['mode'] = (string) ($data['publication_mode'] ?: 'runtime');
+        }
+
+        if (array_key_exists('webhook_url', $data)) {
+            $publication['webhook_url'] = $data['webhook_url'] ?: null;
+        }
+
+        $settings['publication'] = $publication;
+        $site->forceFill(['settings_json' => $settings])->save();
     }
 }

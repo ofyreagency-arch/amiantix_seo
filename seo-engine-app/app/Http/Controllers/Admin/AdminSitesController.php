@@ -14,6 +14,7 @@ use App\ObservedSite\SiteHealthService;
 use App\Runtime\GscOpportunityService;
 use App\Runtime\IndexationBacklogService;
 use App\Runtime\RuntimeSeoMonitoringService;
+use App\Services\Publication\SeoLivePublicationService;
 use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ class AdminSitesController extends Controller
             'locale'      => ['required', 'string', 'max:10'],
             'preset'      => ['required', 'string', 'in:generic,amiantix'],
             'webhook_url' => ['nullable', 'url', 'max:255'],
+            'publication_mode' => ['nullable', 'string', 'in:runtime,webhook_api,disabled'],
             'gsc_connection_mode' => ['nullable', 'string', 'in:service_account,oauth_google'],
             'gsc_property_url' => ['nullable', 'string', 'max:500'],
             'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
@@ -66,6 +68,7 @@ class AdminSitesController extends Controller
         ]);
 
         $this->syncGoogleConnection($site, $data);
+        $this->syncPublicationTarget($site, $data);
 
         return redirect()->route('admin.sites.index')
             ->with('new_token', $token['token'])
@@ -78,6 +81,7 @@ class AdminSitesController extends Controller
         RuntimeSeoMonitoringService $monitoring,
         GscOpportunityService $gscOpportunities,
         IndexationBacklogService $indexationBacklog,
+        SeoLivePublicationService $livePublication,
     ): View
     {
         $site  = SeoSite::query()->with('googleConnection')->where('site_id', $siteId)->firstOrFail();
@@ -120,6 +124,7 @@ class AdminSitesController extends Controller
             ? $gscConnection->meta_json['last_sync']
             : [];
         $indexationBacklogSummary = $indexationBacklog->summarize($siteId);
+        $publicationTargetStatus = $livePublication->targetStatusForSite($site);
 
         return view('admin.sites.show', compact(
             'site',
@@ -132,7 +137,28 @@ class AdminSitesController extends Controller
             'gscOpportunitySummary',
             'gscSyncDetails',
             'indexationBacklogSummary',
+            'publicationTargetStatus',
         ));
+    }
+
+    public function updatePublicationTarget(string $siteId, Request $request): RedirectResponse
+    {
+        $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
+
+        $data = $request->validate([
+            'publication_mode' => ['required', 'string', 'in:runtime,webhook_api,disabled'],
+            'webhook_url' => ['nullable', 'url', 'max:500'],
+        ]);
+
+        $site->forceFill([
+            'webhook_url' => $data['webhook_url'] ?: null,
+        ])->save();
+
+        $this->syncPublicationTarget($site, $data);
+
+        return redirect()
+            ->route('admin.sites.show', $siteId)
+            ->with('success', 'Cible de publication client mise à jour.');
     }
 
     public function updateGoogleConnection(string $siteId, Request $request): RedirectResponse
@@ -344,6 +370,31 @@ class AdminSitesController extends Controller
                 'last_error' => null,
             ],
         );
+    }
+
+    /**
+     * @param  array<string,mixed>  $data
+     */
+    private function syncPublicationTarget(SeoSite $site, array $data): void
+    {
+        if (! array_key_exists('publication_mode', $data) && ! array_key_exists('webhook_url', $data)) {
+            return;
+        }
+
+        $settings = $site->settings_json ?? [];
+        $publication = is_array($settings['publication'] ?? null) ? $settings['publication'] : [];
+
+        if (array_key_exists('publication_mode', $data)) {
+            $publication['mode'] = (string) $data['publication_mode'];
+        }
+
+        if (array_key_exists('webhook_url', $data)) {
+            $publication['webhook_url'] = $data['webhook_url'] ?: null;
+        }
+
+        $settings['publication'] = $publication;
+
+        $site->forceFill(['settings_json' => $settings])->save();
     }
 
     private function loadSite(string $siteId): SeoSite

@@ -104,6 +104,29 @@ class SeoSite extends Model
         return (bool) ($this->resolvedGscSiteUrl() || $this->resolvedGscCredentialsPath());
     }
 
+    public function resolvedPublicationMode(): string
+    {
+        $mode = trim((string) data_get($this->settings_json, 'publication.mode', ''));
+
+        return in_array($mode, ['runtime', 'webhook_api', 'disabled'], true)
+            ? $mode
+            : 'runtime';
+    }
+
+    public function resolvedPublicationModeLabel(): string
+    {
+        return match ($this->resolvedPublicationMode()) {
+            'webhook_api' => 'Webhook CMS/API',
+            'disabled' => 'Publication externe désactivée',
+            default => 'Runtime interne',
+        };
+    }
+
+    public function publicationWebhookUrl(): ?string
+    {
+        return $this->webhook_url ?: data_get($this->settings_json, 'publication.webhook_url');
+    }
+
     public static function resolveByToken(string $rawToken): ?self
     {
         return self::query()

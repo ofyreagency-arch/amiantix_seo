@@ -196,6 +196,14 @@
                     <label class="{{ $labelCls }}">Webhook URL <span class="text-gray-300 font-normal">(optionnel)</span></label>
                     <input type="url" name="webhook_url" value="{{ old('webhook_url') }}" placeholder="https://monsite.com/seo-webhook" class="{{ $inputCls }}">
                 </div>
+                <div>
+                    <label class="{{ $labelCls }}">Publication réelle</label>
+                    <select name="publication_mode" class="{{ $inputCls }}">
+                        <option value="runtime" @selected(old('publication_mode', 'runtime') === 'runtime')>Runtime interne</option>
+                        <option value="webhook_api" @selected(old('publication_mode') === 'webhook_api')>Webhook CMS/API</option>
+                        <option value="disabled" @selected(old('publication_mode') === 'disabled')>Désactivée</option>
+                    </select>
+                </div>
 
                 {{-- GSC Section --}}
                 <div class="pt-3 border-t border-gray-100">

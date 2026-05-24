@@ -471,6 +471,41 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
 
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
         <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-bold text-gray-900">Publication client</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Choisit comment la page validée sort du runtime et rejoint le vrai site public.</p>
+        </div>
+        <form method="POST" action="{{ route('admin.sites.publication-target.update', $site->site_id) }}" class="px-6 py-5 space-y-4 border-b border-gray-100">
+            @csrf
+            <div>
+                <label class="{{ $labelCls }}">Mode de publication réelle</label>
+                <select name="publication_mode" class="{{ $inputCls }}">
+                    <option value="runtime" @selected($site->resolvedPublicationMode() === 'runtime')>Runtime interne</option>
+                    <option value="webhook_api" @selected($site->resolvedPublicationMode() === 'webhook_api')>Webhook CMS/API</option>
+                    <option value="disabled" @selected($site->resolvedPublicationMode() === 'disabled')>Désactivée</option>
+                </select>
+            </div>
+            <div>
+                <label class="{{ $labelCls }}">Endpoint CMS/API</label>
+                <input type="url" name="webhook_url" value="{{ old('webhook_url', $site->publicationWebhookUrl()) }}" placeholder="https://client.com/api/praeviseo/publish" class="{{ $inputCls }}">
+            </div>
+            <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">État actuel</div>
+                <div class="text-sm font-semibold text-gray-800">{{ $publicationTargetStatus['label'] ?? 'Runtime interne' }}</div>
+                <div class="mt-1 text-xs text-gray-500">{{ $publicationTargetStatus['detail'] ?? 'La cible de publication réelle n est pas encore configurée.' }}</div>
+                @if(!empty($publicationTargetStatus['target']))
+                    <div class="mt-2 text-xs text-gray-500">Endpoint : <span class="font-semibold text-gray-700">{{ $publicationTargetStatus['target'] }}</span></div>
+                @endif
+            </div>
+            <button type="submit"
+                    class="w-full font-bold rounded-xl px-4 py-3 text-sm text-white transition-all hover:-translate-y-0.5"
+                    style="background:linear-gradient(135deg,#0f172a,#1e293b);box-shadow:0 4px 14px rgba(15,23,42,0.25);">
+                Enregistrer la cible de publication
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+        <div class="px-6 py-4 border-b border-gray-100">
             <h2 class="font-bold text-gray-900">Connexion Google</h2>
             <p class="text-xs text-gray-400 mt-0.5">Chaque site peut avoir sa propre propriété et ses propres credentials.</p>
         </div>
