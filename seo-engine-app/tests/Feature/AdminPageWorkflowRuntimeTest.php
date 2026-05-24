@@ -240,6 +240,138 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertDontSee('Lancer la correction moteur');
     }
 
+    public function test_page_show_surfaces_real_lifecycle_publish_engine_action_when_page_is_ready(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante paris', 'diagnostics');
+        $payload = app(AmiantixContentProfile::class)->fallbackPayload('diagnostic amiante paris', 'diagnostics', $blueprint);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'cluster' => 'diagnostics',
+            'status' => 'review',
+            'title' => $payload['title'],
+            'h1' => $payload['h1'],
+            'meta_description' => $payload['meta_description'],
+            'content' => $payload['content'].'<section><h2>Ressources</h2><p><a href="/reglementation-amiante">Reglementation amiante</a></p></section>',
+            'faq_json' => $payload['faq'],
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+                ['@context' => 'https://schema.org', '@type' => 'FAQPage'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/reglementation-amiante', 'label' => 'Reglementation amiante'],
+                ['url' => '/reperage-amiante-avant-travaux', 'label' => 'Repérage amiante avant travaux'],
+                ['url' => '/coordination-amiante', 'label' => 'Coordination amiante'],
+            ],
+            'seo_score' => 84,
+            'quality_score' => 100,
+            'topical_score' => 100,
+            'indexability_score' => 74,
+            'image_status' => 'approved',
+            'image_quality_score' => 100,
+            'image_path' => 'seo/test-image.jpg',
+            'image_alt' => 'Illustration amiante chantier et coordination documentaire',
+            'image_prompt' => 'Illustration editoriale amiante chantier coordination documentaire',
+            'spam_risk' => 'low',
+            'duplicate_risk_score' => 20,
+            'cluster_links_count' => 2,
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Cycle de vie réel');
+        $response->assertSee('Publier côté moteur');
+        $response->assertSee('La page est encore en préparation');
+        $response->assertSee('Monitoring post-publication non actif');
+    }
+
+    public function test_page_show_surfaces_post_publication_gsc_reopen_action(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+            'gsc_site_url' => 'sc-domain:workflow-site.test',
+            'gsc_credentials_path' => '/tmp/service-account.json',
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'status' => 'published',
+            'published_at' => now(),
+            'published_live' => true,
+            'published_live_at' => now(),
+            'live_url' => 'https://workflow-site.test/danger-sante-amiante',
+            'title' => 'Danger Sante Amiante',
+            'content' => '<section><h2>Contexte</h2><p>'.str_repeat('Contenu stable mais CTR faible. ', 60).'</p></section>',
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'schema_json' => [
+                ['@context' => 'https://schema.org', '@type' => 'Article'],
+            ],
+            'internal_links_json' => [
+                ['url' => '/reglementation-amiante', 'label' => 'Reglementation amiante'],
+            ],
+            'seo_score' => 86,
+            'quality_score' => 96,
+            'topical_score' => 100,
+            'indexability_score' => 78,
+            'image_status' => 'approved',
+            'image_quality_score' => 100,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://workflow-site.test/danger-sante-amiante',
+            'clicks' => 1,
+            'impressions' => 150,
+            'ctr' => 1 / 150,
+            'position' => 9.4,
+            'is_indexed' => true,
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Cycle de vie réel');
+        $response->assertSee('Réouvrir une amélioration post-publication');
+        $response->assertSee('Signal Google en dérive exploitable');
+        $response->assertSee('Priorite haute');
+        $response->assertSee('Lancer cette action');
+    }
+
     public function test_generate_creates_a_new_page_when_a_keyword_slug_collides_with_an_existing_blog(): void
     {
         $site = SeoSite::query()->create([

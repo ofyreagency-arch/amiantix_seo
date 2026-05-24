@@ -13,7 +13,9 @@ use App\Models\SeoSuggestion;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Services\Media\SeoPageImageGenerator;
+use App\Runtime\GscOpportunityService;
 use App\Runtime\IndexationBacklogService;
+use App\Runtime\PageWorkflowLifecycleService;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,8 @@ class AdminPagesController extends Controller
         SeoPageStatusService $statusService,
         SeoScoreRefreshService $scoreRefresh,
         IndexationBacklogService $indexationBacklog,
+        GscOpportunityService $gscOpportunities,
+        PageWorkflowLifecycleService $pageWorkflowLifecycle,
     ): View
     {
         $site = $this->loadSite($siteId);
@@ -52,8 +56,19 @@ class AdminPagesController extends Controller
         $pendingSuggestions = $page->suggestions->where('status', 'pending')->values();
         $publicationSummary = $statusService->summarize($page, true);
         $pageIndexationBacklog = $indexationBacklog->summarizeForPage($page);
+        $pageGscOpportunity = collect($gscOpportunities->summarize($siteId, $site->hasSearchConsoleConfigured())['items'] ?? [])
+            ->where('page_id', $page->id)
+            ->sortByDesc('priority_score')
+            ->first();
+        $pageLifecycleSummary = $pageWorkflowLifecycle->summarize(
+            $page,
+            $publicationSummary,
+            $pageIndexationBacklog,
+            is_array($pageGscOpportunity) ? $pageGscOpportunity : null,
+            $pendingSuggestions->count(),
+        );
 
-        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog'));
+        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog', 'pageGscOpportunity', 'pageLifecycleSummary'));
     }
 
     public function generate(Request $request, string $siteId, SeoGeneratePageRunner $runner): RedirectResponse

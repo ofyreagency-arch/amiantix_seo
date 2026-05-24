@@ -52,6 +52,34 @@
     $latestMetric    = $latestMetric ?? null;
     $publicationSummary = session('publication_summary', $publicationSummary ?? null);
     $pageIndexationBacklog = $pageIndexationBacklog ?? ['items' => [], 'total' => 0, 'actionable_count' => 0, 'manual_count' => 0, 'google_state' => [], 'observed_state' => [], 'publication_state' => []];
+    $pageGscOpportunity = is_array($pageGscOpportunity ?? null) ? $pageGscOpportunity : null;
+    $pageLifecycleSummary = $pageLifecycleSummary ?? [
+        'current_stage_label' => 'Préparation éditoriale',
+        'next_action' => [
+            'kind' => 'wait',
+            'label' => 'Continuer le workflow éditorial',
+            'detail' => 'La page n est pas encore dans la phase de publication réelle.',
+            'impact_expected' => 'Préparer une publication propre sans sauter d étape.',
+            'manual_required' => false,
+            'engine_actionable' => false,
+        ],
+        'monitoring' => [
+            'state' => 'pre_live',
+            'label' => 'Monitoring post-publication non actif',
+            'detail' => 'Le suivi réel commencera après publication live.',
+        ],
+        'publication' => [
+            'engine_published' => $enginePublished,
+            'live_published' => $livePublished,
+            'live_supported' => false,
+            'can_publish_engine' => false,
+            'can_publish_live' => false,
+        ],
+        'reopen_needed' => false,
+        'backlog_actionable_item' => null,
+        'backlog_manual_item' => null,
+        'gsc_opportunity' => $pageGscOpportunity,
+    ];
 
     $observedRewriteContext = session('observed_rewrite_context', $observedRewriteContext ?? null);
     $pendingSuggestions     = $pendingSuggestions ?? collect();
@@ -599,11 +627,190 @@
         </div>
         @endforelse
     </div>
-</div>
+  </div>
+  
+  {{-- ═══════════════════════════════════════════
+       REAL LIFECYCLE
+  ════════════════════════════════════════════ --}}
+  @php
+      $lifecycleNext = is_array($pageLifecycleSummary['next_action'] ?? null) ? $pageLifecycleSummary['next_action'] : [];
+      $lifecycleMonitoring = is_array($pageLifecycleSummary['monitoring'] ?? null) ? $pageLifecycleSummary['monitoring'] : [];
+      $lifecyclePublication = is_array($pageLifecycleSummary['publication'] ?? null) ? $pageLifecycleSummary['publication'] : [];
+      $lifecycleGscOpportunity = is_array($pageLifecycleSummary['gsc_opportunity'] ?? null) ? $pageLifecycleSummary['gsc_opportunity'] : null;
+      $lifecycleBacklogAction = is_array($pageLifecycleSummary['backlog_actionable_item'] ?? null) ? $pageLifecycleSummary['backlog_actionable_item'] : null;
+      $lifecycleBacklogManual = is_array($pageLifecycleSummary['backlog_manual_item'] ?? null) ? $pageLifecycleSummary['backlog_manual_item'] : null;
 
-{{-- ═══════════════════════════════════════════
-     PUBLICATION BLOCKERS
-════════════════════════════════════════════ --}}
+      $nextActionAccent = match (true) {
+          ($lifecycleNext['manual_required'] ?? false) === true => 'rose',
+          ($lifecycleNext['engine_actionable'] ?? false) === true => 'indigo',
+          default => 'slate',
+      };
+      $nextActionClasses = match ($nextActionAccent) {
+          'rose' => 'border-rose-200 bg-rose-50 text-rose-700',
+          'indigo' => 'border-indigo-200 bg-indigo-50 text-indigo-700',
+          default => 'border-slate-200 bg-slate-50 text-slate-600',
+      };
+
+      $monitoringAccent = match ((string) ($lifecycleMonitoring['state'] ?? 'pre_live')) {
+          'technical_issue' => 'rose',
+          'indexation_issue', 'signal_drift' => 'amber',
+          'stable' => 'emerald',
+          default => 'slate',
+      };
+      $monitoringClasses = match ($monitoringAccent) {
+          'rose' => 'border-rose-200 bg-rose-50 text-rose-700',
+          'amber' => 'border-amber-200 bg-amber-50 text-amber-700',
+          'emerald' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
+          default => 'border-slate-200 bg-slate-50 text-slate-600',
+      };
+  @endphp
+  <div class="bg-white rounded-2xl border border-gray-100 px-7 py-6 mb-5 anim-fade-up"
+       style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+      <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+              <p class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-1">Cycle de vie réel</p>
+              <h3 class="text-base font-bold text-gray-900">Détection → action → validation → publication → monitoring</h3>
+              <p class="mt-1 text-sm text-gray-500">Le cockpit reste honnête : moteur quand c est actionnable, revue humaine quand le problème est technique.</p>
+          </div>
+          <span class="shrink-0 inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+              {{ (string) ($pageLifecycleSummary['current_stage_label'] ?? 'Préparation éditoriale') }}
+          </span>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="rounded-2xl border border-gray-100 bg-white px-5 py-4" style="box-shadow:0 1px 4px rgba(0,0,0,0.03);">
+              <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Prochaine action</p>
+              <div class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold {{ $nextActionClasses }}">
+                  {{ (string) ($lifecycleNext['label'] ?? 'Continuer le workflow éditorial') }}
+              </div>
+              <p class="mt-3 text-sm font-semibold text-gray-900">{{ (string) ($lifecycleNext['detail'] ?? 'Aucune action immédiate recommandée.') }}</p>
+              <p class="mt-2 text-xs text-gray-500">Impact attendu : {{ (string) ($lifecycleNext['impact_expected'] ?? 'Poursuivre le workflow sans inventer de correction magique.') }}</p>
+
+              @if(($lifecycleNext['kind'] ?? null) === 'publish_engine')
+              <form method="POST" action="{{ route('admin.pages.publish', [$site->site_id, $page->id]) }}" class="mt-4">
+                  @csrf
+                  <button type="submit"
+                      class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
+                      Publier côté moteur
+                  </button>
+              </form>
+              @elseif(($lifecycleNext['kind'] ?? null) === 'publish_live')
+              <form method="POST" action="{{ route('admin.pages.publish-live', [$site->site_id, $page->id]) }}" class="mt-4">
+                  @csrf
+                  <button type="submit"
+                      class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100">
+                      Publier sur le site client
+                  </button>
+              </form>
+              @elseif(in_array(($lifecycleNext['kind'] ?? ''), ['engine_rewrite', 'quick_fix'], true) && $lifecycleBacklogAction)
+              <form method="POST" action="{{ route('admin.sites.indexation-backlog.run', $site->site_id) }}" class="mt-4">
+                  @csrf
+                  <input type="hidden" name="page_id" value="{{ $page->id }}">
+                  <input type="hidden" name="type" value="{{ $lifecycleBacklogAction['type'] }}">
+                  <button type="submit"
+                      class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                      {{ ($lifecycleBacklogAction['action_kind'] ?? null) === 'quick_fix' ? 'Appliquer ce correctif' : 'Lancer la correction moteur' }}
+                  </button>
+              </form>
+              @elseif(($lifecycleNext['kind'] ?? null) === 'gsc_opportunity' && $lifecycleGscOpportunity)
+              <form method="POST" action="{{ route('admin.sites.gsc-opportunities.run', $site->site_id) }}" class="mt-4">
+                  @csrf
+                  <input type="hidden" name="page_id" value="{{ $page->id }}">
+                  <input type="hidden" name="type" value="{{ $lifecycleGscOpportunity['type'] }}">
+                  <button type="submit"
+                      class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                      Lancer cette action
+                  </button>
+              </form>
+              @elseif(($lifecycleNext['kind'] ?? null) === 'manual_review' && $lifecycleBacklogManual)
+              <div class="mt-4 inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700">
+                  Revue technique humaine
+              </div>
+              @endif
+          </div>
+
+          <div class="rounded-2xl border border-gray-100 bg-white px-5 py-4" style="box-shadow:0 1px 4px rgba(0,0,0,0.03);">
+              <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Publication réelle</p>
+              <p class="text-sm font-semibold text-gray-900">
+                  @if(!empty($lifecyclePublication['live_published']))
+                  La page est déjà poussée en live
+                  @elseif(!empty($lifecyclePublication['engine_published']))
+                  La page est validée côté moteur
+                  @else
+                  La page est encore en préparation
+                  @endif
+              </p>
+              <div class="mt-3 space-y-2 text-xs text-gray-500">
+                  <div class="flex justify-between gap-4">
+                      <span>Publié moteur</span>
+                      <span class="font-semibold text-gray-700">{{ !empty($lifecyclePublication['engine_published']) ? 'Oui' : 'Non' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Publié live</span>
+                      <span class="font-semibold text-gray-700">{{ !empty($lifecyclePublication['live_published']) ? 'Oui' : 'Non' }}</span>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                      <span>Service live</span>
+                      <span class="font-semibold text-gray-700">{{ !empty($lifecyclePublication['live_supported']) ? 'Disponible' : 'Absent du runtime' }}</span>
+                  </div>
+              </div>
+              <p class="mt-3 text-xs text-gray-500">
+                  @if(!empty($lifecyclePublication['can_publish_engine']))
+                  Le moteur peut publier cette page maintenant.
+                  @elseif(!empty($lifecyclePublication['can_publish_live']))
+                  La vraie URL publique peut maintenant être créée sur le site client.
+                  @elseif(!empty($lifecyclePublication['live_published']))
+                  La page entre dans le suivi crawl/Google réel.
+                  @else
+                  On ne saute pas la publication réelle tant que la phase précédente n est pas propre.
+                  @endif
+              </p>
+          </div>
+
+          <div class="rounded-2xl border border-gray-100 bg-white px-5 py-4" style="box-shadow:0 1px 4px rgba(0,0,0,0.03);">
+              <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Monitoring post-publication</p>
+              <div class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold {{ $monitoringClasses }}">
+                  {{ (string) ($lifecycleMonitoring['label'] ?? 'Monitoring à confirmer') }}
+              </div>
+              <p class="mt-3 text-sm font-semibold text-gray-900">{{ (string) ($lifecycleMonitoring['detail'] ?? 'Le runtime n a pas encore assez de recul pour rouvrir une action.') }}</p>
+
+              @if($lifecycleGscOpportunity)
+              <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                  <div class="flex items-center justify-between gap-3">
+                      <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Signal Google</span>
+                      <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold
+                          {{ match(($lifecycleGscOpportunity['priority_level'] ?? 'watch')) {
+                              'high' => 'border-rose-200 bg-rose-50 text-rose-700',
+                              'medium' => 'border-amber-200 bg-amber-50 text-amber-700',
+                              default => 'border-slate-200 bg-white text-slate-600',
+                          } }}">
+                          {{ $lifecycleGscOpportunity['priority_label'] ?? 'A surveiller' }}
+                      </span>
+                  </div>
+                  <p class="mt-2 text-sm font-semibold text-gray-900">{{ $lifecycleGscOpportunity['reason'] ?? 'Signal Google détecté.' }}</p>
+                  <p class="mt-1 text-xs text-gray-500">
+                      Action recommandée : {{ ucfirst((string) ($lifecycleGscOpportunity['action'] ?? 'surveiller')) }} ·
+                      {{ $lifecycleGscOpportunity['action_state_label'] ?? 'Actionnable maintenant' }}
+                  </p>
+              </div>
+              @elseif(!empty($pageLifecycleSummary['reopen_needed']))
+              <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                  <p class="text-sm font-semibold text-amber-800">Réouverture recommandée</p>
+                  <p class="mt-1 text-xs text-amber-700">Le runtime voit une dérive assez concrète pour rouvrir une action sur cette page.</p>
+              </div>
+              @else
+              <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+                  <p class="text-sm font-semibold text-emerald-800">Aucune réouverture forte pour le moment</p>
+                  <p class="mt-1 text-xs text-emerald-700">La page reste en surveillance simple tant que Google ou le crawl ne dérivent pas réellement.</p>
+              </div>
+              @endif
+          </div>
+      </div>
+  </div>
+
+  {{-- ═══════════════════════════════════════════
+       PUBLICATION BLOCKERS
+  ════════════════════════════════════════════ --}}
 @if($page->status !== 'published' && !empty($publicationSummary['failed_rules'] ?? []))
 @php
     $failedRules = $publicationSummary['failed_rules'] ?? [];
