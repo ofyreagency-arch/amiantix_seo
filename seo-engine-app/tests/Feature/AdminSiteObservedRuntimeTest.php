@@ -174,6 +174,137 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertSee('health score');
     }
 
+    public function test_site_show_prioritizes_actionable_gsc_opportunities(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'connected',
+        ]);
+
+        $dropPage = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page en baisse',
+            'slug' => 'page-en-baisse',
+            'title' => 'Page en baisse',
+            'status' => 'published',
+        ]);
+
+        $topTenPage = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page top 10',
+            'slug' => 'page-top-10',
+            'title' => 'Page top 10',
+            'status' => 'published',
+        ]);
+
+        $ctrPage = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page ctr',
+            'slug' => 'page-ctr',
+            'title' => 'Page CTR',
+            'status' => 'published',
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $dropPage->id,
+            'metric_date' => now()->subDays(10)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-en-baisse',
+            'clicks' => 20,
+            'impressions' => 220,
+            'ctr' => 0.09,
+            'position' => 9.4,
+            'payload_json' => [],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $dropPage->id,
+            'metric_date' => now()->subDays(40)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-en-baisse',
+            'clicks' => 42,
+            'impressions' => 520,
+            'ctr' => 0.08,
+            'position' => 8.9,
+            'payload_json' => [],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $topTenPage->id,
+            'metric_date' => now()->subDays(5)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-top-10',
+            'clicks' => 9,
+            'impressions' => 140,
+            'ctr' => 0.064,
+            'position' => 9.1,
+            'payload_json' => [],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $ctrPage->id,
+            'metric_date' => now()->subDays(4)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-ctr',
+            'clicks' => 1,
+            'impressions' => 180,
+            'ctr' => 0.0055,
+            'position' => 16.2,
+            'payload_json' => [],
+        ]);
+
+        SeoSuggestion::query()->create([
+            'seo_page_id' => $ctrPage->id,
+            'source' => 'rewrite_engine:improve-ctr',
+            'signals_json' => [
+                'gsc_trigger' => [
+                    'type' => 'low_ctr',
+                    'mode' => 'improve-ctr',
+                ],
+            ],
+            'suggestions_json' => [
+                'mode' => 'improve-ctr',
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.sites.show', $site->site_id));
+
+        $response->assertOk();
+        $response->assertSeeInOrder([
+            'Page en baisse',
+            'Page top 10',
+            'Page CTR',
+        ]);
+        $response->assertSee('Priorite haute');
+        $response->assertSee('Gain rapide');
+        $response->assertSee('Actionnable maintenant');
+        $response->assertSee('Suggestion deja en attente');
+    }
+
     public function test_site_google_connection_can_be_updated_per_site_from_the_admin_page(): void
     {
         $site = SeoSite::query()->create([

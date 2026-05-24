@@ -69,7 +69,7 @@ class GscOpportunityService
         $recentSuggestions = SeoSuggestion::query()
             ->whereIn('seo_page_id', $pages->keys())
             ->where('created_at', '>=', now()->subDays(self::COOLDOWN_DAYS))
-            ->get(['id', 'seo_page_id', 'source', 'signals_json', 'created_at'])
+            ->get(['id', 'seo_page_id', 'source', 'status', 'signals_json', 'created_at'])
             ->groupBy('seo_page_id');
 
         $items = collect();
@@ -96,7 +96,7 @@ class GscOpportunityService
             if ($recentImpressions >= 100 && $recentCtr > 0.0 && $recentCtr < 0.02) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'improve-ctr', 'low_ctr');
                 $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'improve-ctr', 'low_ctr');
-                $items->push([
+                $items->push($this->decorateOpportunity([
                     'type' => 'low_ctr',
                     'label' => $label,
                     'slug' => $page->slug,
@@ -113,13 +113,13 @@ class GscOpportunityService
                         'ctr' => round($recentCtr * 100, 2),
                         'position' => round($recentPosition, 1),
                     ],
-                ]);
+                ]));
             }
 
             if ($recentImpressions >= 50 && $recentPosition >= 8.0 && $recentPosition <= 15.0) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'near_top_10');
                 $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'near_top_10');
-                $items->push([
+                $items->push($this->decorateOpportunity([
                     'type' => 'near_top_10',
                     'label' => $label,
                     'slug' => $page->slug,
@@ -136,13 +136,13 @@ class GscOpportunityService
                         'ctr' => round($recentCtr * 100, 2),
                         'position' => round($recentPosition, 1),
                     ],
-                ]);
+                ]));
             }
 
             if ($olderImpressions >= 80 && $dropRatio !== null && $dropRatio <= 0.7) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'sustained_drop');
                 $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'sustained_drop');
-                $items->push([
+                $items->push($this->decorateOpportunity([
                     'type' => 'sustained_drop',
                     'label' => $label,
                     'slug' => $page->slug,
@@ -159,7 +159,7 @@ class GscOpportunityService
                         'previous_impressions' => (int) round($olderImpressions),
                         'position' => round($recentPosition, 1),
                     ],
-                ]);
+                ]));
             }
 
             $queryRows
@@ -181,7 +181,7 @@ class GscOpportunityService
                     $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'emerging_query', $query);
                     $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'emerging_query', $query);
 
-                    $items->push([
+                    $items->push($this->decorateOpportunity([
                         'type' => 'emerging_query',
                         'label' => $label,
                         'slug' => $page->slug,
@@ -199,18 +199,12 @@ class GscOpportunityService
                             'ctr' => round($ctr * 100, 2),
                             'position' => round($position, 1),
                         ],
-                    ]);
+                    ]));
                 });
         }
 
         $sortedItems = $items
-            ->sortByDesc(fn (array $item): int => match ($item['type']) {
-                'sustained_drop' => 400 + (int) ($item['metrics']['previous_impressions'] ?? 0),
-                'low_ctr' => 300 + (int) ($item['metrics']['impressions'] ?? 0),
-                'near_top_10' => 200 + max(0, 20 - (int) round((float) ($item['metrics']['position'] ?? 0))),
-                'emerging_query' => 100 + (int) ($item['metrics']['impressions'] ?? 0),
-                default => 0,
-            })
+            ->sortByDesc(fn (array $item): int => (int) ($item['priority_score'] ?? 0))
             ->values();
 
         return [
@@ -224,6 +218,66 @@ class GscOpportunityService
             ],
             'items' => $sortedItems->take(8)->all(),
         ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $item
+     * @return array<string,mixed>
+     */
+    private function decorateOpportunity(array $item): array
+    {
+        $metrics = is_array($item['metrics'] ?? null) ? $item['metrics'] : [];
+        $baseScore = $this->basePriorityScore((string) ($item['type'] ?? ''), $metrics);
+        $actionState = ! empty($item['pending_suggestion'])
+            ? 'pending'
+            : (! empty($item['cooldown_active']) ? 'cooldown' : 'ready');
+
+        $score = $baseScore + match ($actionState) {
+            'ready' => 120,
+            'cooldown' => -40,
+            'pending' => -120,
+            default => 0,
+        };
+
+        [$level, $label] = match (true) {
+            $score >= 620 => ['high', 'Priorite haute'],
+            $score >= 420 => ['medium', 'Gain rapide'],
+            default => ['watch', 'A surveiller'],
+        };
+
+        $actionStateLabel = match ($actionState) {
+            'pending' => 'Suggestion deja en attente',
+            'cooldown' => 'Cooldown actif',
+            default => 'Actionnable maintenant',
+        };
+
+        $item['priority_score'] = $score;
+        $item['priority_level'] = $level;
+        $item['priority_label'] = $label;
+        $item['action_state'] = $actionState;
+        $item['action_state_label'] = $actionStateLabel;
+
+        return $item;
+    }
+
+    /**
+     * @param  array<string,mixed>  $metrics
+     */
+    private function basePriorityScore(string $type, array $metrics): int
+    {
+        $impressions = (int) ($metrics['impressions'] ?? 0);
+        $position = (float) ($metrics['position'] ?? 0.0);
+        $ctr = (float) ($metrics['ctr'] ?? 0.0);
+        $previousImpressions = (int) ($metrics['previous_impressions'] ?? 0);
+        $loss = max(0, $previousImpressions - $impressions);
+
+        return match ($type) {
+            'sustained_drop' => 520 + min(220, $loss) + max(0, (int) round(18 - $position) * 8),
+            'near_top_10' => 440 + min(180, $impressions) + max(0, (int) round(16 - $position) * 18),
+            'low_ctr' => 320 + min(200, $impressions) + max(0, (int) round((2.5 - $ctr) * 40)),
+            'emerging_query' => 180 + min(160, $impressions) + max(0, (int) round(20 - $position) * 8),
+            default => 0,
+        };
     }
 
     /**

@@ -217,6 +217,20 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
             @endforeach
         </div>
 
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50/70 flex flex-wrap items-center gap-2 text-xs">
+            @php
+                $readyCount = collect($gscOpportunitySummary['items'] ?? [])->where('action_state', 'ready')->count();
+                $highPriorityCount = collect($gscOpportunitySummary['items'] ?? [])->where('priority_level', 'high')->count();
+            @endphp
+            <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700">
+                {{ $readyCount }} action(s) prêtes
+            </span>
+            <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-bold text-indigo-700">
+                {{ $highPriorityCount }} priorité(s) haute(s)
+            </span>
+            <span class="text-gray-400">Le cockpit affiche d abord les opportunités les plus utiles et réellement actionnables.</span>
+        </div>
+
         <div class="divide-y divide-gray-50">
             @forelse($gscOpportunitySummary['items'] as $item)
             <div class="px-6 py-4">
@@ -240,6 +254,16 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                                 };
                             @endphp
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border {{ $badgeCls }}">{{ $badgeLabel }}</span>
+                            @php
+                                $priorityCls = match ($item['priority_level'] ?? 'watch') {
+                                    'high' => 'bg-rose-50 text-rose-700 border-rose-100',
+                                    'medium' => 'bg-indigo-50 text-indigo-700 border-indigo-100',
+                                    default => 'bg-gray-100 text-gray-600 border-gray-200',
+                                };
+                            @endphp
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border {{ $priorityCls }}">
+                                {{ $item['priority_label'] ?? 'A surveiller' }}
+                            </span>
                             @if(!empty($item['query']))
                                 <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{{ $item['query'] }}</span>
                             @else
@@ -272,7 +296,12 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 </div>
                     <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Action suggérée</div>
-                    <div class="text-sm font-semibold text-gray-800">{{ ucfirst((string) $item['action']) }}</div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="text-sm font-semibold text-gray-800">{{ ucfirst((string) $item['action']) }}</div>
+                        <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[11px] font-bold text-gray-600">
+                            {{ $item['action_state_label'] ?? 'Actionnable maintenant' }}
+                        </span>
+                    </div>
                     @if(!empty($item['page_id']))
                     @if(!empty($item['pending_suggestion']))
                     <div class="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
