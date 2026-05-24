@@ -207,6 +207,7 @@ class AdminSystemController extends Controller
             ->whereNotNull('last_error')
             ->latest('updated_at')
             ->first();
+        $latestGscSyncAt = SeoSiteGoogleConnection::query()->max('last_sync_at');
         $gscMetricCount = SeoSearchConsoleMetric::query()->count();
         $latestGscMetricAt = SeoSearchConsoleMetric::query()->max('metric_date');
 
@@ -282,11 +283,12 @@ class AdminSystemController extends Controller
                         : 'Connexion présente, mais aucune donnée GSC reçue pour le moment.'),
                 [
                     'Sites connectés' => $connectedGscCount.' / '.$activeSiteCount,
+                    'Dernière synchro' => $latestGscSyncAt ?: '—',
                     'Métriques reçues' => $gscMetricCount,
                     'Dernière donnée' => $latestGscMetricAt ?: '—',
                     'Dernière erreur' => $latestGscError?->last_error ?: '—',
                 ],
-                $latestGscMetricAt,
+                $latestGscSyncAt ?: $latestGscMetricAt,
                 $latestGscError?->last_error,
             ),
             $this->module(

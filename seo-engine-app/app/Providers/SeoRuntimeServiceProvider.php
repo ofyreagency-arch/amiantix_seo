@@ -18,6 +18,7 @@ use App\SeoBridge\VectorStore\MysqlVectorStore;
 use App\ActionLayer\SeoOverrideService;
 use App\Runtime\SeoEngineContext;
 use App\Runtime\DatabasePrioritizedPageProvider;
+use App\Runtime\MultiSiteSeoImportHistoryRunner;
 use App\Runtime\RuntimePageStatusLabeler;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\RuntimeSignalSuggestionFormatter;
@@ -54,6 +55,7 @@ use Ofyre\SeoEngine\Contracts\SeoPageRepository;
 use Ofyre\SeoEngine\Contracts\SeoSuggestionPersister;
 use Ofyre\SeoEngine\Contracts\SignalSuggestionFormatter;
 use Ofyre\SeoEngine\Contracts\VectorStore;
+use Ofyre\SeoEngine\Services\Console\SeoImportHistoryRunner;
 use Ofyre\SeoEngine\Services\Scoring\SeoScoringService;
 use Ofyre\SeoEngine\Services\SearchConsole\GoogleServiceAccountTokenService;
 
@@ -92,5 +94,6 @@ class SeoRuntimeServiceProvider extends ServiceProvider
         $this->app->singleton(ImagePromptProvider::class, PresetImagePromptProvider::class);
 
         $this->app->singleton(RuntimeSeoMonitoringService::class);
+        $this->app->singleton(SeoImportHistoryRunner::class, MultiSiteSeoImportHistoryRunner::class);
     }
 }
