@@ -201,7 +201,10 @@ class AdminSystemController extends Controller
         $siteCount = SeoSite::query()->count();
         $activeSiteCount = SeoSite::query()->where('is_active', true)->count();
         $connectedGscCount = SeoSiteGoogleConnection::query()
-            ->whereIn('connection_status', ['configured', 'connected'])
+            ->whereIn('connection_status', ['configured', 'connected', 'connected_empty'])
+            ->count();
+        $emptyGscSyncCount = SeoSiteGoogleConnection::query()
+            ->where('connection_status', 'connected_empty')
             ->count();
         $latestGscError = SeoSiteGoogleConnection::query()
             ->whereNotNull('last_error')
@@ -275,14 +278,17 @@ class AdminSystemController extends Controller
                 'Search Console',
                 $connectedGscCount === 0
                     ? 'warning'
-                    : ($latestGscError ? 'critical' : ($gscMetricCount > 0 ? 'ok' : 'warning')),
+                    : ($latestGscError ? 'critical' : (($gscMetricCount > 0 && $emptyGscSyncCount === 0) ? 'ok' : 'warning')),
                 $connectedGscCount === 0
                     ? 'Aucun site connecté à Google Search Console.'
-                    : ($gscMetricCount > 0
+                    : ($emptyGscSyncCount > 0
+                        ? 'Connexion GSC active, mais au moins un site synchronise à vide.'
+                        : ($gscMetricCount > 0
                         ? 'Des données Search Console alimentent bien le moteur.'
-                        : 'Connexion présente, mais aucune donnée GSC reçue pour le moment.'),
+                        : 'Connexion présente, mais aucune donnée GSC reçue pour le moment.')),
                 [
                     'Sites connectés' => $connectedGscCount.' / '.$activeSiteCount,
+                    'Syncs vides' => $emptyGscSyncCount,
                     'Dernière synchro' => $latestGscSyncAt ?: '—',
                     'Métriques reçues' => $gscMetricCount,
                     'Dernière donnée' => $latestGscMetricAt ?: '—',

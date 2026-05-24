@@ -341,6 +341,31 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
             <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">État actuel</div>
                 <div class="text-sm font-semibold text-gray-800">{{ str_replace('_', ' ', $site->resolvedGscConnectionStatus()) }}</div>
+                @if(!empty($gscSyncDetails))
+                    <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <div class="text-gray-400">Dernière synchro</div>
+                            <div class="font-semibold text-gray-700">{{ $site->resolvedGoogleConnection()?->last_sync_at?->format('d/m/Y H:i') ?: '—' }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400">Statut sync</div>
+                            <div class="font-semibold text-gray-700">{{ str_replace('_', ' ', (string) ($gscSyncDetails['status'] ?? '—')) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400">Pages importées</div>
+                            <div class="font-semibold text-gray-700">{{ (int) ($gscSyncDetails['pages'] ?? 0) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400">Requêtes importées</div>
+                            <div class="font-semibold text-gray-700">{{ (int) ($gscSyncDetails['queries'] ?? 0) }}</div>
+                        </div>
+                    </div>
+                    @if(($gscSyncDetails['status'] ?? null) === 'connected_but_empty')
+                        <div class="text-xs text-amber-600 mt-2">
+                            La connexion Google fonctionne, mais l’API n’a renvoyé aucune ligne sur la dernière fenêtre importée.
+                        </div>
+                    @endif
+                @endif
                 @if($site->resolvedGoogleConnection()?->last_error)
                     <div class="text-xs text-rose-600 mt-2">{{ $site->resolvedGoogleConnection()?->last_error }}</div>
                 @endif

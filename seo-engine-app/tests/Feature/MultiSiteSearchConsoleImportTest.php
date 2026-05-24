@@ -115,6 +115,10 @@ class MultiSiteSearchConsoleImportTest extends TestCase
 
         $this->assertNotNull(SeoSiteGoogleConnection::query()->where('site_id', $siteA->site_id)->value('last_sync_at'));
         $this->assertNotNull(SeoSiteGoogleConnection::query()->where('site_id', $siteB->site_id)->value('last_sync_at'));
+        $this->assertSame(
+            'connected_with_data',
+            SeoSiteGoogleConnection::query()->where('site_id', $siteA->site_id)->value('meta_json')['last_sync']['status'] ?? null
+        );
     }
 
     public function test_import_history_marks_site_error_without_blocking_other_sites(): void
@@ -178,6 +182,30 @@ class MultiSiteSearchConsoleImportTest extends TestCase
             'GSC access denied for beta',
             SeoSiteGoogleConnection::query()->where('site_id', $siteB->site_id)->value('last_error')
         );
+    }
+
+    public function test_import_history_marks_connected_but_empty_when_api_returns_no_rows(): void
+    {
+        [$siteA] = $this->seedTwoGscSites();
+
+        $searchConsole = Mockery::mock(SearchConsoleService::class);
+        $searchConsole->shouldReceive('getTopPages')->andReturn([]);
+        $searchConsole->shouldReceive('getTopQueryPages')->andReturn([]);
+
+        $this->app->instance(SearchConsoleService::class, $searchConsole);
+
+        $this->artisan('seo:import-history', [
+            '--windows' => '7',
+            '--limit' => 10,
+        ])->assertExitCode(0);
+
+        $connection = SeoSiteGoogleConnection::query()->where('site_id', $siteA->site_id)->firstOrFail();
+
+        $this->assertSame('connected_empty', $connection->connection_status);
+        $this->assertSame('connected_but_empty', $connection->meta_json['last_sync']['status'] ?? null);
+        $this->assertSame(0, $connection->meta_json['last_sync']['pages'] ?? null);
+        $this->assertSame(0, $connection->meta_json['last_sync']['queries'] ?? null);
+        $this->assertNull($connection->last_error);
     }
 
     /**

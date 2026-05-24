@@ -113,6 +113,10 @@ class AdminSitesController extends Controller
             $siteId,
             $site->hasSearchConsoleConfigured()
         );
+        $gscConnection = $site->resolvedGoogleConnection();
+        $gscSyncDetails = is_array($gscConnection?->meta_json['last_sync'] ?? null)
+            ? $gscConnection->meta_json['last_sync']
+            : [];
 
         return view('admin.sites.show', compact(
             'site',
@@ -123,6 +127,7 @@ class AdminSitesController extends Controller
             'observedAlerts',
             'latestCrawl',
             'gscOpportunitySummary',
+            'gscSyncDetails',
         ));
     }
 

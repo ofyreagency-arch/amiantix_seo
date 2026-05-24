@@ -59,20 +59,48 @@ class MultiSiteSeoImportHistoryRunner extends SeoImportHistoryRunner
 
             try {
                 $summary = $this->history->import($windows, $limit);
+                $pageRows = (int) ($summary['pages'] ?? 0);
+                $queryRows = (int) ($summary['queries'] ?? 0);
+                $emptySync = $pageRows === 0 && $queryRows === 0;
 
-                $totals['pages'] += (int) ($summary['pages'] ?? 0);
-                $totals['queries'] += (int) ($summary['queries'] ?? 0);
+                $totals['pages'] += $pageRows;
+                $totals['queries'] += $queryRows;
 
                 $this->updateConnectionStatus($site, [
-                    'connection_status' => 'connected',
+                    'connection_status' => $emptySync ? 'connected_empty' : 'connected',
                     'last_sync_at' => now(),
                     'last_validated_at' => now(),
                     'last_error' => null,
+                    'meta_json' => [
+                        'last_sync' => [
+                            'status' => $emptySync ? 'connected_but_empty' : 'connected_with_data',
+                            'site_url' => $site->resolvedGscSiteUrl(),
+                            'credentials_path' => $site->resolvedGscCredentialsPath(),
+                            'windows' => $windows,
+                            'limit' => $limit,
+                            'pages' => $pageRows,
+                            'queries' => $queryRows,
+                            'synced_at' => now()->toIso8601String(),
+                        ],
+                    ],
                 ]);
             } catch (\Throwable $e) {
                 $this->updateConnectionStatus($site, [
                     'connection_status' => 'error',
                     'last_error' => Str::limit($e->getMessage(), 500),
+                    'meta_json' => [
+                        'last_sync' => [
+                            'status' => 'error',
+                            'site_url' => $site->resolvedGscSiteUrl(),
+                            'credentials_path' => $site->resolvedGscCredentialsPath(),
+                            'windows' => $windows,
+                            'limit' => $limit,
+                            'pages' => 0,
+                            'queries' => 0,
+                            'synced_at' => now()->toIso8601String(),
+                            'error' => Str::limit($e->getMessage(), 500),
+                        ],
+                    ],
                 ]);
             }
         }
