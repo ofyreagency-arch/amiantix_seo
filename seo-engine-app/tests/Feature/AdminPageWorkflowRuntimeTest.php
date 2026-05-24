@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
 use App\SeoPresets\Amiantix\AmiantixContentProfile;
 use App\Models\SeoPage;
+use App\Models\SeoAudit;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
@@ -154,6 +155,68 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $this->assertCount(2, $pages);
         $this->assertSame('diagnostic-amiante-paris', $pages[0]->slug);
         $this->assertSame('diagnostic-amiante-paris-2', $pages[1]->slug);
+    }
+
+    public function test_site_can_delete_an_article_and_related_runtime_records(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'dta amiante copropriete',
+            'slug' => 'dta-amiante-copropriete',
+            'status' => 'review',
+            'title' => 'DTA amiante copropriete',
+            'content' => '<p>Contenu initial.</p>',
+        ]);
+
+        SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:enrich',
+            'signals_json' => [],
+            'suggestions_json' => ['sections' => ['Ajouter une section']],
+            'status' => 'pending',
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->toDateString(),
+            'window_days' => 28,
+            'url' => 'https://workflow-site.test/dta-amiante-copropriete',
+            'impressions' => 12,
+            'clicks' => 1,
+            'ctr' => 0.08,
+            'position' => 16.2,
+        ]);
+
+        SeoAudit::query()->create([
+            'seo_page_id' => $page->id,
+            'score' => 72,
+            'issues_json' => ['missing_table'],
+            'recommendations_json' => ['Ajouter un tableau'],
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->delete(route('admin.pages.destroy', [$site->site_id, $page->id]));
+
+        $response->assertRedirect(route('admin.sites.show', $site->site_id));
+        $response->assertSessionHas('success', 'Article supprimé.');
+
+        $this->assertDatabaseMissing('seo_pages', ['id' => $page->id]);
+        $this->assertDatabaseMissing('seo_suggestions', ['seo_page_id' => $page->id]);
+        $this->assertDatabaseMissing('seo_search_console_metrics', ['seo_page_id' => $page->id]);
+        $this->assertDatabaseMissing('seo_audits', ['seo_page_id' => $page->id]);
     }
 
     public function test_generate_marks_a_page_as_fallback_and_surfaces_the_ai_error(): void

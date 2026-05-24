@@ -198,17 +198,17 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
          style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
-                <h2 class="font-bold text-gray-900">Pages moteur</h2>
-                <p class="text-xs text-gray-400 mt-0.5">Couche action historique — générations et réécritures.</p>
+                <h2 class="font-bold text-gray-900">Articles</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Tous les contenus générés pour ce site.</p>
             </div>
-            <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">{{ $pages->total() }} page(s)</span>
+            <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">{{ $pages->total() }} article(s)</span>
         </div>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr style="background:#f8f9fc;">
-                        <th class="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">Keyword</th>
+                        <th class="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">Sujet</th>
                         <th class="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 hidden md:table-cell">Slug</th>
                         <th class="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">Statut</th>
                         <th class="text-right px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 hidden lg:table-cell">SEO</th>
@@ -257,9 +257,20 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                         <td class="px-6 py-3.5 text-right text-xs text-gray-400 hidden xl:table-cell">{{ $page->updated_at?->diffForHumans() }}</td>
                         <td class="px-6 py-3.5 text-right">
                             <a href="{{ route('admin.pages.show', [$site->site_id, $page->id]) }}"
-                               class="text-xs font-bold text-indigo-600 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                                Voir →
+                               class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                                Ouvrir
                             </a>
+                            <form method="POST"
+                                  action="{{ route('admin.pages.destroy', [$site->site_id, $page->id]) }}"
+                                  class="inline-block ml-2"
+                                  onsubmit="return confirm('Supprimer cet article ? Cette action est definitive.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit"
+                                        class="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100">
+                                    Supprimer
+                                </button>
+                            </form>
                         </td>
                     </tr>
                     @empty
@@ -270,8 +281,8 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                 </svg>
                             </div>
-                            <div class="text-sm font-semibold text-gray-400">Aucune page générée.</div>
-                            <div class="text-xs text-gray-300 mt-1">Utilisez le formulaire ci-contre →</div>
+                            <div class="text-sm font-semibold text-gray-400">Aucun article pour le moment.</div>
+                            <div class="text-xs text-gray-300 mt-1">Utilisez le bloc de droite pour en créer un.</div>
                         </td>
                     </tr>
                     @endforelse
@@ -293,17 +304,17 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
         <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
              style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
             <div class="px-6 py-4 border-b border-gray-100">
-                <h2 class="font-bold text-gray-900">Générer une page</h2>
-                <p class="text-xs text-gray-400 mt-0.5">Nouvelle page SEO ciblée</p>
+                <h2 class="font-bold text-gray-900">Créer un article</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Lancez un nouvel article à partir d un sujet simple.</p>
             </div>
             <form method="POST" action="{{ route('admin.pages.generate', $site->site_id) }}" class="px-6 py-5 space-y-4">
                 @csrf
                 <div>
-                    <label class="{{ $labelCls }}">Mot-clé cible</label>
-                    <input type="text" name="keyword" placeholder="ex: diagnostic amiante Paris" class="{{ $inputCls }}">
+                    <label class="{{ $labelCls }}">Sujet de l article</label>
+                    <input type="text" name="keyword" placeholder="ex: dta amiante copropriete" class="{{ $inputCls }}">
                 </div>
                 <div>
-                    <label class="{{ $labelCls }}">Statut initial</label>
+                    <label class="{{ $labelCls }}">Étape de départ</label>
                     <select name="status" class="{{ $inputCls }}">
                         <option value="draft">Brouillon</option>
                         <option value="review">En révision</option>
@@ -313,7 +324,7 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 <button type="submit"
                         class="w-full font-bold rounded-xl px-4 py-3 text-sm text-white transition-all hover:-translate-y-0.5"
                         style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 14px rgba(99,102,241,0.35);">
-                    Générer la page →
+                    Créer l article →
                 </button>
             </form>
         </div>
@@ -322,17 +333,17 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
         <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
              style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
             <div class="px-5 py-3.5 border-b border-gray-100">
-                <div class="text-xs font-bold text-gray-500 uppercase tracking-wider">Informations</div>
+                <div class="text-xs font-bold text-gray-500 uppercase tracking-wider">Informations du site</div>
             </div>
             <div class="px-5 py-3 space-y-2.5">
                 @foreach([
-                    ['label' => 'Site ID',      'value' => $site->site_id,                                               'mono' => true],
-                    ['label' => 'Preset',        'value' => $site->preset ?? 'generic',                                  'mono' => false],
+                    ['label' => 'Identifiant',   'value' => $site->site_id,                                               'mono' => true],
+                    ['label' => 'Mode moteur',   'value' => $site->preset ?? 'generic',                                  'mono' => false],
                     ['label' => 'Créé le',       'value' => $site->created_at?->format('d/m/Y'),                         'mono' => false],
                     ['label' => 'Webhook',       'value' => $site->webhook_url ? '✓ Configuré' : '—',                   'mono' => false],
-                    ['label' => 'GSC mode',      'value' => $site->resolvedGscConnectionMode() ?? '—',                  'mono' => false],
-                    ['label' => 'GSC statut',    'value' => str_replace('_', ' ', $site->resolvedGscConnectionStatus()),'mono' => false],
-                    ['label' => 'GSC propriété', 'value' => $site->resolvedGscSiteUrl() ?: '—',                         'mono' => false],
+                    ['label' => 'Connexion Google', 'value' => $site->resolvedGscConnectionMode() ?? '—',               'mono' => false],
+                    ['label' => 'État Google',   'value' => str_replace('_', ' ', $site->resolvedGscConnectionStatus()),'mono' => false],
+                    ['label' => 'Propriété Google', 'value' => $site->resolvedGscSiteUrl() ?: '—',                      'mono' => false],
                 ] as $info)
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-xs text-gray-400">{{ $info['label'] }}</span>

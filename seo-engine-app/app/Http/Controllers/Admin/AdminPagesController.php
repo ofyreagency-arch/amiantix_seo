@@ -15,6 +15,7 @@ use App\Services\Publication\SeoLivePublicationService;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -306,6 +307,24 @@ class AdminPagesController extends Controller
             ->findOrFail($pageId);
 
         return view('admin.pages.preview', compact('site', 'page'));
+    }
+
+    public function destroy(string $siteId, int $pageId): RedirectResponse
+    {
+        $this->loadSite($siteId);
+        $page = SeoPage::query()->where('site_id', $siteId)->findOrFail($pageId);
+
+        DB::transaction(function () use ($page): void {
+            $page->searchConsoleMetrics()->delete();
+            $page->audits()->delete();
+            $page->suggestions()->delete();
+            $page->overrides()->delete();
+            $page->delete();
+        });
+
+        return redirect()
+            ->route('admin.sites.show', $siteId)
+            ->with('success', 'Article supprimé.');
     }
 
     private function loadSite(string $siteId): SeoSite
