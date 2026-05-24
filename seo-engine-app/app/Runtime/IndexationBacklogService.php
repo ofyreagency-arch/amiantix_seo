@@ -86,6 +86,10 @@ class IndexationBacklogService
             /** @var Collection<int,SeoSuggestion> $suggestionRows */
             $suggestionRows = $recentSuggestions->get($page->id, collect());
             $label = trim((string) ($page->title ?: $page->keyword ?: $page->slug));
+            $hasObservedTechnicalBlock = $observed && (
+                (int) ($observed->last_status_code ?? 0) >= 300
+                || in_array((string) $observed->indexability_state, ['noindex', 'non_indexable', 'blocked'], true)
+            );
 
             if ($metric && $metric->is_indexed === false) {
                 $action = $page->forced_noindex
@@ -104,7 +108,7 @@ class IndexationBacklogService
                 ));
             }
 
-            if ($page->isPublishedInEngine() && ! $metric) {
+            if ($page->isPublishedInEngine() && ! $metric && ! $hasObservedTechnicalBlock) {
                 $items->push($this->makeItem(
                     type: 'without_google_signal',
                     label: $label,
@@ -182,6 +186,88 @@ class IndexationBacklogService
     }
 
     /**
+     * @return array{
+     *   google_state:array<string,mixed>,
+     *   observed_state:array<string,mixed>,
+     *   publication_state:array<string,mixed>,
+     *   items:array<int,array<string,mixed>>,
+     *   actionable_count:int,
+     *   manual_count:int,
+     *   total:int
+     * }
+     */
+    public function summarizeForPage(SeoPage $page): array
+    {
+        $latestMetric = SeoSearchConsoleMetric::query()
+            ->where('seo_page_id', $page->id)
+            ->whereNull('query')
+            ->orderByDesc('metric_date')
+            ->orderByDesc('id')
+            ->first();
+
+        $observed = $this->observedLinks->resolveMatch($page)['page'] ?? null;
+        $items = collect($this->summarize((string) $page->site_id)['items'] ?? [])
+            ->where('page_id', $page->id)
+            ->values();
+
+        return [
+            'google_state' => [
+                'label' => match (true) {
+                    $latestMetric?->is_indexed === false => 'Google la voit mais ne l indexe pas encore',
+                    $latestMetric?->is_indexed === true => 'Google l indexe',
+                    $page->isPublishedInEngine() => 'Aucun signal Google recent exploitable',
+                    default => 'Pas encore de signal Google',
+                },
+                'detail' => match (true) {
+                    $latestMetric?->is_indexed === false => $this->coverageReason($latestMetric->coverage_json),
+                    $latestMetric?->is_indexed === true => 'La derniere remontee Google stockee confirme une page indexee.',
+                    $page->isPublishedInEngine() => 'La page existe cote moteur mais ne remonte pas encore de signal Google utile.',
+                    default => 'La page n a pas encore de donnee Google exploitable dans le runtime.',
+                },
+                'indexed' => $latestMetric?->is_indexed,
+                'metric_date' => $latestMetric?->metric_date,
+            ],
+            'observed_state' => [
+                'label' => match (true) {
+                    $observed === null => 'Aucun signal observed',
+                    (int) ($observed->last_status_code ?? 0) >= 400 => 'Erreur HTTP observee',
+                    (int) ($observed->last_status_code ?? 0) >= 300 => 'Redirection observee',
+                    in_array((string) $observed->indexability_state, ['noindex', 'non_indexable', 'blocked'], true) => 'Indexation bloquee cote site',
+                    default => 'Page observee sans alerte technique forte',
+                },
+                'detail' => match (true) {
+                    $observed === null => 'Le runtime n a pas encore recrawle de page correspondante pour cette URL.',
+                    (int) ($observed->last_status_code ?? 0) >= 400 => 'Le crawl observed lit actuellement un HTTP '.((int) $observed->last_status_code).'.',
+                    (int) ($observed->last_status_code ?? 0) >= 300 => 'Le crawl observed aboutit actuellement sur une redirection HTTP '.((int) $observed->last_status_code).'.',
+                    in_array((string) $observed->indexability_state, ['noindex', 'non_indexable', 'blocked'], true) => 'Le crawl observed remonte un etat '.$observed->indexability_state.'.',
+                    default => 'HTTP '.((int) ($observed->last_status_code ?? 200)).' · indexability '.((string) ($observed->indexability_state ?? 'indexable')).'.',
+                },
+                'status_code' => $observed->last_status_code ?? null,
+                'indexability_state' => $observed->indexability_state ?? null,
+                'path' => $observed->path ?? null,
+            ],
+            'publication_state' => [
+                'label' => match (true) {
+                    $this->isPublishedLive($page) => 'Publiee en live',
+                    $page->isPublishedInEngine() => 'Publiee cote moteur',
+                    default => 'Encore en workflow editorial',
+                },
+                'detail' => match (true) {
+                    $this->isPublishedLive($page) => 'La page est deja poussee sur le site public et doit etre suivie cote crawl/indexation.',
+                    $page->isPublishedInEngine() => 'La page est validee cote moteur mais pas encore poussee en live.',
+                    default => 'La page n est pas encore dans la phase de publication live.',
+                },
+                'engine_published' => $page->isPublishedInEngine(),
+                'live_published' => $this->isPublishedLive($page),
+            ],
+            'items' => $items->all(),
+            'actionable_count' => $items->whereIn('action_kind', ['engine_rewrite', 'quick_fix'])->count(),
+            'manual_count' => $items->where('action_kind', 'manual_review')->count(),
+            'total' => $items->count(),
+        ];
+    }
+
+    /**
      * @param  array<int,string>|null  $coverage
      * @return array<string,mixed>
      */
@@ -255,6 +341,11 @@ class IndexationBacklogService
             'action_kind' => 'engine_rewrite',
             'action_label' => $label,
             'mode' => $mode,
+            'impact_expected' => match ($type) {
+                'google_not_indexed' => 'Ajouter des signaux éditoriaux et de maillage pour aider la reprise Google sans réécriture globale.',
+                'without_google_signal' => 'Mieux relier la page au reste du site pour qu elle soit plus vite découverte et comprise.',
+                default => 'Renforcer localement les signaux que le moteur peut vraiment améliorer.',
+            },
             'pending_suggestion' => $existingPending !== null,
             'pending_suggestion_id' => $existingPending?->id,
             'cooldown_active' => $cooldownSuggestion !== null,
@@ -277,6 +368,7 @@ class IndexationBacklogService
             'action_kind' => 'quick_fix',
             'action_label' => $label,
             'quick_fix_action' => $quickFixAction,
+            'impact_expected' => 'Retirer immédiatement un blocage moteur explicite avant nouvelle analyse ou republication.',
             'action_state' => 'ready',
             'action_state_label' => 'Correctif direct possible',
             'pending_suggestion' => false,
@@ -292,6 +384,7 @@ class IndexationBacklogService
         return [
             'action_kind' => 'manual_review',
             'action_label' => $label,
+            'impact_expected' => 'Aucun impact direct tant que le probleme technique n est pas corrige cote site client.',
             'action_state' => 'manual',
             'action_state_label' => 'Revue manuelle requise',
             'pending_suggestion' => false,

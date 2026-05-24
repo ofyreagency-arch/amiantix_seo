@@ -117,6 +117,129 @@ class AdminPageWorkflowRuntimeTest extends TestCase
         $response->assertSee('missing_structure');
     }
 
+    public function test_page_show_surfaces_page_level_indexation_backlog_and_engine_action(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page non indexee',
+            'slug' => 'page-non-indexee',
+            'title' => 'Page non indexee',
+            'status' => 'published',
+            'content' => '<section><h2>Contexte</h2><p>'.str_repeat('Contexte utile pour Google et le lecteur. ', 60).'</p></section>',
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'internal_links_json' => [],
+            'seo_score' => 68,
+            'quality_score' => 90,
+            'indexability_score' => 60,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://workflow-site.test/page-non-indexee',
+            'clicks' => 0,
+            'impressions' => 12,
+            'ctr' => 0.0,
+            'position' => 18.2,
+            'is_indexed' => false,
+            'coverage_json' => ['coverage_state:Detected, currently not indexed'],
+            'payload_json' => [],
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Backlog d indexation');
+        $response->assertSee('Ce qui bloque cette page et ce que le moteur peut vraiment faire');
+        $response->assertSee('Google ne l indexe pas encore');
+        $response->assertSee('Créer une correction moteur');
+        $response->assertSee('Action moteur possible');
+        $response->assertSee('Impact attendu');
+        $response->assertSee('Lancer la correction moteur');
+    }
+
+    public function test_page_show_surfaces_manual_indexation_review_for_observed_404(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'workflow-site',
+            'name' => 'Workflow Site',
+            'url' => 'https://workflow-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page 404',
+            'slug' => 'page-404',
+            'title' => 'Page 404',
+            'status' => 'published',
+            'canonical_url' => 'https://workflow-site.test/page-404',
+        ]);
+
+        $observed = \App\Models\SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://workflow-site.test/page-404',
+            'url_hash' => sha1('https://workflow-site.test/page-404'),
+            'path' => '/page-404',
+            'title' => 'Page 404',
+            'canonical_url' => 'https://workflow-site.test/page-404',
+            'indexability_state' => 'noindex',
+            'last_status_code' => 404,
+            'latest_word_count' => 40,
+            'authority_score' => 0.10,
+            'orphan_score' => 0.80,
+            'overlap_score' => 0.10,
+            'pillar_likelihood' => 0.15,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now()->subDay(),
+        ]);
+
+        \App\Models\SeoSitePageSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => 1,
+            'site_page_id' => $observed->id,
+            'url' => $observed->normalized_url,
+            'status_code' => 404,
+            'is_indexable' => false,
+            'word_count' => 40,
+            'observed_at' => now()->subDay(),
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.pages.show', [$site->site_id, $page->id]));
+
+        $response->assertOk();
+        $response->assertSee('Erreur 404 observee');
+        $response->assertSee('Revue technique humaine');
+        $response->assertSee('Revue technique requise');
+        $response->assertDontSee('Lancer la correction moteur');
+    }
+
     public function test_generate_creates_a_new_page_when_a_keyword_slug_collides_with_an_existing_blog(): void
     {
         $site = SeoSite::query()->create([

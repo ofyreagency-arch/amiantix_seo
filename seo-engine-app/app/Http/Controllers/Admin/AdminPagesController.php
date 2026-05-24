@@ -13,6 +13,7 @@ use App\Models\SeoSuggestion;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Services\Media\SeoPageImageGenerator;
+use App\Runtime\IndexationBacklogService;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ class AdminPagesController extends Controller
         ObservedRewriteBridgeService $observedRewrite,
         SeoPageStatusService $statusService,
         SeoScoreRefreshService $scoreRefresh,
+        IndexationBacklogService $indexationBacklog,
     ): View
     {
         $site = $this->loadSite($siteId);
@@ -49,8 +51,9 @@ class AdminPagesController extends Controller
         $latestMetric = $page->searchConsoleMetrics->first();
         $pendingSuggestions = $page->suggestions->where('status', 'pending')->values();
         $publicationSummary = $statusService->summarize($page, true);
+        $pageIndexationBacklog = $indexationBacklog->summarizeForPage($page);
 
-        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary'));
+        return view('admin.pages.show', compact('site', 'page', 'observedRewriteContext', 'latestMetric', 'pendingSuggestions', 'publicationSummary', 'pageIndexationBacklog'));
     }
 
     public function generate(Request $request, string $siteId, SeoGeneratePageRunner $runner): RedirectResponse

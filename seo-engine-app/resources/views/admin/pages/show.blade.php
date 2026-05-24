@@ -51,6 +51,7 @@
     $pageIsHealthy   = (float) ($page->seo_score ?? 0) >= 70 && (float) ($page->quality_score ?? 0) >= 80 && (float) ($page->indexability_score ?? 0) >= 65;
     $latestMetric    = $latestMetric ?? null;
     $publicationSummary = session('publication_summary', $publicationSummary ?? null);
+    $pageIndexationBacklog = $pageIndexationBacklog ?? ['items' => [], 'total' => 0, 'actionable_count' => 0, 'manual_count' => 0, 'google_state' => [], 'observed_state' => [], 'publication_state' => []];
 
     $observedRewriteContext = session('observed_rewrite_context', $observedRewriteContext ?? null);
     $pendingSuggestions     = $pendingSuggestions ?? collect();
@@ -451,6 +452,156 @@
 @endif
 
 {{-- ═══════════════════════════════════════════
+     PAGE INDEXATION BACKLOG
+════════════════════════════════════════════ --}}
+<div class="bg-white rounded-2xl border border-gray-100 px-7 py-6 mb-5 anim-fade-up"
+     style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+    <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-1">Backlog d indexation</p>
+            <h3 class="text-base font-bold text-gray-900">Ce qui bloque cette page et ce que le moteur peut vraiment faire</h3>
+            <p class="mt-1 text-sm text-gray-500">
+                {{ (int) ($pageIndexationBacklog['total'] ?? 0) }} point(s) détecté(s) ·
+                {{ (int) ($pageIndexationBacklog['actionable_count'] ?? 0) }} actionnable(s) par le moteur ·
+                {{ (int) ($pageIndexationBacklog['manual_count'] ?? 0) }} à revoir humainement
+            </p>
+        </div>
+        <span class="shrink-0 inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+            {{ (int) ($pageIndexationBacklog['total'] ?? 0) }} point(s)
+        </span>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4">
+        @foreach([
+            [
+                'title' => 'État Google',
+                'label' => (string) ($pageIndexationBacklog['google_state']['label'] ?? 'Pas encore de signal Google'),
+                'detail' => (string) ($pageIndexationBacklog['google_state']['detail'] ?? 'Aucune donnée Google exploitable pour cette page.'),
+                'accent' => (($pageIndexationBacklog['google_state']['indexed'] ?? null) === false) ? 'rose' : ((($pageIndexationBacklog['google_state']['indexed'] ?? null) === true) ? 'emerald' : 'amber'),
+            ],
+            [
+                'title' => 'Signal observed',
+                'label' => (string) ($pageIndexationBacklog['observed_state']['label'] ?? 'Aucun signal observed'),
+                'detail' => (string) ($pageIndexationBacklog['observed_state']['detail'] ?? 'Le runtime n a pas encore de lecture observed pour cette page.'),
+                'accent' => ((int) ($pageIndexationBacklog['observed_state']['status_code'] ?? 0) >= 400) ? 'rose' : (((int) ($pageIndexationBacklog['observed_state']['status_code'] ?? 0) >= 300 || in_array((string) ($pageIndexationBacklog['observed_state']['indexability_state'] ?? ''), ['noindex', 'non_indexable', 'blocked'], true)) ? 'amber' : 'emerald'),
+            ],
+            [
+                'title' => 'Publication réelle',
+                'label' => (string) ($pageIndexationBacklog['publication_state']['label'] ?? 'Encore en workflow editorial'),
+                'detail' => (string) ($pageIndexationBacklog['publication_state']['detail'] ?? 'La page n est pas encore dans la phase live.'),
+                'accent' => !empty($pageIndexationBacklog['publication_state']['live_published']) ? 'emerald' : (!empty($pageIndexationBacklog['publication_state']['engine_published']) ? 'amber' : 'slate'),
+            ],
+        ] as $stateCard)
+        @php
+            $stateCls = match ($stateCard['accent']) {
+                'rose' => 'border-rose-100 bg-rose-50/60 text-rose-700',
+                'amber' => 'border-amber-100 bg-amber-50/60 text-amber-700',
+                'emerald' => 'border-emerald-100 bg-emerald-50/60 text-emerald-700',
+                default => 'border-slate-100 bg-slate-50/60 text-slate-700',
+            };
+        @endphp
+        <div class="rounded-2xl border px-4 py-4 {{ $stateCls }}">
+            <p class="text-xs font-bold uppercase tracking-widest mb-1.5 opacity-80">{{ $stateCard['title'] }}</p>
+            <p class="text-sm font-bold">{{ $stateCard['label'] }}</p>
+            <p class="mt-1 text-xs opacity-80">{{ $stateCard['detail'] }}</p>
+        </div>
+        @endforeach
+    </div>
+
+    <div class="space-y-3">
+        @forelse(($pageIndexationBacklog['items'] ?? []) as $item)
+        @php
+            $problemCls = match ($item['type']) {
+                'google_not_indexed', 'observed_404' => 'border-rose-100 bg-rose-50/60 text-rose-700',
+                'without_google_signal', 'observed_redirect' => 'border-amber-100 bg-amber-50/60 text-amber-700',
+                'observed_noindex' => 'border-violet-100 bg-violet-50/60 text-violet-700',
+                default => 'border-slate-100 bg-slate-50/60 text-slate-700',
+            };
+            $actionCls = match ($item['action_kind'] ?? 'manual_review') {
+                'engine_rewrite' => 'border-indigo-200 bg-indigo-50 text-indigo-700',
+                'quick_fix' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                default => 'border-gray-200 bg-gray-50 text-gray-600',
+            };
+            $problemLabel = match ($item['type']) {
+                'google_not_indexed' => 'Google ne l indexe pas encore',
+                'without_google_signal' => 'Pas encore de signal Google',
+                'observed_404' => 'Erreur 404 observee',
+                'observed_redirect' => 'Redirection observee',
+                'observed_noindex' => 'Noindex observe',
+                default => 'A verifier',
+            };
+        @endphp
+        <div class="rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold {{ $problemCls }}">{{ $problemLabel }}</span>
+                        <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold {{ $actionCls }}">{{ $item['action_state_label'] ?? 'Revue manuelle requise' }}</span>
+                        <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600">{{ $item['source'] }}</span>
+                    </div>
+                    <p class="text-sm font-bold text-gray-900">{{ $item['label'] }}</p>
+                    <p class="mt-1 text-sm text-gray-600">{{ $item['reason'] }}</p>
+                    @if(!empty($item['observed_path']))
+                    <p class="mt-1 text-xs text-gray-400">URL observée : {{ $item['observed_path'] }}</p>
+                    @endif
+                </div>
+                <a href="{{ route('admin.pages.show', [$site->site_id, $page->id]) }}"
+                   class="shrink-0 inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-700">
+                    Fiche page
+                </a>
+            </div>
+
+            <div class="mt-3 grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-start">
+                <div class="rounded-xl border border-white bg-white px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Action recommandée</p>
+                    <p class="text-sm font-semibold text-gray-900">{{ $item['action_label'] ?? 'Revue technique requise' }}</p>
+                    <p class="mt-1 text-sm text-gray-600">{{ $item['action'] }}</p>
+                    @if(!empty($item['impact_expected']))
+                    <p class="mt-2 text-xs text-gray-500">Impact attendu : {{ $item['impact_expected'] }}</p>
+                    @endif
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    @if(($item['action_kind'] ?? null) === 'engine_rewrite')
+                        @if(!empty($item['pending_suggestion']))
+                            <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Suggestion déjà pending</span>
+                        @elseif(!empty($item['cooldown_active']))
+                            <span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Cooldown actif</span>
+                        @else
+                            <form method="POST" action="{{ route('admin.sites.indexation-backlog.run', $site->site_id) }}">
+                                @csrf
+                                <input type="hidden" name="page_id" value="{{ $page->id }}">
+                                <input type="hidden" name="type" value="{{ $item['type'] }}">
+                                <button type="submit" class="inline-flex items-center rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-50">
+                                    Lancer la correction moteur
+                                </button>
+                            </form>
+                        @endif
+                    @elseif(($item['action_kind'] ?? null) === 'quick_fix')
+                        <form method="POST" action="{{ route('admin.sites.indexation-backlog.run', $site->site_id) }}">
+                            @csrf
+                            <input type="hidden" name="page_id" value="{{ $page->id }}">
+                            <input type="hidden" name="type" value="{{ $item['type'] }}">
+                            <button type="submit" class="inline-flex items-center rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">
+                                Appliquer ce correctif
+                            </button>
+                        </form>
+                    @else
+                        <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-600">Revue technique humaine</span>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @empty
+        <div class="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-4">
+            <p class="text-sm font-bold text-emerald-800">Aucun backlog d indexation prioritaire sur cette page.</p>
+            <p class="mt-1 text-xs text-emerald-700">Le moteur ne voit pas de blocage indexation suffisamment concret pour ouvrir une action ici.</p>
+        </div>
+        @endforelse
+    </div>
+</div>
+
+{{-- ═══════════════════════════════════════════
      PUBLICATION BLOCKERS
 ════════════════════════════════════════════ --}}
 @if($page->status !== 'published' && !empty($publicationSummary['failed_rules'] ?? []))
@@ -763,6 +914,10 @@
                         <option value="de-duplicate">Dédupliquer</option>
                         <option value="improve-ctr">Améliorer le CTR</option>
                         <option value="improve-indexability">Améliorer l'indexation</option>
+                        <option value="add-heading-depth-only">Ajouter des H2/H3</option>
+                        <option value="add-table-only">Ajouter un tableau</option>
+                        <option value="add-faq-only">Renforcer la FAQ</option>
+                        <option value="add-internal-links-only">Renforcer le maillage</option>
                     </select>
                 </div>
                 <button type="submit"
