@@ -515,6 +515,9 @@ class AdminPageWorkflowRuntimeTest extends TestCase
 
         $originalContent = (string) $page->content;
         $originalFaqCount = count($page->faq_json ?? []);
+        $originalTitle = (string) $page->title;
+        $originalMeta = (string) $page->meta_description;
+        $originalLinkCount = count($page->internal_links_json ?? []);
 
         $suggestion = SeoSuggestion::query()->create([
             'seo_page_id' => $page->id,
@@ -542,19 +545,20 @@ class AdminPageWorkflowRuntimeTest extends TestCase
 
         $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
         $response->assertSessionHas('warning');
+        $response->assertSessionHas('success', 'Suggestion approuvée : aucun patch éditorial n a été appliqué pour protéger l article actuel.');
 
         $page->refresh();
         $suggestion->refresh();
 
         $this->assertSame('review', $page->status);
-        $this->assertSame('Diagnostic amiante Paris : version plus claire', $page->title);
-        $this->assertSame('Meta plus concise.', $page->meta_description);
+        $this->assertSame($originalTitle, (string) $page->title);
+        $this->assertSame($originalMeta, (string) $page->meta_description);
         $this->assertSame($originalContent, (string) $page->content);
-        $this->assertGreaterThanOrEqual($originalFaqCount, count($page->faq_json ?? []));
+        $this->assertSame($originalFaqCount, count($page->faq_json ?? []));
         $this->assertContains('Content patch skipped because it would degrade the current article quality.', $page->review_issues_json ?? []);
         $this->assertSame('applied', $suggestion->status);
         $this->assertNotNull($suggestion->applied_at);
-        $this->assertCount(6, $page->internal_links_json ?? []);
+        $this->assertCount($originalLinkCount, $page->internal_links_json ?? []);
     }
 
     public function test_rewrite_suggestion_accepts_structured_content_without_triggering_array_to_string_error(): void

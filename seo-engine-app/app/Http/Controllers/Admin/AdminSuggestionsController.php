@@ -84,11 +84,15 @@ class AdminSuggestionsController extends Controller
             ->findOrFail($id);
         $result = $workflow->apply($suggestion);
 
+        $contentBlockedForRegression = $result['content_blocked_for_regression'] ?? false;
+        $nonContentUpdatesBlockedForRegression = $result['non_content_updates_blocked_for_regression'] ?? false;
         $message = $result['body_applied']
             ? 'Suggestion approuvée et appliquée à la page.'
-            : ($result['signal_notes_applied']
-                ? 'Suggestion approuvée : ses recommandations ont été ramenées dans la fiche page pour revue.'
-                : 'Suggestion approuvée.');
+            : (($contentBlockedForRegression && $nonContentUpdatesBlockedForRegression)
+                ? 'Suggestion approuvée : aucun patch éditorial n a été appliqué pour protéger l article actuel.'
+                : ($result['signal_notes_applied']
+                    ? 'Suggestion approuvée : ses recommandations ont été ramenées dans la fiche page pour revue.'
+                    : 'Suggestion approuvée.'));
 
         return redirect()->route('admin.sites.autopilot', $siteId)
             ->with('success', $message);

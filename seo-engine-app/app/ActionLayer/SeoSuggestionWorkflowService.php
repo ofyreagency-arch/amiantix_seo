@@ -25,7 +25,8 @@ final class SeoSuggestionWorkflowService
      *   body_applied:bool,
      *   page_marked_for_review:bool,
      *   signal_notes_applied:bool,
-     *   content_blocked_for_regression:bool
+     *   content_blocked_for_regression:bool,
+     *   non_content_updates_blocked_for_regression:bool
      * }
      */
     public function apply(SeoSuggestion $suggestion): array
@@ -35,6 +36,8 @@ final class SeoSuggestionWorkflowService
         $payload = is_array($suggestion->suggestions_json) ? $suggestion->suggestions_json : [];
         $updates = [];
         $contentBlockedForRegression = false;
+        $nonContentUpdatesBlockedForRegression = false;
+        $pageMarkedForReview = false;
 
         foreach (['title', 'meta_description', 'h1'] as $field) {
             $value = trim((string) ($payload[$field] ?? ''));
@@ -89,6 +92,15 @@ final class SeoSuggestionWorkflowService
             $contentBlockedForRegression = true;
         }
 
+        if ($contentBlockedForRegression) {
+            foreach (['title', 'meta_description', 'h1', 'faq_json', 'internal_links_json', 'schema_json'] as $field) {
+                if (array_key_exists($field, $updates)) {
+                    unset($updates[$field]);
+                    $nonContentUpdatesBlockedForRegression = true;
+                }
+            }
+        }
+
         $signalNotesApplied = false;
         if ($updates === []) {
             $reviewNotes = collect($page->review_issues_json ?? [])
@@ -102,11 +114,14 @@ final class SeoSuggestionWorkflowService
 
             if ($reviewNotes !== []) {
                 $updates['review_issues_json'] = $reviewNotes;
+                if ($page->status === 'draft') {
+                    $updates['status'] = 'review';
+                    $pageMarkedForReview = true;
+                }
                 $signalNotesApplied = true;
             }
         }
 
-        $pageMarkedForReview = false;
         if ($updates !== []) {
             if ($contentBlockedForRegression) {
                 $updates['review_issues_json'] = collect($page->review_issues_json ?? [])
@@ -118,7 +133,7 @@ final class SeoSuggestionWorkflowService
                     ->all();
             }
 
-            if ($page->status === 'draft') {
+            if (! $pageMarkedForReview && $page->status === 'draft') {
                 $updates['status'] = 'review';
                 $pageMarkedForReview = true;
             }
@@ -137,6 +152,7 @@ final class SeoSuggestionWorkflowService
             'page_marked_for_review' => $pageMarkedForReview,
             'signal_notes_applied' => $signalNotesApplied,
             'content_blocked_for_regression' => $contentBlockedForRegression,
+            'non_content_updates_blocked_for_regression' => $nonContentUpdatesBlockedForRegression,
         ];
     }
 

@@ -163,6 +163,7 @@ class AdminPagesController extends Controller
         $updatedFields = $result['updated_fields'];
         $bodyApplied = $result['body_applied'];
         $contentBlockedForRegression = $result['content_blocked_for_regression'] ?? false;
+        $nonContentUpdatesBlockedForRegression = $result['non_content_updates_blocked_for_regression'] ?? false;
 
         $page = SeoPage::query()->find($pageId);
         if ($page) {
@@ -183,9 +184,11 @@ class AdminPagesController extends Controller
 
         $message = $bodyApplied
             ? 'Suggestion appliquée et scores recalculés.'
-            : ($result['signal_notes_applied']
-                ? 'Suggestion approuvée : la page a été marquée pour revue avec ses signaux et recommandations.'
-                : 'Suggestion appliquée partiellement : métadonnées, FAQ et maillage mis à jour.');
+            : (($contentBlockedForRegression && $nonContentUpdatesBlockedForRegression)
+                ? 'Suggestion approuvée : aucun patch éditorial n a été appliqué pour protéger l article actuel.'
+                : ($result['signal_notes_applied']
+                    ? 'Suggestion approuvée : la page a été marquée pour revue avec ses signaux et recommandations.'
+                    : 'Suggestion appliquée partiellement : métadonnées, FAQ et maillage mis à jour.'));
 
         $redirect = redirect()
             ->route('admin.pages.show', [$siteId, $pageId])
@@ -197,7 +200,9 @@ class AdminPagesController extends Controller
         }
 
         if ($contentBlockedForRegression) {
-            $redirect->with('warning', 'Le patch de contenu a été bloqué pour éviter de dégrader un article déjà plus fort. Les autres améliorations sûres ont été conservées.');
+            $redirect->with('warning', $nonContentUpdatesBlockedForRegression
+                ? 'Le patch proposé a été entièrement neutralisé pour éviter de dégrader un article déjà plus fort.'
+                : 'Le patch de contenu a été bloqué pour éviter de dégrader un article déjà plus fort. Les autres améliorations sûres ont été conservées.');
         }
 
         return $redirect;
