@@ -6,10 +6,14 @@ namespace Ofyre\SeoEngine\Services\SearchConsole;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\SearchConsoleTokenProvider;
 
 class SearchConsoleService
 {
+    /** @var array<string,array<string,mixed>> */
+    private array $analyticsDebug = [];
+
     public function __construct(private readonly SearchConsoleTokenProvider $tokenProvider) {}
 
     /**
@@ -252,14 +256,28 @@ class SearchConsoleService
     ): array {
         $token = $this->accessToken();
         $siteUrl = config('services.google_search_console.site_url', config('seo-engine.search_console.site_url'));
+        $label = $this->analyticsLabel($dimensions);
+        $startDate = now()->subDays($days + $endOffsetDays)->toDateString();
+        $endDate = now()->subDays($endOffsetDays)->toDateString();
 
         if (! $token || ! $siteUrl) {
+            $this->analyticsDebug[$label] = [
+                'status' => 'skipped',
+                'http_code' => null,
+                'row_count' => 0,
+                'site_url' => $siteUrl,
+                'dimensions' => $dimensions,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'reason' => ! $token ? 'missing_token' : 'missing_site_url',
+                'body_preview' => null,
+            ];
             return [];
         }
 
         $payload = [
-            'startDate' => now()->subDays($days + $endOffsetDays)->toDateString(),
-            'endDate' => now()->subDays($endOffsetDays)->toDateString(),
+            'startDate' => $startDate,
+            'endDate' => $endDate,
             'dimensions' => $dimensions,
             'rowLimit' => $limit,
         ];
@@ -273,9 +291,54 @@ class SearchConsoleService
             ->post('https://www.googleapis.com/webmasters/v3/sites/'.rawurlencode((string) $siteUrl).'/searchAnalytics/query', $payload);
 
         if (! $response->successful()) {
+            $this->analyticsDebug[$label] = [
+                'status' => 'http_error',
+                'http_code' => $response->status(),
+                'row_count' => 0,
+                'site_url' => $siteUrl,
+                'dimensions' => $dimensions,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'reason' => 'http_error',
+                'body_preview' => Str::limit($response->body(), 500),
+            ];
             return [];
         }
 
-        return Arr::wrap($response->json('rows'));
+        $rows = Arr::wrap($response->json('rows'));
+        $this->analyticsDebug[$label] = [
+            'status' => $rows === [] ? 'ok_empty' : 'ok',
+            'http_code' => $response->status(),
+            'row_count' => count($rows),
+            'site_url' => $siteUrl,
+            'dimensions' => $dimensions,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'reason' => $rows === [] ? 'empty_rows' : null,
+            'body_preview' => Str::limit($response->body(), 500),
+        ];
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string,array<string,mixed>>
+     */
+    public function analyticsDebugSnapshot(): array
+    {
+        return $this->analyticsDebug;
+    }
+
+    /**
+     * @param  array<int,string>  $dimensions
+     */
+    private function analyticsLabel(array $dimensions): string
+    {
+        return match (implode('|', $dimensions)) {
+            'page' => 'top_pages',
+            'query|page' => 'top_query_pages',
+            'query' => 'top_queries',
+            default => 'analytics',
+        };
     }
 }

@@ -9,12 +9,14 @@ use App\Models\SeoSiteGoogleConnection;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\HistoricalSeoImporter;
 use Ofyre\SeoEngine\Services\Console\SeoImportHistoryRunner;
+use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
 
 class MultiSiteSeoImportHistoryRunner extends SeoImportHistoryRunner
 {
     public function __construct(
         HistoricalSeoImporter $history,
         private readonly SeoEngineContext $context,
+        private readonly SearchConsoleService $searchConsole,
     ) {
         parent::__construct($history);
         $this->history = $history;
@@ -81,6 +83,7 @@ class MultiSiteSeoImportHistoryRunner extends SeoImportHistoryRunner
                             'pages' => $pageRows,
                             'queries' => $queryRows,
                             'synced_at' => now()->toIso8601String(),
+                            'analytics' => $this->searchConsole->analyticsDebugSnapshot(),
                         ],
                     ],
                 ]);
@@ -99,6 +102,9 @@ class MultiSiteSeoImportHistoryRunner extends SeoImportHistoryRunner
                             'queries' => 0,
                             'synced_at' => now()->toIso8601String(),
                             'error' => Str::limit($e->getMessage(), 500),
+                            'analytics' => method_exists($this->searchConsole, 'analyticsDebugSnapshot')
+                                ? $this->searchConsole->analyticsDebugSnapshot()
+                                : [],
                         ],
                     ],
                 ]);

@@ -69,6 +69,19 @@ class MultiSiteSearchConsoleImportTest extends TestCase
                 default => [],
             };
         });
+        $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [
+                    'top_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+                    'top_query_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+                ],
+                'sc-domain:beta.test' => [
+                    'top_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+                    'top_query_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+                ],
+                default => [],
+            };
+        });
 
         $this->app->instance(SearchConsoleService::class, $searchConsole);
 
@@ -119,6 +132,10 @@ class MultiSiteSearchConsoleImportTest extends TestCase
             'connected_with_data',
             SeoSiteGoogleConnection::query()->where('site_id', $siteA->site_id)->value('meta_json')['last_sync']['status'] ?? null
         );
+        $this->assertSame(
+            1,
+            SeoSiteGoogleConnection::query()->where('site_id', $siteA->site_id)->value('meta_json')['last_sync']['analytics']['top_pages']['row_count'] ?? null
+        );
     }
 
     public function test_import_history_marks_site_error_without_blocking_other_sites(): void
@@ -149,6 +166,18 @@ class MultiSiteSearchConsoleImportTest extends TestCase
                     'ctr' => 0.085,
                     'position' => 7.9,
                 ]],
+                default => [],
+            };
+        });
+        $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [
+                    'top_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+                    'top_query_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
+                ],
+                'sc-domain:beta.test' => [
+                    'top_pages' => ['status' => 'http_error', 'http_code' => 403, 'row_count' => 0, 'reason' => 'forbidden'],
+                ],
                 default => [],
             };
         });
@@ -191,6 +220,10 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         $searchConsole = Mockery::mock(SearchConsoleService::class);
         $searchConsole->shouldReceive('getTopPages')->andReturn([]);
         $searchConsole->shouldReceive('getTopQueryPages')->andReturn([]);
+        $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturn([
+            'top_pages' => ['status' => 'ok_empty', 'http_code' => 200, 'row_count' => 0, 'reason' => 'empty_rows'],
+            'top_query_pages' => ['status' => 'ok_empty', 'http_code' => 200, 'row_count' => 0, 'reason' => 'empty_rows'],
+        ]);
 
         $this->app->instance(SearchConsoleService::class, $searchConsole);
 
@@ -205,6 +238,7 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         $this->assertSame('connected_but_empty', $connection->meta_json['last_sync']['status'] ?? null);
         $this->assertSame(0, $connection->meta_json['last_sync']['pages'] ?? null);
         $this->assertSame(0, $connection->meta_json['last_sync']['queries'] ?? null);
+        $this->assertSame('ok_empty', $connection->meta_json['last_sync']['analytics']['top_pages']['status'] ?? null);
         $this->assertNull($connection->last_error);
     }
 
