@@ -174,6 +174,117 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertSee('health score');
     }
 
+    public function test_site_show_surfaces_indexation_backlog_from_google_and_observed_runtime(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'connected',
+        ]);
+
+        $notIndexed = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page non indexee',
+            'slug' => 'page-non-indexee',
+            'title' => 'Page non indexee',
+            'status' => 'published',
+            'canonical_url' => 'https://runtime-site.test/page-non-indexee',
+        ]);
+
+        $withoutSignal = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page sans signal',
+            'slug' => 'page-sans-signal',
+            'title' => 'Page sans signal',
+            'status' => 'published',
+        ]);
+
+        $broken = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'page 404',
+            'slug' => 'page-404',
+            'title' => 'Page 404',
+            'status' => 'published',
+            'canonical_url' => 'https://runtime-site.test/page-404',
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $notIndexed->id,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/page-non-indexee',
+            'clicks' => 0,
+            'impressions' => 12,
+            'ctr' => 0.0,
+            'position' => 18.2,
+            'is_indexed' => false,
+            'coverage_json' => ['coverage_state:Detected, currently not indexed'],
+            'payload_json' => [],
+        ]);
+
+        $brokenObserved = SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://runtime-site.test/page-404',
+            'url_hash' => sha1('https://runtime-site.test/page-404'),
+            'path' => '/page-404',
+            'title' => 'Page 404',
+            'meta_description' => null,
+            'canonical_url' => 'https://runtime-site.test/page-404',
+            'indexability_state' => 'noindex',
+            'last_status_code' => 404,
+            'latest_word_count' => 40,
+            'authority_score' => 0.10,
+            'orphan_score' => 0.80,
+            'overlap_score' => 0.10,
+            'pillar_likelihood' => 0.15,
+            'cluster_label' => 'guide',
+            'last_seen_at' => now()->subDay(),
+        ]);
+
+        SeoSitePageSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => 1,
+            'site_page_id' => $brokenObserved->id,
+            'url' => $brokenObserved->normalized_url,
+            'status_code' => 404,
+            'is_indexable' => false,
+            'word_count' => 40,
+            'observed_at' => now()->subDay(),
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.sites.show', $site->site_id));
+
+        $response->assertOk();
+        $response->assertSee('Backlog d indexation');
+        $response->assertSee('Non indexee par Google');
+        $response->assertSee('Sans signal Google recent');
+        $response->assertSee('Observee en 404');
+        $response->assertSee('Page non indexee');
+        $response->assertSee('Page sans signal');
+        $response->assertSee('Page 404');
+        $response->assertSee('Detected, currently not indexed');
+    }
+
     public function test_site_show_prioritizes_actionable_gsc_opportunities(): void
     {
         $this->withoutVite();

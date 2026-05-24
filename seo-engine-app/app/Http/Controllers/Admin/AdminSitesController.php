@@ -12,6 +12,7 @@ use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSuggestion;
 use App\ObservedSite\SiteHealthService;
 use App\Runtime\GscOpportunityService;
+use App\Runtime\IndexationBacklogService;
 use App\Runtime\RuntimeSeoMonitoringService;
 use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
@@ -76,6 +77,7 @@ class AdminSitesController extends Controller
         SiteHealthService $siteHealth,
         RuntimeSeoMonitoringService $monitoring,
         GscOpportunityService $gscOpportunities,
+        IndexationBacklogService $indexationBacklog,
     ): View
     {
         $site  = SeoSite::query()->with('googleConnection')->where('site_id', $siteId)->firstOrFail();
@@ -117,6 +119,7 @@ class AdminSitesController extends Controller
         $gscSyncDetails = is_array($gscConnection?->meta_json['last_sync'] ?? null)
             ? $gscConnection->meta_json['last_sync']
             : [];
+        $indexationBacklogSummary = $indexationBacklog->summarize($siteId);
 
         return view('admin.sites.show', compact(
             'site',
@@ -128,6 +131,7 @@ class AdminSitesController extends Controller
             'latestCrawl',
             'gscOpportunitySummary',
             'gscSyncDetails',
+            'indexationBacklogSummary',
         ));
     }
 

@@ -190,6 +190,89 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
     </div>
 </div>
 
+{{-- ═══ INDEXATION BACKLOG ═══ --}}
+<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6 anim-fade-up delay-110"
+     style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+    <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+        <div>
+            <h2 class="font-bold text-gray-900">Backlog d indexation</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Ce que Google et le runtime montrent vraiment sur les pages a debloquer avant de chercher plus de trafic.</p>
+        </div>
+        <span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-bold text-gray-700">
+            {{ $indexationBacklogSummary['summary']['total'] ?? 0 }} point(s)
+        </span>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-px" style="background:#f3f4f6;">
+        @foreach([
+            ['label' => 'Non indexees Google', 'value' => $indexationBacklogSummary['summary']['google_not_indexed'] ?? 0, 'cls' => 'text-rose-600'],
+            ['label' => 'Sans signal Google', 'value' => $indexationBacklogSummary['summary']['without_google_signal'] ?? 0, 'cls' => 'text-amber-600'],
+            ['label' => 'Observees en 404', 'value' => $indexationBacklogSummary['summary']['observed_404'] ?? 0, 'cls' => 'text-rose-600'],
+            ['label' => 'Observees en redirection', 'value' => $indexationBacklogSummary['summary']['observed_redirect'] ?? 0, 'cls' => 'text-blue-600'],
+            ['label' => 'Observees en noindex', 'value' => $indexationBacklogSummary['summary']['observed_noindex'] ?? 0, 'cls' => 'text-violet-600'],
+        ] as $metric)
+        <div class="bg-white px-5 py-4">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ $metric['label'] }}</div>
+            <div class="text-xl font-black {{ $metric['cls'] }}">{{ $metric['value'] }}</div>
+        </div>
+        @endforeach
+    </div>
+
+    <div class="divide-y divide-gray-50">
+        @forelse($indexationBacklogSummary['items'] as $item)
+        @php
+            $backlogBadgeCls = match ($item['type']) {
+                'google_not_indexed' => 'bg-rose-50 text-rose-700 border-rose-100',
+                'without_google_signal' => 'bg-amber-50 text-amber-700 border-amber-100',
+                'observed_404' => 'bg-rose-50 text-rose-700 border-rose-100',
+                'observed_redirect' => 'bg-blue-50 text-blue-700 border-blue-100',
+                'observed_noindex' => 'bg-violet-50 text-violet-700 border-violet-100',
+                default => 'bg-gray-100 text-gray-600 border-gray-200',
+            };
+            $backlogBadgeLabel = match ($item['type']) {
+                'google_not_indexed' => 'Non indexee par Google',
+                'without_google_signal' => 'Sans signal Google recent',
+                'observed_404' => 'Observee en 404',
+                'observed_redirect' => 'Observee en redirection',
+                'observed_noindex' => 'Observee en noindex',
+                default => 'A verifier',
+            };
+        @endphp
+        <div class="px-6 py-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border {{ $backlogBadgeCls }}">{{ $backlogBadgeLabel }}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border border-gray-200 bg-gray-50 text-gray-600">
+                            {{ $item['source'] }}
+                        </span>
+                        <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">/{{ $item['slug'] }}</span>
+                    </div>
+                    <div class="text-sm font-semibold text-gray-900">{{ $item['label'] }}</div>
+                    <div class="mt-1 text-sm text-gray-500">{{ $item['reason'] }}</div>
+                    @if(!empty($item['observed_path']))
+                        <div class="mt-2 text-xs text-gray-400">URL observée : {{ $item['observed_path'] }}</div>
+                    @endif
+                </div>
+                <a href="{{ route('admin.pages.show', [$site->site_id, $item['page_id']]) }}"
+                   class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shrink-0">
+                    Ouvrir
+                </a>
+            </div>
+            <div class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Quoi verifier maintenant</div>
+                <div class="text-sm font-semibold text-gray-800">{{ $item['action'] }}</div>
+            </div>
+        </div>
+        @empty
+        <div class="px-6 py-10 text-center">
+            <div class="text-sm font-semibold text-gray-500">Aucun backlog d indexation prioritaire.</div>
+            <div class="text-xs text-gray-400 mt-1">Le site ne remonte pas de blocage d indexation concret dans les signaux actuellement stockes.</div>
+        </div>
+        @endforelse
+    </div>
+</div>
+
 {{-- ═══ GSC OPPORTUNITIES ═══ --}}
 <div class="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6 mb-6 anim-fade-up delay-125">
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
