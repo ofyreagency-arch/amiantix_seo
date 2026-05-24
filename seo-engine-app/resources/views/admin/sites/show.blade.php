@@ -278,6 +278,10 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                     <div class="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
                         Suggestion déjà en attente
                     </div>
+                    @elseif(!empty($item['cooldown_active']))
+                    <div class="mt-3 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                        Cooldown actif
+                    </div>
                     @else
                     <form method="POST" action="{{ route('admin.sites.gsc-opportunities.run', $site->site_id) }}" class="mt-3">
                         @csrf

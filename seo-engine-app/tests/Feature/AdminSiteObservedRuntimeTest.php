@@ -387,4 +387,83 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertSessionHas('warning');
         $this->assertDatabaseCount('seo_suggestions', 1);
     }
+
+    public function test_site_gsc_opportunity_respects_recent_cooldown_even_after_a_previous_non_pending_attempt(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'service_account',
+            'property_url' => 'sc-domain:runtime-site.test',
+            'google_account_email' => 'svc@runtime-site.test',
+            'credentials_path' => '/var/www/runtime-site.json',
+            'connection_status' => 'configured',
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'title' => 'Diagnostic amiante Paris',
+            'content' => '<section><h2>Contexte</h2><p>'.str_repeat('Contenu utile. ', 80).'</p></section>',
+            'faq_json' => array_fill(0, 5, ['question' => 'Q', 'answer' => 'R']),
+            'internal_links_json' => [],
+            'status' => 'published',
+            'seo_score' => 72,
+            'quality_score' => 92,
+            'indexability_score' => 72,
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDays(3)->toDateString(),
+            'window_days' => 30,
+            'query' => null,
+            'url' => 'https://runtime-site.test/diagnostic-amiante-paris',
+            'clicks' => 1,
+            'impressions' => 160,
+            'ctr' => 0.00625,
+            'position' => 12.4,
+            'payload_json' => [],
+        ]);
+
+        SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'rewrite_engine:improve-ctr',
+            'signals_json' => [
+                'gsc_trigger' => [
+                    'type' => 'low_ctr',
+                    'mode' => 'improve-ctr',
+                ],
+            ],
+            'suggestions_json' => [
+                'mode' => 'improve-ctr',
+            ],
+            'status' => 'applied',
+            'applied_at' => now()->subDays(2),
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.sites.gsc-opportunities.run', $site->site_id), [
+                'page_id' => $page->id,
+                'type' => 'low_ctr',
+            ]);
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+        $response->assertSessionHas('warning');
+        $this->assertDatabaseCount('seo_suggestions', 1);
+    }
 }

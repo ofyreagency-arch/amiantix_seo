@@ -175,6 +175,12 @@ class AdminSitesController extends Controller
                 ->with('warning', 'Cette opportunité GSC n est plus disponible ou a déjà changé.');
         }
 
+        if (! empty($opportunity['cooldown_active'])) {
+            return redirect()
+                ->route('admin.pages.show', [$siteId, $page->id])
+                ->with('warning', 'Cette page est encore en cooldown pour ce signal GSC.');
+        }
+
         $mode = (string) ($opportunity['mode'] ?? 'enrich');
         $existingPending = $this->findExistingPendingGscSuggestion(
             $page->id,

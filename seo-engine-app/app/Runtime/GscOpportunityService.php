@@ -11,6 +11,8 @@ use Illuminate\Support\Collection;
 
 class GscOpportunityService
 {
+    public const COOLDOWN_DAYS = 7;
+
     /**
      * @return array{
      *   connected:bool,
@@ -64,9 +66,9 @@ class GscOpportunityService
             ->get()
             ->groupBy('seo_page_id');
 
-        $pendingSuggestions = SeoSuggestion::query()
+        $recentSuggestions = SeoSuggestion::query()
             ->whereIn('seo_page_id', $pages->keys())
-            ->where('status', 'pending')
+            ->where('created_at', '>=', now()->subDays(self::COOLDOWN_DAYS))
             ->get(['id', 'seo_page_id', 'source', 'signals_json', 'created_at'])
             ->groupBy('seo_page_id');
 
@@ -80,7 +82,7 @@ class GscOpportunityService
             /** @var Collection<int, SeoSearchConsoleMetric> $queryRows */
             $queryRows = $recentQueryMetrics->get($pageId, collect());
             /** @var Collection<int, SeoSuggestion> $suggestionRows */
-            $suggestionRows = $pendingSuggestions->get($pageId, collect());
+            $suggestionRows = $recentSuggestions->get($pageId, collect());
 
             $recentImpressions = (float) $pageRows->sum('impressions');
             $recentClicks = (float) $pageRows->sum('clicks');
@@ -93,6 +95,7 @@ class GscOpportunityService
 
             if ($recentImpressions >= 100 && $recentCtr > 0.0 && $recentCtr < 0.02) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'improve-ctr', 'low_ctr');
+                $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'improve-ctr', 'low_ctr');
                 $items->push([
                     'type' => 'low_ctr',
                     'label' => $label,
@@ -103,6 +106,8 @@ class GscOpportunityService
                     'mode' => 'improve-ctr',
                     'pending_suggestion_id' => $existingPending?->id,
                     'pending_suggestion' => $existingPending !== null,
+                    'cooldown_active' => $cooldownSuggestion !== null,
+                    'cooldown_suggestion_id' => $cooldownSuggestion?->id,
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'ctr' => round($recentCtr * 100, 2),
@@ -113,6 +118,7 @@ class GscOpportunityService
 
             if ($recentImpressions >= 50 && $recentPosition >= 8.0 && $recentPosition <= 15.0) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'near_top_10');
+                $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'near_top_10');
                 $items->push([
                     'type' => 'near_top_10',
                     'label' => $label,
@@ -123,6 +129,8 @@ class GscOpportunityService
                     'mode' => 'enrich',
                     'pending_suggestion_id' => $existingPending?->id,
                     'pending_suggestion' => $existingPending !== null,
+                    'cooldown_active' => $cooldownSuggestion !== null,
+                    'cooldown_suggestion_id' => $cooldownSuggestion?->id,
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'ctr' => round($recentCtr * 100, 2),
@@ -133,6 +141,7 @@ class GscOpportunityService
 
             if ($olderImpressions >= 80 && $dropRatio !== null && $dropRatio <= 0.7) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'sustained_drop');
+                $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'sustained_drop');
                 $items->push([
                     'type' => 'sustained_drop',
                     'label' => $label,
@@ -143,6 +152,8 @@ class GscOpportunityService
                     'mode' => 'enrich',
                     'pending_suggestion_id' => $existingPending?->id,
                     'pending_suggestion' => $existingPending !== null,
+                    'cooldown_active' => $cooldownSuggestion !== null,
+                    'cooldown_suggestion_id' => $cooldownSuggestion?->id,
                     'metrics' => [
                         'impressions' => (int) round($recentImpressions),
                         'previous_impressions' => (int) round($olderImpressions),
@@ -168,6 +179,7 @@ class GscOpportunityService
                     }
 
                     $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'emerging_query', $query);
+                    $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'emerging_query', $query);
 
                     $items->push([
                         'type' => 'emerging_query',
@@ -180,6 +192,8 @@ class GscOpportunityService
                         'mode' => 'enrich',
                         'pending_suggestion_id' => $existingPending?->id,
                         'pending_suggestion' => $existingPending !== null,
+                        'cooldown_active' => $cooldownSuggestion !== null,
+                        'cooldown_suggestion_id' => $cooldownSuggestion?->id,
                         'metrics' => [
                             'impressions' => (int) round($impressions),
                             'ctr' => round($ctr * 100, 2),
@@ -237,6 +251,26 @@ class GscOpportunityService
     private function findPendingSuggestion(Collection $suggestions, string $mode, string $type, ?string $query = null): ?SeoSuggestion
     {
         return $suggestions->first(function (SeoSuggestion $suggestion) use ($mode, $type, $query): bool {
+            if ($suggestion->status !== 'pending') {
+                return false;
+            }
+
+            return $this->matchesTrigger($suggestion, $mode, $type, $query);
+        });
+    }
+
+    /**
+     * @param  Collection<int,SeoSuggestion>  $suggestions
+     */
+    private function findRecentTriggeredSuggestion(Collection $suggestions, string $mode, string $type, ?string $query = null): ?SeoSuggestion
+    {
+        return $suggestions->first(function (SeoSuggestion $suggestion) use ($mode, $type, $query): bool {
+            return $this->matchesTrigger($suggestion, $mode, $type, $query);
+        });
+    }
+
+    private function matchesTrigger(SeoSuggestion $suggestion, string $mode, string $type, ?string $query = null): bool
+    {
             if ($suggestion->source !== 'rewrite_engine:'.$mode) {
                 return false;
             }
@@ -254,6 +288,5 @@ class GscOpportunityService
             }
 
             return true;
-        });
     }
 }
