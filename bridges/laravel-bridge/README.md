@@ -7,7 +7,6 @@ Official lightweight bridge to connect a Laravel site to PraeviSEO without copyi
 ```bash
 composer require praeviseo/laravel-bridge
 php artisan praeviseo:connect PRV-8X92-LKQ1
-php artisan migrate
 ```
 
 Then the bridge automatically:
@@ -48,9 +47,8 @@ php artisan migrate
 ```
 
 No copied files.
+No second migration command for the client in the normal flow.
 No custom Composer path repository in the client project.
-
-During the transition period, this package still needs to be mirrored to its dedicated repository and published on Packagist.
 
 ## Honest boundaries
 

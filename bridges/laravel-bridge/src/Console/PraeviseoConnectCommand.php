@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Praeviseo\LaravelBridge\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 final class PraeviseoConnectCommand extends Command
@@ -48,11 +50,11 @@ final class PraeviseoConnectCommand extends Command
             'PRAEVISEO_BRIDGE_PREFIX' => (string) (($payload['publication_prefix'] ?? '') ?: 'ressources'),
         ]);
 
+        $this->ensureBridgeStorage();
+
         $this->components->info('Site connecté ✅');
         $this->line('Publication active ✅');
         $this->line('Monitoring actif ✅');
-        $this->newLine();
-        $this->line('Lance maintenant `php artisan migrate` si la table bridge n existe pas encore.');
 
         return self::SUCCESS;
     }
@@ -86,5 +88,16 @@ final class PraeviseoConnectCommand extends Command
         }
 
         return $value;
+    }
+
+    private function ensureBridgeStorage(): void
+    {
+        if (Schema::hasTable('praeviseo_published_pages')) {
+            return;
+        }
+
+        $this->line('Préparation du stockage bridge…');
+        Artisan::call('migrate', ['--force' => true]);
+        $this->output->write(Artisan::output());
     }
 }

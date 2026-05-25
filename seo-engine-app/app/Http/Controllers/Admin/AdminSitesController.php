@@ -50,7 +50,7 @@ class AdminSitesController extends Controller
             'locale'      => ['required', 'string', 'max:10'],
             'preset'      => ['required', 'string', 'in:generic,amiantix'],
             'webhook_url' => ['nullable', 'url', 'max:255'],
-            'publication_mode' => ['nullable', 'string', 'in:runtime,laravel_bridge,symfony_bridge,webhook_api,disabled'],
+            'publication_mode' => ['nullable', 'string', 'in:runtime,laravel_bridge,symfony_bridge,wordpress_bridge,webhook_api,disabled'],
             'publication_shared_secret' => ['nullable', 'string', 'max:255'],
             'publication_path_prefix' => ['nullable', 'string', 'max:120'],
             'gsc_connection_mode' => ['nullable', 'string', 'in:service_account,oauth_google'],
@@ -148,7 +148,7 @@ class AdminSitesController extends Controller
         $site = SeoSite::query()->where('site_id', $siteId)->firstOrFail();
 
         $data = $request->validate([
-            'publication_mode' => ['required', 'string', 'in:runtime,laravel_bridge,symfony_bridge,webhook_api,disabled'],
+            'publication_mode' => ['required', 'string', 'in:runtime,laravel_bridge,symfony_bridge,wordpress_bridge,webhook_api,disabled'],
             'webhook_url' => ['nullable', 'url', 'max:500'],
             'publication_shared_secret' => ['nullable', 'string', 'max:255'],
             'publication_path_prefix' => ['nullable', 'string', 'max:120'],
@@ -423,7 +423,7 @@ class AdminSitesController extends Controller
             $publication['path_prefix'] = trim((string) ($data['publication_path_prefix'] ?? ''), '/') ?: null;
         }
 
-        if (in_array((string) ($publication['mode'] ?? ''), ['laravel_bridge', 'symfony_bridge'], true)) {
+        if (in_array((string) ($publication['mode'] ?? ''), ['laravel_bridge', 'symfony_bridge', 'wordpress_bridge'], true)) {
             $publication['connect_code'] = $publication['connect_code'] ?? SeoSite::generatePublicationConnectCode();
             $publication['bridge_status'] = $publication['bridge_status'] ?? 'pending';
         }

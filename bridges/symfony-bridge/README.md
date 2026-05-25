@@ -9,6 +9,8 @@ composer require praeviseo/symfony-bridge
 php bin/console praeviseo:connect PRV-8X92-LKQ1
 ```
 
+The install auto-enables the Symfony bundle. The client should not edit `config/bundles.php` by hand.
+
 Then the bridge automatically:
 
 - contacts PraeviSEO
@@ -46,9 +48,8 @@ php bin/console praeviseo:connect PRV-8X92-LKQ1
 ```
 
 No copied files.
+No bundle registration by hand.
 No custom Composer path repository in the client project.
-
-During the transition period, this package still needs to be mirrored to its dedicated repository and published on Packagist.
 
 ## Honest boundaries
 

@@ -20,6 +20,7 @@ class SeoLivePublicationService
             'disabled' => throw new RuntimeException('La publication réelle est désactivée pour ce site.'),
             'laravel_bridge' => $this->publishViaWebhook($page, $site, signed: true),
             'symfony_bridge' => $this->publishViaWebhook($page, $site, signed: true),
+            'wordpress_bridge' => $this->publishViaWebhook($page, $site, signed: true),
             'webhook_api' => $this->publishViaWebhook($page, $site),
             default => $this->publishToRuntime($page, $site),
         };
@@ -60,6 +61,17 @@ class SeoLivePublicationService
                 'detail' => ($webhookUrl && $site->publicationSharedSecret())
                     ? 'Le moteur peut pousser une page validée vers un vrai site Symfony via un endpoint signé Praeviseo.'
                     : 'Le bridge Symfony demande un endpoint CMS et un secret partagé pour publier réellement sur le site client.',
+                'engine_actionable' => (bool) ($webhookUrl && $site->publicationSharedSecret()),
+                'manual_required' => ! ($webhookUrl && $site->publicationSharedSecret()),
+                'target' => $webhookUrl ?: '—',
+            ],
+            'wordpress_bridge' => [
+                'mode' => 'wordpress_bridge',
+                'label' => 'Plugin WordPress',
+                'state' => ($webhookUrl && $site->publicationSharedSecret()) ? 'ok' : 'critical',
+                'detail' => ($webhookUrl && $site->publicationSharedSecret())
+                    ? 'Le moteur peut pousser une page validée vers un vrai site WordPress via le plugin officiel Praeviseo.'
+                    : 'Le plugin WordPress doit encore être connecté pour activer la publication réelle et le monitoring.',
                 'engine_actionable' => (bool) ($webhookUrl && $site->publicationSharedSecret()),
                 'manual_required' => ! ($webhookUrl && $site->publicationSharedSecret()),
                 'target' => $webhookUrl ?: '—',
@@ -117,7 +129,7 @@ class SeoLivePublicationService
         }
 
         if ($signed && ! $site->publicationSharedSecret()) {
-            throw new RuntimeException('Le bridge Laravel demande un secret partagé avant toute publication réelle.');
+            throw new RuntimeException('Le connecteur officiel demande un secret partagé avant toute publication réelle.');
         }
 
         try {
@@ -178,7 +190,7 @@ class SeoLivePublicationService
         $baseUrl = rtrim((string) $site->url, '/');
         $prefix = $site->publicationPathPrefix();
 
-        if (in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge'], true) && $prefix) {
+        if (in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge', 'wordpress_bridge'], true) && $prefix) {
             return $baseUrl.'/'.trim($prefix, '/').$page->canonicalPath();
         }
 

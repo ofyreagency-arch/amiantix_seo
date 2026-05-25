@@ -482,6 +482,7 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                     <option value="runtime" @selected($site->resolvedPublicationMode() === 'runtime')>Runtime interne</option>
                     <option value="laravel_bridge" @selected($site->resolvedPublicationMode() === 'laravel_bridge')>Bridge Laravel officiel</option>
                     <option value="symfony_bridge" @selected($site->resolvedPublicationMode() === 'symfony_bridge')>Bridge Symfony officiel</option>
+                    <option value="wordpress_bridge" @selected($site->resolvedPublicationMode() === 'wordpress_bridge')>Plugin WordPress officiel</option>
                     <option value="webhook_api" @selected($site->resolvedPublicationMode() === 'webhook_api')>Webhook/API avancé</option>
                     <option value="disabled" @selected($site->resolvedPublicationMode() === 'disabled')>Désactivée</option>
                 </select>
@@ -494,7 +495,7 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">État actuel</div>
                 <div class="text-sm font-semibold text-gray-800">{{ $publicationTargetStatus['label'] ?? 'Runtime interne' }}</div>
                 <div class="mt-1 text-xs text-gray-500">{{ $publicationTargetStatus['detail'] ?? 'La cible de publication réelle n est pas encore configurée.' }}</div>
-                @if(in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge'], true))
+                @if(in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge', 'wordpress_bridge'], true))
                     <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div class="rounded-xl border border-gray-100 bg-white px-3 py-3">
                             <div class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Code de connexion</div>
@@ -526,7 +527,7 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 Enregistrer la cible de publication
             </button>
         </form>
-        @if(in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge'], true))
+        @if(in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge', 'wordpress_bridge'], true))
         <form method="POST" action="{{ route('admin.sites.publication-target.rotate-code', $site->site_id) }}" class="px-6 py-4">
             @csrf
             <button type="submit"

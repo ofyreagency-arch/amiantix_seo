@@ -16,7 +16,7 @@ class SeoBridgeConnectController extends Controller
         $data = $request->validate([
             'connection_code' => ['required', 'string', 'max:80'],
             'app_url' => ['required', 'url', 'max:500'],
-            'bridge' => ['required', 'string', 'in:laravel_bridge,symfony_bridge'],
+            'bridge' => ['required', 'string', 'in:laravel_bridge,symfony_bridge,wordpress_bridge'],
             'publication_prefix' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -27,7 +27,9 @@ class SeoBridgeConnectController extends Controller
         $secret = $site->publicationSharedSecret() ?: bin2hex(random_bytes(24));
         $appUrl = rtrim((string) $data['app_url'], '/');
         $prefix = trim((string) ($data['publication_prefix'] ?? ''), '/');
-        $endpoint = $appUrl.'/api/praeviseo/bridge/publish';
+        $endpoint = $data['bridge'] === 'wordpress_bridge'
+            ? $appUrl.'/wp-json/praeviseo/v1/publish'
+            : $appUrl.'/api/praeviseo/bridge/publish';
 
         $settings = $site->settings_json ?? [];
         $publication = is_array($settings['publication'] ?? null) ? $settings['publication'] : [];

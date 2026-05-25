@@ -198,6 +198,7 @@
                         <option value="runtime" @selected(old('publication_mode', 'runtime') === 'runtime')>Runtime interne</option>
                         <option value="laravel_bridge" @selected(old('publication_mode') === 'laravel_bridge')>Bridge Laravel officiel</option>
                         <option value="symfony_bridge" @selected(old('publication_mode') === 'symfony_bridge')>Bridge Symfony officiel</option>
+                        <option value="wordpress_bridge" @selected(old('publication_mode') === 'wordpress_bridge')>Plugin WordPress officiel</option>
                         <option value="webhook_api" @selected(old('publication_mode') === 'webhook_api')>Webhook/API avancé</option>
                         <option value="disabled" @selected(old('publication_mode') === 'disabled')>Désactivée</option>
                     </select>

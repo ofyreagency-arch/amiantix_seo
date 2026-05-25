@@ -109,7 +109,7 @@ class SeoSite extends Model
     {
         $mode = trim((string) data_get($this->settings_json, 'publication.mode', ''));
 
-        return in_array($mode, ['runtime', 'laravel_bridge', 'symfony_bridge', 'webhook_api', 'disabled'], true)
+        return in_array($mode, ['runtime', 'laravel_bridge', 'symfony_bridge', 'wordpress_bridge', 'webhook_api', 'disabled'], true)
             ? $mode
             : 'runtime';
     }
@@ -119,6 +119,7 @@ class SeoSite extends Model
         return match ($this->resolvedPublicationMode()) {
             'laravel_bridge' => 'Bridge Laravel',
             'symfony_bridge' => 'Bridge Symfony',
+            'wordpress_bridge' => 'Plugin WordPress',
             'webhook_api' => 'Webhook CMS/API',
             'disabled' => 'Publication externe désactivée',
             default => 'Runtime interne',
