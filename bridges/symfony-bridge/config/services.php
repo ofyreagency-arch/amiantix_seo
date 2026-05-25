@@ -20,7 +20,7 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$appUrl', '%env(default::APP_URL)%')
         ->arg('$bridgeSecret', '%env(default::PRAEVISEO_BRIDGE_SECRET)%')
         ->arg('$bridgeSiteId', '%env(default::PRAEVISEO_BRIDGE_SITE_ID)%')
-        ->arg('$bridgePrefix', '%env(default:ressources:PRAEVISEO_BRIDGE_PREFIX)%');
+        ->arg('$bridgePrefix', '%env(default::PRAEVISEO_BRIDGE_PREFIX)%');
 
     $services->set(PraeviseoBridgeService::class);
     $services->set(PraeviseoBridgeController::class)->public();
