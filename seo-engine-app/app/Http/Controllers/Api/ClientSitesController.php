@@ -275,6 +275,7 @@ class ClientSitesController extends Controller
         $suggestionQuery = SeoSuggestion::query()
             ->whereHas('page', fn ($query) => $query->where('site_id', $site->site_id));
         $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
+        $gscSnapshot = $this->searchConsoleSnapshot($site->site_id);
 
         $pagesPublished = (clone $pageQuery)->where('status', 'published')->count();
         $pagesLive = $hasPublishedLiveColumn
@@ -311,7 +312,10 @@ class ClientSitesController extends Controller
                 'pages_live' => $pagesLive,
                 'pending_suggestions' => $pendingSuggestions,
                 'observed_pages' => SeoSitePage::query()->where('site_id', $site->site_id)->count(),
-                'search_console_metrics' => SeoSearchConsoleMetric::query()->where('site_id', $site->site_id)->count(),
+                'gsc_impressions' => $gscSnapshot['impressions'],
+                'gsc_clicks' => $gscSnapshot['clicks'],
+                'gsc_ctr' => $gscSnapshot['ctr'],
+                'gsc_indexed_pages' => $gscSnapshot['indexed_pages'],
             ],
             'readiness' => [
                 'bridge_connected' => $bridgeConnected,
@@ -327,6 +331,46 @@ class ClientSitesController extends Controller
                 pagesLive: $pagesLive,
                 pendingSuggestions: $pendingSuggestions,
             ),
+        ];
+    }
+
+    /**
+     * @return array{impressions:float,clicks:float,ctr:float,indexed_pages:int}
+     */
+    private function searchConsoleSnapshot(string $siteId): array
+    {
+        $baseQuery = SeoSearchConsoleMetric::query()
+            ->where('site_id', $siteId)
+            ->whereNull('query');
+        $snapshot = (clone $baseQuery)
+            ->select(['metric_date', 'window_days'])
+            ->groupBy('metric_date', 'window_days')
+            ->orderByDesc('metric_date')
+            ->orderByRaw('case when window_days = 28 then 0 else 1 end')
+            ->orderByDesc('window_days')
+            ->first();
+
+        if (! $snapshot) {
+            return [
+                'impressions' => 0.0,
+                'clicks' => 0.0,
+                'ctr' => 0.0,
+                'indexed_pages' => 0,
+            ];
+        }
+
+        $snapshotQuery = (clone $baseQuery)
+            ->whereDate('metric_date', (string) $snapshot->metric_date)
+            ->where('window_days', (int) $snapshot->window_days);
+
+        $impressions = (float) (clone $snapshotQuery)->sum('impressions');
+        $clicks = (float) (clone $snapshotQuery)->sum('clicks');
+
+        return [
+            'impressions' => $impressions,
+            'clicks' => $clicks,
+            'ctr' => $impressions > 0 ? $clicks / $impressions : 0.0,
+            'indexed_pages' => (clone $snapshotQuery)->where('is_indexed', true)->distinct('url')->count('url'),
         ];
     }
 
