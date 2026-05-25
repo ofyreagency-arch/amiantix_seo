@@ -1,0 +1,78 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSite;
+use App\Models\User;
+use App\Models\UserAccessToken;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ClientSitesDashboardMetricsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_client_sites_summary_prefers_site_level_gsc_totals(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'metric_date' => '2026-05-25',
+            'window_days' => 28,
+            'query' => null,
+            'url' => null,
+            'clicks' => 9,
+            'impressions' => 20,
+            'ctr' => 0.45,
+            'position' => 6.2,
+            'payload_json' => ['scope' => 'site_totals'],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'metric_date' => '2026-05-25',
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://amiantix.com/page-a',
+            'clicks' => 11,
+            'impressions' => 36,
+            'ctr' => 0.306,
+            'position' => 5.8,
+            'is_indexed' => false,
+            'payload_json' => [],
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/sites');
+
+        $response->assertOk();
+        $response->assertJsonPath('sites.0.summary.gsc_clicks', 9);
+        $response->assertJsonPath('sites.0.summary.gsc_impressions', 20);
+        $response->assertJsonPath('sites.0.summary.gsc_ctr', 0.45);
+    }
+}

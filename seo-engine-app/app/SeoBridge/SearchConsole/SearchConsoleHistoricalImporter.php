@@ -25,8 +25,30 @@ class SearchConsoleHistoricalImporter implements HistoricalSeoImporter
 
         foreach ($windows as $window) {
             $date = now()->toDateString();
+            $siteTotals = $this->searchConsole->getSiteTotals($window);
             $topPages = $this->searchConsole->getTopPages($window, $limit);
             $topQueryPages = $this->searchConsole->getTopQueryPages($window, $limit);
+
+            SeoSearchConsoleMetric::query()->updateOrCreate(
+                [
+                    'site_id' => $this->context->siteId(),
+                    'metric_date' => $date,
+                    'window_days' => $window,
+                    'query' => null,
+                    'url' => null,
+                ],
+                [
+                    'seo_page_id' => null,
+                    'clicks' => $siteTotals['clicks'],
+                    'impressions' => $siteTotals['impressions'],
+                    'ctr' => $siteTotals['ctr'],
+                    'position' => $siteTotals['position'],
+                    'payload_json' => [
+                        'scope' => 'site_totals',
+                        'window_days' => $window,
+                    ],
+                ]
+            );
 
             foreach ($topPages as $row) {
                 $page = $this->pageForUrl($row['url']);

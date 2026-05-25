@@ -14,6 +14,7 @@ use App\Models\SeoSuggestion;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 
@@ -368,12 +369,22 @@ class ClientSitesController extends Controller
             ];
         }
 
-        $snapshotRows = (clone $baseQuery)
-            ->whereDate('metric_date', (string) $latestMetricDate)
-            ->orderByDesc('id')
-            ->get(['id', 'url', 'clicks', 'impressions', 'is_indexed']);
+        $latestMetricDate = Carbon::parse((string) $latestMetricDate)->toDateString();
 
-        $deduplicatedRows = $snapshotRows->unique(function (SeoSearchConsoleMetric $metric): string {
+        $snapshotRows = (clone $baseQuery)
+            ->whereDate('metric_date', $latestMetricDate)
+            ->orderByDesc('id')
+            ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed']);
+
+        $aggregateRow = $snapshotRows->first(
+            fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) === ''
+        );
+
+        $pageRows = $snapshotRows->filter(
+            fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) !== ''
+        );
+
+        $deduplicatedRows = $pageRows->unique(function (SeoSearchConsoleMetric $metric): string {
             $url = trim((string) $metric->url);
 
             if ($url === '') {
@@ -383,13 +394,14 @@ class ClientSitesController extends Controller
             return rtrim($url, '/');
         })->values();
 
-        $impressions = (float) $deduplicatedRows->sum('impressions');
-        $clicks = (float) $deduplicatedRows->sum('clicks');
+        $impressions = $aggregateRow ? (float) $aggregateRow->impressions : (float) $deduplicatedRows->sum('impressions');
+        $clicks = $aggregateRow ? (float) $aggregateRow->clicks : (float) $deduplicatedRows->sum('clicks');
+        $ctr = $aggregateRow ? (float) $aggregateRow->ctr : ($impressions > 0 ? $clicks / $impressions : 0.0);
 
         return [
             'impressions' => $impressions,
             'clicks' => $clicks,
-            'ctr' => $impressions > 0 ? $clicks / $impressions : 0.0,
+            'ctr' => $ctr,
             'indexed_pages' => $deduplicatedRows->where('is_indexed', true)->count(),
         ];
     }

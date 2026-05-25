@@ -72,6 +72,31 @@ class SearchConsoleService
     }
 
     /**
+     * @return array{clicks:float,impressions:float,ctr:float,position:float}
+     */
+    public function getSiteTotals(int $days = 28, int $endOffsetDays = 2): array
+    {
+        $row = collect($this->queryAnalytics([], $days, 1, endOffsetDays: $endOffsetDays))
+            ->first();
+
+        if (! is_array($row)) {
+            return [
+                'clicks' => 0.0,
+                'impressions' => 0.0,
+                'ctr' => 0.0,
+                'position' => 0.0,
+            ];
+        }
+
+        return [
+            'clicks' => (float) ($row['clicks'] ?? 0),
+            'impressions' => (float) ($row['impressions'] ?? 0),
+            'ctr' => (float) ($row['ctr'] ?? 0),
+            'position' => (float) ($row['position'] ?? 0),
+        ];
+    }
+
+    /**
      * @return array{impressions:int,ctr:float,position:float,queries:array<int,string>,indexed:bool|null,coverage:array<int,string>}
      */
     public function pageMetrics(object $page): array
@@ -257,7 +282,7 @@ class SearchConsoleService
         $token = $this->accessToken();
         $siteUrl = config('services.google_search_console.site_url', config('seo-engine.search_console.site_url'));
         $label = $this->analyticsLabel($dimensions);
-        $startDate = now()->subDays($days + $endOffsetDays)->toDateString();
+        $startDate = now()->subDays(max(0, ($days - 1) + $endOffsetDays))->toDateString();
         $endDate = now()->subDays($endOffsetDays)->toDateString();
 
         if (! $token || ! $siteUrl) {
@@ -335,6 +360,7 @@ class SearchConsoleService
     private function analyticsLabel(array $dimensions): string
     {
         return match (implode('|', $dimensions)) {
+            '' => 'site_totals',
             'page' => 'top_pages',
             'query|page' => 'top_query_pages',
             'query' => 'top_queries',

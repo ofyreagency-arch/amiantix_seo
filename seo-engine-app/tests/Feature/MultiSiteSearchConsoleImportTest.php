@@ -29,6 +29,28 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         [$siteA, $siteB, $pageA, $pageB] = $this->seedTwoGscSites();
 
         $searchConsole = Mockery::mock(SearchConsoleService::class);
+        $searchConsole->shouldReceive('getSiteTotals')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [
+                    'clicks' => 12.0,
+                    'impressions' => 180.0,
+                    'ctr' => 0.066,
+                    'position' => 8.3,
+                ],
+                'sc-domain:beta.test' => [
+                    'clicks' => 8.0,
+                    'impressions' => 130.0,
+                    'ctr' => 0.061,
+                    'position' => 10.2,
+                ],
+                default => [
+                    'clicks' => 0.0,
+                    'impressions' => 0.0,
+                    'ctr' => 0.0,
+                    'position' => 0.0,
+                ],
+            };
+        });
         $searchConsole->shouldReceive('getTopPages')->andReturnUsing(function (): array {
             return match (config('services.google_search_console.site_url')) {
                 'sc-domain:alpha.test' => [[
@@ -98,6 +120,14 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         ]);
         $this->assertDatabaseHas('seo_search_console_metrics', [
             'site_id' => $siteA->site_id,
+            'seo_page_id' => null,
+            'query' => null,
+            'url' => null,
+            'clicks' => 12.0,
+            'impressions' => 180.0,
+        ]);
+        $this->assertDatabaseHas('seo_search_console_metrics', [
+            'site_id' => $siteA->site_id,
             'seo_page_id' => $pageA->id,
             'query' => 'amiante alpha',
             'url' => 'https://alpha.test/page-alpha',
@@ -148,6 +178,28 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         [$siteA, $siteB, $pageA, $pageB] = $this->seedTwoGscSites();
 
         $searchConsole = Mockery::mock(SearchConsoleService::class);
+        $searchConsole->shouldReceive('getSiteTotals')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [
+                    'clicks' => 12.0,
+                    'impressions' => 180.0,
+                    'ctr' => 0.066,
+                    'position' => 8.3,
+                ],
+                'sc-domain:beta.test' => [
+                    'clicks' => 8.0,
+                    'impressions' => 130.0,
+                    'ctr' => 0.061,
+                    'position' => 10.2,
+                ],
+                default => [
+                    'clicks' => 0.0,
+                    'impressions' => 0.0,
+                    'ctr' => 0.0,
+                    'position' => 0.0,
+                ],
+            };
+        });
         $searchConsole->shouldReceive('getTopPages')->andReturnUsing(function (): array {
             return match (config('services.google_search_console.site_url')) {
                 'sc-domain:alpha.test' => [[
@@ -219,6 +271,23 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         [$siteA, $siteB, $pageA] = $this->seedTwoGscSites();
 
         $searchConsole = Mockery::mock(SearchConsoleService::class);
+        $searchConsole->shouldReceive('getSiteTotals')->andReturnUsing(function (): array {
+            return match (config('services.google_search_console.site_url')) {
+                'sc-domain:alpha.test' => [
+                    'clicks' => 12.0,
+                    'impressions' => 180.0,
+                    'ctr' => 0.066,
+                    'position' => 8.3,
+                ],
+                'sc-domain:beta.test' => throw new \RuntimeException('GSC access denied for beta'),
+                default => [
+                    'clicks' => 0.0,
+                    'impressions' => 0.0,
+                    'ctr' => 0.0,
+                    'position' => 0.0,
+                ],
+            };
+        });
         $searchConsole->shouldReceive('getTopPages')->andReturnUsing(function (): array {
             return match (config('services.google_search_console.site_url')) {
                 'sc-domain:alpha.test' => [[
@@ -294,6 +363,12 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         [$siteA] = $this->seedTwoGscSites();
 
         $searchConsole = Mockery::mock(SearchConsoleService::class);
+        $searchConsole->shouldReceive('getSiteTotals')->andReturn([
+            'clicks' => 0.0,
+            'impressions' => 0.0,
+            'ctr' => 0.0,
+            'position' => 0.0,
+        ]);
         $searchConsole->shouldReceive('getTopPages')->andReturn([]);
         $searchConsole->shouldReceive('getTopQueryPages')->andReturn([]);
         $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturn([
