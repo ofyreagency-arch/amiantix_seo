@@ -316,6 +316,25 @@ const mockSettings: PraeviseoSettings = {
   })),
 };
 
+const emptyOptimizations: PraeviseoOptimizations = {
+  stats: { pending: 0, applied: 0, rejected: 0, total: 0 },
+  items: [],
+};
+
+const emptyPublications: PraeviseoPublications = {
+  stats: { engine_published: 0, live_published: 0, with_live_url: 0 },
+  items: [],
+};
+
+const emptySettings: PraeviseoSettings = {
+  user: {
+    id: 0,
+    name: "",
+    email: "",
+  },
+  sites: [],
+};
+
 function backendConfigured(): boolean {
   return backendBaseUrl !== "";
 }
@@ -395,14 +414,14 @@ export async function getSites(): Promise<PraeviseoSite[]> {
     const token = await getSessionToken();
 
     if (!token) {
-      return mockSites;
+      return [];
     }
 
     const payload = await appFetch<SitesResponse>("/api/client/sites", undefined, token);
 
     return payload.sites.map(normaliseSite);
   } catch {
-    return mockSites;
+    return [];
   }
 }
 
@@ -415,14 +434,14 @@ export async function getSite(siteId: string): Promise<PraeviseoSite | null> {
     const token = await getSessionToken();
 
     if (!token) {
-      return mockSites.find((site) => site.site_id === siteId) ?? null;
+      return null;
     }
 
     const payload = await appFetch<SiteResponse>(`/api/client/sites/${siteId}`, undefined, token);
 
     return normaliseSite(payload.site);
   } catch {
-    return mockSites.find((site) => site.site_id === siteId) ?? null;
+    return null;
   }
 }
 
@@ -450,12 +469,12 @@ export async function getOptimizations(): Promise<PraeviseoOptimizations> {
     const token = await getSessionToken();
 
     if (!token) {
-      return mockOptimizations;
+      return emptyOptimizations;
     }
 
     return await appFetch<PraeviseoOptimizations>("/api/client/optimizations", undefined, token);
   } catch {
-    return mockOptimizations;
+    return emptyOptimizations;
   }
 }
 
@@ -468,12 +487,12 @@ export async function getPublications(): Promise<PraeviseoPublications> {
     const token = await getSessionToken();
 
     if (!token) {
-      return mockPublications;
+      return emptyPublications;
     }
 
     return await appFetch<PraeviseoPublications>("/api/client/publications", undefined, token);
   } catch {
-    return mockPublications;
+    return emptyPublications;
   }
 }
 
@@ -486,12 +505,12 @@ export async function getSettings(): Promise<PraeviseoSettings> {
     const token = await getSessionToken();
 
     if (!token) {
-      return mockSettings;
+      return emptySettings;
     }
 
     return await appFetch<PraeviseoSettings>("/api/client/settings", undefined, token);
   } catch {
-    return mockSettings;
+    return emptySettings;
   }
 }
 
