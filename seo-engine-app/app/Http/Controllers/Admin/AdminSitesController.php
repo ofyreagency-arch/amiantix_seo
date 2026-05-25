@@ -19,6 +19,7 @@ use App\Services\Preset\PresetManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 
 class AdminSitesController extends Controller
@@ -141,6 +142,46 @@ class AdminSitesController extends Controller
             'indexationBacklogSummary',
             'publicationTargetStatus',
         ));
+    }
+
+    public function connect(string $siteId): View
+    {
+        $site = $this->loadSite($siteId);
+
+        return view('admin.sites.connect', [
+            'site' => $site,
+            'installerVersion' => $this->installerVersion(),
+            'installers' => [
+                [
+                    'platform' => 'windows',
+                    'label' => 'Windows',
+                    'description' => 'Téléchargez le script officiel puis double-cliquez dessus sur le poste ou le serveur Windows.',
+                    'filename' => 'praeviseo-install.ps1',
+                    'command' => '.\\praeviseo-install.ps1',
+                ],
+                [
+                    'platform' => 'unix',
+                    'label' => 'Linux / Mac',
+                    'description' => 'Téléchargez le script officiel, rendez-le exécutable si besoin, puis lancez-le sur le serveur.',
+                    'filename' => 'praeviseo-install.sh',
+                    'command' => 'bash praeviseo-install.sh',
+                ],
+            ],
+        ]);
+    }
+
+    public function downloadInstaller(string $siteId, string $platform): BinaryFileResponse
+    {
+        $this->loadSite($siteId);
+
+        $installer = $this->resolveInstallerArtifact($platform);
+        abort_unless(is_file($installer['path']), 404);
+
+        return response()->download(
+            $installer['path'],
+            $installer['filename'],
+            ['Content-Type' => $installer['content_type']]
+        );
     }
 
     public function updatePublicationTarget(string $siteId, Request $request): RedirectResponse
@@ -479,5 +520,44 @@ class AdminSitesController extends Controller
 
                 return ($trigger['type'] ?? null) === $type;
             });
+    }
+
+    /**
+     * @return array{path:string,filename:string,content_type:string}
+     */
+    private function resolveInstallerArtifact(string $platform): array
+    {
+        return match ($platform) {
+            'windows' => [
+                'path' => $this->installerRootPath('praeviseo-install.ps1'),
+                'filename' => 'praeviseo-install.ps1',
+                'content_type' => 'text/plain; charset=UTF-8',
+            ],
+            'unix' => [
+                'path' => $this->installerRootPath('praeviseo-install.sh'),
+                'filename' => 'praeviseo-install.sh',
+                'content_type' => 'text/x-shellscript; charset=UTF-8',
+            ],
+            default => abort(404),
+        };
+    }
+
+    private function installerRootPath(string $filename): string
+    {
+        return dirname(base_path()).DIRECTORY_SEPARATOR.$filename;
+    }
+
+    private function installerVersion(): string
+    {
+        $timestamps = array_filter([
+            @filemtime($this->installerRootPath('praeviseo-install.sh')) ?: null,
+            @filemtime($this->installerRootPath('praeviseo-install.ps1')) ?: null,
+        ]);
+
+        if ($timestamps === []) {
+            return 'Version indisponible';
+        }
+
+        return 'v'.date('Y.m.d.His', max($timestamps));
     }
 }

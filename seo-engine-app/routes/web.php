@@ -39,6 +39,8 @@ Route::middleware('admin.auth')->prefix('admin')->name('admin.')->group(function
     Route::get('/sites', [AdminSitesController::class, 'index'])->name('sites.index');
     Route::post('/sites', [AdminSitesController::class, 'store'])->name('sites.store');
     Route::get('/sites/{siteId}', [AdminSitesController::class, 'show'])->name('sites.show');
+    Route::get('/sites/{siteId}/connect', [AdminSitesController::class, 'connect'])->name('sites.connect');
+    Route::get('/sites/{siteId}/connect/installer/{platform}', [AdminSitesController::class, 'downloadInstaller'])->name('sites.connect.installer');
     Route::post('/sites/{siteId}/google-connection', [AdminSitesController::class, 'updateGoogleConnection'])->name('sites.google-connection.update');
     Route::post('/sites/{siteId}/publication-target', [AdminSitesController::class, 'updatePublicationTarget'])->name('sites.publication-target.update');
     Route::post('/sites/{siteId}/publication-target/rotate-code', [AdminSitesController::class, 'rotatePublicationConnectCode'])->name('sites.publication-target.rotate-code');

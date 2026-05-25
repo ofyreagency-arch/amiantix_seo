@@ -508,6 +508,13 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                             <div class="mt-1 text-xs text-gray-500">Une fois connecté, publication + monitoring réel sont activés automatiquement.</div>
                         </div>
                     </div>
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <a href="{{ route('admin.sites.connect', $site->site_id) }}"
+                           class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                            Télécharger l’installateur
+                        </a>
+                        <span class="text-xs text-gray-400">Le client récupère le script officiel, le lance, colle le code, puis le bridge fait le reste.</span>
+                    </div>
                 @elseif($site->resolvedPublicationMode() === 'webhook_api')
                     <div class="mt-3 space-y-3">
                         <div>

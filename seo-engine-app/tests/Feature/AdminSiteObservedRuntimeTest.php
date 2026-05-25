@@ -861,4 +861,58 @@ class AdminSiteObservedRuntimeTest extends TestCase
         $response->assertSessionHas('warning');
         $this->assertDatabaseCount('seo_suggestions', 1);
     }
+
+    public function test_site_connect_page_exposes_official_installer_downloads(): void
+    {
+        $this->withoutVite();
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'site-runtime',
+            'name' => 'Site Runtime',
+            'url' => 'https://runtime-site.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'generic',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+            'settings_json' => [
+                'publication' => [
+                    'mode' => 'symfony_bridge',
+                    'connect_code' => 'ABCD-EFGH-IJKL',
+                    'bridge_status' => 'pending',
+                ],
+            ],
+        ]);
+
+        $showResponse = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.sites.show', $site->site_id));
+
+        $showResponse->assertOk();
+        $showResponse->assertSee('Télécharger l’installateur');
+
+        $connectResponse = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.sites.connect', $site->site_id));
+
+        $connectResponse->assertOk();
+        $connectResponse->assertSee('Télécharger l’installateur PraeviSEO');
+        $connectResponse->assertSee('ABCD-EFGH-IJKL');
+        $connectResponse->assertSee('Windows');
+        $connectResponse->assertSee('Linux / Mac');
+
+        $windowsDownload = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.sites.connect.installer', [$site->site_id, 'windows']));
+
+        $windowsDownload->assertOk();
+        $windowsDownload->assertDownload('praeviseo-install.ps1');
+
+        $unixDownload = $this
+            ->withSession(['admin_authenticated' => true])
+            ->get(route('admin.sites.connect.installer', [$site->site_id, 'unix']));
+
+        $unixDownload->assertOk();
+        $unixDownload->assertDownload('praeviseo-install.sh');
+    }
 }
