@@ -79,6 +79,14 @@ export async function createSiteAction(formData: FormData) {
       if (existingSite) {
         redirect(`/sites/${existingSite.site_id}/connect?notice=already-exists`);
       }
+
+      const params = new URLSearchParams({
+        site_id: siteId,
+        name: String(formData.get("name") ?? "").trim(),
+        url: String(formData.get("url") ?? "").trim(),
+      });
+
+      redirect(`/sites/join?${params.toString()}`);
     }
 
     failureRedirect(

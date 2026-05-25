@@ -116,6 +116,9 @@ export default async function NewSitePage({ searchParams }: { searchParams: Page
 
                 <div className="flex flex-wrap gap-3 pt-2">
                   <Button type="submit">Créer le site</Button>
+                  <Button href="/sites/join" variant="secondary">
+                    Rejoindre un site existant
+                  </Button>
                   <Button href="/sites" variant="secondary">
                     Retour aux sites
                   </Button>

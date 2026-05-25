@@ -53,6 +53,9 @@ export default async function DashboardPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <Button href="/sites/join" variant="secondary">
+                Rejoindre un site
+              </Button>
               <Button href="/sites" variant="secondary">
                 Voir mes sites
               </Button>
@@ -126,7 +129,11 @@ export default async function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {dashboard.sites.map((site) => (
+              {dashboard.sites.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun site n est encore rattaché à ce compte. Créez un nouveau site ou rejoignez un site existant avec son code de connexion.
+                </div>
+              ) : dashboard.sites.map((site) => (
                 <div
                   key={site.site_id}
                   className="rounded-2xl border border-border-subtle bg-surface-2/40 px-4 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"

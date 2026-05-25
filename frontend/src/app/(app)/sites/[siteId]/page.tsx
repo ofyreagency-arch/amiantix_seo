@@ -3,7 +3,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatRelativeStatus, getSite, getSiteConnectPath, hasBackendConnection } from "@/lib/praeviseo-api";
+import { formatGscStatus, getSite, getSiteConnectPath, hasBackendConnection } from "@/lib/praeviseo-api";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles } from "lucide-react";
 
 interface SiteDetailPageProps {
@@ -114,14 +114,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Google Search Console</div>
-                <div className="mt-2 text-sm font-semibold text-text">
-                  {formatRelativeStatus(site.gsc_connection_status)}
-                </div>
+                <div className="mt-2 text-sm font-semibold text-text">{formatGscStatus(site.gsc_connection_status)}</div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.gsc_property_url
                     ? `Propriété reliée : ${site.gsc_property_url}`
                     : "Reliez la propriété Search Console pour que le moteur détecte les opportunités réelles."}
                 </p>
+                {site.gsc_last_sync_at ? (
+                  <p className="mt-2 text-xs text-text-subtle">Dernière synchro : {site.gsc_last_sync_at}</p>
+                ) : null}
               </div>
             </CardContent>
           </Card>

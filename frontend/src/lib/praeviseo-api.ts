@@ -134,6 +134,11 @@ export type CreateSiteInput = {
   publication_path_prefix?: string;
 };
 
+export type ClaimSiteInput = {
+  connect_code: string;
+  site_id?: string;
+};
+
 type SitesResponse = { sites: unknown[] };
 type SiteResponse = { site: unknown };
 
@@ -348,6 +353,9 @@ function humanizeBackendMessage(message: string): string {
     "validation.required": "Merci de remplir tous les champs obligatoires.",
     "validation.url": "L URL publique doit etre valide, par exemple https://monsite.com.",
     "validation.unique": "Cet identifiant est deja utilise par un autre site.",
+    "Code de connexion invalide.": "Code de connexion invalide.",
+    "Le code de connexion ne correspond pas au site demandé.":
+      "Le code de connexion ne correspond pas au site demandé.",
   };
 
   if (messageMap[normalized]) {
@@ -661,6 +669,38 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
   return normaliseSite(payload.site);
 }
 
+export async function claimSite(input: ClaimSiteInput): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.publication_connect_code === input.connect_code);
+
+    if (!site) {
+      throw new Error("Code de connexion invalide.");
+    }
+
+    return site;
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    "/api/client/sites/claim",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
 export function getInstallerUrl(filename: "praeviseo-install.ps1" | "praeviseo-install.sh"): string {
   return `/installers/${filename}`;
 }
@@ -675,6 +715,18 @@ export function getSitePath(siteId: string): string {
 
 export function formatRelativeStatus(status: string): string {
   return status.replace(/_/g, " ");
+}
+
+export function formatGscStatus(status: string): string {
+  return (
+    {
+      connected: "Connectée",
+      connected_empty: "Connectée sans données",
+      configured: "Configurée",
+      not_connected: "Non reliée",
+      error: "Erreur de synchronisation",
+    }[status] ?? formatRelativeStatus(status)
+  );
 }
 
 export function hasBackendConnection(): boolean {

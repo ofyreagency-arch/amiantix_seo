@@ -100,6 +100,41 @@ class ClientSitesController extends Controller
         ], 201);
     }
 
+    public function claim(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $data = $request->validate([
+            'connect_code' => ['required', 'string', 'max:32'],
+            'site_id' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $site = SeoSite::resolveByPublicationConnectCode((string) $data['connect_code']);
+
+        if (! $site) {
+            return response()->json([
+                'message' => 'Code de connexion invalide.',
+            ], 422);
+        }
+
+        if (! empty($data['site_id']) && $site->site_id !== $data['site_id']) {
+            return response()->json([
+                'message' => 'Le code de connexion ne correspond pas au site demandé.',
+            ], 422);
+        }
+
+        $user->seoSites()->syncWithoutDetaching([
+            $site->id => ['role' => 'owner'],
+        ]);
+
+        $site = $site->fresh(['googleConnection']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+        ]);
+    }
+
     /**
      * @param array<string,mixed> $data
      */

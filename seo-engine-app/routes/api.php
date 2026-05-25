@@ -25,6 +25,7 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
     Route::get('/sites', [ClientSitesController::class, 'index']);
     Route::get('/sites/{siteId}', [ClientSitesController::class, 'show']);
     Route::post('/sites', [ClientSitesController::class, 'store']);
+    Route::post('/sites/claim', [ClientSitesController::class, 'claim']);
     Route::get('/optimizations', [ClientWorkspaceController::class, 'optimizations']);
     Route::get('/publications', [ClientWorkspaceController::class, 'publications']);
     Route::get('/settings', [ClientWorkspaceController::class, 'settings']);

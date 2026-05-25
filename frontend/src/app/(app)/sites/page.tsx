@@ -2,7 +2,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatRelativeStatus, getSiteConnectPath, getSitePath, getSites } from "@/lib/praeviseo-api";
+import { formatGscStatus, getSiteConnectPath, getSitePath, getSites } from "@/lib/praeviseo-api";
 import { ArrowRight, Globe, Link2, SearchCheck } from "lucide-react";
 
 export default async function SitesPage() {
@@ -14,15 +14,36 @@ export default async function SitesPage() {
         title="Mes sites"
         subtitle="Tous les sites branchés à PraeviSEO, avec leur état bridge, GSC et monitoring."
         actions={
-          <Button href="/sites/new" size="sm">
-            Ajouter un site
-          </Button>
+          <div className="flex gap-2">
+            <Button href="/sites/join" variant="secondary" size="sm">
+              Rejoindre un site
+            </Button>
+            <Button href="/sites/new" size="sm">
+              Ajouter un site
+            </Button>
+          </div>
         }
       />
 
       <div className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          {sites.map((site) => (
+        {sites.length === 0 ? (
+          <Card className="max-w-3xl">
+            <CardHeader>
+              <CardTitle>Aucun site rattaché pour le moment</CardTitle>
+              <CardDescription>
+                Créez un nouveau site si vous démarrez de zéro, ou rejoignez un site déjà existant avec son code de connexion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Button href="/sites/new">Créer un nouveau site</Button>
+              <Button href="/sites/join" variant="secondary">
+                Rejoindre un site existant
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            {sites.map((site) => (
             <Card key={site.site_id} className="overflow-hidden">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
@@ -50,9 +71,7 @@ export default async function SitesPage() {
                     <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">
                       Search Console
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-text">
-                      {formatRelativeStatus(site.gsc_connection_status)}
-                    </div>
+                    <div className="mt-2 text-sm font-semibold text-text">{formatGscStatus(site.gsc_connection_status)}</div>
                     <div className="mt-1 text-xs text-text-subtle">
                       {site.gsc_property_url ?? "Aucune propriété reliée"}
                     </div>
@@ -100,8 +119,9 @@ export default async function SitesPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
