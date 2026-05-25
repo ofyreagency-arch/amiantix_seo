@@ -20,6 +20,10 @@ Current editorial workflow and preset audit are documented here:
 
 [docs/editorial-workflow-audit.md](./docs/editorial-workflow-audit.md)
 
+Current bridge/connectivity architecture for client sites is documented here:
+
+[docs/bridge-connectivity-architecture.md](./docs/bridge-connectivity-architecture.md)
+
 ## What lives in the package
 
 - SEO generation core

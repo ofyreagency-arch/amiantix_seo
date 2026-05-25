@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\SeoAdminController;
+use App\Http\Controllers\Api\SeoBridgeConnectController;
 use App\Http\Controllers\Api\SeoRuntimeController;
 use App\Http\Middleware\EnsureAdminToken;
 use Illuminate\Support\Facades\Route;
@@ -31,3 +32,6 @@ Route::middleware(['seo.engine.log', 'seo.engine.token', 'throttle:seo-engine'])
     Route::get('/seo/pages', [SeoRuntimeController::class, 'pages']);
     Route::get('/seo/sitemap', [SeoRuntimeController::class, 'sitemap']);
 });
+
+Route::post('/bridge/connect', [SeoBridgeConnectController::class, 'connect'])
+    ->middleware('throttle:seo-engine');

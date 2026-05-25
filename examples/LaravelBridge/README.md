@@ -32,6 +32,7 @@ Copier les fichiers suivants dans le vrai site client Laravel :
 
 - `app/Http/Controllers/PraeviseoBridgeController.php`
 - `app/Http/Controllers/PraeviseoPublishedPageController.php`
+- `app/Console/Commands/PraeviseoConnectCommand.php`
 - `app/Models/PraeviseoPublishedPage.php`
 - `app/Services/PraeviseoBridgeService.php`
 - `database/migrations/2026_05_24_000000_create_praeviseo_published_pages_table.php`
@@ -60,13 +61,23 @@ Route::get('/'.trim((string) env('PRAEVISEO_BRIDGE_PREFIX', 'ressources'), '/').
     ->name('praeviseo.published-page');
 ```
 
-## Configuration Praeviseo
+## Connexion simple côté client
 
-Dans Praeviseo, pour le site :
+Le client n a rien à configurer à la main dans Praeviseo.
 
-- mode de publication : `Bridge Laravel`
-- endpoint : `https://client.com/api/praeviseo/bridge/publish`
-- secret bridge/client : la même valeur que `PRAEVISEO_BRIDGE_SECRET`
+Il lance juste :
+
+```bash
+php artisan praeviseo:connect ABCD-EFGH-IJKL
+```
+
+Puis il copie les 3 variables `.env` affichées par la commande.
+
+Le résultat attendu côté Praeviseo :
+
+- Site connecté ✅
+- Publication active ✅
+- Monitoring actif ✅
 
 ## Réponse attendue
 

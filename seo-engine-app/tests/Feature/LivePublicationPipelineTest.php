@@ -277,6 +277,143 @@ class LivePublicationPipelineTest extends TestCase
         $this->assertSame('https://client.test/ressources/danger-sante-amiante', $page->live_url);
     }
 
+    public function test_engine_published_page_can_be_pushed_live_via_symfony_bridge_target(): void
+    {
+        Http::fake([
+            'https://client.test/api/praeviseo/bridge/publish' => Http::response([
+                'live_url' => 'https://client.test/conseils/danger-sante-amiante',
+            ], 200),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+            'webhook_url' => 'https://client.test/api/praeviseo/bridge/publish',
+            'settings_json' => [
+                'publication' => [
+                    'mode' => 'symfony_bridge',
+                    'webhook_url' => 'https://client.test/api/praeviseo/bridge/publish',
+                    'shared_secret' => 'bridge-secret',
+                    'path_prefix' => 'conseils',
+                ],
+            ],
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'danger sante amiante',
+            'slug' => 'danger-sante-amiante',
+            'status' => 'published',
+            'published_at' => now(),
+            'title' => 'Danger Sante Amiante',
+            'content' => '<p>Contenu.</p>',
+        ]);
+
+        $response = $this
+            ->withSession(['admin_authenticated' => true])
+            ->post(route('admin.pages.publish-live', [$site->site_id, $page->id]));
+
+        $response->assertRedirect(route('admin.pages.show', [$site->site_id, $page->id]));
+        $response->assertSessionHas('success', 'Page publiée en live sur le site public.');
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://client.test/api/praeviseo/bridge/publish'
+                && (($request->header('X-Praeviseo-Site-Id')[0] ?? null) === 'amiantix');
+        });
+
+        $page->refresh();
+
+        $this->assertTrue($page->published_live);
+        $this->assertSame('https://client.test/conseils/danger-sante-amiante', $page->live_url);
+    }
+
+    public function test_bridge_connect_endpoint_sets_up_laravel_bridge_from_connection_code(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+            'settings_json' => [
+                'publication' => [
+                    'mode' => 'laravel_bridge',
+                    'connect_code' => 'ABCD-EFGH-IJKL',
+                    'bridge_status' => 'pending',
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson('/api/bridge/connect', [
+            'connection_code' => 'abcd-efgh-ijkl',
+            'app_url' => 'https://client.test',
+            'bridge' => 'laravel_bridge',
+            'publication_prefix' => 'ressources',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'connected')
+            ->assertJsonPath('site_id', 'amiantix')
+            ->assertJsonPath('publication_mode', 'laravel_bridge')
+            ->assertJsonPath('publication_endpoint', 'https://client.test/api/praeviseo/bridge/publish')
+            ->assertJsonPath('publication_prefix', 'ressources');
+
+        $site->refresh();
+
+        $this->assertSame('https://client.test/api/praeviseo/bridge/publish', $site->publicationWebhookUrl());
+        $this->assertSame('connected', $site->publicationBridgeStatus());
+        $this->assertSame('ressources', $site->publicationPathPrefix());
+        $this->assertNotNull($site->publicationSharedSecret());
+    }
+
+    public function test_bridge_connect_endpoint_sets_up_symfony_bridge_from_connection_code(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.test',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+            'settings_json' => [
+                'publication' => [
+                    'mode' => 'symfony_bridge',
+                    'connect_code' => 'WXYZ-QRST-UVWX',
+                    'bridge_status' => 'pending',
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson('/api/bridge/connect', [
+            'connection_code' => 'WXYZ-QRST-UVWX',
+            'app_url' => 'https://client.test',
+            'bridge' => 'symfony_bridge',
+            'publication_prefix' => 'conseils',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'connected')
+            ->assertJsonPath('publication_mode', 'symfony_bridge')
+            ->assertJsonPath('publication_prefix', 'conseils');
+
+        $site->refresh();
+
+        $this->assertSame('https://client.test/api/praeviseo/bridge/publish', $site->publicationWebhookUrl());
+        $this->assertSame('connected', $site->publicationBridgeStatus());
+        $this->assertSame('conseils', $site->publicationPathPrefix());
+    }
+
     public function test_publish_live_warns_when_webhook_target_is_missing(): void
     {
         $site = SeoSite::query()->create([

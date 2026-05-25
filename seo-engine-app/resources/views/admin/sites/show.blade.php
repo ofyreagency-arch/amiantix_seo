@@ -472,36 +472,52 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">
         <div class="px-6 py-4 border-b border-gray-100">
             <h2 class="font-bold text-gray-900">Publication client</h2>
-            <p class="text-xs text-gray-400 mt-0.5">Choisit comment la page validée sort du runtime et rejoint le vrai site public.</p>
+            <p class="text-xs text-gray-400 mt-0.5">Le client doit juste connecter son site. Toute la plomberie technique reste cachée dans le bridge.</p>
         </div>
         <form method="POST" action="{{ route('admin.sites.publication-target.update', $site->site_id) }}" class="px-6 py-5 space-y-4 border-b border-gray-100">
             @csrf
             <div>
-                <label class="{{ $labelCls }}">Mode de publication réelle</label>
+                <label class="{{ $labelCls }}">Connecteur officiel</label>
                 <select name="publication_mode" class="{{ $inputCls }}">
                     <option value="runtime" @selected($site->resolvedPublicationMode() === 'runtime')>Runtime interne</option>
-                    <option value="laravel_bridge" @selected($site->resolvedPublicationMode() === 'laravel_bridge')>Bridge Laravel</option>
-                    <option value="webhook_api" @selected($site->resolvedPublicationMode() === 'webhook_api')>Webhook CMS/API</option>
+                    <option value="laravel_bridge" @selected($site->resolvedPublicationMode() === 'laravel_bridge')>Bridge Laravel officiel</option>
+                    <option value="symfony_bridge" @selected($site->resolvedPublicationMode() === 'symfony_bridge')>Bridge Symfony officiel</option>
+                    <option value="webhook_api" @selected($site->resolvedPublicationMode() === 'webhook_api')>Webhook/API avancé</option>
                     <option value="disabled" @selected($site->resolvedPublicationMode() === 'disabled')>Désactivée</option>
                 </select>
             </div>
             <div>
-                <label class="{{ $labelCls }}">Endpoint CMS/API</label>
-                <input type="url" name="webhook_url" value="{{ old('webhook_url', $site->publicationWebhookUrl()) }}" placeholder="https://client.com/api/praeviseo/bridge/publish" class="{{ $inputCls }}">
-            </div>
-            <div>
-                <label class="{{ $labelCls }}">Secret bridge/client</label>
-                <input type="text" name="publication_shared_secret" value="{{ old('publication_shared_secret', $site->publicationSharedSecret()) }}" placeholder="secret partagé pour le bridge Laravel" class="{{ $inputCls }}">
+                <label class="{{ $labelCls }}">Section publique <span class="text-gray-300 font-normal">(optionnel)</span></label>
+                <input type="text" name="publication_path_prefix" value="{{ old('publication_path_prefix', $site->publicationPathPrefix() ?? 'ressources') }}" placeholder="ressources" class="{{ $inputCls }}">
             </div>
             <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">État actuel</div>
                 <div class="text-sm font-semibold text-gray-800">{{ $publicationTargetStatus['label'] ?? 'Runtime interne' }}</div>
                 <div class="mt-1 text-xs text-gray-500">{{ $publicationTargetStatus['detail'] ?? 'La cible de publication réelle n est pas encore configurée.' }}</div>
-                @if(!empty($publicationTargetStatus['target']))
-                    <div class="mt-2 text-xs text-gray-500">Endpoint : <span class="font-semibold text-gray-700">{{ $publicationTargetStatus['target'] }}</span></div>
-                @endif
-                @if($site->publicationSharedSecret())
-                    <div class="mt-2 text-xs text-gray-500">Auth : <span class="font-semibold text-gray-700">secret partagé configuré</span></div>
+                @if(in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge'], true))
+                    <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="rounded-xl border border-gray-100 bg-white px-3 py-3">
+                            <div class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Code de connexion</div>
+                            <div class="mt-1 text-sm font-semibold text-gray-900">{{ $site->publicationConnectCode() ?: '—' }}</div>
+                            <div class="mt-1 text-xs text-gray-500">Le client lance juste `php artisan praeviseo:connect` puis colle ce code.</div>
+                        </div>
+                        <div class="rounded-xl border border-gray-100 bg-white px-3 py-3">
+                            <div class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Statut bridge</div>
+                            <div class="mt-1 text-sm font-semibold text-gray-900">{{ $site->publicationBridgeStatus() === 'connected' ? 'Site connecté ✅' : 'En attente de connexion' }}</div>
+                            <div class="mt-1 text-xs text-gray-500">Une fois connecté, publication + monitoring réel sont activés automatiquement.</div>
+                        </div>
+                    </div>
+                @elseif($site->resolvedPublicationMode() === 'webhook_api')
+                    <div class="mt-3 space-y-3">
+                        <div>
+                            <label class="{{ $labelCls }}">Endpoint CMS/API</label>
+                            <input type="url" name="webhook_url" value="{{ old('webhook_url', $site->publicationWebhookUrl()) }}" placeholder="https://client.com/api/praeviseo/publish" class="{{ $inputCls }}">
+                        </div>
+                        <div>
+                            <label class="{{ $labelCls }}">Secret bridge/client</label>
+                            <input type="text" name="publication_shared_secret" value="{{ old('publication_shared_secret', $site->publicationSharedSecret()) }}" placeholder="secret partagé optionnel" class="{{ $inputCls }}">
+                        </div>
+                    </div>
                 @endif
             </div>
             <button type="submit"
@@ -510,6 +526,15 @@ $labelCls   = 'block text-xs font-semibold text-gray-500 mb-1.5';
                 Enregistrer la cible de publication
             </button>
         </form>
+        @if(in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge'], true))
+        <form method="POST" action="{{ route('admin.sites.publication-target.rotate-code', $site->site_id) }}" class="px-6 py-4">
+            @csrf
+            <button type="submit"
+                    class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">
+                Régénérer le code de connexion
+            </button>
+        </form>
+        @endif
     </div>
 
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow:0 2px 12px rgba(0,0,0,0.04);">

@@ -19,6 +19,7 @@ class SeoLivePublicationService
         return match ($site->resolvedPublicationMode()) {
             'disabled' => throw new RuntimeException('La publication réelle est désactivée pour ce site.'),
             'laravel_bridge' => $this->publishViaWebhook($page, $site, signed: true),
+            'symfony_bridge' => $this->publishViaWebhook($page, $site, signed: true),
             'webhook_api' => $this->publishViaWebhook($page, $site),
             default => $this->publishToRuntime($page, $site),
         };
@@ -48,6 +49,17 @@ class SeoLivePublicationService
                 'detail' => ($webhookUrl && $site->publicationSharedSecret())
                     ? 'Le moteur peut pousser une page validée vers un vrai site Laravel via un endpoint signé Praeviseo.'
                     : 'Le bridge Laravel demande un endpoint CMS et un secret partagé pour publier réellement sur le site client.',
+                'engine_actionable' => (bool) ($webhookUrl && $site->publicationSharedSecret()),
+                'manual_required' => ! ($webhookUrl && $site->publicationSharedSecret()),
+                'target' => $webhookUrl ?: '—',
+            ],
+            'symfony_bridge' => [
+                'mode' => 'symfony_bridge',
+                'label' => 'Bridge Symfony',
+                'state' => ($webhookUrl && $site->publicationSharedSecret()) ? 'ok' : 'critical',
+                'detail' => ($webhookUrl && $site->publicationSharedSecret())
+                    ? 'Le moteur peut pousser une page validée vers un vrai site Symfony via un endpoint signé Praeviseo.'
+                    : 'Le bridge Symfony demande un endpoint CMS et un secret partagé pour publier réellement sur le site client.',
                 'engine_actionable' => (bool) ($webhookUrl && $site->publicationSharedSecret()),
                 'manual_required' => ! ($webhookUrl && $site->publicationSharedSecret()),
                 'target' => $webhookUrl ?: '—',
@@ -163,7 +175,14 @@ class SeoLivePublicationService
 
     public function liveUrlFor(SeoPage $page, SeoSite $site): string
     {
-        return rtrim((string) $site->url, '/').$page->canonicalPath();
+        $baseUrl = rtrim((string) $site->url, '/');
+        $prefix = $site->publicationPathPrefix();
+
+        if (in_array($site->resolvedPublicationMode(), ['laravel_bridge', 'symfony_bridge'], true) && $prefix) {
+            return $baseUrl.'/'.trim($prefix, '/').$page->canonicalPath();
+        }
+
+        return $baseUrl.$page->canonicalPath();
     }
 
     public function resolveSiteByHost(string $host): ?SeoSite

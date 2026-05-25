@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class SeoSite extends Model
 {
@@ -108,7 +109,7 @@ class SeoSite extends Model
     {
         $mode = trim((string) data_get($this->settings_json, 'publication.mode', ''));
 
-        return in_array($mode, ['runtime', 'laravel_bridge', 'webhook_api', 'disabled'], true)
+        return in_array($mode, ['runtime', 'laravel_bridge', 'symfony_bridge', 'webhook_api', 'disabled'], true)
             ? $mode
             : 'runtime';
     }
@@ -117,6 +118,7 @@ class SeoSite extends Model
     {
         return match ($this->resolvedPublicationMode()) {
             'laravel_bridge' => 'Bridge Laravel',
+            'symfony_bridge' => 'Bridge Symfony',
             'webhook_api' => 'Webhook CMS/API',
             'disabled' => 'Publication externe désactivée',
             default => 'Runtime interne',
@@ -135,12 +137,41 @@ class SeoSite extends Model
         return $secret !== '' ? $secret : null;
     }
 
+    public function publicationPathPrefix(): ?string
+    {
+        $prefix = trim((string) data_get($this->settings_json, 'publication.path_prefix', ''), '/');
+
+        return $prefix !== '' ? $prefix : null;
+    }
+
+    public function publicationConnectCode(): ?string
+    {
+        $code = trim((string) data_get($this->settings_json, 'publication.connect_code', ''));
+
+        return $code !== '' ? strtoupper($code) : null;
+    }
+
+    public function publicationBridgeStatus(): string
+    {
+        return trim((string) data_get($this->settings_json, 'publication.bridge_status', 'pending')) ?: 'pending';
+    }
+
     public static function resolveByToken(string $rawToken): ?self
     {
         return self::query()
             ->active()
             ->where('api_token_hash', hash('sha256', $rawToken))
             ->first();
+    }
+
+    public static function resolveByPublicationConnectCode(string $rawCode): ?self
+    {
+        $needle = strtoupper(trim($rawCode));
+
+        return self::query()
+            ->active()
+            ->get()
+            ->first(fn (self $site): bool => $site->publicationConnectCode() === $needle);
     }
 
     public static function generateToken(): array
@@ -151,5 +182,10 @@ class SeoSite extends Model
             'token' => $raw,
             'hash'  => hash('sha256', $raw),
         ];
+    }
+
+    public static function generatePublicationConnectCode(): string
+    {
+        return strtoupper(Str::random(4)).'-'.strtoupper(Str::random(4)).'-'.strtoupper(Str::random(4));
     }
 }

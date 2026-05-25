@@ -193,21 +193,18 @@
                     </select>
                 </div>
                 <div>
-                    <label class="{{ $labelCls }}">Webhook URL <span class="text-gray-300 font-normal">(optionnel)</span></label>
-                    <input type="url" name="webhook_url" value="{{ old('webhook_url') }}" placeholder="https://monsite.com/seo-webhook" class="{{ $inputCls }}">
-                </div>
-                <div>
-                    <label class="{{ $labelCls }}">Publication réelle</label>
+                    <label class="{{ $labelCls }}">Connexion site public</label>
                     <select name="publication_mode" class="{{ $inputCls }}">
                         <option value="runtime" @selected(old('publication_mode', 'runtime') === 'runtime')>Runtime interne</option>
-                        <option value="laravel_bridge" @selected(old('publication_mode') === 'laravel_bridge')>Bridge Laravel</option>
-                        <option value="webhook_api" @selected(old('publication_mode') === 'webhook_api')>Webhook CMS/API</option>
+                        <option value="laravel_bridge" @selected(old('publication_mode') === 'laravel_bridge')>Bridge Laravel officiel</option>
+                        <option value="symfony_bridge" @selected(old('publication_mode') === 'symfony_bridge')>Bridge Symfony officiel</option>
+                        <option value="webhook_api" @selected(old('publication_mode') === 'webhook_api')>Webhook/API avancé</option>
                         <option value="disabled" @selected(old('publication_mode') === 'disabled')>Désactivée</option>
                     </select>
                 </div>
                 <div>
-                    <label class="{{ $labelCls }}">Secret bridge/client</label>
-                    <input type="text" name="publication_shared_secret" value="{{ old('publication_shared_secret') }}" placeholder="secret partagé pour le bridge Laravel" class="{{ $inputCls }}">
+                    <label class="{{ $labelCls }}">Section publique <span class="text-gray-300 font-normal">(optionnel)</span></label>
+                    <input type="text" name="publication_path_prefix" value="{{ old('publication_path_prefix', 'ressources') }}" placeholder="ressources" class="{{ $inputCls }}">
                 </div>
 
                 {{-- GSC Section --}}
