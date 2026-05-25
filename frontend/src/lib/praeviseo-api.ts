@@ -144,10 +144,7 @@ export type ClaimSiteInput = {
 
 export type SiteGscConnectionInput = {
   site_id: string;
-  gsc_connection_mode: "service_account" | "oauth_google";
   gsc_property_url: string;
-  gsc_credentials_path?: string;
-  gsc_account_email?: string;
 };
 
 type SitesResponse = { sites: unknown[] };
@@ -756,9 +753,9 @@ export async function connectSiteGsc(input: SiteGscConnectionInput): Promise<Pra
     return {
       ...site,
       gsc_property_url: input.gsc_property_url,
-      gsc_connection_mode: input.gsc_connection_mode,
+      gsc_connection_mode: "service_account",
       gsc_connection_status: "configured",
-      gsc_account_email: input.gsc_account_email ?? null,
+      gsc_account_email: null,
       gsc_last_sync_at: null,
       readiness: {
         ...site.readiness,
@@ -781,10 +778,7 @@ export async function connectSiteGsc(input: SiteGscConnectionInput): Promise<Pra
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        gsc_connection_mode: input.gsc_connection_mode,
         gsc_property_url: input.gsc_property_url,
-        gsc_credentials_path: input.gsc_credentials_path ?? "",
-        gsc_account_email: input.gsc_account_email ?? "",
       }),
     },
     token

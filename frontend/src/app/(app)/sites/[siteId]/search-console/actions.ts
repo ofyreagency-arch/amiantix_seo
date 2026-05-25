@@ -7,12 +7,7 @@ import { connectSiteGsc } from "@/lib/praeviseo-api";
 function failureRedirect(siteId: string, formData: FormData, message: string) {
   const params = new URLSearchParams();
 
-  for (const field of [
-    "gsc_connection_mode",
-    "gsc_property_url",
-    "gsc_credentials_path",
-    "gsc_account_email",
-  ]) {
+  for (const field of ["step", "gsc_property_url"]) {
     const value = String(formData.get(field) ?? "").trim();
 
     if (value !== "") {
@@ -27,14 +22,15 @@ function failureRedirect(siteId: string, formData: FormData, message: string) {
 
 export async function connectGscAction(siteId: string, formData: FormData) {
   try {
+    const step = String(formData.get("step") ?? "").trim();
+
+    if (step === "select-property" && String(formData.get("gsc_property_url") ?? "").trim() === "") {
+      redirect(`/sites/${siteId}/search-console?step=select-property`);
+    }
+
     await connectSiteGsc({
       site_id: siteId,
-      gsc_connection_mode: String(formData.get("gsc_connection_mode") ?? "service_account").trim() as
-        | "service_account"
-        | "oauth_google",
       gsc_property_url: String(formData.get("gsc_property_url") ?? "").trim(),
-      gsc_credentials_path: String(formData.get("gsc_credentials_path") ?? "").trim(),
-      gsc_account_email: String(formData.get("gsc_account_email") ?? "").trim(),
     });
 
     redirect(`/sites/${siteId}?notice=gsc-connected`);

@@ -14,6 +14,7 @@ use App\Models\SeoSuggestion;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 
 class ClientSitesController extends Controller
@@ -164,20 +165,32 @@ class ClientSitesController extends Controller
             ->firstOrFail();
 
         $data = $request->validate([
-            'gsc_connection_mode' => ['required', 'string', 'in:service_account,oauth_google'],
+            'gsc_connection_mode' => ['nullable', 'string', 'in:service_account,oauth_google'],
             'gsc_property_url' => ['required', 'string', 'max:500'],
-            'gsc_credentials_path' => ['required_if:gsc_connection_mode,service_account', 'nullable', 'string', 'max:500'],
+            'gsc_credentials_path' => ['nullable', 'string', 'max:500'],
             'gsc_account_email' => ['nullable', 'email', 'max:255'],
         ]);
 
+        $connectionMode = (string) ($data['gsc_connection_mode'] ?? 'service_account');
+        $credentialsPath = trim((string) ($data['gsc_credentials_path'] ?? ''));
+        $resolvedCredentialsPath = $credentialsPath !== ''
+            ? $credentialsPath
+            : (string) (Config::get('services.google_search_console.credentials')
+                ?: Config::get('seo-engine.search_console.credentials')
+                ?: '');
+
         $site->forceFill([
             'gsc_site_url' => $data['gsc_property_url'],
-            'gsc_credentials_path' => $data['gsc_connection_mode'] === 'service_account'
-                ? ($data['gsc_credentials_path'] ?? null)
+            'gsc_credentials_path' => $connectionMode === 'service_account'
+                ? ($resolvedCredentialsPath !== '' ? $resolvedCredentialsPath : null)
                 : null,
         ])->save();
 
-        $this->syncGoogleConnection($site, $data);
+        $this->syncGoogleConnection($site, [
+            ...$data,
+            'gsc_connection_mode' => $connectionMode,
+            'gsc_credentials_path' => $connectionMode === 'service_account' ? $resolvedCredentialsPath : null,
+        ]);
 
         $site = $site->fresh(['googleConnection']);
 

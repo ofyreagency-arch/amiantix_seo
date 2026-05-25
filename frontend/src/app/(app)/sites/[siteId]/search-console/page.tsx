@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { Topbar } from "@/components/layout/topbar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { getSite } from "@/lib/praeviseo-api";
 import { connectGscAction } from "./actions";
+import { formatGscStatus, getSite } from "@/lib/praeviseo-api";
+import { CheckCircle2, Link2, RefreshCw, ShieldCheck } from "lucide-react";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -21,6 +22,22 @@ function getValue(value: string | string[] | undefined, fallback = ""): string {
   return value ?? fallback;
 }
 
+function buildPropertyChoices(siteUrl: string, currentProperty: string | null): string[] {
+  const url = new URL(siteUrl);
+  const host = url.hostname.replace(/^www\./, "");
+  const normalizedUrl = `https://${host}`;
+  const wwwUrl = `https://www.${host}`;
+
+  return Array.from(
+    new Set([
+      currentProperty ?? "",
+      `sc-domain:${host}`,
+      `${wwwUrl}/`,
+      `${normalizedUrl}/`,
+    ].filter(Boolean))
+  );
+}
+
 export default async function SiteSearchConsolePage({
   params,
   searchParams,
@@ -34,103 +51,166 @@ export default async function SiteSearchConsolePage({
 
   const query = await searchParams;
   const error = getValue(query.error);
-  const gscPropertyUrl = getValue(query.gsc_property_url, site.gsc_property_url ?? `sc-domain:${new URL(site.url).hostname.replace(/^www\./, "")}`);
-  const gscCredentialsPath = getValue(query.gsc_credentials_path, "");
-  const gscAccountEmail = getValue(query.gsc_account_email, site.gsc_account_email ?? "");
+  const step = getValue(query.step, site.gsc_property_url ? "status" : "start");
+  const selectedProperty = getValue(
+    query.gsc_property_url,
+    site.gsc_property_url ?? buildPropertyChoices(site.url, null)[0] ?? ""
+  );
+  const propertyChoices = buildPropertyChoices(site.url, site.gsc_property_url);
+  const isConnected = site.gsc_connection_status === "connected" || site.gsc_connection_status === "configured";
 
   return (
     <div className="min-h-screen">
       <Topbar
-        title={`Connecter Search Console pour ${site.name}`}
-        subtitle="Reliez la propriété Google Search Console du site pour activer les signaux SEO réels dans PraeviSEO."
+        title={`Search Console · ${site.name}`}
+        subtitle="Connectez votre Google, choisissez la bonne propriété, puis laissez PraeviSEO lancer la synchronisation SEO automatiquement."
       />
 
-      <div className="p-6">
-        <div className="max-w-5xl grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="p-6 space-y-6">
+        <div className="rounded-3xl border border-brand/20 bg-brand-muted px-6 py-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
+              <Badge variant="brand-subtle" className="mb-3">
+                Google Search Console
+              </Badge>
+              <h1 className="text-2xl font-bold tracking-tight text-text">Connecter Google Search Console</h1>
+              <p className="mt-2 text-sm text-text-muted leading-7">
+                PraeviSEO gère la partie technique en arrière-plan. Le client se contente de connecter Google
+                puis de choisir la propriété du site.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[260px]">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Statut</div>
+              <div className="mt-2 text-lg font-black text-text">{formatGscStatus(site.gsc_connection_status)}</div>
+              <div className="mt-2 text-xs text-text-subtle">
+                {site.gsc_last_sync_at ? `Dernière synchro : ${site.gsc_last_sync_at}` : "Synchronisation inactive pour le moment."}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <Card>
             <CardHeader>
-              <CardTitle>Connecter Google Search Console</CardTitle>
+              <CardTitle>{isConnected ? "Search Console déjà reliée" : "Connecter mon Google"}</CardTitle>
               <CardDescription>
-                Pour l’instant, le mode le plus simple et le plus stable côté client est le compte de service.
+                {isConnected
+                  ? "Votre site remonte déjà des informations Search Console. Vous pouvez changer de propriété si besoin."
+                  : "Le flow client doit ressembler à un SaaS classique : connecter Google, choisir la propriété, puis laisser PraeviSEO faire le reste."}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {error ? (
-                <div className="mb-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-                  {error}
-                </div>
-              ) : null}
-
-              <form action={connectGscAction.bind(null, site.site_id)} className="space-y-4">
-                <input type="hidden" name="gsc_connection_mode" value="service_account" />
-
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Mode de connexion</div>
-                  <div className="mt-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-text">
-                    Compte de service Google
+            <CardContent className="space-y-4">
+              {step === "start" ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="text-sm font-semibold text-text">1. Autoriser PraeviSEO</div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      PraeviSEO ouvre ensuite une connexion Google sécurisée et prépare automatiquement les propriétés disponibles pour ce site.
+                    </p>
                   </div>
+
+                  <form action={connectGscAction.bind(null, site.site_id)}>
+                    <input type="hidden" name="step" value="select-property" />
+                    <Button type="submit" className="w-full">
+                      Continuer avec Google
+                    </Button>
+                  </form>
                 </div>
+              ) : (
+                <form action={connectGscAction.bind(null, site.site_id)} className="space-y-4">
+                  <input type="hidden" name="step" value="select-property" />
 
-                <Input
-                  name="gsc_property_url"
-                  label="Propriété Search Console"
-                  defaultValue={gscPropertyUrl}
-                  placeholder="sc-domain:monsite.com"
-                  hint="Exemple : sc-domain:monsite.com ou https://www.monsite.com/"
-                  required
-                />
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="text-sm font-semibold text-text">2. Choisir votre propriété</div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      Sélectionnez la propriété Search Console que PraeviSEO devra synchroniser pour {site.name}.
+                    </p>
+                  </div>
 
-                <Input
-                  name="gsc_credentials_path"
-                  label="Chemin du fichier credentials"
-                  defaultValue={gscCredentialsPath}
-                  placeholder="/var/www/seo-engine/seo-engine-app/storage/google/site.json"
-                  hint="Chemin du JSON de compte de service présent sur le serveur PraeviSEO."
-                  required
-                />
+                  <div className="grid gap-3">
+                    {propertyChoices.map((property) => (
+                      <label
+                        key={property}
+                        className="flex items-start gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-4 cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          name="gsc_property_url"
+                          value={property}
+                          defaultChecked={property === selectedProperty}
+                          className="mt-1"
+                        />
+                        <div>
+                          <div className="text-sm font-semibold text-text">{property}</div>
+                          <div className="mt-1 text-xs text-text-subtle">
+                            PraeviSEO utilisera ensuite cette propriété pour récupérer clics, impressions, CTR et requêtes.
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
 
-                <Input
-                  name="gsc_account_email"
-                  label="Compte Google"
-                  defaultValue={gscAccountEmail}
-                  placeholder="service-account@project.iam.gserviceaccount.com"
-                  hint="Adresse du compte de service à ajouter dans Search Console."
-                />
-
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <Button type="submit">Connecter Search Console</Button>
-                  <Button href={`/sites/${site.site_id}`} variant="secondary">
-                    Retour au site
-                  </Button>
-                </div>
-              </form>
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <Button type="submit">
+                      Activer Search Console
+                    </Button>
+                    <Button href={`/sites/${site.site_id}`} variant="secondary">
+                      Retour au site
+                    </Button>
+                  </div>
+                </form>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Ce que le client doit faire</CardTitle>
-              <CardDescription>PraeviSEO doit rester compréhensible, même quand la connexion passe par Google.</CardDescription>
+              <CardTitle>Ce que verra le client</CardTitle>
+              <CardDescription>On garde ici le ressenti SaaS, pas la plomberie technique.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 text-sm text-text-muted">
-              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="font-semibold text-text">1. Choisir la propriété</div>
-                <p className="mt-2 leading-6">
-                  Indiquez la propriété Search Console du site que PraeviSEO doit suivre.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="font-semibold text-text">2. Renseigner le compte Google</div>
-                <p className="mt-2 leading-6">
-                  En mode compte de service, ajoutez ce compte dans Search Console avec accès à la propriété.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="font-semibold text-text">3. Laisser PraeviSEO synchroniser</div>
-                <p className="mt-2 leading-6">
-                  Une fois la connexion enregistrée, PraeviSEO pourra lire impressions, CTR, positions et opportunités.
-                </p>
-              </div>
+            <CardContent className="space-y-4">
+              {[
+                {
+                  icon: ShieldCheck,
+                  title: "Connexion Google simple",
+                  text: "Le client ne voit ni JSON, ni service account, ni chemins serveur. Il connecte juste son Google.",
+                },
+                {
+                  icon: Link2,
+                  title: "Choix de propriété clair",
+                  text: "PraeviSEO propose directement les propriétés pertinentes pour le domaine du site.",
+                },
+                {
+                  icon: RefreshCw,
+                  title: "Synchronisation automatique",
+                  text: "Une fois activée, la synchronisation GSC alimente ensuite le cockpit client sans autre configuration visible.",
+                },
+                {
+                  icon: CheckCircle2,
+                  title: "Statut premium",
+                  text: "Le dashboard remonte ensuite simplement : connecté, synchronisation active, dernière synchro.",
+                },
+              ].map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-brand-subtle flex items-center justify-center">
+                        <Icon className="w-4 h-4 text-[hsl(var(--brand))]" />
+                      </div>
+                      <div className="text-sm font-semibold text-text">{item.title}</div>
+                    </div>
+                    <p className="mt-3 text-sm text-text-muted leading-6">{item.text}</p>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </div>

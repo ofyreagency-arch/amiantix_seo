@@ -100,11 +100,11 @@ export default async function SitesPage() {
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                     <SearchCheck className="w-3.5 h-3.5" />
-                    {site.summary.search_console_metrics} métriques GSC
+                    {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clic(s) GSC
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                     <Link2 className="w-3.5 h-3.5" />
-                    {site.summary.observed_pages} pages observées
+                    {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impression(s) GSC
                   </span>
                 </div>
 
@@ -114,7 +114,7 @@ export default async function SitesPage() {
                   </Button>
                   {!site.readiness.gsc_connected ? (
                     <Button href={`/sites/${site.site_id}/search-console`} variant="secondary">
-                      Connecter GSC
+                      Connecter mon Google
                     </Button>
                   ) : null}
                   <Button href={getSiteConnectPath(site.site_id)}>

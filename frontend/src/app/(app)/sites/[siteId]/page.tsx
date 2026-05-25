@@ -126,7 +126,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </p>
                 <div className="mt-4">
                   <Button href={`/sites/${site.site_id}/search-console`} variant="secondary">
-                    {site.gsc_property_url ? "Mettre à jour Search Console" : "Connecter Search Console"}
+                    {site.gsc_property_url ? "Mettre à jour mon Google" : "Connecter mon Google"}
                   </Button>
                 </div>
                 {site.gsc_last_sync_at ? (
@@ -159,7 +159,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
               {!site.readiness.gsc_connected ? (
                 <Button href={`/sites/${site.site_id}/search-console`} className="w-full" variant="secondary">
-                  Connecter Search Console
+                  Connecter mon Google
                 </Button>
               ) : null}
 
