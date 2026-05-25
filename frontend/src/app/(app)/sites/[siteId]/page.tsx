@@ -120,6 +120,11 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     ? `Propriété reliée : ${site.gsc_property_url}`
                     : "Reliez la propriété Search Console pour que le moteur détecte les opportunités réelles."}
                 </p>
+                <div className="mt-4">
+                  <Button href={`/sites/${site.site_id}/search-console`} variant="secondary">
+                    {site.gsc_property_url ? "Mettre à jour Search Console" : "Connecter Search Console"}
+                  </Button>
+                </div>
                 {site.gsc_last_sync_at ? (
                   <p className="mt-2 text-xs text-text-subtle">Dernière synchro : {site.gsc_last_sync_at}</p>
                 ) : null}
@@ -147,6 +152,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               <Button href={getSiteConnectPath(site.site_id)} className="w-full">
                 Télécharger l’installateur
               </Button>
+
+              {!site.readiness.gsc_connected ? (
+                <Button href={`/sites/${site.site_id}/search-console`} className="w-full" variant="secondary">
+                  Connecter Search Console
+                </Button>
+              ) : null}
 
               <div className="space-y-3">
                 {[

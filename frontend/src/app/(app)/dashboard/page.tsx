@@ -24,6 +24,30 @@ export default async function DashboardPage() {
   const recentPublications = publications.items.slice(0, 3);
   const recentOptimizations = optimizations.items.slice(0, 3);
 
+  const priorityHref = (site: (typeof dashboard.sites)[number]) => {
+    if (site.next_action.kind === "connect_gsc") {
+      return `/sites/${site.site_id}/search-console`;
+    }
+
+    if (site.next_action.kind === "connect_bridge") {
+      return getSiteConnectPath(site.site_id);
+    }
+
+    return getSitePath(site.site_id);
+  };
+
+  const priorityLabel = (site: (typeof dashboard.sites)[number]) => {
+    if (site.next_action.kind === "connect_gsc") {
+      return "Connecter Search Console";
+    }
+
+    if (site.next_action.kind === "connect_bridge") {
+      return "Connecter le site";
+    }
+
+    return "Ouvrir la fiche site";
+  };
+
   return (
     <div className="min-h-screen">
       <Topbar
@@ -191,8 +215,8 @@ export default async function DashboardPage() {
                     <p className="mt-2 text-sm text-text">{site.next_action.label}</p>
                     <p className="mt-2 text-sm text-text-muted leading-6">{site.next_action.detail}</p>
                     <div className="mt-3">
-                      <Button href={getSitePath(site.site_id)} variant="secondary" size="sm">
-                        Ouvrir la fiche site
+                      <Button href={priorityHref(site)} variant="secondary" size="sm">
+                        {priorityLabel(site)}
                       </Button>
                     </div>
                   </div>

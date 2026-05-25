@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
 use App\Models\SeoSuggestion;
 use App\Models\User;
@@ -151,6 +152,40 @@ class ClientSitesController extends Controller
         return $this->attachExistingSiteIfAllowed($user, $site, $data['url'] ?? null);
     }
 
+    public function updateGsc(Request $request, string $siteId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with('googleConnection')
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $data = $request->validate([
+            'gsc_connection_mode' => ['required', 'string', 'in:service_account,oauth_google'],
+            'gsc_property_url' => ['required', 'string', 'max:500'],
+            'gsc_credentials_path' => ['required_if:gsc_connection_mode,service_account', 'nullable', 'string', 'max:500'],
+            'gsc_account_email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $site->forceFill([
+            'gsc_site_url' => $data['gsc_property_url'],
+            'gsc_credentials_path' => $data['gsc_connection_mode'] === 'service_account'
+                ? ($data['gsc_credentials_path'] ?? null)
+                : null,
+        ])->save();
+
+        $this->syncGoogleConnection($site, $data);
+
+        $site = $site->fresh(['googleConnection']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+        ]);
+    }
+
     /**
      * @param array<string,mixed> $data
      */
@@ -205,6 +240,33 @@ class ClientSitesController extends Controller
         return response()->json([
             'message' => 'Ce site existe deja dans PraeviSEO. Utilisez le code de connexion pour le rattacher.',
         ], 409);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function syncGoogleConnection(SeoSite $site, array $data): void
+    {
+        $propertyUrl = trim((string) ($data['gsc_property_url'] ?? ''));
+        $credentialsPath = trim((string) ($data['gsc_credentials_path'] ?? ''));
+        $accountEmail = trim((string) ($data['gsc_account_email'] ?? ''));
+        $mode = trim((string) ($data['gsc_connection_mode'] ?? ''));
+
+        if ($propertyUrl === '' && $credentialsPath === '' && $accountEmail === '' && $mode === '') {
+            return;
+        }
+
+        SeoSiteGoogleConnection::query()->updateOrCreate(
+            ['site_id' => $site->site_id],
+            [
+                'connection_mode' => $mode !== '' ? $mode : 'service_account',
+                'property_url' => $propertyUrl !== '' ? $propertyUrl : null,
+                'google_account_email' => $accountEmail !== '' ? $accountEmail : null,
+                'credentials_path' => $credentialsPath !== '' ? $credentialsPath : null,
+                'connection_status' => ($propertyUrl !== '' || $credentialsPath !== '') ? 'configured' : 'not_connected',
+                'last_error' => null,
+            ],
+        );
     }
 
     private function serializeSite(SeoSite $site): array

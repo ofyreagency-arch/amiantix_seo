@@ -135,8 +135,16 @@ export type CreateSiteInput = {
 };
 
 export type ClaimSiteInput = {
-  connect_code: string;
+  connect_code?: string;
   site_id?: string;
+};
+
+export type SiteGscConnectionInput = {
+  site_id: string;
+  gsc_connection_mode: "service_account" | "oauth_google";
+  gsc_property_url: string;
+  gsc_credentials_path?: string;
+  gsc_account_email?: string;
 };
 
 type SitesResponse = { sites: unknown[] };
@@ -706,8 +714,67 @@ export async function claimSite(input: ClaimSiteInput): Promise<PraeviseoSite> {
   return normaliseSite(payload.site);
 }
 
-export function getInstallerUrl(filename: "praeviseo-install.ps1" | "praeviseo-install.sh"): string {
-  return `/installers/${filename}`;
+export async function connectSiteGsc(input: SiteGscConnectionInput): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === input.site_id);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      gsc_property_url: input.gsc_property_url,
+      gsc_connection_mode: input.gsc_connection_mode,
+      gsc_connection_status: "configured",
+      gsc_account_email: input.gsc_account_email ?? null,
+      gsc_last_sync_at: null,
+      readiness: {
+        ...site.readiness,
+        gsc_connected: false,
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${input.site_id}/gsc`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        gsc_connection_mode: input.gsc_connection_mode,
+        gsc_property_url: input.gsc_property_url,
+        gsc_credentials_path: input.gsc_credentials_path ?? "",
+        gsc_account_email: input.gsc_account_email ?? "",
+      }),
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
+export function getInstallerUrl(
+  filename: "praeviseo-install.ps1" | "praeviseo-install.sh",
+  siteId?: string
+): string {
+  const params = new URLSearchParams();
+
+  if (siteId) {
+    params.set("site_id", siteId);
+  }
+
+  const query = params.toString();
+
+  return query === "" ? `/installers/${filename}` : `/installers/${filename}?${query}`;
 }
 
 export function getSiteConnectPath(siteId: string): string {

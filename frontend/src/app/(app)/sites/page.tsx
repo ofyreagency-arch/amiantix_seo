@@ -112,6 +112,11 @@ export default async function SitesPage() {
                   <Button href={getSitePath(site.site_id)} variant="secondary">
                     Ouvrir la fiche
                   </Button>
+                  {!site.readiness.gsc_connected ? (
+                    <Button href={`/sites/${site.site_id}/search-console`} variant="secondary">
+                      Connecter GSC
+                    </Button>
+                  ) : null}
                   <Button href={getSiteConnectPath(site.site_id)}>
                     Connecter le site
                     <ArrowRight className="w-4 h-4" />
