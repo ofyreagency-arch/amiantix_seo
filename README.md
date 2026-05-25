@@ -35,6 +35,15 @@ Current bridge/connectivity architecture for client sites is documented here:
 - cockpit/status core services
 - Artisan commands
 
+## Official bridge packages
+
+The central engine is meant to connect to light client-side bridges.
+
+Current first-party bridge work lives here:
+
+- Symfony bridge package: [bridges/symfony-bridge](./bridges/symfony-bridge)
+- Laravel bridge is still being hardened from the example workflow
+
 The package core is intentionally niche-agnostic. Business-specific behavior should be provided by adapters.
 
 ## Install in a Laravel app
