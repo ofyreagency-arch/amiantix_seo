@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  formatPraeviseoStatus,
+  formatSitePlatform,
   getDashboard,
+  getPraeviseoInstallDetail,
   getOptimizations,
   getPublications,
   getSiteConnectPath,
@@ -42,7 +45,7 @@ export default async function DashboardPage() {
     }
 
     if (site.next_action.kind === "connect_bridge") {
-      return "Connecter le site";
+      return "Installer PraeviSEO";
     }
 
     return "Ouvrir la fiche site";
@@ -52,7 +55,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen">
       <Topbar
         title="Dashboard client"
-        subtitle="Votre cockpit client PraeviSEO : sites connectés, bridge, Google Search Console et prochaines actions."
+        subtitle="Votre cockpit client PraeviSEO : sites connectés, Google Search Console et prochaines actions."
         lastSync={backendLive ? "backend live" : "mode démonstration"}
         actions={
           <Button href="/sites/new" size="sm">
@@ -94,22 +97,26 @@ export default async function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {[
             {
-              label: "Sites connectés",
-              value: dashboard.totals.connectedSites,
+              label: "Impressions",
+              value: new Intl.NumberFormat("fr-FR").format(dashboard.totals.impressions),
               icon: Globe,
-              hint: `${dashboard.sites.length} site(s) au total`,
+              hint: "volume GSC agrégé du dernier snapshot",
             },
             {
-              label: "Pages publiées",
-              value: dashboard.totals.publishedPages,
+              label: "Clics",
+              value: new Intl.NumberFormat("fr-FR").format(dashboard.totals.clicks),
               icon: Waves,
-              hint: "contenus déjà poussés côté client",
+              hint: "clics organiques remontés par GSC",
             },
             {
-              label: "Suggestions pending",
-              value: dashboard.totals.pendingSuggestions,
+              label: "CTR moyen",
+              value: new Intl.NumberFormat("fr-FR", {
+                style: "percent",
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              }).format(dashboard.totals.averageCtr),
               icon: Sparkles,
-              hint: "actions en attente de validation",
+              hint: "calculé sur les clics et impressions GSC",
             },
             {
               label: "Pages observées",
@@ -118,10 +125,10 @@ export default async function DashboardPage() {
               hint: "couche monitoring crawl réel",
             },
             {
-              label: "Sites GSC reliés",
-              value: dashboard.totals.gscConnectedSites,
+              label: "Pages indexées",
+              value: dashboard.totals.indexedPages,
               icon: CheckCircle2,
-              hint: "Google Search Console active",
+              hint: "pages vues comme indexées dans GSC",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -148,14 +155,13 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Sites suivis</CardTitle>
               <CardDescription>
-                Les sites réellement branchés au moteur. Chaque fiche client donne accès à la connexion bridge,
-                au statut GSC et à la prochaine action.
+                Vos sites, leur état d’activation PraeviSEO, leur statut Search Console et la prochaine action recommandée.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {dashboard.sites.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun site n est encore rattaché à ce compte. Créez un nouveau site ou rejoignez un site existant avec son code de connexion.
+                  Aucun site n est encore rattaché à ce compte. Créez un nouveau site ou rejoignez un site existant.
                 </div>
               ) : dashboard.sites.map((site) => (
                 <div
@@ -165,16 +171,26 @@ export default async function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-semibold text-text">{site.name}</h3>
-                      <Badge variant="secondary">{site.publication_mode_label}</Badge>
+                      <Badge variant="secondary">{formatSitePlatform(site.publication_mode)}</Badge>
                       <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
-                        {site.publication_bridge_status === "connected" ? "Bridge connecté" : "Connexion en attente"}
+                        {formatPraeviseoStatus(site.publication_bridge_status)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{site.url}</p>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-subtle">
                       <span>{site.summary.pages_total} page(s) moteur</span>
-                      <span>{site.summary.pages_published} publiée(s)</span>
-                      <span>{site.summary.pending_suggestions} suggestion(s) pending</span>
+                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions</span>
+                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics</span>
+                      <span>
+                        {new Intl.NumberFormat("fr-FR", {
+                          style: "percent",
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1,
+                        }).format(site.summary.gsc_ctr)}{" "}
+                        CTR
+                      </span>
+                      <span>{site.summary.gsc_indexed_pages} page(s) indexée(s)</span>
+                      <span>{site.summary.observed_pages} page(s) observée(s)</span>
                       <span>{site.gsc_connection_status === "connected" ? "GSC reliée" : "GSC non reliée"}</span>
                     </div>
                   </div>
@@ -183,7 +199,7 @@ export default async function DashboardPage() {
                       Ouvrir
                     </Button>
                     <Button href={getSiteConnectPath(site.site_id)} size="sm">
-                      Connecter le site
+                      Installer PraeviSEO
                     </Button>
                   </div>
                 </div>
@@ -212,8 +228,13 @@ export default async function DashboardPage() {
                         {site.next_action.priority === "high" ? "Priorité haute" : "À planifier"}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text">{site.next_action.label}</p>
+                    <p className="mt-2 text-sm text-text">
+                      {site.next_action.kind === "connect_bridge" ? "Installer PraeviSEO sur votre site" : site.next_action.label}
+                    </p>
                     <p className="mt-2 text-sm text-text-muted leading-6">{site.next_action.detail}</p>
+                    {site.next_action.kind === "connect_bridge" ? (
+                      <p className="mt-2 text-sm text-text-muted leading-6">{getPraeviseoInstallDetail(site)}</p>
+                    ) : null}
                     <div className="mt-3">
                       <Button href={priorityHref(site)} variant="secondary" size="sm">
                         {priorityLabel(site)}

@@ -82,8 +82,8 @@ export function Sidebar({ sites = [] }: SidebarProps) {
             <p className="text-[10px] text-text-subtle truncate">
               {activeSite
                 ? activeSite.publication_bridge_status === "connected"
-                  ? "Site connecté"
-                  : "Connexion en attente"
+                  ? "PraeviSEO actif"
+                  : "Installation requise"
                 : "Ajoutez votre premier site"}
             </p>
           </div>

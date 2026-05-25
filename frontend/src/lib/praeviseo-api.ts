@@ -829,3 +829,32 @@ export function formatGscStatus(status: string): string {
 export function hasBackendConnection(): boolean {
   return backendConfigured();
 }
+
+export function formatSitePlatform(mode: string): string {
+  return (
+    {
+      symfony_bridge: "Site Symfony",
+      laravel_bridge: "Site Laravel",
+      wordpress_bridge: "Site WordPress",
+      runtime: "Site web",
+      webhook_api: "Site web",
+      disabled: "Site web",
+    }[mode] ?? "Site web"
+  );
+}
+
+export function formatPraeviseoStatus(status: string): string {
+  return status === "connected" ? "PraeviSEO actif" : "PraeviSEO non installé";
+}
+
+export function getPraeviseoInstallLabel(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
+  return site.publication_bridge_status === "connected"
+    ? "PraeviSEO actif sur votre site"
+    : "PraeviSEO n’est pas encore installé sur votre site";
+}
+
+export function getPraeviseoInstallDetail(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
+  return site.publication_bridge_status === "connected"
+    ? "Le monitoring SEO, les publications et les optimisations PraeviSEO sont maintenant actifs sur votre site."
+    : "Installez PraeviSEO pour activer le monitoring SEO, les optimisations automatiques, les publications et l’analyse du site.";
+}

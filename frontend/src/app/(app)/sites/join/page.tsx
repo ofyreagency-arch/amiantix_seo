@@ -96,7 +96,7 @@ export default async function JoinSitePage({ searchParams }: { searchParams: Pag
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">1. Le site existe déjà</div>
                 <p className="mt-2 leading-6">
-                  PraeviSEO connaît déjà le site, son bridge ou sa propriété Search Console.
+                  PraeviSEO connaît déjà le site, son installation ou sa propriété Search Console.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
@@ -108,7 +108,7 @@ export default async function JoinSitePage({ searchParams }: { searchParams: Pag
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">3. Les vrais statuts remontent</div>
                 <p className="mt-2 leading-6">
-                  Une fois rattaché, le client voit le vrai bridge, le vrai GSC et les prochaines actions réelles.
+                  Une fois rattaché, le client voit le vrai statut du site, le vrai GSC et les prochaines actions réelles.
                 </p>
               </div>
             </CardContent>

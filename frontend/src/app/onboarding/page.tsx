@@ -12,7 +12,7 @@ export default async function OnboardingPage() {
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-4xl font-bold tracking-tight">Bienvenue dans PraeviSEO</h1>
           <p className="mt-4 text-text-muted leading-7">
-            L’espace client est prêt. La prochaine vraie étape est de connecter votre premier site, puis d’activer le bridge et Search Console.
+            L’espace client est prêt. La prochaine vraie étape est d’ajouter votre premier site, d’installer PraeviSEO dessus, puis de relier Search Console.
           </p>
         </div>
 
@@ -25,8 +25,8 @@ export default async function OnboardingPage() {
             },
             {
               icon: Plug,
-              title: "2. Installer le bridge",
-              text: "Téléchargez l’installateur officiel et laissez le script brancher le site.",
+              title: "2. Installer PraeviSEO",
+              text: "Téléchargez l’installateur officiel et laissez le script activer PraeviSEO sur le site.",
             },
             {
               icon: SearchCheck,
@@ -58,7 +58,7 @@ export default async function OnboardingPage() {
                 Le cockpit client remplace maintenant l’usage de l’admin interne pour l’onboarding.
               </div>
               <p className="mt-2 text-sm text-text-muted">
-                Créez votre premier site depuis l’app publique, puis laissez le bridge faire le reste.
+                Créez votre premier site depuis l’app publique, puis laissez PraeviSEO faire le reste.
               </p>
             </div>
             <Button href="/sites/new">Connecter mon premier site</Button>

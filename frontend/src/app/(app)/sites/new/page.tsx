@@ -31,7 +31,7 @@ export default async function NewSitePage({ searchParams }: { searchParams: Page
             <CardHeader>
               <CardTitle>Créer un site client</CardTitle>
               <CardDescription>
-                On collecte juste le minimum utile, puis PraeviSEO génère le code de connexion bridge et prépare le flow client.
+                On collecte juste le minimum utile, puis PraeviSEO prépare automatiquement l’installation et l’activation du site.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -95,15 +95,15 @@ export default async function NewSitePage({ searchParams }: { searchParams: Page
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-medium text-text-muted">Connecteur officiel</label>
+                    <label className="block text-sm font-medium text-text-muted">Type de site</label>
                     <select
                       name="publication_mode"
                       defaultValue={getValue(params.publication_mode, "symfony_bridge")}
                       className="flex h-10 w-full rounded-lg bg-surface-2 border border-border px-3 text-sm text-text"
                     >
-                      <option value="symfony_bridge">Bridge Symfony officiel</option>
-                      <option value="laravel_bridge">Bridge Laravel officiel</option>
-                      <option value="wordpress_bridge">Plugin WordPress officiel</option>
+                      <option value="symfony_bridge">Site Symfony</option>
+                      <option value="laravel_bridge">Site Laravel</option>
+                      <option value="wordpress_bridge">Site WordPress</option>
                     </select>
                   </div>
                   <Input
@@ -136,19 +136,19 @@ export default async function NewSitePage({ searchParams }: { searchParams: Page
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">1. Ajouter un site</div>
                 <p className="mt-2 leading-6">
-                  Le client renseigne son domaine et choisit son bridge.
+                  Le client renseigne son domaine et choisit simplement le type de site.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">2. Télécharger l’installateur</div>
                 <p className="mt-2 leading-6">
-                  PraeviSEO prépare ensuite la page de connexion site avec le bon code et les scripts Windows / Linux / Mac.
+                  PraeviSEO prépare ensuite l’installation du site avec les scripts Windows / Linux / Mac.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">3. Activer le suivi</div>
                 <p className="mt-2 leading-6">
-                  Une fois le bridge connecté, le dashboard client suit le statut publication, GSC et monitoring.
+                  Une fois PraeviSEO installé, le dashboard client suit le statut du site, GSC et le monitoring.
                 </p>
               </div>
             </CardContent>

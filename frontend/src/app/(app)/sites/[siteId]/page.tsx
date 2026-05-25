@@ -3,7 +3,16 @@ import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatGscStatus, getSite, getSiteConnectPath, hasBackendConnection } from "@/lib/praeviseo-api";
+import {
+  formatGscStatus,
+  formatPraeviseoStatus,
+  formatSitePlatform,
+  getPraeviseoInstallDetail,
+  getPraeviseoInstallLabel,
+  getSite,
+  getSiteConnectPath,
+  hasBackendConnection,
+} from "@/lib/praeviseo-api";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles } from "lucide-react";
 
 interface SiteDetailPageProps {
@@ -19,6 +28,14 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   }
 
   const backendLive = hasBackendConnection();
+  const nextActionLabel =
+    site.next_action.kind === "connect_bridge"
+      ? "Installer PraeviSEO sur votre site"
+      : site.next_action.label;
+  const nextActionDetail =
+    site.next_action.kind === "connect_bridge"
+      ? "Installez PraeviSEO pour activer le monitoring SEO, les optimisations automatiques, les publications et l’analyse du site."
+      : site.next_action.detail;
 
   return (
     <div className="min-h-screen">
@@ -28,7 +45,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         lastSync={backendLive ? "backend live" : "données de démonstration"}
         actions={
           <Button href={getSiteConnectPath(site.site_id)} size="sm">
-            Connecter le site
+            Installer PraeviSEO
           </Button>
         }
       />
@@ -39,9 +56,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold tracking-tight text-text">{site.name}</h1>
-                <Badge variant="secondary">{site.publication_mode_label}</Badge>
+                <Badge variant="secondary">{formatSitePlatform(site.publication_mode)}</Badge>
                 <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
-                  {site.publication_bridge_status === "connected" ? "Bridge connecté" : "Bridge à connecter"}
+                  {formatPraeviseoStatus(site.publication_bridge_status)}
                 </Badge>
               </div>
               <p className="mt-3 text-sm text-text-muted">{site.url}</p>
@@ -64,9 +81,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </span>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button href={getSiteConnectPath(site.site_id)}>
-                Télécharger l’installateur
+              <div className="flex flex-wrap gap-2">
+                <Button href={getSiteConnectPath(site.site_id)}>
+                  Télécharger l’installateur
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -105,15 +122,20 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Bridge</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">PraeviSEO</div>
                 <div className="mt-2 text-sm font-semibold text-text">
-                  {site.publication_bridge_status === "connected" ? "Publication distante active" : "Connexion bridge en attente"}
+                  {getPraeviseoInstallLabel(site)}
                 </div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
-                  {site.publication_bridge_status === "connected"
-                    ? "Le vrai site client peut maintenant recevoir les publications PraeviSEO."
-                    : "Téléchargez l’installateur officiel, lancez-le sur votre site et laissez PraeviSEO terminer la connexion."}
+                  {getPraeviseoInstallDetail(site)}
                 </p>
+                {site.publication_bridge_status !== "connected" ? (
+                  <div className="mt-4">
+                    <Button href={getSiteConnectPath(site.site_id)} variant="secondary">
+                      Activer PraeviSEO sur mon site
+                    </Button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
@@ -146,15 +168,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4">
                 <div className="text-sm font-semibold text-text">
-                  {site.next_action.label}
+                  {nextActionLabel}
                 </div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
-                  {site.next_action.detail}
+                  {nextActionDetail}
                 </p>
               </div>
 
               <Button href={getSiteConnectPath(site.site_id)} className="w-full">
-                Télécharger l’installateur
+                Activer PraeviSEO sur mon site
               </Button>
 
               {!site.readiness.gsc_connected ? (
@@ -167,8 +189,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 {[
                   "Installateur préparé pour ce site",
                   "Téléchargement Windows / Linux / Mac",
-                  "Bridge Packagist officiel",
-                  "Monitoring réel activé après la connexion",
+                  "Installation officielle PraeviSEO",
+                  "Monitoring SEO activé après l’installation",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-muted">
                     <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
