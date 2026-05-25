@@ -4,7 +4,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { createSiteAction } from "./actions";
 
-export default function NewSitePage() {
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getValue(value: string | string[] | undefined, fallback: string) {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
+
+export default async function NewSitePage({ searchParams }: { searchParams: PageSearchParams }) {
+  const params = await searchParams;
+  const error = getValue(params.error, "");
+
   return (
     <div className="min-h-screen">
       <Topbar
@@ -22,22 +35,56 @@ export default function NewSitePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {error ? (
+                <div className="mb-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+                  {error}
+                </div>
+              ) : null}
+
               <form action={createSiteAction} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Input name="name" label="Nom du site" placeholder="Amiantix" required />
-                  <Input name="site_id" label="Identifiant" placeholder="amiantix" required />
+                  <Input
+                    name="name"
+                    label="Nom du site"
+                    placeholder="Amiantix"
+                    defaultValue={getValue(params.name, "")}
+                    required
+                  />
+                  <Input
+                    name="site_id"
+                    label="Identifiant"
+                    placeholder="amiantix"
+                    defaultValue={getValue(params.site_id, "")}
+                    required
+                  />
                 </div>
 
-                <Input name="url" label="URL publique" placeholder="https://amiantix.com" required />
+                <Input
+                  name="url"
+                  label="URL publique"
+                  placeholder="https://amiantix.com"
+                  defaultValue={getValue(params.url, "")}
+                  required
+                />
 
                 <div className="grid gap-4 md:grid-cols-3">
-                  <Input name="niche" label="Niche" placeholder="amiante" defaultValue="general" />
-                  <Input name="locale" label="Locale" placeholder="fr" defaultValue="fr" />
+                  <Input
+                    name="niche"
+                    label="Niche"
+                    placeholder="amiante"
+                    defaultValue={getValue(params.niche, "general")}
+                  />
+                  <Input
+                    name="locale"
+                    label="Locale"
+                    placeholder="fr"
+                    defaultValue={getValue(params.locale, "fr")}
+                  />
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-text-muted">Preset</label>
                     <select
                       name="preset"
-                      defaultValue="generic"
+                      defaultValue={getValue(params.preset, "generic")}
                       className="flex h-10 w-full rounded-lg bg-surface-2 border border-border px-3 text-sm text-text"
                     >
                       <option value="generic">Générique</option>
@@ -51,7 +98,7 @@ export default function NewSitePage() {
                     <label className="block text-sm font-medium text-text-muted">Connecteur officiel</label>
                     <select
                       name="publication_mode"
-                      defaultValue="symfony_bridge"
+                      defaultValue={getValue(params.publication_mode, "symfony_bridge")}
                       className="flex h-10 w-full rounded-lg bg-surface-2 border border-border px-3 text-sm text-text"
                     >
                       <option value="symfony_bridge">Bridge Symfony officiel</option>
@@ -62,7 +109,7 @@ export default function NewSitePage() {
                   <Input
                     name="publication_path_prefix"
                     label="Section publique"
-                    defaultValue="ressources"
+                    defaultValue={getValue(params.publication_path_prefix, "ressources")}
                     placeholder="ressources"
                   />
                 </div>

@@ -399,7 +399,34 @@ async function appFetch<T>(path: string, init?: RequestInit, token?: string): Pr
   });
 
   if (!response.ok) {
-    throw new Error(`PraeviSEO admin API error ${response.status} on ${path}`);
+    let message = `PraeviSEO admin API error ${response.status} on ${path}`;
+
+    try {
+      const payload = (await response.json()) as {
+        message?: string;
+        errors?: Record<string, string[]>;
+      };
+
+      if (payload.message) {
+        message = payload.message;
+      }
+
+      const firstFieldErrors = payload.errors
+        ? Object.values(payload.errors).flat().filter(Boolean)
+        : [];
+
+      if (firstFieldErrors.length > 0) {
+        message = firstFieldErrors[0] ?? message;
+      }
+    } catch {
+      const text = await response.text();
+
+      if (text.trim() !== "") {
+        message = text;
+      }
+    }
+
+    throw new Error(message);
   }
 
   return (await response.json()) as T;
