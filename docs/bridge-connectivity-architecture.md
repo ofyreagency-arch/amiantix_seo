@@ -121,6 +121,11 @@ The product should start with official first-party connectors:
 - Symfony Bridge
 - WordPress later
 
+The current repo now contains package scaffolds for:
+
+- `praeviseo/laravel-bridge`
+- `praeviseo/symfony-bridge`
+
 Advanced webhook/API mode can still exist, but it is not the primary client experience.
 
 ## Simple client UX
