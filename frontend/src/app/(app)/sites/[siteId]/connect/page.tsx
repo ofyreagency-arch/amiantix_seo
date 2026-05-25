@@ -3,6 +3,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RemoteInstallAssistant } from "@/components/sites/remote-install-assistant";
 import { formatSitePlatform, getInstallerUrl, getSite } from "@/lib/praeviseo-api";
 import { Download, Monitor, ShieldCheck } from "lucide-react";
 
@@ -37,7 +38,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
     <div className="min-h-screen">
       <Topbar
         title={`Activer PraeviSEO sur ${site.name}`}
-        subtitle="Téléchargez l’installateur officiel, lancez-le sur votre site et laissez PraeviSEO terminer l’activation."
+        subtitle="Choisissez votre hébergement, laissez PraeviSEO préparer l’installation et activez automatiquement le site."
       />
 
       <div className="p-6 space-y-6">
@@ -47,18 +48,32 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               <Badge variant="brand-subtle" className="mb-3">
                 {formatSitePlatform(site.publication_mode)}
               </Badge>
-              <h1 className="text-2xl font-bold tracking-tight text-text">Télécharger l’installateur officiel</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-text">Installer PraeviSEO sur votre hébergement</h1>
               <p className="mt-2 text-sm text-text-muted max-w-2xl leading-7">
-                PraeviSEO n’est pas encore installé sur votre site. Téléchargez simplement l’installateur officiel
-                et suivez les étapes à l’écran pour activer le monitoring SEO, les optimisations et les publications.
+                PraeviSEO n’est pas encore installé sur votre site. Le bon flow client consiste d’abord à choisir
+                l’hébergement, puis à laisser PraeviSEO gérer automatiquement l’installation à distance.
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[280px]">
               <div className="text-sm font-semibold text-text">PraeviSEO n’est pas encore installé sur votre site</div>
               <div className="mt-2 text-sm text-text-muted leading-6">
-                L’installateur préparé pour ce site activera automatiquement le suivi, les publications et les optimisations.
+                Une fois activé, PraeviSEO lancera le monitoring SEO, les publications et les optimisations pour ce site.
               </div>
             </div>
+          </div>
+        </div>
+
+        <RemoteInstallAssistant />
+
+        <div className="rounded-2xl border border-border bg-surface px-6 py-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-base font-semibold text-text">Alternative avancée</div>
+              <p className="mt-1 text-sm text-text-muted leading-6">
+                Si vous préférez encore une installation manuelle, vous pouvez utiliser l’installateur officiel ci-dessous.
+              </p>
+            </div>
+            <Badge variant="secondary">Méthode actuelle</Badge>
           </div>
         </div>
 
