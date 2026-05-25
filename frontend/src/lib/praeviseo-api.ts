@@ -25,9 +25,22 @@ export type PraeviseoSite = {
   summary: {
     pages_total: number;
     pages_published: number;
+    pages_live: number;
     pending_suggestions: number;
     observed_pages: number;
     search_console_metrics: number;
+  };
+  readiness: {
+    bridge_connected: boolean;
+    gsc_connected: boolean;
+    has_published_pages: boolean;
+    has_live_pages: boolean;
+  };
+  next_action: {
+    kind: string;
+    label: string;
+    detail: string;
+    priority: "high" | "medium" | "low";
   };
 };
 
@@ -155,9 +168,22 @@ const mockSites: PraeviseoSite[] = [
     summary: {
       pages_total: 8,
       pages_published: 5,
+      pages_live: 3,
       pending_suggestions: 2,
       observed_pages: 19,
       search_console_metrics: 56,
+    },
+    readiness: {
+      bridge_connected: true,
+      gsc_connected: true,
+      has_published_pages: true,
+      has_live_pages: true,
+    },
+    next_action: {
+      kind: "monitor",
+      label: "Laisser tourner le monitoring",
+      detail: "Le site est branché. PraeviSEO surveille maintenant les signaux et rouvrira des actions si besoin.",
+      priority: "low",
     },
   },
   {
@@ -184,9 +210,22 @@ const mockSites: PraeviseoSite[] = [
     summary: {
       pages_total: 0,
       pages_published: 0,
+      pages_live: 0,
       pending_suggestions: 0,
       observed_pages: 0,
       search_console_metrics: 0,
+    },
+    readiness: {
+      bridge_connected: false,
+      gsc_connected: false,
+      has_published_pages: false,
+      has_live_pages: false,
+    },
+    next_action: {
+      kind: "connect_bridge",
+      label: "Connecter le bridge officiel",
+      detail: "Installez le bridge pour activer la vraie publication et le monitoring du site public.",
+      priority: "high",
     },
   },
 ];
@@ -309,9 +348,22 @@ function normaliseSite(raw: unknown): PraeviseoSite {
     summary: {
       pages_total: Number(summary.pages_total ?? 0),
       pages_published: Number(summary.pages_published ?? 0),
+      pages_live: Number(summary.pages_live ?? 0),
       pending_suggestions: Number(summary.pending_suggestions ?? 0),
       observed_pages: Number(summary.observed_pages ?? 0),
       search_console_metrics: Number(summary.search_console_metrics ?? 0),
+    },
+    readiness: {
+      bridge_connected: Boolean((site.readiness as Record<string, unknown> | undefined)?.bridge_connected ?? false),
+      gsc_connected: Boolean((site.readiness as Record<string, unknown> | undefined)?.gsc_connected ?? false),
+      has_published_pages: Boolean((site.readiness as Record<string, unknown> | undefined)?.has_published_pages ?? false),
+      has_live_pages: Boolean((site.readiness as Record<string, unknown> | undefined)?.has_live_pages ?? false),
+    },
+    next_action: {
+      kind: String((site.next_action as Record<string, unknown> | undefined)?.kind ?? "monitor"),
+      label: String((site.next_action as Record<string, unknown> | undefined)?.label ?? "Laisser tourner le monitoring"),
+      detail: String((site.next_action as Record<string, unknown> | undefined)?.detail ?? "Le site est branché."),
+      priority: String((site.next_action as Record<string, unknown> | undefined)?.priority ?? "low") as "high" | "medium" | "low",
     },
   };
 }
@@ -504,9 +556,22 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       summary: {
         pages_total: 0,
         pages_published: 0,
+        pages_live: 0,
         pending_suggestions: 0,
         observed_pages: 0,
         search_console_metrics: 0,
+      },
+      readiness: {
+        bridge_connected: false,
+        gsc_connected: false,
+        has_published_pages: false,
+        has_live_pages: false,
+      },
+      next_action: {
+        kind: "connect_bridge",
+        label: "Connecter le bridge officiel",
+        detail: "Installez le bridge pour activer la vraie publication et le monitoring du site public.",
+        priority: "high",
       },
     };
   }

@@ -58,6 +58,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   <Sparkles className="w-3.5 h-3.5" />
                   {site.summary.pending_suggestions} suggestion(s) pending
                 </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {site.summary.pages_live} page(s) live
+                </span>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -132,14 +136,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4">
                 <div className="text-sm font-semibold text-text">
-                  {site.publication_bridge_status === "connected"
-                    ? "Bridge déjà actif"
-                    : "Connecter le bridge officiel"}
+                  {site.next_action.label}
                 </div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
-                  {site.publication_bridge_status === "connected"
-                    ? "Le site est prêt pour les publications réelles. La suite logique est de lier GSC si ce n’est pas déjà fait."
-                    : "Le produit client doit maintenant guider l’installation, pas renvoyer vers le copilote admin."}
+                  {site.next_action.detail}
                 </p>
               </div>
 

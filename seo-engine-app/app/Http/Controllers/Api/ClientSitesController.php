@@ -118,6 +118,12 @@ class ClientSitesController extends Controller
         $suggestionQuery = SeoSuggestion::query()
             ->whereHas('page', fn ($query) => $query->where('site_id', $site->site_id));
 
+        $pagesPublished = (clone $pageQuery)->where('status', 'published')->count();
+        $pagesLive = (clone $pageQuery)->where('published_live', true)->count();
+        $pendingSuggestions = (clone $suggestionQuery)->where('status', 'pending')->count();
+        $gscConnected = $site->resolvedGscConnectionStatus() === 'connected';
+        $bridgeConnected = $site->publicationBridgeStatus() === 'connected';
+
         return [
             'id' => $site->id,
             'site_id' => $site->site_id,
@@ -141,11 +147,90 @@ class ClientSitesController extends Controller
             'created_at' => $site->created_at,
             'summary' => [
                 'pages_total' => (clone $pageQuery)->count(),
-                'pages_published' => (clone $pageQuery)->where('status', 'published')->count(),
-                'pending_suggestions' => (clone $suggestionQuery)->where('status', 'pending')->count(),
+                'pages_published' => $pagesPublished,
+                'pages_live' => $pagesLive,
+                'pending_suggestions' => $pendingSuggestions,
                 'observed_pages' => SeoSitePage::query()->where('site_id', $site->site_id)->count(),
                 'search_console_metrics' => SeoSearchConsoleMetric::query()->where('site_id', $site->site_id)->count(),
             ],
+            'readiness' => [
+                'bridge_connected' => $bridgeConnected,
+                'gsc_connected' => $gscConnected,
+                'has_published_pages' => $pagesPublished > 0,
+                'has_live_pages' => $pagesLive > 0,
+            ],
+            'next_action' => $this->nextActionForSite(
+                site: $site,
+                bridgeConnected: $bridgeConnected,
+                gscConnected: $gscConnected,
+                pagesPublished: $pagesPublished,
+                pagesLive: $pagesLive,
+                pendingSuggestions: $pendingSuggestions,
+            ),
+        ];
+    }
+
+    /**
+     * @return array{kind:string,label:string,detail:string,priority:string}
+     */
+    private function nextActionForSite(
+        SeoSite $site,
+        bool $bridgeConnected,
+        bool $gscConnected,
+        int $pagesPublished,
+        int $pagesLive,
+        int $pendingSuggestions,
+    ): array {
+        if (! $bridgeConnected) {
+            return [
+                'kind' => 'connect_bridge',
+                'label' => 'Connecter le bridge officiel',
+                'detail' => 'Installez le bridge pour activer la vraie publication et le monitoring du site public.',
+                'priority' => 'high',
+            ];
+        }
+
+        if (! $gscConnected) {
+            return [
+                'kind' => 'connect_gsc',
+                'label' => 'Relier Google Search Console',
+                'detail' => 'Activez les signaux Google pour laisser PraeviSEO détecter les vraies opportunités SEO.',
+                'priority' => 'high',
+            ];
+        }
+
+        if ($pendingSuggestions > 0) {
+            return [
+                'kind' => 'review_optimizations',
+                'label' => 'Valider les optimisations en attente',
+                'detail' => 'Le moteur a déjà trouvé des actions utiles. Passez en revue les suggestions en attente.',
+                'priority' => 'medium',
+            ];
+        }
+
+        if ($pagesPublished === 0) {
+            return [
+                'kind' => 'publish_first_page',
+                'label' => 'Publier votre première page',
+                'detail' => 'Le bridge est prêt. Il reste à publier un premier contenu pour démarrer la boucle SEO réelle.',
+                'priority' => 'medium',
+            ];
+        }
+
+        if ($pagesLive === 0 && $site->resolvedPublicationMode() !== 'runtime') {
+            return [
+                'kind' => 'publish_live',
+                'label' => 'Pousser une première publication live',
+                'detail' => 'Une page est prête côté moteur. Le prochain cap est de la pousser sur le vrai site client.',
+                'priority' => 'medium',
+            ];
+        }
+
+        return [
+            'kind' => 'monitor',
+            'label' => 'Laisser tourner le monitoring',
+            'detail' => 'Le site est branché. PraeviSEO surveille maintenant les signaux et rouvrira des actions si besoin.',
+            'priority' => 'low',
         ];
     }
 }

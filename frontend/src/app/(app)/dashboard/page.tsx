@@ -3,12 +3,26 @@ import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDashboard, getSiteConnectPath, getSitePath, hasBackendConnection } from "@/lib/praeviseo-api";
+import {
+  getDashboard,
+  getOptimizations,
+  getPublications,
+  getSiteConnectPath,
+  getSitePath,
+  hasBackendConnection,
+} from "@/lib/praeviseo-api";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles, Waves } from "lucide-react";
 
 export default async function DashboardPage() {
   const dashboard = await getDashboard();
+  const optimizations = await getOptimizations();
+  const publications = await getPublications();
   const backendLive = hasBackendConnection();
+  const prioritySites = dashboard.sites
+    .filter((site) => site.next_action.priority !== "low")
+    .slice(0, 3);
+  const recentPublications = publications.items.slice(0, 3);
+  const recentOptimizations = optimizations.items.slice(0, 3);
 
   return (
     <div className="min-h-screen">
@@ -148,35 +162,86 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Ce que voit le client</CardTitle>
+              <CardTitle>Priorités du moment</CardTitle>
               <CardDescription>
-                Une version simple du produit, séparée du copilote interne.
+                Ce que PraeviSEO recommande en premier au client, sans jargon technique.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                "Accueil produit avec proposition de valeur claire",
-                "Connexion / création de compte",
-                "Dashboard client orienté résultats",
-                "Mes sites et statuts bridge / GSC",
-                "Téléchargement de l’installateur officiel",
-                "Backlog actionnable sans jargon technique",
-              ].map((line) => (
-                <div key={line} className="flex items-start gap-2 text-sm text-text-muted">
-                  <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
-                  <span>{line}</span>
+              {prioritySites.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun blocage fort en ce moment. Le moteur est surtout en phase de monitoring.
+                </div>
+              ) : (
+                prioritySites.map((site) => (
+                  <div key={site.site_id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{site.name}</div>
+                      <Badge variant={site.next_action.priority === "high" ? "warning" : "secondary"}>
+                        {site.next_action.priority === "high" ? "Priorité haute" : "À planifier"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text">{site.next_action.label}</p>
+                    <p className="mt-2 text-sm text-text-muted leading-6">{site.next_action.detail}</p>
+                    <div className="mt-3">
+                      <Button href={getSitePath(site.site_id)} variant="secondary" size="sm">
+                        Ouvrir la fiche site
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Activité publication</CardTitle>
+              <CardDescription>
+                Les dernières pages passées en publication moteur ou live.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentPublications.map((item) => (
+                <div key={item.id} className="rounded-xl border border-border px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{item.title}</p>
+                      <p className="text-xs text-text-subtle">{item.site_id}</p>
+                    </div>
+                    <Badge variant={item.published_live ? "success" : "secondary"}>
+                      {item.published_live ? "live" : "moteur"}
+                    </Badge>
+                  </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
 
-              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-text-subtle font-semibold">
-                  Étape suivante
+          <Card>
+            <CardHeader>
+              <CardTitle>Activité optimisation</CardTitle>
+              <CardDescription>
+                Les dernières suggestions réellement ouvertes par le moteur.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentOptimizations.map((item) => (
+                <div key={item.id} className="rounded-xl border border-border px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{item.page.title}</p>
+                      <p className="text-xs text-text-subtle">{item.page.site_id}</p>
+                    </div>
+                    <Badge variant={item.status === "pending" ? "warning" : "secondary"}>
+                      {item.status}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-text-muted">{item.summary}</p>
                 </div>
-                <p className="mt-2 text-sm text-text-muted leading-6">
-                  On garde l’admin pour toi, et on fait maintenant évoluer ce front vers une vraie auth client SaaS
-                  et un onboarding connecté au backend.
-                </p>
-              </div>
+              ))}
             </CardContent>
           </Card>
         </div>
