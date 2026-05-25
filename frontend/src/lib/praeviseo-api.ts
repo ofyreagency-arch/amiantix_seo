@@ -339,6 +339,28 @@ function backendConfigured(): boolean {
   return backendBaseUrl !== "";
 }
 
+function humanizeBackendMessage(message: string): string {
+  const normalized = message.trim();
+
+  const messageMap: Record<string, string> = {
+    "validation.regex":
+      "L identifiant doit contenir uniquement des lettres minuscules, chiffres, tirets ou underscores.",
+    "validation.required": "Merci de remplir tous les champs obligatoires.",
+    "validation.url": "L URL publique doit etre valide, par exemple https://monsite.com.",
+    "validation.unique": "Cet identifiant est deja utilise par un autre site.",
+  };
+
+  if (messageMap[normalized]) {
+    return messageMap[normalized];
+  }
+
+  if (normalized.toLowerCase().includes("site id has already been taken")) {
+    return "Cet identifiant est deja utilise par un autre site.";
+  }
+
+  return normalized;
+}
+
 function normaliseSite(raw: unknown): PraeviseoSite {
   const site = raw as Record<string, unknown>;
   const summary = (site.summary ?? {}) as Record<string, unknown>;
@@ -426,7 +448,7 @@ async function appFetch<T>(path: string, init?: RequestInit, token?: string): Pr
       }
     }
 
-    throw new Error(message);
+    throw new Error(humanizeBackendMessage(message));
   }
 
   return (await response.json()) as T;

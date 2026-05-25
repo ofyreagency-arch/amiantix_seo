@@ -3,6 +3,18 @@
 import { redirect } from "next/navigation";
 import { createSite } from "@/lib/praeviseo-api";
 
+function normaliseSiteId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
 function failureRedirect(formData: FormData, message: string) {
   const params = new URLSearchParams();
 
@@ -30,8 +42,10 @@ function failureRedirect(formData: FormData, message: string) {
 
 export async function createSiteAction(formData: FormData) {
   try {
+    const siteId = normaliseSiteId(String(formData.get("site_id") ?? ""));
+
     const site = await createSite({
-      site_id: String(formData.get("site_id") ?? "").trim(),
+      site_id: siteId,
       name: String(formData.get("name") ?? "").trim(),
       url: String(formData.get("url") ?? "").trim(),
       niche: String(formData.get("niche") ?? "general").trim(),
@@ -48,6 +62,8 @@ export async function createSiteAction(formData: FormData) {
 
     redirect(`/sites/${site.site_id}/connect`);
   } catch (error) {
+    formData.set("site_id", normaliseSiteId(String(formData.get("site_id") ?? "")));
+
     failureRedirect(
       formData,
       error instanceof Error ? error.message : "Impossible de creer le site pour le moment."
