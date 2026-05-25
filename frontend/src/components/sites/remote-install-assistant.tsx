@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { CheckCircle2, Cloud, HardDrive, KeyRound, LockKeyhole, ServerCog, WandSparkles } from "lucide-react";
 
 type HostingOption = {
@@ -48,6 +49,8 @@ function categoryLabel(category: HostingOption["category"]) {
 export function RemoteInstallAssistant() {
   const [hostingId, setHostingId] = useState<string>("vps_linux");
   const [accessId, setAccessId] = useState<string>("ssh");
+  const [showAccessStep, setShowAccessStep] = useState<boolean>(false);
+  const accessStepRef = useRef<HTMLDivElement | null>(null);
 
   const selectedHosting = useMemo(
     () => HOSTING_OPTIONS.find((option) => option.id === hostingId) ?? HOSTING_OPTIONS[0],
@@ -58,6 +61,14 @@ export function RemoteInstallAssistant() {
     () => ACCESS_OPTIONS.find((option) => option.id === accessId) ?? ACCESS_OPTIONS[0],
     [accessId]
   );
+
+  const beginInstall = () => {
+    setShowAccessStep(true);
+
+    requestAnimationFrame(() => {
+      accessStepRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -194,8 +205,8 @@ export function RemoteInstallAssistant() {
               </p>
             </div>
 
-            <Button size="lg" className="w-full">
-              Continuer vers l’installation assistée
+            <Button size="lg" className="w-full" onClick={beginInstall}>
+              Continuer vers la configuration des accès
             </Button>
 
             <p className="text-xs leading-6 text-text-subtle">
@@ -223,6 +234,76 @@ export function RemoteInstallAssistant() {
             ))}
           </CardContent>
         </Card>
+
+        {showAccessStep ? (
+          <Card ref={accessStepRef}>
+            <CardHeader>
+              <CardTitle>4. Renseignez l’accès à votre hébergement</CardTitle>
+              <CardDescription>
+                PraeviSEO vous demande uniquement les informations utiles pour préparer l’installation sur votre hébergement.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="text-sm font-semibold text-text">{selectedHosting.label}</div>
+                <p className="mt-2 text-sm text-text-muted leading-6">
+                  Mode d’accès sélectionné : {selectedAccess.label}
+                </p>
+              </div>
+
+              {selectedAccess.id === "ssh" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input label="Hôte SSH" placeholder="ssh.votre-hebergeur.com" />
+                  <Input label="Port" placeholder="22" />
+                  <Input label="Utilisateur" placeholder="deploy ou root" />
+                  <Input label="Chemin du projet" placeholder="/var/www/mon-site" />
+                  <Input label="Mot de passe ou clé privée" placeholder="Clé privée ou accès SSH" />
+                  <Input label="Commande sudo (optionnel)" placeholder="sudo -S" />
+                </div>
+              ) : null}
+
+              {selectedAccess.id === "sftp" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input label="Hôte SFTP / FTP" placeholder="ftp.votre-hebergeur.com" />
+                  <Input label="Port" placeholder="21 ou 22" />
+                  <Input label="Utilisateur" placeholder="Identifiant FTP" />
+                  <Input label="Mot de passe" placeholder="Mot de passe FTP" />
+                  <Input label="Dossier du site" placeholder="/www ou /htdocs/mon-site" />
+                  <Input label="Framework connu (optionnel)" placeholder="Laravel, Symfony, WordPress..." />
+                </div>
+              ) : null}
+
+              {selectedAccess.id === "api" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input label="Nom de la plateforme" placeholder="Vercel, Plesk, cPanel..." />
+                  <Input label="Jeton API" placeholder="Token d’accès API" />
+                  <Input label="Projet / Site ID" placeholder="Identifiant du projet" />
+                  <Input label="Équipe / Compte" placeholder="Nom du compte ou de l’équipe" />
+                  <div className="md:col-span-2 space-y-1.5">
+                    <label className="block text-sm font-medium text-text-muted">Notes d’accès</label>
+                    <textarea
+                      rows={4}
+                      placeholder="Ajoutez ici les informations utiles pour que PraeviSEO retrouve le bon projet ou le bon hébergement."
+                      className="flex w-full rounded-lg bg-surface-2 border border-border px-3 py-2 text-sm text-text placeholder:text-text-subtle transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand/50"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4 text-sm text-text-muted leading-6">
+                Cette étape prépare la vraie installation distante assistée. Si vous n’avez pas encore ces accès,
+                vous pourrez toujours revenir ici plus tard ou utiliser l’installateur officiel en dessous.
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button size="lg">Préparer l’installation distante</Button>
+                <Button type="button" variant="secondary" onClick={() => setShowAccessStep(false)}>
+                  Fermer cette étape
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   );
