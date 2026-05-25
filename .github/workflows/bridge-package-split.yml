@@ -1,0 +1,57 @@
+name: Bridge Package Split
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'bridges/**'
+      - '.github/workflows/bridge-package-split.yml'
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.BRIDGE_SPLIT_TOKEN != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: laravel-bridge
+            prefix: bridges/laravel-bridge
+            repository_secret: BRIDGE_LARAVEL_REPOSITORY
+          - name: symfony-bridge
+            prefix: bridges/symfony-bridge
+            repository_secret: BRIDGE_SYMFONY_REPOSITORY
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target repository
+        id: target
+        env:
+          BRIDGE_LARAVEL_REPOSITORY: ${{ secrets.BRIDGE_LARAVEL_REPOSITORY }}
+          BRIDGE_SYMFONY_REPOSITORY: ${{ secrets.BRIDGE_SYMFONY_REPOSITORY }}
+        run: |
+          if [ "${{ matrix.name }}" = "laravel-bridge" ]; then
+            echo "repo=${BRIDGE_LARAVEL_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=${BRIDGE_SYMFONY_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip when target repo secret is missing
+        if: ${{ steps.target.outputs.repo == '' }}
+        run: |
+          echo "No target repository configured for ${{ matrix.name }}. Skipping."
+          exit 0
+
+      - name: Push split package repository
+        env:
+          TARGET_REPOSITORY: ${{ steps.target.outputs.repo }}
+          SPLIT_TOKEN: ${{ secrets.BRIDGE_SPLIT_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git subtree split --prefix=${{ matrix.prefix }} -b split-${{ matrix.name }}
+          git push --force "https://x-access-token:${SPLIT_TOKEN}@github.com/${TARGET_REPOSITORY}.git" split-${{ matrix.name }}:main
+

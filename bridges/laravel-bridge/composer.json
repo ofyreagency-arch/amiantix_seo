@@ -3,6 +3,18 @@
     "description": "Official lightweight Laravel bridge for connecting a client site to PraeviSEO.",
     "type": "library",
     "license": "proprietary",
+    "keywords": [
+        "praeviseo",
+        "seo",
+        "laravel",
+        "bridge",
+        "publishing"
+    ],
+    "homepage": "https://praeviseo.com",
+    "support": {
+        "source": "https://github.com/ofyreagency-arch/amiantix_seo",
+        "issues": "https://github.com/ofyreagency-arch/amiantix_seo/issues"
+    },
     "require": {
         "php": "^8.2",
         "illuminate/console": "^11.0|^12.0|^13.0",
@@ -15,6 +27,11 @@
     "autoload": {
         "psr-4": {
             "Praeviseo\\LaravelBridge\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Praeviseo\\LaravelBridge\\Tests\\": "tests/"
         }
     },
     "extra": {

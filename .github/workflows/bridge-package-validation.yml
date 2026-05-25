@@ -1,0 +1,40 @@
+name: Bridge Package Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bridges/**'
+      - '.github/workflows/bridge-package-validation.yml'
+  pull_request:
+    paths:
+      - 'bridges/**'
+      - '.github/workflows/bridge-package-validation.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - laravel-bridge
+          - symfony-bridge
+    defaults:
+      run:
+        working-directory: bridges/${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      - name: Validate composer metadata
+        run: composer validate --strict --no-check-lock
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+

@@ -37,26 +37,20 @@ PRAEVISEO_BRIDGE_SITE_ID=...
 PRAEVISEO_BRIDGE_PREFIX=ressources
 ```
 
-## Local development install
+## Production goal
 
-Until the package is split/published, a Laravel app can use it via a path repository:
-
-```json
-{
-  "repositories": [
-    {
-      "type": "path",
-      "url": "../ofyre-seo-engine-main/bridges/laravel-bridge"
-    }
-  ]
-}
-```
-
-Then:
+The expected client install flow is:
 
 ```bash
-composer require praeviseo/laravel-bridge:*
+composer require praeviseo/laravel-bridge
+php artisan praeviseo:connect PRV-8X92-LKQ1
+php artisan migrate
 ```
+
+No copied files.
+No custom Composer path repository in the client project.
+
+During the transition period, this package still needs to be mirrored to its dedicated repository and published on Packagist.
 
 ## Honest boundaries
 

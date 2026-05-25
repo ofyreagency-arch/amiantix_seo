@@ -3,6 +3,18 @@
     "description": "Official lightweight Symfony bridge for connecting a client site to PraeviSEO.",
     "type": "symfony-bundle",
     "license": "proprietary",
+    "keywords": [
+        "praeviseo",
+        "seo",
+        "symfony",
+        "bridge",
+        "publishing"
+    ],
+    "homepage": "https://praeviseo.com",
+    "support": {
+        "source": "https://github.com/ofyreagency-arch/amiantix_seo",
+        "issues": "https://github.com/ofyreagency-arch/amiantix_seo/issues"
+    },
     "require": {
         "php": "^8.2",
         "doctrine/orm": "^2.18|^3.0",
@@ -18,6 +30,11 @@
     "autoload": {
         "psr-4": {
             "Praeviseo\\SymfonyBridge\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Praeviseo\\SymfonyBridge\\Tests\\": "tests/"
         }
     },
     "extra": {
