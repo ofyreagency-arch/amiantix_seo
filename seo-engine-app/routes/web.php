@@ -15,18 +15,7 @@ use App\Http\Controllers\Admin\AdminSystemController;
 use App\Http\Controllers\PublicSeoPageController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () { return view('welcome'); })->name('home');
-Route::view('/fonctionnalites', 'public.features')->name('public.features');
-Route::view('/tarifs', 'public.pricing')->name('public.pricing');
-Route::view('/contact', 'public.contact')->name('public.contact');
-Route::post('/contact', function (\Illuminate\Http\Request $request) {
-    $request->validate([
-        'name'    => 'required|string|max:200',
-        'email'   => 'required|email|max:200',
-        'message' => 'required|string|max:5000',
-    ]);
-    return redirect()->route('public.contact')->with('contact_sent', true);
-})->name('public.contact.submit');
+Route::view('/', 'welcome')->name('home');
 
 Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
 Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('admin.login.post');

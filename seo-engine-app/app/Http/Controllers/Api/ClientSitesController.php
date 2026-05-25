@@ -341,16 +341,12 @@ class ClientSitesController extends Controller
     {
         $baseQuery = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
-            ->whereNull('query');
-        $snapshot = (clone $baseQuery)
-            ->select(['metric_date', 'window_days'])
-            ->groupBy('metric_date', 'window_days')
-            ->orderByDesc('metric_date')
-            ->orderByRaw('case when window_days = 28 then 0 else 1 end')
-            ->orderByDesc('window_days')
-            ->first();
+            ->whereNull('query')
+            ->where('window_days', 28);
 
-        if (! $snapshot) {
+        $latestMetricDate = (clone $baseQuery)->max('metric_date');
+
+        if (! $latestMetricDate) {
             return [
                 'impressions' => 0.0,
                 'clicks' => 0.0,
@@ -359,18 +355,29 @@ class ClientSitesController extends Controller
             ];
         }
 
-        $snapshotQuery = (clone $baseQuery)
-            ->whereDate('metric_date', (string) $snapshot->metric_date)
-            ->where('window_days', (int) $snapshot->window_days);
+        $snapshotRows = (clone $baseQuery)
+            ->whereDate('metric_date', (string) $latestMetricDate)
+            ->orderByDesc('id')
+            ->get(['id', 'url', 'clicks', 'impressions', 'is_indexed']);
 
-        $impressions = (float) (clone $snapshotQuery)->sum('impressions');
-        $clicks = (float) (clone $snapshotQuery)->sum('clicks');
+        $deduplicatedRows = $snapshotRows->unique(function (SeoSearchConsoleMetric $metric): string {
+            $url = trim((string) $metric->url);
+
+            if ($url === '') {
+                return 'metric:'.$metric->id;
+            }
+
+            return rtrim($url, '/');
+        })->values();
+
+        $impressions = (float) $deduplicatedRows->sum('impressions');
+        $clicks = (float) $deduplicatedRows->sum('clicks');
 
         return [
             'impressions' => $impressions,
             'clicks' => $clicks,
             'ctr' => $impressions > 0 ? $clicks / $impressions : 0.0,
-            'indexed_pages' => (clone $snapshotQuery)->where('is_indexed', true)->distinct('url')->count('url'),
+            'indexed_pages' => $deduplicatedRows->where('is_indexed', true)->count(),
         ];
     }
 

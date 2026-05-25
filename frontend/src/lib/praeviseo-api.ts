@@ -28,7 +28,10 @@ export type PraeviseoSite = {
     pages_live: number;
     pending_suggestions: number;
     observed_pages: number;
-    search_console_metrics: number;
+    gsc_impressions: number;
+    gsc_clicks: number;
+    gsc_ctr: number;
+    gsc_indexed_pages: number;
   };
   readiness: {
     bridge_connected: boolean;
@@ -47,11 +50,11 @@ export type PraeviseoSite = {
 export type PraeviseoDashboard = {
   sites: PraeviseoSite[];
   totals: {
-    connectedSites: number;
-    publishedPages: number;
-    pendingSuggestions: number;
+    impressions: number;
+    clicks: number;
+    averageCtr: number;
     observedPages: number;
-    gscConnectedSites: number;
+    indexedPages: number;
   };
 };
 
@@ -184,7 +187,10 @@ const mockSites: PraeviseoSite[] = [
       pages_live: 3,
       pending_suggestions: 2,
       observed_pages: 19,
-      search_console_metrics: 56,
+      gsc_impressions: 20,
+      gsc_clicks: 9,
+      gsc_ctr: 0.45,
+      gsc_indexed_pages: 14,
     },
     readiness: {
       bridge_connected: true,
@@ -226,7 +232,10 @@ const mockSites: PraeviseoSite[] = [
       pages_live: 0,
       pending_suggestions: 0,
       observed_pages: 0,
-      search_console_metrics: 0,
+      gsc_impressions: 0,
+      gsc_clicks: 0,
+      gsc_ctr: 0,
+      gsc_indexed_pages: 0,
     },
     readiness: {
       bridge_connected: false,
@@ -413,7 +422,10 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       pages_live: Number(summary.pages_live ?? 0),
       pending_suggestions: Number(summary.pending_suggestions ?? 0),
       observed_pages: Number(summary.observed_pages ?? 0),
-      search_console_metrics: Number(summary.search_console_metrics ?? 0),
+      gsc_impressions: Number(summary.gsc_impressions ?? 0),
+      gsc_clicks: Number(summary.gsc_clicks ?? 0),
+      gsc_ctr: Number(summary.gsc_ctr ?? 0),
+      gsc_indexed_pages: Number(summary.gsc_indexed_pages ?? 0),
     },
     readiness: {
       bridge_connected: Boolean((site.readiness as Record<string, unknown> | undefined)?.bridge_connected ?? false),
@@ -517,15 +529,31 @@ export async function getSite(siteId: string): Promise<PraeviseoSite | null> {
 
 export async function getDashboard(): Promise<PraeviseoDashboard> {
   const sites = await getSites();
+  const totals = sites.reduce(
+    (carry, site) => {
+      carry.impressions += site.summary.gsc_impressions;
+      carry.clicks += site.summary.gsc_clicks;
+      carry.observedPages += site.summary.observed_pages;
+      carry.indexedPages += site.summary.gsc_indexed_pages;
+
+      return carry;
+    },
+    {
+      impressions: 0,
+      clicks: 0,
+      observedPages: 0,
+      indexedPages: 0,
+    }
+  );
 
   return {
     sites,
     totals: {
-      connectedSites: sites.filter((site) => site.publication_bridge_status === "connected").length,
-      publishedPages: sites.reduce((sum, site) => sum + site.summary.pages_published, 0),
-      pendingSuggestions: sites.reduce((sum, site) => sum + site.summary.pending_suggestions, 0),
-      observedPages: sites.reduce((sum, site) => sum + site.summary.observed_pages, 0),
-      gscConnectedSites: sites.filter((site) => site.gsc_connection_status === "connected").length,
+      impressions: totals.impressions,
+      clicks: totals.clicks,
+      averageCtr: totals.impressions > 0 ? totals.clicks / totals.impressions : 0,
+      observedPages: totals.observedPages,
+      indexedPages: totals.indexedPages,
     },
   };
 }
@@ -648,7 +676,10 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         pages_live: 0,
         pending_suggestions: 0,
         observed_pages: 0,
-        search_console_metrics: 0,
+        gsc_impressions: 0,
+        gsc_clicks: 0,
+        gsc_ctr: 0,
+        gsc_indexed_pages: 0,
       },
       readiness: {
         bridge_connected: false,

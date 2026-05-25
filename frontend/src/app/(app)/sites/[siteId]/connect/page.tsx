@@ -37,7 +37,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
     <div className="min-h-screen">
       <Topbar
         title={`Connecter ${site.name}`}
-        subtitle="Le client télécharge l’installateur officiel, lance le script, colle le code, puis le bridge fait le reste."
+        subtitle="Le client télécharge l’installateur officiel, lance le script, puis le bridge fait le reste."
       />
 
       <div className="p-6 space-y-6">
@@ -49,15 +49,15 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">Télécharger l’installateur officiel</h1>
               <p className="mt-2 text-sm text-text-muted max-w-2xl leading-7">
-                Toute la complexité technique reste cachée derrière le bridge. Le client n’a qu’un code à coller,
-                et éventuellement un chemin projet à confirmer.
+                Toute la complexité technique reste cachée derrière le bridge. Le client télécharge simplement
+                l’installateur officiel et suit les étapes à l’écran.
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[280px]">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Code de connexion</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Référence technique</div>
               <div className="mt-2 text-2xl font-black text-text tracking-wide">{site.publication_connect_code ?? "—"}</div>
               <div className="mt-2 text-xs text-text-subtle">
-                Statut actuel : {site.publication_bridge_status === "connected" ? "site connecté" : "en attente de connexion"}
+                À utiliser seulement si l’installateur le demande pendant la connexion.
               </div>
             </div>
           </div>

@@ -76,9 +76,13 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             ["Pages moteur", site.summary.pages_total],
-            ["Publiées", site.summary.pages_published],
-            ["Pages observées", site.summary.observed_pages],
-            ["Métriques GSC", site.summary.search_console_metrics],
+            ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
+            ["Impressions GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)],
+            ["CTR GSC", new Intl.NumberFormat("fr-FR", {
+              style: "percent",
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            }).format(site.summary.gsc_ctr)],
           ].map(([label, value]) => (
             <Card key={label}>
               <CardContent className="pt-5">
@@ -108,7 +112,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.publication_bridge_status === "connected"
                     ? "Le vrai site client peut maintenant recevoir les publications PraeviSEO."
-                    : "Téléchargez l’installateur et collez le code de connexion pour activer la publication réelle."}
+                    : "Téléchargez l’installateur officiel, lancez-le sur votre site et laissez PraeviSEO terminer la connexion."}
                 </p>
               </div>
 
@@ -161,7 +165,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
               <div className="space-y-3">
                 {[
-                  "Code de connexion unique par site",
+                  "Installateur préparé pour ce site",
                   "Téléchargement Windows / Linux / Mac",
                   "Bridge Packagist officiel",
                   "Monitoring réel activé après la connexion",
