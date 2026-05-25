@@ -43,7 +43,6 @@ The expected client install flow is:
 ```bash
 composer require praeviseo/laravel-bridge
 php artisan praeviseo:connect PRV-8X92-LKQ1
-php artisan migrate
 ```
 
 No copied files.

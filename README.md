@@ -24,6 +24,10 @@ Current bridge/connectivity architecture for client sites is documented here:
 
 [docs/bridge-connectivity-architecture.md](./docs/bridge-connectivity-architecture.md)
 
+Installer UX flow for client bridges is documented here:
+
+[docs/installer-flow.md](./docs/installer-flow.md)
+
 ## What lives in the package
 
 - SEO generation core
@@ -43,6 +47,12 @@ Current first-party bridge work lives here:
 
 - Symfony bridge package: [bridges/symfony-bridge](./bridges/symfony-bridge)
 - Laravel bridge package: [bridges/laravel-bridge](./bridges/laravel-bridge)
+- WordPress bridge plugin scaffold: [bridges/wordpress-bridge](./bridges/wordpress-bridge)
+
+Official transparent installers live at the repo root:
+
+- `praeviseo-install.sh`
+- `praeviseo-install.ps1`
 
 The package core is intentionally niche-agnostic. Business-specific behavior should be provided by adapters.
 
