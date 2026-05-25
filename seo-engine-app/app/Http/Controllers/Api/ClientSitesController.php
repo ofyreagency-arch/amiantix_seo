@@ -23,8 +23,21 @@ class ClientSitesController extends Controller
 
         $sites = $user->seoSites()
             ->with('googleConnection')
-            ->select(['seo_sites.id', 'site_id', 'name', 'url', 'niche', 'locale', 'preset', 'is_active', 'webhook_url', 'gsc_site_url', 'gsc_credentials_path', 'created_at'])
-            ->orderBy('created_at')
+            ->select([
+                'seo_sites.id',
+                'seo_sites.site_id',
+                'seo_sites.name',
+                'seo_sites.url',
+                'seo_sites.niche',
+                'seo_sites.locale',
+                'seo_sites.preset',
+                'seo_sites.is_active',
+                'seo_sites.webhook_url',
+                'seo_sites.gsc_site_url',
+                'seo_sites.gsc_credentials_path',
+                'seo_sites.created_at',
+            ])
+            ->orderBy('seo_sites.created_at')
             ->get();
 
         return response()->json([
