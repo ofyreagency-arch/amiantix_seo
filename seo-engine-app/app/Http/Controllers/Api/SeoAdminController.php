@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSiteGoogleConnection;
+use App\Models\SeoSitePage;
+use App\Models\SeoSuggestion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,23 +25,19 @@ class SeoAdminController extends Controller
             ->get();
 
         return response()->json([
-            'sites' => $sites->map(fn (SeoSite $site): array => [
-                'id' => $site->id,
-                'site_id' => $site->site_id,
-                'name' => $site->name,
-                'url' => $site->url,
-                'niche' => $site->niche,
-                'locale' => $site->locale,
-                'preset' => $site->preset,
-                'is_active' => $site->is_active,
-                'webhook_url' => $site->webhook_url,
-                'publication_mode' => $site->resolvedPublicationMode(),
-                'gsc_property_url' => $site->resolvedGscSiteUrl(),
-                'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
-                'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
-                'gsc_account_email' => $site->resolvedGoogleConnection()?->google_account_email,
-                'created_at' => $site->created_at,
-            ]),
+            'sites' => $sites->map(fn (SeoSite $site): array => $this->serializeSite($site)),
+        ]);
+    }
+
+    public function show(string $siteId): JsonResponse
+    {
+        $site = SeoSite::query()
+            ->with('googleConnection')
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
         ]);
     }
 
@@ -79,11 +79,7 @@ class SeoAdminController extends Controller
 
         return response()->json([
             'site'      => [
-                ...$site->only(['id', 'site_id', 'name', 'url', 'niche', 'locale', 'preset', 'created_at']),
-                'publication_mode' => $site->resolvedPublicationMode(),
-                'gsc_property_url' => $site->resolvedGscSiteUrl(),
-                'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
-                'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
+                ...$this->serializeSite($site),
             ],
             'api_token' => $raw,
             'warning'   => 'Store this token now — it will never be shown again.',
@@ -137,13 +133,7 @@ class SeoAdminController extends Controller
         $site = $site->fresh(['googleConnection']);
 
         return response()->json([
-            'site' => [
-                ...$site->toArray(),
-                'publication_mode' => $site->resolvedPublicationMode(),
-                'gsc_property_url' => $site->resolvedGscSiteUrl(),
-                'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
-                'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
-            ],
+            'site' => $this->serializeSite($site),
         ]);
     }
 
@@ -237,5 +227,42 @@ class SeoAdminController extends Controller
 
         $settings['publication'] = $publication;
         $site->forceFill(['settings_json' => $settings])->save();
+    }
+
+    private function serializeSite(SeoSite $site): array
+    {
+        $pageQuery = SeoPage::query()->where('site_id', $site->site_id);
+        $suggestionQuery = SeoSuggestion::query()
+            ->whereHas('page', fn ($query) => $query->where('site_id', $site->site_id));
+
+        return [
+            'id' => $site->id,
+            'site_id' => $site->site_id,
+            'name' => $site->name,
+            'url' => $site->url,
+            'niche' => $site->niche,
+            'locale' => $site->locale,
+            'preset' => $site->preset,
+            'is_active' => $site->is_active,
+            'webhook_url' => $site->webhook_url,
+            'publication_mode' => $site->resolvedPublicationMode(),
+            'publication_mode_label' => $site->resolvedPublicationModeLabel(),
+            'publication_connect_code' => $site->publicationConnectCode(),
+            'publication_bridge_status' => $site->publicationBridgeStatus(),
+            'publication_path_prefix' => $site->publicationPathPrefix(),
+            'gsc_property_url' => $site->resolvedGscSiteUrl(),
+            'gsc_connection_mode' => $site->resolvedGscConnectionMode(),
+            'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
+            'gsc_account_email' => $site->resolvedGoogleConnection()?->google_account_email,
+            'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
+            'created_at' => $site->created_at,
+            'summary' => [
+                'pages_total' => (clone $pageQuery)->count(),
+                'pages_published' => (clone $pageQuery)->where('status', 'published')->count(),
+                'pending_suggestions' => (clone $suggestionQuery)->where('status', 'pending')->count(),
+                'observed_pages' => SeoSitePage::query()->where('site_id', $site->site_id)->count(),
+                'search_console_metrics' => SeoSearchConsoleMetric::query()->where('site_id', $site->site_id)->count(),
+            ],
+        ];
     }
 }

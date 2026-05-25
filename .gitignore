@@ -36,3 +36,8 @@ seo-engine-app/_ide_helper.php
 # Composer (root package — dev only)
 vendor/
 .claude/
+
+# frontend app
+frontend/node_modules/
+frontend/.next/
+frontend/.vercel/

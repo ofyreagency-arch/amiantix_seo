@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 // Admin routes — gestion des sites clients (token admin séparé)
 Route::middleware([EnsureAdminToken::class])->prefix('admin')->group(function (): void {
     Route::get('/sites', [SeoAdminController::class, 'index']);
+    Route::get('/sites/{siteId}', [SeoAdminController::class, 'show']);
     Route::post('/sites', [SeoAdminController::class, 'store']);
     Route::patch('/sites/{siteId}', [SeoAdminController::class, 'update']);
     Route::delete('/sites/{siteId}', [SeoAdminController::class, 'destroy']);
