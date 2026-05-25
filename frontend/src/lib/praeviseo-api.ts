@@ -1,4 +1,5 @@
 import "server-only";
+import { getSessionToken } from "@/lib/auth";
 
 export type PraeviseoSite = {
   id: number;
@@ -52,16 +53,14 @@ export type CreateSiteInput = {
   publication_path_prefix?: string;
 };
 
-type AdminSitesResponse = { sites: unknown[] };
-type AdminSiteResponse = { site: unknown };
+type SitesResponse = { sites: unknown[] };
+type SiteResponse = { site: unknown };
 
 const backendBaseUrl = (
   process.env.PRAEVISEO_API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
   ""
 ).replace(/\/$/, "");
-
-const adminToken = process.env.PRAEVISEO_ADMIN_TOKEN ?? "";
 
 const mockSites: PraeviseoSite[] = [
   {
@@ -125,7 +124,7 @@ const mockSites: PraeviseoSite[] = [
 ];
 
 function backendConfigured(): boolean {
-  return backendBaseUrl !== "" && adminToken !== "";
+  return backendBaseUrl !== "";
 }
 
 function normaliseSite(raw: unknown): PraeviseoSite {
@@ -163,13 +162,13 @@ function normaliseSite(raw: unknown): PraeviseoSite {
   };
 }
 
-async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${backendBaseUrl}/api/admin${path}`, {
+async function appFetch<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+  const response = await fetch(`${backendBaseUrl}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
       Accept: "application/json",
-      Authorization: `Bearer ${adminToken}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -187,7 +186,13 @@ export async function getSites(): Promise<PraeviseoSite[]> {
   }
 
   try {
-    const payload = await adminFetch<AdminSitesResponse>("/sites");
+    const token = await getSessionToken();
+
+    if (!token) {
+      return mockSites;
+    }
+
+    const payload = await appFetch<SitesResponse>("/api/client/sites", undefined, token);
 
     return payload.sites.map(normaliseSite);
   } catch {
@@ -201,7 +206,13 @@ export async function getSite(siteId: string): Promise<PraeviseoSite | null> {
   }
 
   try {
-    const payload = await adminFetch<AdminSiteResponse>(`/sites/${siteId}`);
+    const token = await getSessionToken();
+
+    if (!token) {
+      return mockSites.find((site) => site.site_id === siteId) ?? null;
+    }
+
+    const payload = await appFetch<SiteResponse>(`/api/client/sites/${siteId}`, undefined, token);
 
     return normaliseSite(payload.site);
   } catch {
@@ -262,13 +273,19 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
     };
   }
 
-  const payload = await adminFetch<AdminSiteResponse>("/sites", {
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>("/api/client/sites", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(input),
-  });
+  }, token);
 
   return normaliseSite(payload.site);
 }

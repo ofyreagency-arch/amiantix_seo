@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
@@ -37,6 +38,13 @@ class SeoSite extends Model
     public function googleConnection(): HasOne
     {
         return $this->hasOne(SeoSiteGoogleConnection::class, 'site_id', 'site_id');
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_seo_sites')
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     public function resolvedPreset(): string
