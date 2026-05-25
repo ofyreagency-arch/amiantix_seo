@@ -13,6 +13,7 @@ use App\Models\SeoSuggestion;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ClientSitesController extends Controller
 {
@@ -211,9 +212,12 @@ class ClientSitesController extends Controller
         $pageQuery = SeoPage::query()->where('site_id', $site->site_id);
         $suggestionQuery = SeoSuggestion::query()
             ->whereHas('page', fn ($query) => $query->where('site_id', $site->site_id));
+        $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
 
         $pagesPublished = (clone $pageQuery)->where('status', 'published')->count();
-        $pagesLive = (clone $pageQuery)->where('published_live', true)->count();
+        $pagesLive = $hasPublishedLiveColumn
+            ? (clone $pageQuery)->where('published_live', true)->count()
+            : 0;
         $pendingSuggestions = (clone $suggestionQuery)->where('status', 'pending')->count();
         $gscConnected = $site->resolvedGscConnectionStatus() === 'connected';
         $bridgeConnected = $site->publicationBridgeStatus() === 'connected';
