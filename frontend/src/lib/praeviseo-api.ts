@@ -42,6 +42,74 @@ export type PraeviseoDashboard = {
   };
 };
 
+export type PraeviseoOptimization = {
+  id: number;
+  status: string;
+  source: string;
+  created_at: string | null;
+  summary: string;
+  impact_expected: string;
+  page: {
+    id: number | null;
+    title: string;
+    slug: string;
+    site_id: string;
+  };
+};
+
+export type PraeviseoOptimizations = {
+  stats: {
+    pending: number;
+    applied: number;
+    rejected: number;
+    total: number;
+  };
+  items: PraeviseoOptimization[];
+};
+
+export type PraeviseoPublication = {
+  id: number;
+  site_id: string;
+  title: string;
+  slug: string;
+  status: string;
+  published_at: string | null;
+  published_live: boolean;
+  published_live_at: string | null;
+  live_url: string | null;
+  seo_score: number | null;
+  indexability_score: number | null;
+};
+
+export type PraeviseoPublications = {
+  stats: {
+    engine_published: number;
+    live_published: number;
+    with_live_url: number;
+  };
+  items: PraeviseoPublication[];
+};
+
+export type PraeviseoSettings = {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  sites: Array<{
+    site_id: string;
+    name: string;
+    url: string;
+    publication_mode: string;
+    publication_mode_label: string;
+    publication_path_prefix: string | null;
+    publication_bridge_status: string;
+    gsc_connection_status: string;
+    gsc_property_url: string | null;
+    gsc_account_email: string | null;
+  }>;
+};
+
 export type CreateSiteInput = {
   site_id: string;
   name: string;
@@ -122,6 +190,92 @@ const mockSites: PraeviseoSite[] = [
     },
   },
 ];
+
+const mockOptimizations: PraeviseoOptimizations = {
+  stats: { pending: 2, applied: 3, rejected: 1, total: 6 },
+  items: [
+    {
+      id: 1,
+      status: "pending",
+      source: "gsc_opportunity",
+      created_at: new Date().toISOString(),
+      summary: "Relancer le CTR d une page proche du top 10 avec une réécriture plus nette du title et du H1.",
+      impact_expected: "Faire remonter le CTR sur une requête déjà visible sans republier toute la stratégie.",
+      page: {
+        id: 11,
+        title: "Diagnostic amiante en copropriete",
+        slug: "diagnostic-amiante-copropriete",
+        site_id: "amiantix",
+      },
+    },
+    {
+      id: 2,
+      status: "applied",
+      source: "indexation_backlog",
+      created_at: new Date().toISOString(),
+      summary: "Ajouter du maillage interne et enrichir une page détectée mais encore peu soutenue.",
+      impact_expected: "Renforcer la découverte Google avant prochaine vague d impressions.",
+      page: {
+        id: 12,
+        title: "Qui sommes nous",
+        slug: "qui-sommes-nous",
+        site_id: "amiantix",
+      },
+    },
+  ],
+};
+
+const mockPublications: PraeviseoPublications = {
+  stats: { engine_published: 5, live_published: 3, with_live_url: 3 },
+  items: [
+    {
+      id: 11,
+      site_id: "amiantix",
+      title: "Diagnostic amiante en copropriete",
+      slug: "diagnostic-amiante-copropriete",
+      status: "published",
+      published_at: new Date().toISOString(),
+      published_live: true,
+      published_live_at: new Date().toISOString(),
+      live_url: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
+      seo_score: 78,
+      indexability_score: 84,
+    },
+    {
+      id: 12,
+      site_id: "zamio",
+      title: "Guide estimation locale",
+      slug: "guide-estimation-locale",
+      status: "published",
+      published_at: new Date().toISOString(),
+      published_live: false,
+      published_live_at: null,
+      live_url: null,
+      seo_score: 72,
+      indexability_score: 70,
+    },
+  ],
+};
+
+const mockSettings: PraeviseoSettings = {
+  user: {
+    id: 1,
+    name: "PraeviSEO Demo",
+    email: "demo@praeviseo.app",
+  },
+  sites: mockSites.map((site) => ({
+    site_id: site.site_id,
+    name: site.name,
+    url: site.url,
+    publication_mode: site.publication_mode,
+    publication_mode_label: site.publication_mode_label,
+    publication_path_prefix: site.publication_path_prefix,
+    publication_bridge_status: site.publication_bridge_status,
+    gsc_connection_status: site.gsc_connection_status,
+    gsc_property_url: site.gsc_property_url,
+    gsc_account_email: site.gsc_account_email,
+  })),
+};
 
 function backendConfigured(): boolean {
   return backendBaseUrl !== "";
@@ -233,6 +387,90 @@ export async function getDashboard(): Promise<PraeviseoDashboard> {
       gscConnectedSites: sites.filter((site) => site.gsc_connection_status === "connected").length,
     },
   };
+}
+
+export async function getOptimizations(): Promise<PraeviseoOptimizations> {
+  if (!backendConfigured()) {
+    return mockOptimizations;
+  }
+
+  try {
+    const token = await getSessionToken();
+
+    if (!token) {
+      return mockOptimizations;
+    }
+
+    return await appFetch<PraeviseoOptimizations>("/api/client/optimizations", undefined, token);
+  } catch {
+    return mockOptimizations;
+  }
+}
+
+export async function getPublications(): Promise<PraeviseoPublications> {
+  if (!backendConfigured()) {
+    return mockPublications;
+  }
+
+  try {
+    const token = await getSessionToken();
+
+    if (!token) {
+      return mockPublications;
+    }
+
+    return await appFetch<PraeviseoPublications>("/api/client/publications", undefined, token);
+  } catch {
+    return mockPublications;
+  }
+}
+
+export async function getSettings(): Promise<PraeviseoSettings> {
+  if (!backendConfigured()) {
+    return mockSettings;
+  }
+
+  try {
+    const token = await getSessionToken();
+
+    if (!token) {
+      return mockSettings;
+    }
+
+    return await appFetch<PraeviseoSettings>("/api/client/settings", undefined, token);
+  } catch {
+    return mockSettings;
+  }
+}
+
+export async function updateProfile(input: { name: string; email: string }) {
+  if (!backendConfigured()) {
+    return {
+      user: {
+        id: 1,
+        name: input.name,
+        email: input.email,
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  return await appFetch<{ user: { id: number; name: string; email: string } }>(
+    "/api/client/settings/profile",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+    token
+  );
 }
 
 export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite> {

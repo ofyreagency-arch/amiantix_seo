@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\SeoAdminController;
 use App\Http\Controllers\Api\ClientAuthController;
 use App\Http\Controllers\Api\ClientSitesController;
+use App\Http\Controllers\Api\ClientWorkspaceController;
 use App\Http\Controllers\Api\SeoBridgeConnectController;
 use App\Http\Controllers\Api\SeoRuntimeController;
 use App\Http\Middleware\EnsureAdminToken;
@@ -24,6 +25,10 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
     Route::get('/sites', [ClientSitesController::class, 'index']);
     Route::get('/sites/{siteId}', [ClientSitesController::class, 'show']);
     Route::post('/sites', [ClientSitesController::class, 'store']);
+    Route::get('/optimizations', [ClientWorkspaceController::class, 'optimizations']);
+    Route::get('/publications', [ClientWorkspaceController::class, 'publications']);
+    Route::get('/settings', [ClientWorkspaceController::class, 'settings']);
+    Route::patch('/settings/profile', [ClientWorkspaceController::class, 'updateProfile']);
 });
 
 // Admin routes — gestion des sites clients (token admin séparé)
