@@ -120,8 +120,9 @@ export async function getCurrentUser(): Promise<FrontendUser | null> {
 
     return payload.user;
   } catch {
-    await clearSession();
-
+    // During server rendering Next.js forbids mutating cookies.
+    // We treat an invalid session as logged out here and let explicit
+    // auth actions such as logout clear the cookie in a safe context.
     return null;
   }
 }
