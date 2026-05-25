@@ -11,6 +11,7 @@ import {
   getPraeviseoInstallDetail,
   getPraeviseoInstallLabel,
   getSite,
+  isInstallationInProgress,
 } from "@/lib/praeviseo-api";
 import { submitRemoteInstallAction } from "./actions";
 import { Download, Monitor, ShieldCheck } from "lucide-react";
@@ -44,6 +45,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
 
   const installationLabel = getPraeviseoInstallLabel(site);
   const installationDetail = getPraeviseoInstallDetail(site);
+  const installationPending = isInstallationInProgress(site.installation.status) || site.publication_bridge_status === "requested";
 
   return (
     <div className="min-h-screen">
@@ -67,7 +69,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[280px]">
               <div className="text-sm font-semibold text-text">{installationLabel}</div>
               <div className="mt-2 text-sm text-text-muted leading-6">
-                {site.publication_bridge_status === "requested"
+                {installationPending
                   ? "PraeviSEO a bien reçu vos accès. L’installation distante peut maintenant être préparée pour ce site."
                   : "Une fois activé, PraeviSEO lancera le monitoring SEO, les publications et les optimisations pour ce site."}
               </div>

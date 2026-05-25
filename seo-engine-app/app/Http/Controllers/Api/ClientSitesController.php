@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunRemoteInstallationJob;
+use App\Models\RemoteInstallation;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
@@ -16,7 +18,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
@@ -28,7 +29,7 @@ class ClientSitesController extends Controller
         $user = $request->user();
 
         $sites = $user->seoSites()
-            ->with('googleConnection')
+            ->with(['googleConnection', 'latestRemoteInstallation'])
             ->select([
                 'seo_sites.id',
                 'seo_sites.site_id',
@@ -42,6 +43,7 @@ class ClientSitesController extends Controller
                 'seo_sites.gsc_site_url',
                 'seo_sites.gsc_credentials_path',
                 'seo_sites.created_at',
+                'seo_sites.settings_json',
             ])
             ->orderBy('seo_sites.created_at')
             ->get();
@@ -57,7 +59,7 @@ class ClientSitesController extends Controller
         $user = $request->user();
 
         $site = $user->seoSites()
-            ->with('googleConnection')
+            ->with(['googleConnection', 'latestRemoteInstallation'])
             ->where('site_id', $siteId)
             ->firstOrFail();
 
@@ -107,7 +109,7 @@ class ClientSitesController extends Controller
 
         $user->seoSites()->attach($site->id, ['role' => 'owner']);
 
-        $site = $site->fresh(['googleConnection']);
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
 
         return response()->json([
             'site' => $this->serializeSite($site),
@@ -163,7 +165,7 @@ class ClientSitesController extends Controller
 
         /** @var SeoSite $site */
         $site = $user->seoSites()
-            ->with('googleConnection')
+            ->with(['googleConnection', 'latestRemoteInstallation'])
             ->where('site_id', $siteId)
             ->firstOrFail();
 
@@ -195,7 +197,7 @@ class ClientSitesController extends Controller
             'gsc_credentials_path' => $connectionMode === 'service_account' ? $resolvedCredentialsPath : null,
         ]);
 
-        $site = $site->fresh(['googleConnection']);
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
 
         return response()->json([
             'site' => $this->serializeSite($site),
@@ -209,7 +211,7 @@ class ClientSitesController extends Controller
 
         /** @var SeoSite $site */
         $site = $user->seoSites()
-            ->with('googleConnection')
+            ->with(['googleConnection', 'latestRemoteInstallation'])
             ->where('site_id', $siteId)
             ->firstOrFail();
 
@@ -237,18 +239,55 @@ class ClientSitesController extends Controller
 
         $this->validateInstallationAccess($data);
 
+        $payload = $this->buildInstallationPayload($data);
+
+        $installation = RemoteInstallation::query()->create([
+            'site_id' => $site->site_id,
+            'status' => RemoteInstallation::STATUS_PENDING,
+            'current_step' => 'pending',
+            'progress' => 0,
+            'hosting_provider' => (string) ($data['hosting_provider'] ?? 'other'),
+            'connection_type' => (string) ($data['access_method'] ?? 'ssh'),
+            'encrypted_credentials' => $payload['encrypted_credentials'],
+            'connection_metadata' => $payload['connection_metadata'],
+            'logs_json' => [[
+                'at' => now()->toIso8601String(),
+                'level' => 'info',
+                'step' => 'pending',
+                'message' => 'Installation distante planifiée.',
+            ]],
+        ]);
+
         $settings = $site->settings_json ?? [];
         $publication = is_array($settings['publication'] ?? null) ? $settings['publication'] : [];
         $publication['bridge_status'] = 'requested';
-
         $settings['publication'] = $publication;
-        $settings['installation'] = $this->buildInstallationPayload($data);
-
         $site->forceFill(['settings_json' => $settings])->save();
-        $site = $site->fresh(['googleConnection']);
+
+        RunRemoteInstallationJob::dispatch($installation->id);
+
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
 
         return response()->json([
             'site' => $this->serializeSite($site),
+            'installation' => $this->serializeInstallation($installation),
+        ], 202);
+    }
+
+    public function installationStatus(Request $request, string $siteId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+            'installation' => $this->serializeInstallation($site->latestRemoteInstallation),
         ]);
     }
 
@@ -286,7 +325,7 @@ class ClientSitesController extends Controller
         }
 
         if ($user->seoSites()->where('seo_sites.id', $site->id)->exists()) {
-            $site = $site->fresh(['googleConnection']);
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
 
             return response()->json([
                 'site' => $this->serializeSite($site),
@@ -295,7 +334,7 @@ class ClientSitesController extends Controller
 
         if (! $site->users()->exists()) {
             $user->seoSites()->attach($site->id, ['role' => 'owner']);
-            $site = $site->fresh(['googleConnection']);
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
 
             return response()->json([
                 'site' => $this->serializeSite($site),
@@ -343,52 +382,107 @@ class ClientSitesController extends Controller
                 ]);
             }
         }
+
+        if ($method === 'ssh') {
+            $this->assertValidRemoteHost((string) ($data['ssh_host'] ?? ''), 'ssh_host');
+        }
+
+        if ($method === 'sftp') {
+            $this->assertValidRemoteHost((string) ($data['sftp_host'] ?? ''), 'sftp_host');
+        }
+    }
+
+    private function assertValidRemoteHost(string $host, string $field): void
+    {
+        $normalized = trim($host);
+
+        if ($normalized === '') {
+            return;
+        }
+
+        $isIp = filter_var($normalized, FILTER_VALIDATE_IP) !== false;
+        $isHostname = preg_match(
+            '/^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{1,63}\.)*[a-zA-Z0-9-]{1,63}$/',
+            $normalized
+        ) === 1;
+
+        if (! $isIp && ! $isHostname) {
+            throw ValidationException::withMessages([
+                $field => 'L hote distant doit etre une adresse IP ou un nom de domaine valide.',
+            ]);
+        }
+
+        if (in_array(strtolower($normalized), ['localhost', 'localhost.localdomain'], true)) {
+            throw ValidationException::withMessages([
+                $field => 'PraeviSEO a besoin d un hote distant public, pas d un localhost.',
+            ]);
+        }
     }
 
     /**
      * @param array<string,mixed> $data
-     * @return array<string,mixed>
+     * @return array{encrypted_credentials:array<string,mixed>,connection_metadata:array<string,mixed>}
      */
     private function buildInstallationPayload(array $data): array
     {
         $method = (string) ($data['access_method'] ?? 'ssh');
 
         $payload = [
-            'status' => 'requested',
-            'hosting_provider' => (string) ($data['hosting_provider'] ?? 'other'),
-            'access_method' => $method,
-            'requested_at' => now()->toIso8601String(),
+            'encrypted_credentials' => [],
+            'connection_metadata' => [
+                'hosting_provider' => (string) ($data['hosting_provider'] ?? 'other'),
+                'access_method' => $method,
+                'requested_at' => now()->toIso8601String(),
+            ],
         ];
 
         if ($method === 'ssh') {
-            $payload['ssh'] = [
+            $payload['encrypted_credentials'] = [
+                'host' => trim((string) ($data['ssh_host'] ?? '')),
+                'port' => (int) ($data['ssh_port'] ?? 22),
+                'username' => trim((string) ($data['ssh_username'] ?? '')),
+                'secret' => trim((string) ($data['ssh_secret'] ?? '')),
+            ];
+
+            $payload['connection_metadata'] = [
+                ...$payload['connection_metadata'],
                 'host' => trim((string) ($data['ssh_host'] ?? '')),
                 'port' => (int) ($data['ssh_port'] ?? 22),
                 'username' => trim((string) ($data['ssh_username'] ?? '')),
                 'project_path' => trim((string) ($data['ssh_project_path'] ?? '')),
                 'sudo_command' => trim((string) ($data['ssh_sudo_command'] ?? '')) ?: null,
-                'secret_encrypted' => Crypt::encryptString(trim((string) ($data['ssh_secret'] ?? ''))),
             ];
         }
 
         if ($method === 'sftp') {
-            $payload['sftp'] = [
+            $payload['encrypted_credentials'] = [
+                'host' => trim((string) ($data['sftp_host'] ?? '')),
+                'port' => (int) ($data['sftp_port'] ?? 22),
+                'username' => trim((string) ($data['sftp_username'] ?? '')),
+                'password' => trim((string) ($data['sftp_password'] ?? '')),
+            ];
+
+            $payload['connection_metadata'] = [
+                ...$payload['connection_metadata'],
                 'host' => trim((string) ($data['sftp_host'] ?? '')),
                 'port' => (int) ($data['sftp_port'] ?? 22),
                 'username' => trim((string) ($data['sftp_username'] ?? '')),
                 'project_path' => trim((string) ($data['sftp_project_path'] ?? '')),
                 'framework_hint' => trim((string) ($data['framework_hint'] ?? '')) ?: null,
-                'password_encrypted' => Crypt::encryptString(trim((string) ($data['sftp_password'] ?? ''))),
             ];
         }
 
         if ($method === 'api') {
-            $payload['api'] = [
+            $payload['encrypted_credentials'] = [
+                'token' => trim((string) ($data['api_token'] ?? '')),
+            ];
+
+            $payload['connection_metadata'] = [
+                ...$payload['connection_metadata'],
                 'platform' => trim((string) ($data['api_platform'] ?? '')),
                 'project_id' => trim((string) ($data['api_project_id'] ?? '')),
                 'account_name' => trim((string) ($data['api_account_name'] ?? '')) ?: null,
                 'notes' => trim((string) ($data['api_notes'] ?? '')) ?: null,
-                'token_encrypted' => Crypt::encryptString(trim((string) ($data['api_token'] ?? ''))),
             ];
         }
 
@@ -429,6 +523,9 @@ class ClientSitesController extends Controller
             ->whereHas('page', fn ($query) => $query->where('site_id', $site->site_id));
         $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
         $gscSnapshot = $this->searchConsoleSnapshot($site->site_id);
+        $installation = $site->relationLoaded('latestRemoteInstallation')
+            ? $site->getRelation('latestRemoteInstallation')
+            : $site->latestRemoteInstallation()->first();
 
         $pagesPublished = (clone $pageQuery)->where('status', 'published')->count();
         $pagesLive = $hasPublishedLiveColumn
@@ -458,12 +555,7 @@ class ClientSitesController extends Controller
             'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
             'gsc_account_email' => $site->resolvedGoogleConnection()?->google_account_email,
             'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
-            'installation' => [
-                'status' => trim((string) data_get($site->settings_json, 'installation.status', 'not_started')) ?: 'not_started',
-                'hosting_provider' => data_get($site->settings_json, 'installation.hosting_provider'),
-                'access_method' => data_get($site->settings_json, 'installation.access_method'),
-                'requested_at' => data_get($site->settings_json, 'installation.requested_at'),
-            ],
+            'installation' => $this->serializeInstallation($installation),
             'created_at' => $site->created_at,
             'summary' => [
                 'pages_total' => (clone $pageQuery)->count(),
@@ -562,11 +654,35 @@ class ClientSitesController extends Controller
         int $pagesLive,
         int $pendingSuggestions,
     ): array {
+        $latestInstallation = $site->relationLoaded('latestRemoteInstallation')
+            ? $site->getRelation('latestRemoteInstallation')
+            : $site->latestRemoteInstallation()->first();
+
+        if ($latestInstallation && ! $bridgeConnected) {
+            if ($latestInstallation->status === RemoteInstallation::STATUS_FAILED) {
+                return [
+                    'kind' => 'installation_failed',
+                    'label' => 'Installation PraeviSEO à relancer',
+                    'detail' => $latestInstallation->error_message ?: 'PraeviSEO n a pas pu terminer l installation distante sur ce site.',
+                    'priority' => 'high',
+                ];
+            }
+
+            if ($latestInstallation->status !== RemoteInstallation::STATUS_COMPLETED) {
+                return [
+                    'kind' => 'installation_requested',
+                    'label' => 'PraeviSEO prépare votre installation',
+                    'detail' => 'Vos accès ont bien été enregistrés. PraeviSEO travaille maintenant automatiquement sur votre site.',
+                    'priority' => 'medium',
+                ];
+            }
+        }
+
         if ($site->publicationBridgeStatus() === 'requested' && ! $bridgeConnected) {
             return [
                 'kind' => 'installation_requested',
                 'label' => 'PraeviSEO prépare votre installation',
-                'detail' => 'Vos accès ont bien été enregistrés. PraeviSEO peut maintenant préparer l activation distante du site.',
+                'detail' => 'Vos accès ont bien été enregistrés. PraeviSEO travaille maintenant automatiquement sur votre site.',
                 'priority' => 'medium',
             ];
         }
@@ -621,6 +737,45 @@ class ClientSitesController extends Controller
             'label' => 'Laisser tourner le monitoring',
             'detail' => 'Le site est branché. PraeviSEO surveille maintenant les signaux et rouvrira des actions si besoin.',
             'priority' => 'low',
+        ];
+    }
+
+    private function serializeInstallation(?RemoteInstallation $installation): array
+    {
+        if (! $installation) {
+            return [
+                'status' => 'not_started',
+                'current_step' => null,
+                'progress' => 0,
+                'hosting_provider' => null,
+                'access_method' => null,
+                'requested_at' => null,
+                'started_at' => null,
+                'completed_at' => null,
+                'failed_at' => null,
+                'error_message' => null,
+                'detected_framework' => null,
+                'detected_php_version' => null,
+                'detected_composer' => null,
+                'logs' => [],
+            ];
+        }
+
+        return [
+            'status' => $installation->status,
+            'current_step' => $installation->current_step,
+            'progress' => $installation->progress,
+            'hosting_provider' => $installation->hosting_provider,
+            'access_method' => $installation->connection_type,
+            'requested_at' => $installation->created_at?->toIso8601String(),
+            'started_at' => $installation->started_at?->toIso8601String(),
+            'completed_at' => $installation->completed_at?->toIso8601String(),
+            'failed_at' => $installation->failed_at?->toIso8601String(),
+            'error_message' => $installation->error_message,
+            'detected_framework' => $installation->detected_framework,
+            'detected_php_version' => $installation->detected_php_version,
+            'detected_composer' => $installation->detected_composer,
+            'logs' => $installation->safeLogs(),
         ];
     }
 }

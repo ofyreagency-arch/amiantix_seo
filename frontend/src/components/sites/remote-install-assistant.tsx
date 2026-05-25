@@ -57,6 +57,12 @@ function categoryLabel(category: HostingOption["category"]) {
   );
 }
 
+function isInstallationInProgress(status: string): boolean {
+  return ["requested", "pending", "connecting", "detecting_environment", "installing", "configuring", "activating"].includes(
+    status
+  );
+}
+
 export function RemoteInstallAssistant({
   site,
   submitAction,
@@ -68,7 +74,7 @@ export function RemoteInstallAssistant({
   const [accessId, setAccessId] = useState<AccessOption["id"]>(
     (site.installation.access_method as AccessOption["id"] | null) ?? "ssh"
   );
-  const [showAccessStep, setShowAccessStep] = useState<boolean>(site.installation.status === "requested");
+  const [showAccessStep, setShowAccessStep] = useState<boolean>(isInstallationInProgress(site.installation.status));
 
   const selectedHosting = useMemo(
     () => HOSTING_OPTIONS.find((option) => option.id === hostingId) ?? HOSTING_OPTIONS[0],
@@ -81,7 +87,7 @@ export function RemoteInstallAssistant({
   );
 
   const installationRequested =
-    site.installation.status === "requested" ||
+    isInstallationInProgress(site.installation.status) ||
     site.publication_bridge_status === "requested" ||
     state.status === "success";
 
@@ -292,7 +298,7 @@ export function RemoteInstallAssistant({
                   <div className="font-semibold">Installation distante déjà en préparation</div>
                   <p className="mt-2 leading-6 text-text-muted">
                     {state.message ||
-                      "Vos accès sont bien enregistrés. PraeviSEO peut maintenant préparer l’activation distante du site."}
+                      "Vos accès sont bien enregistrés. PraeviSEO prépare maintenant automatiquement l’activation distante du site."}
                   </p>
                 </div>
               ) : null}

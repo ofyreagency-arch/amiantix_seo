@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class SeoSite extends Model
@@ -38,6 +39,16 @@ class SeoSite extends Model
     public function googleConnection(): HasOne
     {
         return $this->hasOne(SeoSiteGoogleConnection::class, 'site_id', 'site_id');
+    }
+
+    public function remoteInstallations(): HasMany
+    {
+        return $this->hasMany(RemoteInstallation::class, 'site_id', 'site_id');
+    }
+
+    public function latestRemoteInstallation(): HasOne
+    {
+        return $this->hasOne(RemoteInstallation::class, 'site_id', 'site_id')->latestOfMany();
     }
 
     public function users(): BelongsToMany

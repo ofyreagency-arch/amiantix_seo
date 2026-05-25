@@ -26,7 +26,9 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
     Route::get('/sites/{siteId}', [ClientSitesController::class, 'show']);
     Route::post('/sites', [ClientSitesController::class, 'store']);
     Route::post('/sites/claim', [ClientSitesController::class, 'claim']);
-    Route::post('/sites/{siteId}/installation', [ClientSitesController::class, 'requestInstallation']);
+    Route::post('/sites/{siteId}/installation', [ClientSitesController::class, 'requestInstallation'])
+        ->middleware('throttle:6,1');
+    Route::get('/sites/{siteId}/installation-status', [ClientSitesController::class, 'installationStatus']);
     Route::patch('/sites/{siteId}/gsc', [ClientSitesController::class, 'updateGsc']);
     Route::get('/optimizations', [ClientWorkspaceController::class, 'optimizations']);
     Route::get('/publications', [ClientWorkspaceController::class, 'publications']);

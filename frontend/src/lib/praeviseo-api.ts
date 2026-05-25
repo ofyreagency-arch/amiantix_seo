@@ -23,9 +23,24 @@ export type PraeviseoSite = {
   gsc_last_sync_at: string | null;
   installation: {
     status: string;
+    current_step: string | null;
+    progress: number;
     hosting_provider: string | null;
     access_method: string | null;
     requested_at: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    failed_at: string | null;
+    error_message: string | null;
+    detected_framework: string | null;
+    detected_php_version: string | null;
+    detected_composer: string | null;
+    logs: Array<{
+      at: string;
+      level: string;
+      step: string;
+      message: string;
+    }>;
   };
   created_at: string;
   summary: {
@@ -178,6 +193,7 @@ export type RemoteInstallationInput = {
 
 type SitesResponse = { sites: unknown[] };
 type SiteResponse = { site: unknown };
+type InstallationStatusResponse = { site: unknown; installation: unknown };
 
 const backendBaseUrl = (
   process.env.PRAEVISEO_API_URL ??
@@ -208,9 +224,19 @@ const mockSites: PraeviseoSite[] = [
     gsc_last_sync_at: new Date().toISOString(),
     installation: {
       status: "connected",
+      current_step: "completed",
+      progress: 100,
       hosting_provider: "other",
       access_method: "ssh",
       requested_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      failed_at: null,
+      error_message: null,
+      detected_framework: "symfony",
+      detected_php_version: "8.3",
+      detected_composer: "Composer 2",
+      logs: [],
     },
     created_at: new Date().toISOString(),
     summary: {
@@ -259,9 +285,19 @@ const mockSites: PraeviseoSite[] = [
     gsc_last_sync_at: null,
     installation: {
       status: "not_started",
+      current_step: null,
+      progress: 0,
       hosting_provider: null,
       access_method: null,
       requested_at: null,
+      started_at: null,
+      completed_at: null,
+      failed_at: null,
+      error_message: null,
+      detected_framework: null,
+      detected_php_version: null,
+      detected_composer: null,
+      logs: [],
     },
     created_at: new Date().toISOString(),
     summary: {
@@ -455,6 +491,10 @@ function normaliseSite(raw: unknown): PraeviseoSite {
     gsc_last_sync_at: site.gsc_last_sync_at ? String(site.gsc_last_sync_at) : null,
     installation: {
       status: String((site.installation as Record<string, unknown> | undefined)?.status ?? "not_started"),
+      current_step: (site.installation as Record<string, unknown> | undefined)?.current_step
+        ? String((site.installation as Record<string, unknown> | undefined)?.current_step)
+        : null,
+      progress: Number((site.installation as Record<string, unknown> | undefined)?.progress ?? 0),
       hosting_provider: (site.installation as Record<string, unknown> | undefined)?.hosting_provider
         ? String((site.installation as Record<string, unknown> | undefined)?.hosting_provider)
         : null,
@@ -464,6 +504,35 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       requested_at: (site.installation as Record<string, unknown> | undefined)?.requested_at
         ? String((site.installation as Record<string, unknown> | undefined)?.requested_at)
         : null,
+      started_at: (site.installation as Record<string, unknown> | undefined)?.started_at
+        ? String((site.installation as Record<string, unknown> | undefined)?.started_at)
+        : null,
+      completed_at: (site.installation as Record<string, unknown> | undefined)?.completed_at
+        ? String((site.installation as Record<string, unknown> | undefined)?.completed_at)
+        : null,
+      failed_at: (site.installation as Record<string, unknown> | undefined)?.failed_at
+        ? String((site.installation as Record<string, unknown> | undefined)?.failed_at)
+        : null,
+      error_message: (site.installation as Record<string, unknown> | undefined)?.error_message
+        ? String((site.installation as Record<string, unknown> | undefined)?.error_message)
+        : null,
+      detected_framework: (site.installation as Record<string, unknown> | undefined)?.detected_framework
+        ? String((site.installation as Record<string, unknown> | undefined)?.detected_framework)
+        : null,
+      detected_php_version: (site.installation as Record<string, unknown> | undefined)?.detected_php_version
+        ? String((site.installation as Record<string, unknown> | undefined)?.detected_php_version)
+        : null,
+      detected_composer: (site.installation as Record<string, unknown> | undefined)?.detected_composer
+        ? String((site.installation as Record<string, unknown> | undefined)?.detected_composer)
+        : null,
+      logs: Array.isArray((site.installation as Record<string, unknown> | undefined)?.logs)
+        ? (((site.installation as Record<string, unknown> | undefined)?.logs as unknown[]) ?? []).map((entry) => ({
+            at: String((entry as Record<string, unknown>)?.at ?? ""),
+            level: String((entry as Record<string, unknown>)?.level ?? "info"),
+            step: String((entry as Record<string, unknown>)?.step ?? ""),
+            message: String((entry as Record<string, unknown>)?.message ?? ""),
+          }))
+        : [],
     },
     created_at: String(site.created_at ?? new Date().toISOString()),
     summary: {
@@ -721,9 +790,19 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       gsc_last_sync_at: null,
       installation: {
         status: "not_started",
+        current_step: null,
+        progress: 0,
         hosting_provider: null,
         access_method: null,
         requested_at: null,
+        started_at: null,
+        completed_at: null,
+        failed_at: null,
+        error_message: null,
+        detected_framework: null,
+        detected_php_version: null,
+        detected_composer: null,
+        logs: [],
       },
       created_at: new Date().toISOString(),
       summary: {
@@ -858,10 +937,20 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
       ...site,
       publication_bridge_status: "requested",
       installation: {
-        status: "requested",
+        status: "pending",
+        current_step: "pending",
+        progress: 0,
         hosting_provider: input.hosting_provider,
         access_method: input.access_method,
         requested_at: new Date().toISOString(),
+        started_at: null,
+        completed_at: null,
+        failed_at: null,
+        error_message: null,
+        detected_framework: null,
+        detected_php_version: null,
+        detected_composer: null,
+        logs: [],
       },
       next_action: {
         kind: "installation_requested",
@@ -911,6 +1000,30 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
   );
 
   return normaliseSite(payload.site);
+}
+
+export async function getRemoteInstallationStatus(siteId: string): Promise<PraeviseoSite | null> {
+  if (!backendConfigured()) {
+    return mockSites.find((site) => site.site_id === siteId) ?? null;
+  }
+
+  try {
+    const token = await getSessionToken();
+
+    if (!token) {
+      return null;
+    }
+
+    const payload = await appFetch<InstallationStatusResponse>(
+      `/api/client/sites/${siteId}/installation-status`,
+      undefined,
+      token
+    );
+
+    return normaliseSite(payload.site);
+  } catch {
+    return null;
+  }
 }
 
 export function getInstallerUrl(
@@ -979,6 +1092,12 @@ export function formatPraeviseoStatus(status: string): string {
   }
 
   return "PraeviSEO non installé";
+}
+
+export function isInstallationInProgress(status: string): boolean {
+  return ["requested", "pending", "connecting", "detecting_environment", "installing", "configuring", "activating"].includes(
+    status
+  );
 }
 
 export function getPraeviseoInstallLabel(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
