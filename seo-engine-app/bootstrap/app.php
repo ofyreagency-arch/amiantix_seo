@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'seo.engine.token' => \App\Http\Middleware\EnsureSeoEngineToken::class,
             'seo.engine.log'   => \App\Http\Middleware\LogSeoEngineApiRequests::class,
             'admin.auth'       => \App\Http\Middleware\EnsureAdminWebAuth::class,
+            'client.auth'      => \App\Http\Middleware\EnsureFrontendUserToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

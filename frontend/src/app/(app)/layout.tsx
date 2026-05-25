@@ -1,3 +1,4 @@
+import { requireCurrentUser } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { getSites } from "@/lib/praeviseo-api";
 
@@ -6,6 +7,7 @@ export default async function AppLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await requireCurrentUser();
   const sites = await getSites();
 
   return (

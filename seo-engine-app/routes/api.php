@@ -3,10 +3,21 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\SeoAdminController;
+use App\Http\Controllers\Api\ClientAuthController;
 use App\Http\Controllers\Api\SeoBridgeConnectController;
 use App\Http\Controllers\Api\SeoRuntimeController;
 use App\Http\Middleware\EnsureAdminToken;
 use Illuminate\Support\Facades\Route;
+
+Route::prefix('client/auth')->group(function (): void {
+    Route::post('/register', [ClientAuthController::class, 'register']);
+    Route::post('/login', [ClientAuthController::class, 'login']);
+
+    Route::middleware('client.auth')->group(function (): void {
+        Route::get('/me', [ClientAuthController::class, 'me']);
+        Route::post('/logout', [ClientAuthController::class, 'logout']);
+    });
+});
 
 // Admin routes — gestion des sites clients (token admin séparé)
 Route::middleware([EnsureAdminToken::class])->prefix('admin')->group(function (): void {

@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchIcon, ArrowRight, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { signupAction } from "@/app/(auth)/actions";
 
 const PERKS = [
   "14 jours d'essai gratuit",
@@ -14,21 +14,7 @@ const PERKS = [
 ];
 
 export default function SignupPage() {
-  const router = useRouter();
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    // After signup → onboarding
-    router.push("/onboarding");
-  };
+  const [state, formAction, pending] = useActionState(signupAction, {});
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-4">
@@ -64,37 +50,40 @@ export default function SignupPage() {
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <Input
               label="Nom ou société"
+              name="name"
               placeholder="Agence ACME"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
               autoComplete="organization"
             />
             <Input
               label="Email professionnel"
               type="email"
+              name="email"
               placeholder="vous@exemple.fr"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               required
               autoComplete="email"
             />
             <Input
               label="Mot de passe"
               type="password"
+              name="password"
               placeholder="8 caractères minimum"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               required
               minLength={8}
               autoComplete="new-password"
               hint="Au moins 8 caractères"
             />
 
-            <Button type="submit" className="w-full group mt-2" loading={loading}>
+            {state.error && (
+              <p className="text-sm text-danger bg-danger-subtle rounded-lg px-3 py-2">
+                {state.error}
+              </p>
+            )}
+
+            <Button type="submit" className="w-full group mt-2" loading={pending}>
               Créer mon compte
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </Button>

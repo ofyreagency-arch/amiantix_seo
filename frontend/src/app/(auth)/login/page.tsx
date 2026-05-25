@@ -1,26 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchIcon, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { loginAction } from "@/app/(auth)/actions";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    // Mock auth — redirect to dashboard
-    await new Promise((r) => setTimeout(r, 800));
-    router.push("/dashboard");
-  };
+  const [state, formAction, pending] = useActionState(loginAction, {});
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-4">
@@ -45,29 +33,27 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <Input
               label="Email"
               type="email"
+              name="email"
               placeholder="vous@exemple.fr"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               required
               autoComplete="email"
             />
             <Input
               label="Mot de passe"
               type="password"
+              name="password"
               placeholder="••••••••"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               required
               autoComplete="current-password"
             />
 
-            {error && (
+            {state.error && (
               <p className="text-sm text-danger bg-danger-subtle rounded-lg px-3 py-2">
-                {error}
+                {state.error}
               </p>
             )}
 
@@ -84,7 +70,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <Button type="submit" className="w-full group" loading={loading}>
+            <Button type="submit" className="w-full group" loading={pending}>
               Se connecter
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </Button>
@@ -101,11 +87,7 @@ export default function LoginPage() {
           </div>
 
           {/* Google OAuth (placeholder) */}
-          <Button
-            variant="secondary"
-            className="w-full gap-2"
-            onClick={() => router.push("/dashboard")}
-          >
+          <Button variant="secondary" className="w-full gap-2" disabled>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -124,7 +106,7 @@ export default function LoginPage() {
                 fill="#EA4335"
               />
             </svg>
-            Continuer avec Google
+            OAuth Google bientot
           </Button>
         </div>
 

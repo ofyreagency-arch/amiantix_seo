@@ -1,8 +1,11 @@
+import { requireCurrentUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Globe, Plug, SearchCheck } from "lucide-react";
 
-export default function OnboardingPage() {
+export default async function OnboardingPage() {
+  await requireCurrentUser();
+
   return (
     <div className="min-h-screen bg-bg text-text px-4 py-16">
       <div className="max-w-4xl mx-auto space-y-6">
