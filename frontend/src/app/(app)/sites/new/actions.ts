@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { createSite } from "@/lib/praeviseo-api";
 
 function normaliseSiteId(value: string): string {
@@ -62,6 +63,10 @@ export async function createSiteAction(formData: FormData) {
 
     redirect(`/sites/${site.site_id}/connect`);
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
     formData.set("site_id", normaliseSiteId(String(formData.get("site_id") ?? "")));
 
     failureRedirect(
