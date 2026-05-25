@@ -74,8 +74,7 @@ export default async function JoinSitePage({ searchParams }: { searchParams: Pag
                   name="connect_code"
                   label="Code de connexion"
                   placeholder="ABCD-EFGH-IJKL"
-                  hint="Le code affiché dans PraeviSEO ou fourni avec le bridge/client."
-                  required
+                  hint="Optionnel si le site n est encore rattaché à aucun compte client. Recommandé si le site appartient deja a quelqu un."
                 />
 
                 <div className="flex flex-wrap gap-3 pt-2">
@@ -103,7 +102,7 @@ export default async function JoinSitePage({ searchParams }: { searchParams: Pag
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">2. Le client récupère l’accès</div>
                 <p className="mt-2 leading-6">
-                  Le code de connexion permet de rattacher proprement le site à un nouvel espace client.
+                  Si le site n est encore rattaché à personne, PraeviSEO peut le basculer directement vers ce compte. Sinon, le code de connexion reste nécessaire.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">

@@ -356,6 +356,11 @@ function humanizeBackendMessage(message: string): string {
     "Code de connexion invalide.": "Code de connexion invalide.",
     "Le code de connexion ne correspond pas au site demandé.":
       "Le code de connexion ne correspond pas au site demandé.",
+    "Site introuvable.": "Aucun site correspondant n a ete trouve.",
+    "Ce site existe deja dans PraeviSEO. Utilisez le code de connexion pour le rattacher.":
+      "Ce site appartient deja a un autre espace client. Utilisez le code de connexion pour le rattacher.",
+    "Le site existe deja mais l URL ne correspond pas.":
+      "Le site existe deja mais l URL saisie ne correspond pas.",
   };
 
   if (messageMap[normalized]) {

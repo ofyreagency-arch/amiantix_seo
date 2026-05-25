@@ -66,7 +66,7 @@ class ClientSitesController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'site_id' => ['required', 'string', 'max:64', 'unique:seo_sites,site_id', 'regex:/^[a-z0-9_-]+$/'],
+            'site_id' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_-]+$/'],
             'name' => ['required', 'string', 'max:255'],
             'url' => ['required', 'url', 'max:500'],
             'niche' => ['nullable', 'string', 'max:100'],
@@ -75,6 +75,14 @@ class ClientSitesController extends Controller
             'publication_mode' => ['nullable', 'string', 'in:runtime,laravel_bridge,symfony_bridge,wordpress_bridge,webhook_api,disabled'],
             'publication_path_prefix' => ['nullable', 'string', 'max:120'],
         ]);
+
+        $existingSite = SeoSite::query()
+            ->where('site_id', $data['site_id'])
+            ->first();
+
+        if ($existingSite) {
+            return $this->attachExistingSiteIfAllowed($user, $existingSite, $data['url']);
+        }
 
         ['hash' => $hash] = SeoSite::generateToken();
 
@@ -106,16 +114,31 @@ class ClientSitesController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'connect_code' => ['required', 'string', 'max:32'],
+            'connect_code' => ['nullable', 'string', 'max:32'],
             'site_id' => ['nullable', 'string', 'max:64'],
+            'url' => ['nullable', 'url', 'max:500'],
         ]);
 
-        $site = SeoSite::resolveByPublicationConnectCode((string) $data['connect_code']);
+        $site = null;
+
+        if (! empty($data['connect_code'])) {
+            $site = SeoSite::resolveByPublicationConnectCode((string) $data['connect_code']);
+
+            if (! $site) {
+                return response()->json([
+                    'message' => 'Code de connexion invalide.',
+                ], 422);
+            }
+        } elseif (! empty($data['site_id'])) {
+            $site = SeoSite::query()
+                ->where('site_id', (string) $data['site_id'])
+                ->first();
+        }
 
         if (! $site) {
             return response()->json([
-                'message' => 'Code de connexion invalide.',
-            ], 422);
+                'message' => 'Site introuvable.',
+            ], 404);
         }
 
         if (! empty($data['site_id']) && $site->site_id !== $data['site_id']) {
@@ -124,15 +147,7 @@ class ClientSitesController extends Controller
             ], 422);
         }
 
-        $user->seoSites()->syncWithoutDetaching([
-            $site->id => ['role' => 'owner'],
-        ]);
-
-        $site = $site->fresh(['googleConnection']);
-
-        return response()->json([
-            'site' => $this->serializeSite($site),
-        ]);
+        return $this->attachExistingSiteIfAllowed($user, $site, $data['url'] ?? null);
     }
 
     /**
@@ -158,6 +173,37 @@ class ClientSitesController extends Controller
 
         $settings['publication'] = $publication;
         $site->forceFill(['settings_json' => $settings])->save();
+    }
+
+    private function attachExistingSiteIfAllowed(User $user, SeoSite $site, ?string $requestedUrl = null): JsonResponse
+    {
+        if ($requestedUrl && rtrim($site->url, '/') !== rtrim($requestedUrl, '/')) {
+            return response()->json([
+                'message' => 'Le site existe deja mais l URL ne correspond pas.',
+            ], 422);
+        }
+
+        if ($user->seoSites()->where('seo_sites.id', $site->id)->exists()) {
+            $site = $site->fresh(['googleConnection']);
+
+            return response()->json([
+                'site' => $this->serializeSite($site),
+            ]);
+        }
+
+        if (! $site->users()->exists()) {
+            $user->seoSites()->attach($site->id, ['role' => 'owner']);
+            $site = $site->fresh(['googleConnection']);
+
+            return response()->json([
+                'site' => $this->serializeSite($site),
+                'claimed_existing' => true,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Ce site existe deja dans PraeviSEO. Utilisez le code de connexion pour le rattacher.',
+        ], 409);
     }
 
     private function serializeSite(SeoSite $site): array
