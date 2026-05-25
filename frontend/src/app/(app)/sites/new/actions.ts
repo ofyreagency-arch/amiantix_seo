@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
-import { createSite } from "@/lib/praeviseo-api";
+import { createSite, getSite } from "@/lib/praeviseo-api";
 
 function normaliseSiteId(value: string): string {
   return value
@@ -67,7 +67,19 @@ export async function createSiteAction(formData: FormData) {
       throw error;
     }
 
-    formData.set("site_id", normaliseSiteId(String(formData.get("site_id") ?? "")));
+    const siteId = normaliseSiteId(String(formData.get("site_id") ?? ""));
+    formData.set("site_id", siteId);
+
+    if (
+      error instanceof Error &&
+      error.message.toLowerCase().includes("identifiant est deja utilise")
+    ) {
+      const existingSite = await getSite(siteId);
+
+      if (existingSite) {
+        redirect(`/sites/${existingSite.site_id}/connect?notice=already-exists`);
+      }
+    }
 
     failureRedirect(
       formData,
