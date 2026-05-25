@@ -32,7 +32,7 @@ export default async function DashboardPage() {
       return `/sites/${site.site_id}/search-console`;
     }
 
-    if (site.next_action.kind === "connect_bridge") {
+    if (site.next_action.kind === "connect_bridge" || site.next_action.kind === "installation_requested") {
       return getSiteConnectPath(site.site_id);
     }
 
@@ -46,6 +46,10 @@ export default async function DashboardPage() {
 
     if (site.next_action.kind === "connect_bridge") {
       return "Installer PraeviSEO";
+    }
+
+    if (site.next_action.kind === "installation_requested") {
+      return "Suivre l’installation";
     }
 
     return "Ouvrir la fiche site";
@@ -199,7 +203,7 @@ export default async function DashboardPage() {
                       Ouvrir
                     </Button>
                     <Button href={getSiteConnectPath(site.site_id)} size="sm">
-                      Installer PraeviSEO
+                      {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Installer PraeviSEO"}
                     </Button>
                   </div>
                 </div>
@@ -229,10 +233,14 @@ export default async function DashboardPage() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text">
-                      {site.next_action.kind === "connect_bridge" ? "Installer PraeviSEO sur votre site" : site.next_action.label}
+                      {site.next_action.kind === "connect_bridge"
+                        ? "Installer PraeviSEO sur votre site"
+                        : site.next_action.kind === "installation_requested"
+                          ? "PraeviSEO prépare votre installation"
+                          : site.next_action.label}
                     </p>
                     <p className="mt-2 text-sm text-text-muted leading-6">{site.next_action.detail}</p>
-                    {site.next_action.kind === "connect_bridge" ? (
+                    {site.next_action.kind === "connect_bridge" || site.next_action.kind === "installation_requested" ? (
                       <p className="mt-2 text-sm text-text-muted leading-6">{getPraeviseoInstallDetail(site)}</p>
                     ) : null}
                     <div className="mt-3">

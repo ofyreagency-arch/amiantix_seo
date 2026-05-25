@@ -118,7 +118,7 @@ export default async function SitesPage() {
                     </Button>
                   ) : null}
                   <Button href={getSiteConnectPath(site.site_id)}>
-                    Installer PraeviSEO
+                    {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Installer PraeviSEO"}
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </div>

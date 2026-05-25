@@ -21,6 +21,12 @@ export type PraeviseoSite = {
   gsc_connection_status: string;
   gsc_account_email: string | null;
   gsc_last_sync_at: string | null;
+  installation: {
+    status: string;
+    hosting_provider: string | null;
+    access_method: string | null;
+    requested_at: string | null;
+  };
   created_at: string;
   summary: {
     pages_total: number;
@@ -147,6 +153,29 @@ export type SiteGscConnectionInput = {
   gsc_property_url: string;
 };
 
+export type RemoteInstallationInput = {
+  site_id: string;
+  hosting_provider: string;
+  access_method: "ssh" | "sftp" | "api";
+  ssh_host?: string;
+  ssh_port?: string;
+  ssh_username?: string;
+  ssh_project_path?: string;
+  ssh_secret?: string;
+  ssh_sudo_command?: string;
+  sftp_host?: string;
+  sftp_port?: string;
+  sftp_username?: string;
+  sftp_password?: string;
+  sftp_project_path?: string;
+  framework_hint?: string;
+  api_platform?: string;
+  api_token?: string;
+  api_project_id?: string;
+  api_account_name?: string;
+  api_notes?: string;
+};
+
 type SitesResponse = { sites: unknown[] };
 type SiteResponse = { site: unknown };
 
@@ -177,6 +206,12 @@ const mockSites: PraeviseoSite[] = [
     gsc_connection_status: "connected",
     gsc_account_email: "service-account@project.iam.gserviceaccount.com",
     gsc_last_sync_at: new Date().toISOString(),
+    installation: {
+      status: "connected",
+      hosting_provider: "other",
+      access_method: "ssh",
+      requested_at: new Date().toISOString(),
+    },
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 8,
@@ -222,6 +257,12 @@ const mockSites: PraeviseoSite[] = [
     gsc_connection_status: "not_connected",
     gsc_account_email: null,
     gsc_last_sync_at: null,
+    installation: {
+      status: "not_started",
+      hosting_provider: null,
+      access_method: null,
+      requested_at: null,
+    },
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 0,
@@ -412,6 +453,18 @@ function normaliseSite(raw: unknown): PraeviseoSite {
     gsc_connection_status: String(site.gsc_connection_status ?? "not_connected"),
     gsc_account_email: site.gsc_account_email ? String(site.gsc_account_email) : null,
     gsc_last_sync_at: site.gsc_last_sync_at ? String(site.gsc_last_sync_at) : null,
+    installation: {
+      status: String((site.installation as Record<string, unknown> | undefined)?.status ?? "not_started"),
+      hosting_provider: (site.installation as Record<string, unknown> | undefined)?.hosting_provider
+        ? String((site.installation as Record<string, unknown> | undefined)?.hosting_provider)
+        : null,
+      access_method: (site.installation as Record<string, unknown> | undefined)?.access_method
+        ? String((site.installation as Record<string, unknown> | undefined)?.access_method)
+        : null,
+      requested_at: (site.installation as Record<string, unknown> | undefined)?.requested_at
+        ? String((site.installation as Record<string, unknown> | undefined)?.requested_at)
+        : null,
+    },
     created_at: String(site.created_at ?? new Date().toISOString()),
     summary: {
       pages_total: Number(summary.pages_total ?? 0),
@@ -666,6 +719,12 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       gsc_connection_status: "not_connected",
       gsc_account_email: null,
       gsc_last_sync_at: null,
+      installation: {
+        status: "not_started",
+        hosting_provider: null,
+        access_method: null,
+        requested_at: null,
+      },
       created_at: new Date().toISOString(),
       summary: {
         pages_total: 0,
@@ -787,6 +846,73 @@ export async function connectSiteGsc(input: SiteGscConnectionInput): Promise<Pra
   return normaliseSite(payload.site);
 }
 
+export async function requestRemoteInstallation(input: RemoteInstallationInput): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === input.site_id);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      publication_bridge_status: "requested",
+      installation: {
+        status: "requested",
+        hosting_provider: input.hosting_provider,
+        access_method: input.access_method,
+        requested_at: new Date().toISOString(),
+      },
+      next_action: {
+        kind: "installation_requested",
+        label: "PraeviSEO prépare votre installation",
+        detail: "Vos accès ont bien été enregistrés. PraeviSEO peut maintenant préparer l activation distante du site.",
+        priority: "medium",
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${input.site_id}/installation`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        hosting_provider: input.hosting_provider,
+        access_method: input.access_method,
+        ssh_host: input.ssh_host,
+        ssh_port: input.ssh_port,
+        ssh_username: input.ssh_username,
+        ssh_project_path: input.ssh_project_path,
+        ssh_secret: input.ssh_secret,
+        ssh_sudo_command: input.ssh_sudo_command,
+        sftp_host: input.sftp_host,
+        sftp_port: input.sftp_port,
+        sftp_username: input.sftp_username,
+        sftp_password: input.sftp_password,
+        sftp_project_path: input.sftp_project_path,
+        framework_hint: input.framework_hint,
+        api_platform: input.api_platform,
+        api_token: input.api_token,
+        api_project_id: input.api_project_id,
+        api_account_name: input.api_account_name,
+        api_notes: input.api_notes,
+      }),
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
 export function getInstallerUrl(
   filename: "praeviseo-install.ps1" | "praeviseo-install.sh",
   siteId?: string
@@ -844,16 +970,32 @@ export function formatSitePlatform(mode: string): string {
 }
 
 export function formatPraeviseoStatus(status: string): string {
-  return status === "connected" ? "PraeviSEO actif" : "PraeviSEO non installé";
+  if (status === "connected") {
+    return "PraeviSEO actif";
+  }
+
+  if (status === "requested") {
+    return "Installation en préparation";
+  }
+
+  return "PraeviSEO non installé";
 }
 
 export function getPraeviseoInstallLabel(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
+  if (site.publication_bridge_status === "requested") {
+    return "PraeviSEO prépare maintenant l installation de votre site";
+  }
+
   return site.publication_bridge_status === "connected"
     ? "PraeviSEO actif sur votre site"
     : "PraeviSEO n’est pas encore installé sur votre site";
 }
 
 export function getPraeviseoInstallDetail(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
+  if (site.publication_bridge_status === "requested") {
+    return "Vos accès ont bien été enregistrés. PraeviSEO prépare maintenant l installation distante et l activation du monitoring SEO.";
+  }
+
   return site.publication_bridge_status === "connected"
     ? "Le monitoring SEO, les publications et les optimisations PraeviSEO sont maintenant actifs sur votre site."
     : "Installez PraeviSEO pour activer le monitoring SEO, les optimisations automatiques, les publications et l’analyse du site.";

@@ -4,7 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RemoteInstallAssistant } from "@/components/sites/remote-install-assistant";
-import { formatSitePlatform, getInstallerUrl, getSite } from "@/lib/praeviseo-api";
+import {
+  formatPraeviseoStatus,
+  formatSitePlatform,
+  getInstallerUrl,
+  getPraeviseoInstallDetail,
+  getPraeviseoInstallLabel,
+  getSite,
+} from "@/lib/praeviseo-api";
+import { submitRemoteInstallAction } from "./actions";
 import { Download, Monitor, ShieldCheck } from "lucide-react";
 
 interface SiteConnectPageProps {
@@ -34,6 +42,9 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
     notFound();
   }
 
+  const installationLabel = getPraeviseoInstallLabel(site);
+  const installationDetail = getPraeviseoInstallDetail(site);
+
   return (
     <div className="min-h-screen">
       <Topbar
@@ -50,20 +61,30 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">Installer PraeviSEO sur votre hébergement</h1>
               <p className="mt-2 text-sm text-text-muted max-w-2xl leading-7">
-                PraeviSEO n’est pas encore installé sur votre site. Le bon flow client consiste d’abord à choisir
-                l’hébergement, puis à laisser PraeviSEO gérer automatiquement l’installation à distance.
+                {installationDetail}
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[280px]">
-              <div className="text-sm font-semibold text-text">PraeviSEO n’est pas encore installé sur votre site</div>
+              <div className="text-sm font-semibold text-text">{installationLabel}</div>
               <div className="mt-2 text-sm text-text-muted leading-6">
-                Une fois activé, PraeviSEO lancera le monitoring SEO, les publications et les optimisations pour ce site.
+                {site.publication_bridge_status === "requested"
+                  ? "PraeviSEO a bien reçu vos accès. L’installation distante peut maintenant être préparée pour ce site."
+                  : "Une fois activé, PraeviSEO lancera le monitoring SEO, les publications et les optimisations pour ce site."}
+              </div>
+              <div className="mt-3">
+                <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
+                  {formatPraeviseoStatus(site.publication_bridge_status)}
+                </Badge>
               </div>
             </div>
           </div>
         </div>
 
-        <RemoteInstallAssistant />
+        <RemoteInstallAssistant
+          site={site}
+          submitAction={submitRemoteInstallAction.bind(null, site.site_id)}
+          initialState={{ status: "idle", message: "", values: {} }}
+        />
 
         <div className="rounded-2xl border border-border bg-surface px-6 py-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

@@ -16,7 +16,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class ClientSitesController extends Controller
 {
@@ -200,6 +202,56 @@ class ClientSitesController extends Controller
         ]);
     }
 
+    public function requestInstallation(Request $request, string $siteId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with('googleConnection')
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $data = $request->validate([
+            'hosting_provider' => ['required', 'string', 'in:vps_linux,ovh,ionos,hostinger,oswitch,vercel,other'],
+            'access_method' => ['required', 'string', 'in:ssh,sftp,api'],
+            'ssh_host' => ['nullable', 'string', 'max:255'],
+            'ssh_port' => ['nullable', 'integer', 'between:1,65535'],
+            'ssh_username' => ['nullable', 'string', 'max:120'],
+            'ssh_project_path' => ['nullable', 'string', 'max:500'],
+            'ssh_secret' => ['nullable', 'string', 'max:10000'],
+            'ssh_sudo_command' => ['nullable', 'string', 'max:120'],
+            'sftp_host' => ['nullable', 'string', 'max:255'],
+            'sftp_port' => ['nullable', 'integer', 'between:1,65535'],
+            'sftp_username' => ['nullable', 'string', 'max:120'],
+            'sftp_password' => ['nullable', 'string', 'max:4000'],
+            'sftp_project_path' => ['nullable', 'string', 'max:500'],
+            'framework_hint' => ['nullable', 'string', 'max:120'],
+            'api_platform' => ['nullable', 'string', 'max:120'],
+            'api_token' => ['nullable', 'string', 'max:4000'],
+            'api_project_id' => ['nullable', 'string', 'max:255'],
+            'api_account_name' => ['nullable', 'string', 'max:255'],
+            'api_notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->validateInstallationAccess($data);
+
+        $settings = $site->settings_json ?? [];
+        $publication = is_array($settings['publication'] ?? null) ? $settings['publication'] : [];
+        $publication['bridge_status'] = 'requested';
+
+        $settings['publication'] = $publication;
+        $settings['installation'] = $this->buildInstallationPayload($data);
+
+        $site->forceFill(['settings_json' => $settings])->save();
+        $site = $site->fresh(['googleConnection']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+        ]);
+    }
+
     /**
      * @param array<string,mixed> $data
      */
@@ -254,6 +306,93 @@ class ClientSitesController extends Controller
         return response()->json([
             'message' => 'Ce site existe deja dans PraeviSEO. Utilisez le code de connexion pour le rattacher.',
         ], 409);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function validateInstallationAccess(array $data): void
+    {
+        $method = (string) ($data['access_method'] ?? '');
+
+        $requiredMap = match ($method) {
+            'ssh' => [
+                'ssh_host' => 'Merci de renseigner l hôte SSH.',
+                'ssh_username' => 'Merci de renseigner l utilisateur SSH.',
+                'ssh_project_path' => 'Merci de renseigner le chemin du projet.',
+                'ssh_secret' => 'Merci de renseigner un accès SSH.',
+            ],
+            'sftp' => [
+                'sftp_host' => 'Merci de renseigner l hôte SFTP ou FTP.',
+                'sftp_username' => 'Merci de renseigner l identifiant SFTP ou FTP.',
+                'sftp_password' => 'Merci de renseigner le mot de passe SFTP ou FTP.',
+                'sftp_project_path' => 'Merci de renseigner le dossier du site.',
+            ],
+            'api' => [
+                'api_platform' => 'Merci de renseigner la plateforme d hébergement.',
+                'api_token' => 'Merci de renseigner le jeton API.',
+                'api_project_id' => 'Merci de renseigner l identifiant du projet ou du site.',
+            ],
+            default => [],
+        };
+
+        foreach ($requiredMap as $field => $message) {
+            if (trim((string) ($data[$field] ?? '')) === '') {
+                throw ValidationException::withMessages([
+                    $field => $message,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function buildInstallationPayload(array $data): array
+    {
+        $method = (string) ($data['access_method'] ?? 'ssh');
+
+        $payload = [
+            'status' => 'requested',
+            'hosting_provider' => (string) ($data['hosting_provider'] ?? 'other'),
+            'access_method' => $method,
+            'requested_at' => now()->toIso8601String(),
+        ];
+
+        if ($method === 'ssh') {
+            $payload['ssh'] = [
+                'host' => trim((string) ($data['ssh_host'] ?? '')),
+                'port' => (int) ($data['ssh_port'] ?? 22),
+                'username' => trim((string) ($data['ssh_username'] ?? '')),
+                'project_path' => trim((string) ($data['ssh_project_path'] ?? '')),
+                'sudo_command' => trim((string) ($data['ssh_sudo_command'] ?? '')) ?: null,
+                'secret_encrypted' => Crypt::encryptString(trim((string) ($data['ssh_secret'] ?? ''))),
+            ];
+        }
+
+        if ($method === 'sftp') {
+            $payload['sftp'] = [
+                'host' => trim((string) ($data['sftp_host'] ?? '')),
+                'port' => (int) ($data['sftp_port'] ?? 22),
+                'username' => trim((string) ($data['sftp_username'] ?? '')),
+                'project_path' => trim((string) ($data['sftp_project_path'] ?? '')),
+                'framework_hint' => trim((string) ($data['framework_hint'] ?? '')) ?: null,
+                'password_encrypted' => Crypt::encryptString(trim((string) ($data['sftp_password'] ?? ''))),
+            ];
+        }
+
+        if ($method === 'api') {
+            $payload['api'] = [
+                'platform' => trim((string) ($data['api_platform'] ?? '')),
+                'project_id' => trim((string) ($data['api_project_id'] ?? '')),
+                'account_name' => trim((string) ($data['api_account_name'] ?? '')) ?: null,
+                'notes' => trim((string) ($data['api_notes'] ?? '')) ?: null,
+                'token_encrypted' => Crypt::encryptString(trim((string) ($data['api_token'] ?? ''))),
+            ];
+        }
+
+        return $payload;
     }
 
     /**
@@ -319,6 +458,12 @@ class ClientSitesController extends Controller
             'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
             'gsc_account_email' => $site->resolvedGoogleConnection()?->google_account_email,
             'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
+            'installation' => [
+                'status' => trim((string) data_get($site->settings_json, 'installation.status', 'not_started')) ?: 'not_started',
+                'hosting_provider' => data_get($site->settings_json, 'installation.hosting_provider'),
+                'access_method' => data_get($site->settings_json, 'installation.access_method'),
+                'requested_at' => data_get($site->settings_json, 'installation.requested_at'),
+            ],
             'created_at' => $site->created_at,
             'summary' => [
                 'pages_total' => (clone $pageQuery)->count(),
@@ -417,6 +562,15 @@ class ClientSitesController extends Controller
         int $pagesLive,
         int $pendingSuggestions,
     ): array {
+        if ($site->publicationBridgeStatus() === 'requested' && ! $bridgeConnected) {
+            return [
+                'kind' => 'installation_requested',
+                'label' => 'PraeviSEO prépare votre installation',
+                'detail' => 'Vos accès ont bien été enregistrés. PraeviSEO peut maintenant préparer l activation distante du site.',
+                'priority' => 'medium',
+            ];
+        }
+
         if (! $bridgeConnected) {
             return [
                 'kind' => 'connect_bridge',

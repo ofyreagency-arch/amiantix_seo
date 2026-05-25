@@ -31,6 +31,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
       ? "Installer PraeviSEO sur votre site"
+      : site.next_action.kind === "installation_requested"
+        ? "PraeviSEO prépare votre installation"
       : site.next_action.label;
   const nextActionDetail =
     site.next_action.kind === "connect_bridge"
@@ -45,7 +47,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         lastSync={backendLive ? "backend live" : "données de démonstration"}
         actions={
           <Button href={getSiteConnectPath(site.site_id)} size="sm">
-            Installer PraeviSEO
+            {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Installer PraeviSEO"}
           </Button>
         }
       />
@@ -83,7 +85,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             </div>
               <div className="flex flex-wrap gap-2">
                 <Button href={getSiteConnectPath(site.site_id)}>
-                  Télécharger l’installateur
+                  {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Télécharger l’installateur"}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -132,7 +134,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 {site.publication_bridge_status !== "connected" ? (
                   <div className="mt-4">
                     <Button href={getSiteConnectPath(site.site_id)} variant="secondary">
-                      Activer PraeviSEO sur mon site
+                      {site.publication_bridge_status === "requested"
+                        ? "Suivre l’installation"
+                        : "Activer PraeviSEO sur mon site"}
                     </Button>
                   </div>
                 ) : null}
@@ -176,7 +180,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               </div>
 
               <Button href={getSiteConnectPath(site.site_id)} className="w-full">
-                Activer PraeviSEO sur mon site
+                {site.publication_bridge_status === "requested"
+                  ? "Suivre l’installation"
+                  : "Activer PraeviSEO sur mon site"}
               </Button>
 
               {!site.readiness.gsc_connected ? (
