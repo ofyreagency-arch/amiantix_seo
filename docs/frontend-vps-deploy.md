@@ -75,8 +75,7 @@ Copier le template :
 cp /var/www/seo-engine/deploy/supervisor/praeviseo-frontend.conf /etc/supervisor/conf.d/
 supervisorctl reread
 supervisorctl update
-supervisorctl start praeviseo-frontend
-supervisorctl status
+bash /var/www/seo-engine/deploy/scripts/restart-praeviseo-frontend.sh
 ```
 
 Etat attendu :
@@ -84,6 +83,13 @@ Etat attendu :
 ```text
 praeviseo-frontend RUNNING
 ```
+
+Le script `deploy/scripts/restart-praeviseo-frontend.sh` :
+
+- stoppe proprement Supervisor
+- nettoie automatiquement un `next-server` orphelin sur le port `3000`
+- relance le frontend
+- verifie que `127.0.0.1:3000` repond bien
 
 ## 6. Publier avec Nginx sur le meme domaine
 
@@ -127,7 +133,7 @@ git pull
 cd /var/www/seo-engine/frontend
 npm ci
 npm run build
-supervisorctl restart praeviseo-frontend
+bash /var/www/seo-engine/deploy/scripts/restart-praeviseo-frontend.sh
 ```
 
 ## 9. Points importants
@@ -137,3 +143,4 @@ supervisorctl restart praeviseo-frontend
 - Le client ouvre `https://seo.amiantix.com/`.
 - L admin Laravel reste sur `https://seo.amiantix.com/admin`.
 - Les routes API Laravel restent sur `https://seo.amiantix.com/api/...`.
+- Si le port `3000` reste occupe apres un ancien demarrage, utiliser le script de restart plutot qu un `supervisorctl restart` manuel.
