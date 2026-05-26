@@ -10,6 +10,7 @@ use App\RemoteInstallation\Connectors\RemoteConnector;
 use App\RemoteInstallation\Connectors\SftpRemoteConnector;
 use App\RemoteInstallation\Connectors\SshRemoteConnector;
 use App\RemoteInstallation\Exceptions\RemoteInstallationException;
+use App\RemoteInstallation\RemoteCommand;
 use App\RemoteInstallation\Strategies\InstallerStrategy;
 use App\RemoteInstallation\Strategies\LaravelInstallerStrategy;
 use App\RemoteInstallation\Strategies\SymfonyInstallerStrategy;
@@ -106,9 +107,9 @@ class RemoteInstallationService
         }
 
         $framework = $this->detectFramework($connector, $projectPath, (string) ($metadata['framework_hint'] ?? ''));
-        $phpVersion = $this->runRequired($connector, $this->withinProject($projectPath, 'php -r "echo PHP_VERSION;"'), 'PHP est introuvable sur le serveur.');
-        $composerVersion = $this->runRequired($connector, $this->withinProject($projectPath, 'composer --version'), 'Composer est introuvable sur le serveur.');
-        $writeAccess = $this->runRequired($connector, $this->withinProject($projectPath, '[ -w . ] && echo writable || echo not_writable'), 'Impossible de vérifier les permissions du projet.');
+        $phpVersion = $this->runRequired($connector, RemoteCommand::detectPhpVersion($projectPath), 'PHP est introuvable sur le serveur.');
+        $composerVersion = $this->runRequired($connector, RemoteCommand::detectComposer($projectPath), 'Composer est introuvable sur le serveur.');
+        $writeAccess = $this->runRequired($connector, RemoteCommand::detectWriteAccess($projectPath), 'Impossible de vérifier les permissions du projet.');
 
         if (! str_contains(Str::lower($writeAccess), 'writable')) {
             throw RemoteInstallationException::execution('PraeviSEO ne peut pas écrire dans le dossier du projet distant.');
@@ -161,25 +162,15 @@ class RemoteInstallationService
         };
     }
 
-    private function runRequired(RemoteConnector $connector, string $command, string $errorMessage): string
+    private function runRequired(RemoteConnector $connector, RemoteCommand $command, string $errorMessage): string
     {
-        $result = $connector->run($command, 60);
+        $result = $connector->run($command->command, 60);
 
         if (! $result->successful || trim($result->output) === '') {
             throw RemoteInstallationException::execution($errorMessage);
         }
 
         return trim($result->output);
-    }
-
-    private function withinProject(string $path, string $command): string
-    {
-        return 'cd '.$this->quote($path).' && '.$command;
-    }
-
-    private function quote(string $value): string
-    {
-        return "'".str_replace("'", "'\"'\"'", $value)."'";
     }
 
     private function isSafeProjectPath(string $path): bool

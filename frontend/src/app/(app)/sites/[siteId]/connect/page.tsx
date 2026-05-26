@@ -83,6 +83,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
         </div>
 
         <RemoteInstallAssistant
+          siteId={site.site_id}
           site={site}
           submitAction={submitRemoteInstallAction.bind(null, site.site_id)}
           initialState={{ status: "idle", message: "", values: {} }}

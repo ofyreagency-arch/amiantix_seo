@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import type { RemoteInstallActionState } from "@/app/(app)/sites/[siteId]/connect/actions";
 import type { PraeviseoSite } from "@/lib/praeviseo-api";
 import { CheckCircle2, Cloud, HardDrive, KeyRound, LockKeyhole, ServerCog, WandSparkles } from "lucide-react";
@@ -23,6 +24,7 @@ type AccessOption = {
 };
 
 type RemoteInstallAssistantProps = {
+  siteId: string;
   site: Pick<PraeviseoSite, "installation" | "publication_bridge_status">;
   submitAction: (
     state: RemoteInstallActionState,
@@ -63,13 +65,51 @@ function isInstallationInProgress(status: string): boolean {
   );
 }
 
+function stepLabel(step: string | null): string {
+  return (
+    {
+      pending: "Installation en préparation",
+      connecting_to_server: "Connexion au serveur",
+      detecting_environment: "Détection de l’environnement",
+      package_installed: "Package PraeviSEO installé",
+      installing_praeviseo: "Installation de PraeviSEO",
+      laravel_connected: "Configuration Laravel",
+      symfony_connected: "Configuration Symfony",
+      configuring_site: "Configuration du site",
+      laravel_activated: "Activation Laravel",
+      symfony_activated: "Activation Symfony",
+      activating_monitoring: "Activation du monitoring",
+      completed: "PraeviSEO actif",
+      failed: "Installation échouée",
+    }[step ?? ""] ?? "Préparation de l’installation"
+  );
+}
+
+function statusVariant(status: string): "default" | "success" | "warning" | "danger" {
+  if (status === "completed" || status === "connected") {
+    return "success";
+  }
+
+  if (status === "failed") {
+    return "danger";
+  }
+
+  if (isInstallationInProgress(status)) {
+    return "warning";
+  }
+
+  return "default";
+}
+
 export function RemoteInstallAssistant({
+  siteId,
   site,
   submitAction,
   initialState,
 }: RemoteInstallAssistantProps) {
   const [state, formAction, isPending] = useActionState(submitAction, initialState);
   const accessStepRef = useRef<HTMLDivElement | null>(null);
+  const [liveInstallation, setLiveInstallation] = useState(site.installation);
   const [hostingId, setHostingId] = useState<string>(site.installation.hosting_provider ?? "vps_linux");
   const [accessId, setAccessId] = useState<AccessOption["id"]>(
     (site.installation.access_method as AccessOption["id"] | null) ?? "ssh"
@@ -87,11 +127,15 @@ export function RemoteInstallAssistant({
   );
 
   const installationRequested =
-    isInstallationInProgress(site.installation.status) ||
+    isInstallationInProgress(liveInstallation.status) ||
     site.publication_bridge_status === "requested" ||
     state.status === "success";
 
   const valueFor = (field: string) => state.values[field] ?? "";
+
+  useEffect(() => {
+    setLiveInstallation(site.installation);
+  }, [site.installation]);
 
   useEffect(() => {
     if (state.values.hosting_provider) {
@@ -110,6 +154,46 @@ export function RemoteInstallAssistant({
       });
     }
   }, [state]);
+
+  useEffect(() => {
+    if (!isInstallationInProgress(liveInstallation.status)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/sites/${siteId}/installation-status`, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as {
+          installation?: PraeviseoSite["installation"];
+        };
+
+        if (!cancelled && payload.installation) {
+          setLiveInstallation(payload.installation);
+        }
+      } catch {
+        // Silent retry on next tick.
+      }
+    };
+
+    void poll();
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [liveInstallation.status, siteId]);
 
   const beginInstall = () => {
     setShowAccessStep(true);
@@ -265,6 +349,48 @@ export function RemoteInstallAssistant({
           </CardContent>
         </Card>
 
+        {installationRequested ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Progression de l’installation</CardTitle>
+              <CardDescription>
+                PraeviSEO travaille automatiquement sur votre site. Vous pouvez suivre chaque étape en temps réel.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <Badge variant={statusVariant(liveInstallation.status)}>
+                  {stepLabel(liveInstallation.current_step)}
+                </Badge>
+                <span className="text-sm text-text-muted">{liveInstallation.progress}%</span>
+              </div>
+              <Progress
+                value={liveInstallation.progress}
+                variant={statusVariant(liveInstallation.status)}
+                size="lg"
+              />
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted leading-6">
+                {liveInstallation.error_message
+                  ? liveInstallation.error_message
+                  : liveInstallation.logs.at(-1)?.message ||
+                    "PraeviSEO prépare maintenant automatiquement l’installation distante de votre site."}
+              </div>
+              {liveInstallation.logs.length > 0 ? (
+                <div className="space-y-2">
+                  {liveInstallation.logs.slice(-5).reverse().map((log) => (
+                    <div key={`${log.at}-${log.step}`} className="rounded-xl border border-border bg-surface-2 px-3 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-text-subtle">
+                        {stepLabel(log.step)}
+                      </div>
+                      <div className="mt-1 text-sm text-text">{log.message}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Ce que le client doit ressentir</CardTitle>
@@ -298,6 +424,7 @@ export function RemoteInstallAssistant({
                   <div className="font-semibold">Installation distante déjà en préparation</div>
                   <p className="mt-2 leading-6 text-text-muted">
                     {state.message ||
+                      liveInstallation.logs.at(-1)?.message ||
                       "Vos accès sont bien enregistrés. PraeviSEO prépare maintenant automatiquement l’activation distante du site."}
                   </p>
                 </div>
