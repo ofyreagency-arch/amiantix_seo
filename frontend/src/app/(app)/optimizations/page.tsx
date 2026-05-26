@@ -49,6 +49,44 @@ export default async function OptimizationsPage() {
       ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilité`
       : null,
   ].filter((item): item is string => item !== null);
+  const liveMoments = [
+    {
+      label: "Nouvelles opportunités",
+      value: optimizations.gsc_opportunities.summary.total,
+      detail:
+        optimizations.gsc_opportunities.summary.total > 0
+          ? "PraeviSEO a déjà des leviers concrets à ouvrir"
+          : "aucun levier fort n’est encore remonté",
+      tone: optimizations.gsc_opportunities.summary.total > 0 ? "warning" : "secondary",
+    },
+    {
+      label: "Pages proches du top 10",
+      value: optimizations.gsc_opportunities.summary.near_top_10,
+      detail:
+        optimizations.gsc_opportunities.summary.near_top_10 > 0
+          ? "gains rapides potentiels si on rafraîchit"
+          : "pas de page chaude à pousser tout de suite",
+      tone: optimizations.gsc_opportunities.summary.near_top_10 > 0 ? "success" : "secondary",
+    },
+    {
+      label: "CTR à relancer",
+      value: optimizations.gsc_opportunities.summary.low_ctr,
+      detail:
+        optimizations.gsc_opportunities.summary.low_ctr > 0
+          ? "des pages sont vues mais sous-cliquées"
+          : "aucun CTR faible net pour le moment",
+      tone: optimizations.gsc_opportunities.summary.low_ctr > 0 ? "warning" : "secondary",
+    },
+    {
+      label: "Baisses détectées",
+      value: optimizations.gsc_opportunities.summary.sustained_drop,
+      detail:
+        optimizations.gsc_opportunities.summary.sustained_drop > 0
+          ? "certaines pages perdent de la visibilité"
+          : "pas de recul durable fort en ce moment",
+      tone: optimizations.gsc_opportunities.summary.sustained_drop > 0 ? "danger" : "secondary",
+    },
+  ] as const;
 
   return (
     <div className="min-h-screen">
@@ -78,6 +116,20 @@ export default async function OptimizationsPage() {
             PraeviSEO lit déjà Google Search Console pour repérer les pages proches du top 10, les CTR faibles,
             les baisses de visibilité et les requêtes qui méritent une réponse plus forte.
           </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {liveMoments.map((item) => (
+            <Card key={item.label} className="border-border-subtle bg-surface/80">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <CardDescription>{item.label}</CardDescription>
+                  <Badge variant={item.tone}>{String(item.value)}</Badge>
+                </div>
+                <CardTitle className="text-sm leading-6 text-text-muted font-medium">{item.detail}</CardTitle>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
 
         <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 scroll-mt-24">

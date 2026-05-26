@@ -40,6 +40,10 @@ export default async function DashboardPage() {
   const queryWatchlist = dashboard.sites
     .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
     .slice(0, 6);
+  const totalDeltaImpressions = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_impressions, 0);
+  const totalDeltaClicks = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_clicks, 0);
+  const risingSitesCount = dashboard.sites.filter((site) => site.summary.gsc_delta_impressions > 0).length;
+  const slippingSitesCount = dashboard.sites.filter((site) => site.summary.gsc_delta_impressions < 0).length;
   const indexationAlerts = dashboard.sites
     .filter((site) => site.readiness.gsc_connected)
     .map((site) => ({
@@ -91,6 +95,38 @@ export default async function DashboardPage() {
       ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilite`
       : null,
   ].filter((item): item is string => item !== null);
+  const cockpitMoments = [
+    {
+      label: "Impressions cette période",
+      value: `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
+      detail:
+        totalDeltaImpressions !== 0
+          ? "vs période précédente sur les sites connectés"
+          : "volume stable sur les sites connectés",
+      tone: totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
+    },
+    {
+      label: "Clics cette période",
+      value: `${totalDeltaClicks > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaClicks)}`,
+      detail:
+        totalDeltaClicks !== 0
+          ? "les clics organiques évoluent aussi"
+          : "pas de variation forte côté clics",
+      tone: totalDeltaClicks < 0 ? "danger" : totalDeltaClicks > 0 ? "success" : "secondary",
+    },
+    {
+      label: "Sites en hausse",
+      value: risingSitesCount,
+      detail: "au moins un signal GSC progresse sur ces sites",
+      tone: risingSitesCount > 0 ? "success" : "secondary",
+    },
+    {
+      label: "Alertes à surveiller",
+      value: activeAlerts + slippingSitesCount,
+      detail: "CTR faible, baisse durable ou recul d’impressions",
+      tone: activeAlerts + slippingSitesCount > 0 ? "warning" : "secondary",
+    },
+  ] as const;
 
   const priorityHref = (site: (typeof dashboard.sites)[number]) => {
     if (site.next_action.kind === "connect_gsc") {
@@ -176,6 +212,20 @@ export default async function DashboardPage() {
               </Button>
             </div>
           </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {cockpitMoments.map((item) => (
+            <Card key={item.label} className="border-border-subtle bg-surface/80">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <CardDescription>{item.label}</CardDescription>
+                  <Badge variant={item.tone}>{String(item.value)}</Badge>
+                </div>
+                <CardTitle className="text-sm leading-6 text-text-muted font-medium">{item.detail}</CardTitle>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -314,6 +364,10 @@ export default async function DashboardPage() {
                       </span>
                       <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
                       <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
+                      <span>
+                        {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
+                        {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions vs avant
+                      </span>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">

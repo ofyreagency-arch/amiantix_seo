@@ -72,6 +72,38 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     site.next_action.kind === "connect_bridge"
       ? getPraeviseoClientDetail(site)
       : site.next_action.detail;
+  const cockpitMoments = [
+    {
+      label: "Impressions",
+      value: `${site.summary.gsc_delta_impressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)}`,
+      detail:
+        site.summary.gsc_delta_impressions !== 0
+          ? "vs période précédente"
+          : "stables sur la période suivie",
+      tone: site.summary.gsc_delta_impressions < 0 ? "danger" : site.summary.gsc_delta_impressions > 0 ? "success" : "secondary",
+    },
+    {
+      label: "Clics",
+      value: `${site.summary.gsc_delta_clicks > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_clicks)}`,
+      detail:
+        site.summary.gsc_delta_clicks !== 0
+          ? "évolution récente des clics"
+          : "volume stable pour le moment",
+      tone: site.summary.gsc_delta_clicks < 0 ? "danger" : site.summary.gsc_delta_clicks > 0 ? "success" : "secondary",
+    },
+    {
+      label: "Opportunités",
+      value: siteOpportunities.length,
+      detail: siteOpportunities.length > 0 ? "déjà visibles sur ce site" : "aucune priorité forte ouverte",
+      tone: siteOpportunities.length > 0 ? "warning" : "secondary",
+    },
+    {
+      label: "Pages qui bougent",
+      value: pageMomentum.length,
+      detail: pageMomentum.length > 0 ? "hausses ou chutes récentes détectées" : "mouvement encore limité",
+      tone: pageMomentum.length > 0 ? "success" : "secondary",
+    },
+  ] as const;
 
   return (
     <div className="min-h-screen">
@@ -135,6 +167,20 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               </Button>
             </div>
           </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {cockpitMoments.map((item) => (
+            <Card key={item.label} className="border-border-subtle bg-surface/80">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <CardDescription>{item.label}</CardDescription>
+                  <Badge variant={item.tone}>{String(item.value)}</Badge>
+                </div>
+                <CardTitle className="text-sm leading-6 text-text-muted font-medium">{item.detail}</CardTitle>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
 
         <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6 scroll-mt-24">
