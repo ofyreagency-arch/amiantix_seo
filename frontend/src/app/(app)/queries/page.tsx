@@ -1,7 +1,8 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
+import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { getDashboard, getOptimizations } from "@/lib/praeviseo-api";
 
 export default async function QueriesCockpitPage() {
@@ -40,112 +41,76 @@ export default async function QueriesCockpitPage() {
           </p>
         </div>
 
-        <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 scroll-mt-24">
-          {[
-            ["Requêtes suivies", topQueries.length],
-            ["Déjà visibles", visibleQueries.length],
-            ["À potentiel", potentialQueries.length],
-            ["Émergentes", emergingQueries.length],
-          ].map(([label, value]) => (
-            <Card key={label}>
-              <CardHeader className="pb-2">
-                <CardDescription>{label}</CardDescription>
-                <CardTitle className="text-3xl">{value}</CardTitle>
-              </CardHeader>
-            </Card>
-          ))}
+        <div id="vue-ensemble" className="scroll-mt-24">
+          <CockpitMetricGrid
+            items={[
+              { label: "Requêtes suivies", value: topQueries.length },
+              { label: "Déjà visibles", value: visibleQueries.length, tone: "success" },
+              { label: "À potentiel", value: potentialQueries.length, tone: "warning" },
+              { label: "Émergentes", value: emergingQueries.length, tone: "secondary" },
+            ]}
+          />
         </div>
 
         <div id="meilleures" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Meilleures requêtes</CardTitle>
-              <CardDescription>Les requêtes où votre site est déjà vraiment compris par Google.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {visibleQueries.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune requête déjà bien visible pour le moment. Le cockpit les affichera dès qu’elles montent.
-                </div>
-              ) : (
-                visibleQueries.map((item) => (
-                  <div key={`${item.site_name}-${item.query}-visible`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.query}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant="success">Déjà visible</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      {item.impressions} impressions, {item.clicks} clics, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            title="Meilleures requêtes"
+            description="Les requêtes où votre site est déjà vraiment compris par Google."
+            empty={visibleQueries.length === 0}
+            emptyMessage="Aucune requête déjà bien visible pour le moment. Le cockpit les affichera dès qu’elles montent."
+          >
+            {visibleQueries.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.query}-visible`}
+                title={item.query}
+                subtitle={item.site_name}
+                badge="Déjà visible"
+                badgeTone="success"
+                description={`${item.impressions} impressions, ${item.clicks} clics, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+              />
+            ))}
+          </CockpitSignalListCard>
 
-          <Card id="potentiel" className="scroll-mt-24">
-            <CardHeader>
-              <CardTitle>Requêtes à potentiel</CardTitle>
-              <CardDescription>Celles qui peuvent devenir un vrai levier SEO si on pousse la bonne page.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {potentialQueries.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune requête chaude à pousser pour le moment. PraeviSEO surveille déjà les prochains signaux.
-                </div>
-              ) : (
-                potentialQueries.map((item) => (
-                  <div key={`${item.site_name}-${item.query}-potential`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.query}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant="warning">À pousser</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      {item.impressions} impressions, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            id="potentiel"
+            className="scroll-mt-24"
+            title="Requêtes à potentiel"
+            description="Celles qui peuvent devenir un vrai levier SEO si on pousse la bonne page."
+            empty={potentialQueries.length === 0}
+            emptyMessage="Aucune requête chaude à pousser pour le moment. PraeviSEO surveille déjà les prochains signaux."
+          >
+            {potentialQueries.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.query}-potential`}
+                title={item.query}
+                subtitle={item.site_name}
+                badge="À pousser"
+                badgeTone="warning"
+                description={`${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+              />
+            ))}
+          </CockpitSignalListCard>
         </div>
 
-        <Card id="emergentes" className="scroll-mt-24">
-          <CardHeader>
-            <CardTitle>Requêtes émergentes</CardTitle>
-            <CardDescription>
-              Les requêtes qui progressent vite ou que PraeviSEO commence déjà à considérer comme un signal de croissance.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {emergingQueries.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                Aucune requête émergente forte pour le moment. Ce bloc s’enrichira dès les prochaines hausses nettes.
-              </div>
-            ) : (
-              emergingQueries.map((item) => (
-                <div key={`${item.site_id}-${item.query}-emerging`} className="rounded-xl border border-border px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{item.query}</p>
-                      <p className="text-xs text-text-subtle">{item.site_name}</p>
-                    </div>
-                    <Badge variant={item.priority_level === "high" ? "warning" : "secondary"}>
-                      {item.priority_label}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+        <CockpitSignalListCard
+          id="emergentes"
+          className="scroll-mt-24"
+          title="Requêtes émergentes"
+          description="Les requêtes qui progressent vite ou que PraeviSEO commence déjà à considérer comme un signal de croissance."
+          empty={emergingQueries.length === 0}
+          emptyMessage="Aucune requête émergente forte pour le moment. Ce bloc s’enrichira dès les prochaines hausses nettes."
+        >
+          {emergingQueries.map((item) => (
+            <CockpitSignalItem
+              key={`${item.site_id}-${item.query}-emerging`}
+              title={item.query ?? "Requête suivie"}
+              subtitle={item.site_name}
+              badge={item.priority_label}
+              badgeTone={item.priority_level === "high" ? "warning" : "secondary"}
+              description={item.reason}
+            />
+          ))}
+        </CockpitSignalListCard>
       </div>
     </div>
   );

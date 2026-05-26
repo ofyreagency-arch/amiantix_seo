@@ -1,7 +1,8 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
+import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { getDashboard, getOptimizations } from "@/lib/praeviseo-api";
 
 export default async function PagesCockpitPage() {
@@ -48,143 +49,98 @@ export default async function PagesCockpitPage() {
           </p>
         </div>
 
-        <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 scroll-mt-24">
-          {[
-            ["Pages suivies", pageSignals.length],
-            ["Pages en hausse", risingPages.length],
-            ["Pages en baisse", fallingPages.length],
-            [
-              "Variation globale",
-              `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
-            ],
-          ].map(([label, value]) => (
-            <Card key={label}>
-              <CardHeader className="pb-2">
-                <CardDescription>{label}</CardDescription>
-                <CardTitle className="text-3xl">{value}</CardTitle>
-              </CardHeader>
-            </Card>
-          ))}
+        <div id="vue-ensemble" className="scroll-mt-24">
+          <CockpitMetricGrid
+            items={[
+              { label: "Pages suivies", value: pageSignals.length },
+              { label: "Pages en hausse", value: risingPages.length, tone: "success" },
+              { label: "Pages en baisse", value: fallingPages.length, tone: "danger" },
+              {
+                label: "Variation globale",
+                value: `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
+                tone: totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
+              },
+            ]}
+          />
         </div>
 
         <div id="montent" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pages qui montent</CardTitle>
-              <CardDescription>Les pages qui gagnent le plus de visibilité récemment dans Google.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {risingPages.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune hausse forte n’est détectée pour le moment. PraeviSEO affichera ici les prochains signaux positifs.
-                </div>
-              ) : (
-                risingPages.map((item) => (
-                  <div key={`${item.site_name}-${item.slug}-up`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant="success">En hausse</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      +{item.delta_impressions} impressions, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            title="Pages qui montent"
+            description="Les pages qui gagnent le plus de visibilité récemment dans Google."
+            empty={risingPages.length === 0}
+            emptyMessage="Aucune hausse forte n’est détectée pour le moment. PraeviSEO affichera ici les prochains signaux positifs."
+          >
+            {risingPages.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.slug}-up`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge="En hausse"
+                badgeTone="success"
+                description={`+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+              />
+            ))}
+          </CockpitSignalListCard>
 
-          <Card id="chutent" className="scroll-mt-24">
-            <CardHeader>
-              <CardTitle>Pages qui chutent</CardTitle>
-              <CardDescription>Les pages qui méritent une relance, un refresh ou une meilleure réponse SEO.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {fallingPages.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune chute nette pour le moment. Le cockpit surveille déjà les prochaines baisses utiles.
-                </div>
-              ) : (
-                fallingPages.map((item) => (
-                  <div key={`${item.site_name}-${item.slug}-down`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant="danger">En baisse</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      {item.delta_impressions} impressions, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            id="chutent"
+            className="scroll-mt-24"
+            title="Pages qui chutent"
+            description="Les pages qui méritent une relance, un refresh ou une meilleure réponse SEO."
+            empty={fallingPages.length === 0}
+            emptyMessage="Aucune chute nette pour le moment. Le cockpit surveille déjà les prochaines baisses utiles."
+          >
+            {fallingPages.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.slug}-down`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge="En baisse"
+                badgeTone="danger"
+                description={`${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+              />
+            ))}
+          </CockpitSignalListCard>
         </div>
 
         <div id="meilleures" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Meilleures pages</CardTitle>
-              <CardDescription>Les pages déjà visibles qui portent le plus votre présence SEO.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {bestPages.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Les meilleures pages apparaîtront ici dès que davantage de signaux GSC remonteront.
-                </div>
-              ) : (
-                bestPages.map((item) => (
-                  <div key={`${item.site_name}-${item.slug}-best`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant="secondary">{item.impressions} impressions</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}, {item.previous_impressions} impressions avant.
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            title="Meilleures pages"
+            description="Les pages déjà visibles qui portent le plus votre présence SEO."
+            empty={bestPages.length === 0}
+            emptyMessage="Les meilleures pages apparaîtront ici dès que davantage de signaux GSC remonteront."
+          >
+            {bestPages.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.slug}-best`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge={`${item.impressions} impressions`}
+                description={`CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}, ${item.previous_impressions} impressions avant.`}
+              />
+            ))}
+          </CockpitSignalListCard>
 
-          <Card id="surveiller" className="scroll-mt-24">
-            <CardHeader>
-              <CardTitle>Pages à surveiller</CardTitle>
-              <CardDescription>Les pages où PraeviSEO voit déjà un potentiel SEO ou un signal à traiter vite.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {pagesToWatch.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune page chaude pour le moment. Les prochaines opportunités viendront enrichir ce bloc.
-                </div>
-              ) : (
-                pagesToWatch.map((item) => (
-                  <div key={`${item.site_id}-${item.slug}-${item.type}`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}>
-                        {item.priority_label}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            id="surveiller"
+            className="scroll-mt-24"
+            title="Pages à surveiller"
+            description="Les pages où PraeviSEO voit déjà un potentiel SEO ou un signal à traiter vite."
+            empty={pagesToWatch.length === 0}
+            emptyMessage="Aucune page chaude pour le moment. Les prochaines opportunités viendront enrichir ce bloc."
+          >
+            {pagesToWatch.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_id}-${item.slug}-${item.type}`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge={item.priority_label}
+                badgeTone={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}
+                description={item.reason}
+              />
+            ))}
+          </CockpitSignalListCard>
         </div>
       </div>
     </div>
