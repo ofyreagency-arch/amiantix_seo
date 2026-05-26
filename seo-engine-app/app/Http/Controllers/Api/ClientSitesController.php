@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -614,7 +615,7 @@ class ClientSitesController extends Controller
         $snapshotRows = (clone $baseQuery)
             ->whereDate('metric_date', $latestMetricDate)
             ->orderByDesc('id')
-            ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed']);
+            ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed', 'payload_json']);
 
         $aggregateRow = $snapshotRows->first(
             fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) === ''
@@ -625,13 +626,7 @@ class ClientSitesController extends Controller
         );
 
         $deduplicatedRows = $pageRows->unique(function (SeoSearchConsoleMetric $metric): string {
-            $url = trim((string) $metric->url);
-
-            if ($url === '') {
-                return 'metric:'.$metric->id;
-            }
-
-            return rtrim($url, '/');
+            return $this->searchConsoleUrlKey($metric);
         })->values();
 
         $impressions = $aggregateRow ? (float) $aggregateRow->impressions : (float) $deduplicatedRows->sum('impressions');
@@ -648,6 +643,33 @@ class ClientSitesController extends Controller
             'indexed_pages' => $deduplicatedRows->where('is_indexed', true)->count(),
             'indexed_pages_synced' => $indexedPagesSynced,
         ];
+    }
+
+    private function searchConsoleUrlKey(SeoSearchConsoleMetric $metric): string
+    {
+        $url = trim((string) $metric->url);
+
+        if ($url === '') {
+            return 'metric:'.$metric->id;
+        }
+
+        $payload = is_array($metric->payload_json) ? $metric->payload_json : [];
+        $inspection = is_array($payload['inspection'] ?? null) ? $payload['inspection'] : [];
+        $canonical = trim((string) data_get($inspection, 'inspectionResult.indexStatusResult.googleCanonical', ''));
+
+        if ($canonical === '') {
+            $canonical = trim((string) data_get($inspection, 'inspectionResult.indexStatusResult.userCanonical', ''));
+        }
+
+        if ($canonical !== '') {
+            $url = $canonical;
+        }
+
+        $host = Str::lower((string) parse_url($url, PHP_URL_HOST));
+        $host = preg_replace('/^www\./', '', $host ?? '') ?? '';
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+
+        return $host.'|'.$path;
     }
 
     /**
