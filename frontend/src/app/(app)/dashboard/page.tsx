@@ -104,13 +104,13 @@ export default async function DashboardPage() {
               label: "Impressions",
               value: new Intl.NumberFormat("fr-FR").format(dashboard.totals.impressions),
               icon: Globe,
-              hint: "volume GSC agrégé du dernier snapshot",
+              hint: "volume GSC agrégé sur le dernier import 28 jours",
             },
             {
               label: "Clics",
               value: new Intl.NumberFormat("fr-FR").format(dashboard.totals.clicks),
               icon: Waves,
-              hint: "clics organiques remontés par GSC",
+              hint: "clics organiques remontés par GSC sur 28 jours",
             },
             {
               label: "CTR moyen",
@@ -120,7 +120,7 @@ export default async function DashboardPage() {
                 maximumFractionDigits: 1,
               }).format(dashboard.totals.averageCtr),
               icon: Sparkles,
-              hint: "calculé sur les clics et impressions GSC",
+              hint: "calculé sur les clics et impressions GSC sur 28 jours",
             },
             {
               label: "Pages observées",
@@ -154,6 +154,12 @@ export default async function DashboardPage() {
           })}
         </div>
 
+        <p className="text-xs text-text-subtle">
+          Les métriques Google Search Console affichées ici correspondent au dernier import PraeviSEO sur une
+          fenetre de 28 jours. Elles peuvent donc differer d un ecran Search Console regle sur 3 mois ou une autre
+          periode.
+        </p>
+
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <Card>
             <CardHeader>
@@ -183,8 +189,8 @@ export default async function DashboardPage() {
                     <p className="mt-2 text-sm text-text-muted">{site.url}</p>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-subtle">
                       <span>{site.summary.pages_total} page(s) moteur</span>
-                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions</span>
-                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics</span>
+                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions GSC (28 j)</span>
+                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics GSC (28 j)</span>
                       <span>
                         {new Intl.NumberFormat("fr-FR", {
                           style: "percent",

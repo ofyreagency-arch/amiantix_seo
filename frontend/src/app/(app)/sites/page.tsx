@@ -100,11 +100,11 @@ export default async function SitesPage() {
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                     <SearchCheck className="w-3.5 h-3.5" />
-                    {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clic(s) GSC
+                    {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clic(s) GSC (28 j)
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                     <Link2 className="w-3.5 h-3.5" />
-                    {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impression(s) GSC
+                    {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impression(s) GSC (28 j)
                   </span>
                 </div>
 
