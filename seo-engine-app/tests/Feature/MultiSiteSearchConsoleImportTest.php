@@ -91,6 +91,32 @@ class MultiSiteSearchConsoleImportTest extends TestCase
                 default => [],
             };
         });
+        $searchConsole->shouldReceive('inspectPageUrl')->andReturnUsing(function (string $url): array {
+            return match ($url) {
+                'https://alpha.test/page-alpha', 'https://beta.test/page-beta' => [
+                    'indexed' => true,
+                    'coverage' => ['index_verdict:PASS'],
+                    'coverage_state' => 'Submitted and indexed',
+                    'canonical' => $url,
+                    'last_crawl_at' => now()->toIso8601String(),
+                    'robots' => 'ALLOWED',
+                    'indexing_state' => 'INDEXING_ALLOWED',
+                    'page_fetch_state' => 'SUCCESSFUL',
+                    'raw' => ['inspectionResult' => ['indexStatusResult' => ['verdict' => 'PASS']]],
+                ],
+                default => [
+                    'indexed' => null,
+                    'coverage' => [],
+                    'coverage_state' => null,
+                    'canonical' => null,
+                    'last_crawl_at' => null,
+                    'robots' => null,
+                    'indexing_state' => null,
+                    'page_fetch_state' => null,
+                    'raw' => [],
+                ],
+            };
+        });
         $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturnUsing(function (): array {
             return match (config('services.google_search_console.site_url')) {
                 'sc-domain:alpha.test' => [
@@ -117,6 +143,7 @@ class MultiSiteSearchConsoleImportTest extends TestCase
             'seo_page_id' => $pageA->id,
             'query' => null,
             'url' => 'https://alpha.test/page-alpha',
+            'is_indexed' => true,
         ]);
         $this->assertDatabaseHas('seo_search_console_metrics', [
             'site_id' => $siteA->site_id,
@@ -240,6 +267,32 @@ class MultiSiteSearchConsoleImportTest extends TestCase
                 default => [],
             };
         });
+        $searchConsole->shouldReceive('inspectPageUrl')->andReturnUsing(function (string $url): array {
+            return match ($url) {
+                'https://alpha.test/page-alpha', 'https://beta.test/page-beta' => [
+                    'indexed' => true,
+                    'coverage' => ['index_verdict:PASS'],
+                    'coverage_state' => 'Submitted and indexed',
+                    'canonical' => $url,
+                    'last_crawl_at' => now()->toIso8601String(),
+                    'robots' => 'ALLOWED',
+                    'indexing_state' => 'INDEXING_ALLOWED',
+                    'page_fetch_state' => 'SUCCESSFUL',
+                    'raw' => ['inspectionResult' => ['indexStatusResult' => ['verdict' => 'PASS']]],
+                ],
+                default => [
+                    'indexed' => null,
+                    'coverage' => [],
+                    'coverage_state' => null,
+                    'canonical' => null,
+                    'last_crawl_at' => null,
+                    'robots' => null,
+                    'indexing_state' => null,
+                    'page_fetch_state' => null,
+                    'raw' => [],
+                ],
+            };
+        });
         $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturn([
             'top_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
             'top_query_pages' => ['status' => 'ok', 'http_code' => 200, 'row_count' => 1],
@@ -314,6 +367,32 @@ class MultiSiteSearchConsoleImportTest extends TestCase
                 default => [],
             };
         });
+        $searchConsole->shouldReceive('inspectPageUrl')->andReturnUsing(function (string $url): array {
+            return match ($url) {
+                'https://alpha.test/page-alpha' => [
+                    'indexed' => true,
+                    'coverage' => ['index_verdict:PASS'],
+                    'coverage_state' => 'Submitted and indexed',
+                    'canonical' => $url,
+                    'last_crawl_at' => now()->toIso8601String(),
+                    'robots' => 'ALLOWED',
+                    'indexing_state' => 'INDEXING_ALLOWED',
+                    'page_fetch_state' => 'SUCCESSFUL',
+                    'raw' => ['inspectionResult' => ['indexStatusResult' => ['verdict' => 'PASS']]],
+                ],
+                default => [
+                    'indexed' => null,
+                    'coverage' => [],
+                    'coverage_state' => null,
+                    'canonical' => null,
+                    'last_crawl_at' => null,
+                    'robots' => null,
+                    'indexing_state' => null,
+                    'page_fetch_state' => null,
+                    'raw' => [],
+                ],
+            };
+        });
         $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturnUsing(function (): array {
             return match (config('services.google_search_console.site_url')) {
                 'sc-domain:alpha.test' => [
@@ -371,6 +450,17 @@ class MultiSiteSearchConsoleImportTest extends TestCase
         ]);
         $searchConsole->shouldReceive('getTopPages')->andReturn([]);
         $searchConsole->shouldReceive('getTopQueryPages')->andReturn([]);
+        $searchConsole->shouldReceive('inspectPageUrl')->andReturn([
+            'indexed' => null,
+            'coverage' => [],
+            'coverage_state' => null,
+            'canonical' => null,
+            'last_crawl_at' => null,
+            'robots' => null,
+            'indexing_state' => null,
+            'page_fetch_state' => null,
+            'raw' => [],
+        ]);
         $searchConsole->shouldReceive('analyticsDebugSnapshot')->andReturn([
             'top_pages' => ['status' => 'ok_empty', 'http_code' => 200, 'row_count' => 0, 'reason' => 'empty_rows'],
             'top_query_pages' => ['status' => 'ok_empty', 'http_code' => 200, 'row_count' => 0, 'reason' => 'empty_rows'],
