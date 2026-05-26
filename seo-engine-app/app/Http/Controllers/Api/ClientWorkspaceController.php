@@ -10,6 +10,7 @@ use App\Models\SeoSuggestion;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class ClientWorkspaceController extends Controller
@@ -62,16 +63,29 @@ class ClientWorkspaceController extends Controller
         /** @var User $user */
         $user = $request->user();
         $siteIds = $user->seoSites()->pluck('seo_sites.site_id');
+        $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
+        $hasPublishedLiveAtColumn = Schema::hasColumn('seo_pages', 'published_live_at');
+        $hasLiveUrlColumn = Schema::hasColumn('seo_pages', 'live_url');
 
-        $pages = SeoPage::query()
-            ->whereIn('site_id', $siteIds)
-            ->where(function ($query): void {
-                $query
-                    ->whereNotNull('published_at')
-                    ->orWhere('published_live', true)
-                    ->orWhereNotNull('live_url');
-            })
-            ->orderByDesc('published_live_at')
+        $query = SeoPage::query()->whereIn('site_id', $siteIds);
+
+        $query->where(function ($query) use ($hasPublishedLiveColumn, $hasLiveUrlColumn): void {
+            $query->whereNotNull('published_at');
+
+            if ($hasPublishedLiveColumn) {
+                $query->orWhere('published_live', true);
+            }
+
+            if ($hasLiveUrlColumn) {
+                $query->orWhereNotNull('live_url');
+            }
+        });
+
+        if ($hasPublishedLiveAtColumn) {
+            $query->orderByDesc('published_live_at');
+        }
+
+        $pages = $query
             ->orderByDesc('published_at')
             ->limit(24)
             ->get();
@@ -79,8 +93,12 @@ class ClientWorkspaceController extends Controller
         return response()->json([
             'stats' => [
                 'engine_published' => $pages->filter(fn (SeoPage $page): bool => $page->isPublishedInEngine())->count(),
-                'live_published' => $pages->filter(fn (SeoPage $page): bool => $page->isPublishedLive())->count(),
-                'with_live_url' => $pages->filter(fn (SeoPage $page): bool => ! empty($page->live_url))->count(),
+                'live_published' => $hasPublishedLiveColumn
+                    ? $pages->filter(fn (SeoPage $page): bool => $page->isPublishedLive())->count()
+                    : 0,
+                'with_live_url' => $hasLiveUrlColumn
+                    ? $pages->filter(fn (SeoPage $page): bool => ! empty($page->live_url))->count()
+                    : 0,
             ],
             'items' => $pages->map(fn (SeoPage $page): array => [
                 'id' => $page->id,
@@ -89,9 +107,9 @@ class ClientWorkspaceController extends Controller
                 'slug' => (string) ($page->slug ?: ''),
                 'status' => (string) $page->status,
                 'published_at' => $page->published_at,
-                'published_live' => (bool) $page->published_live,
-                'published_live_at' => $page->published_live_at,
-                'live_url' => $page->live_url,
+                'published_live' => $hasPublishedLiveColumn ? (bool) $page->published_live : false,
+                'published_live_at' => $hasPublishedLiveAtColumn ? $page->published_live_at : null,
+                'live_url' => $hasLiveUrlColumn ? $page->live_url : null,
                 'seo_score' => $page->seo_score,
                 'indexability_score' => $page->indexability_score,
             ])->values(),

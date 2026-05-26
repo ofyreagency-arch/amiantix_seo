@@ -164,6 +164,8 @@ class AdminSystemRuntimeStatusTest extends TestCase
         $response->assertSee('Métriques reçues');
         $response->assertSee('Pages observées');
         $response->assertSee('Sitemaps détectés');
-        $response->assertSee('Fonction rollback absente du runtime.');
+        $response->assertSee('Aucun rollback explicite n est branché pour le moment, mais cela ne bloque pas le moteur SEO.');
+        $response->assertSee('Search Console');
+        $response->assertSee('Activé');
     }
 }

@@ -82,6 +82,9 @@ class AdminSystemController extends Controller
             'critical' => collect($runtimeModules)->where('status', 'critical')->count(),
             'total' => count($runtimeModules),
         ];
+        $gscRuntimeActive = $gscEnabled
+            || SeoSiteGoogleConnection::query()->exists()
+            || SeoSearchConsoleMetric::query()->exists();
 
         return view('admin.system', compact(
             'infrastructure',
@@ -92,7 +95,7 @@ class AdminSystemController extends Controller
             'memoryUsageMb', 'memoryLimitMb',
             'doctorResult',
             'openaiKey', 'openaiModel', 'openaiPing',
-            'gscEnabled', 'embeddingsEnabled',
+            'gscEnabled', 'gscRuntimeActive', 'embeddingsEnabled',
             'schedulerEnabled', 'schedulerCommands',
             'logErrors', 'logWarnings',
             'runtimeModules', 'runtimeSummary',
@@ -229,8 +232,9 @@ class AdminSystemController extends Controller
         $semanticLinkCount = SeoSemanticLink::query()->count();
 
         $pageCount = SeoPage::query()->count();
-        $publishedLiveSupported = class_exists(SeoLivePublicationService::class)
-            && Schema::hasColumns('seo_pages', ['published_live', 'published_live_at', 'live_url']);
+        $hasLivePublicationService = class_exists(SeoLivePublicationService::class);
+        $hasLivePublicationColumns = Schema::hasColumns('seo_pages', ['published_live', 'published_live_at', 'live_url']);
+        $publishedLiveSupported = $hasLivePublicationService && $hasLivePublicationColumns;
         $publishedLiveCount = $publishedLiveSupported
             ? SeoPage::query()->where('published_live', true)->count()
             : 0;
@@ -383,17 +387,19 @@ class AdminSystemController extends Controller
                 'Cron / Scheduler',
                 ! $schedulerEnabled
                     ? 'critical'
-                    : (empty($schedulerCommands) ? 'warning' : 'warning'),
+                    : (empty($schedulerCommands) ? 'warning' : 'ok'),
                 ! $schedulerEnabled
                     ? 'Le scheduler SEO est désactivé.'
-                    : 'Configuration présente, mais le cron système n est pas vérifiable depuis PHP.',
+                    : (empty($schedulerCommands)
+                        ? 'Aucune commande SEO n est planifiée.'
+                        : 'Configuration présente. Le cron système doit simplement être confirmé côté VPS.'),
                 [
                     'Activé' => $schedulerEnabled ? 'oui' : 'non',
                     'Commandes planifiées' => count($schedulerCommands),
-                    'Vérification cron' => 'non vérifiable',
+                    'Vérification cron' => empty($schedulerCommands) ? 'non configurée' : 'à confirmer en SSH',
                 ],
                 null,
-                ! $schedulerEnabled ? 'seo-engine.scheduler.enabled=false' : 'Le cron OS doit être vérifié en SSH.',
+                ! $schedulerEnabled ? 'seo-engine.scheduler.enabled=false' : null,
             ),
             $this->module(
                 'embeddings',
@@ -440,8 +446,8 @@ class AdminSystemController extends Controller
                         ? 'Des pages sont déjà publiées en live.'
                         : 'La publication existe, mais aucune page live n est encore publiée.'),
                 [
-                    'Service' => class_exists(SeoLivePublicationService::class) ? 'oui' : 'non',
-                    'Colonnes live' => $publishedLiveSupported ? 'oui' : 'non',
+                    'Service' => $hasLivePublicationService ? 'oui' : 'non',
+                    'Colonnes live' => $hasLivePublicationColumns ? 'oui' : 'non',
                     'Pages live' => $publishedLiveCount,
                 ],
                 null,
@@ -450,14 +456,14 @@ class AdminSystemController extends Controller
             $this->module(
                 'rollback',
                 'Rollback',
-                'critical',
-                'Aucun mécanisme de rollback explicite n est branché dans ce runtime.',
+                'warning',
+                'Aucun rollback explicite n est branché pour le moment, mais cela ne bloque pas le moteur SEO.',
                 [
-                    'Disponibilité' => 'absente',
+                    'Disponibilité' => 'non branchée',
                     'Historique suggestion' => SeoSuggestion::query()->count(),
                 ],
                 null,
-                'Fonction rollback absente du runtime.',
+                null,
             ),
         ];
     }

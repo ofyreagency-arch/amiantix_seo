@@ -329,14 +329,14 @@
             {{-- GSC --}}
             <div class="px-5 py-3.5 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    @if($gscEnabled)
+                    @if($gscRuntimeActive)
                     <div class="w-2 h-2 rounded-full bg-emerald-500 status-dot shrink-0"></div>
                     @else
                     <div class="w-2 h-2 rounded-full bg-gray-300 shrink-0"></div>
                     @endif
                     <span class="font-semibold text-gray-800">Search Console</span>
                 </div>
-                @if($gscEnabled)
+                @if($gscRuntimeActive)
                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-100">Activé</span>
                 @else
                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold border bg-gray-100 text-gray-500 border-gray-200">Désactivé</span>
