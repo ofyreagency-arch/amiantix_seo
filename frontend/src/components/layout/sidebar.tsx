@@ -13,23 +13,33 @@ import {
   SearchIcon,
   ChevronDown,
   Plus,
+  FileText,
+  LineChart,
+  Activity,
+  Database,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: Array<{
+  section: string;
+  items: Array<{
+    label: string;
+    href: string;
+    icon: typeof LayoutDashboard;
+    badge?: string;
+  }>;
+}> = [
   {
     section: "Principal",
     items: [
       { label: "Vue d'ensemble", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Mes sites", href: "/sites", icon: Globe },
-      {
-        label: "Opportunités",
-        href: "/optimizations",
-        icon: Sparkles,
-        badge: "8",
-      },
+      { label: "Opportunités", href: "/optimizations", icon: Sparkles },
+      { label: "Pages", href: "/pages", icon: FileText },
+      { label: "Requêtes Google", href: "/queries", icon: LineChart },
       { label: "Blogs", href: "/publications", icon: Send },
+      { label: "Indexation", href: "/indexation", icon: Database },
+      { label: "Activité SEO", href: "/activity", icon: Activity },
     ],
   },
   {
