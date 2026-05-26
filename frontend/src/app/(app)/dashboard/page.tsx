@@ -7,7 +7,6 @@ import {
   getPraeviseoActivationLabel,
   getPraeviseoClientDetail,
   getPraeviseoClientStatus,
-  formatSitePlatform,
   getDashboard,
   getOptimizations,
   getPublications,
@@ -207,7 +206,7 @@ export default async function DashboardPage() {
       <Topbar
         title="Vue d'ensemble SEO"
         subtitle="Votre cockpit client PraeviSEO : performances GSC, indexation Google et prochaines actions utiles."
-        lastSync={backendLive ? "backend live" : "mode démonstration"}
+        lastSync={backendLive ? "synchronisation active" : "mode démonstration"}
         actions={
           <Button href="/sites/new" size="sm">
             Connecter un site
@@ -381,7 +380,7 @@ export default async function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-semibold text-text">{site.name}</h3>
-                      <Badge variant="secondary">{formatSitePlatform(site.publication_mode)}</Badge>
+                      <Badge variant="secondary">Copilote SEO actif</Badge>
                       <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
                         {getPraeviseoClientStatus(site)}
                       </Badge>
@@ -607,9 +606,9 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Activité publication</CardTitle>
+              <CardTitle>Blogs et contenus</CardTitle>
               <CardDescription>
-                Les derniers contenus préparés par PraeviSEO ou déjà visibles sur le site.
+                Les articles suivis par PraeviSEO pour garder un cockpit contenu déjà utile en free.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

@@ -68,6 +68,27 @@ Le free doit deja donner au client :
 - tendances SEO
 - priorites d optimisation
 - recommandations simples
+- blogs et contenus a suivre
+- timeline SEO
+- activite SEO datee et lisible
+
+Version cible du free :
+
+- cockpit SEO vivant
+- onglet opportunites
+- onglet pages
+- onglet requetes Google
+- onglet indexation
+- onglet activite SEO
+- onglet blogs
+- recommandations simples
+- timeline SEO
+
+Le free ne doit jamais ressembler a :
+
+- une console admin
+- un outil backend
+- une version limitee en attente d installation
 
 ## 2. Invariants a respecter
 

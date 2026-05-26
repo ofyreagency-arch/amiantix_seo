@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   formatGscStatus,
-  formatSitePlatform,
   getPraeviseoActivationLabel,
   getPraeviseoClientStatus,
   getSiteConnectPath,
@@ -68,11 +67,12 @@ export default async function SitesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-border-subtle bg-surface-2 px-3 py-3">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">
-                      Type de site
+                      Lecture SEO
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-text">{formatSitePlatform(site.publication_mode)}</div>
+                    <div className="mt-2 text-sm font-semibold text-text">Cockpit GSC actif</div>
                     <div className="mt-1 text-xs text-text-subtle">
-                      {site.publication_path_prefix ? `/${site.publication_path_prefix}` : "section par défaut"}
+                      {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
+                      {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions vs période précédente
                     </div>
                   </div>
                   <div className="rounded-xl border border-border-subtle bg-surface-2 px-3 py-3">

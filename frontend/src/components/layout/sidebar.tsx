@@ -29,7 +29,7 @@ const NAV_ITEMS = [
         icon: Sparkles,
         badge: "8",
       },
-      { label: "Activité SEO", href: "/publications", icon: Send },
+      { label: "Blogs", href: "/publications", icon: Send },
     ],
   },
   {
