@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   formatGscStatus,
-  formatSitePlatform,
   getPraeviseoActivationLabel,
   getPraeviseoClientDetail,
   getPraeviseoClientStatus,
@@ -142,7 +141,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       <Topbar
         title={site.name}
         subtitle="Vue client : performances GSC, indexation et prochaines actions utiles."
-        lastSync={backendLive ? "backend live" : "données de démonstration"}
+        lastSync={backendLive ? "synchronisation active" : "données de démonstration"}
         actions={
           <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`} size="sm">
             {getPraeviseoActivationLabel(site)}
@@ -167,7 +166,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold tracking-tight text-text">{site.name}</h1>
-                <Badge variant="secondary">{formatSitePlatform(site.publication_mode)}</Badge>
+                <Badge variant="secondary">Copilote SEO actif</Badge>
                 <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
                   {getPraeviseoClientStatus(site)}
                 </Badge>
