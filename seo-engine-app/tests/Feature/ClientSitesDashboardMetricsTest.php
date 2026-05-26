@@ -241,4 +241,94 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertJsonPath('sites.0.summary.gsc_indexation_synced', true);
         $response->assertJsonPath('sites.0.summary.gsc_indexed_pages', 1);
     }
+
+    public function test_client_sites_summary_ignores_latest_zero_inspection_rows_when_building_page_movements(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'metric_date' => '2026-05-24',
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://amiantix.com/faq',
+            'clicks' => 0,
+            'impressions' => 3,
+            'ctr' => 0.0,
+            'position' => 10.0,
+            'payload_json' => [
+                'analytics' => [
+                    'url' => 'https://amiantix.com/faq',
+                ],
+            ],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'metric_date' => '2026-05-25',
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://amiantix.com/faq',
+            'clicks' => 1,
+            'impressions' => 5,
+            'ctr' => 0.2,
+            'position' => 9.0,
+            'payload_json' => [
+                'analytics' => [
+                    'url' => 'https://amiantix.com/faq',
+                ],
+            ],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'metric_date' => '2026-05-26',
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://amiantix.com/faq',
+            'clicks' => 0,
+            'impressions' => 0,
+            'ctr' => 0.0,
+            'position' => 0.0,
+            'is_indexed' => false,
+            'payload_json' => [
+                'inspection' => [
+                    'inspectionResult' => [
+                        'indexStatusResult' => [
+                            'coverageState' => 'Discovered - currently not indexed',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/sites');
+
+        $response->assertOk();
+        $response->assertJsonPath('sites.0.summary.top_rising_pages.0.slug', 'faq');
+        $response->assertJsonPath('sites.0.summary.top_rising_pages.0.delta_impressions', 2);
+        $response->assertJsonPath('sites.0.summary.top_falling_pages', []);
+    }
 }

@@ -31,28 +31,21 @@ class GscOpportunityService
             return $this->summarizeSiteUrls($siteId, $hasConnection);
         }
 
-        $recentPageMetrics = SeoSearchConsoleMetric::query()
+        $pageMetrics = SeoSearchConsoleMetric::query()
             ->whereIn('seo_page_id', $pages->keys())
             ->whereNull('query')
-            ->where('metric_date', '>=', now()->subDays(30)->toDateString())
+            ->where('window_days', 28)
             ->orderByDesc('metric_date')
+            ->orderByDesc('id')
             ->get()
             ->groupBy('seo_page_id');
 
-        $olderPageMetrics = SeoSearchConsoleMetric::query()
-            ->whereIn('seo_page_id', $pages->keys())
-            ->whereNull('query')
-            ->whereBetween('metric_date', [
-                now()->subDays(60)->toDateString(),
-                now()->subDays(31)->toDateString(),
-            ])
-            ->get()
-            ->groupBy('seo_page_id');
-
-        $recentQueryMetrics = SeoSearchConsoleMetric::query()
+        $queryMetrics = SeoSearchConsoleMetric::query()
             ->whereIn('seo_page_id', $pages->keys())
             ->whereNotNull('query')
-            ->where('metric_date', '>=', now()->subDays(30)->toDateString())
+            ->where('window_days', 28)
+            ->orderByDesc('metric_date')
+            ->orderByDesc('id')
             ->get()
             ->groupBy('seo_page_id');
 
@@ -66,19 +59,23 @@ class GscOpportunityService
 
         foreach ($pages as $pageId => $page) {
             /** @var Collection<int, SeoSearchConsoleMetric> $pageRows */
-            $pageRows = $recentPageMetrics->get($pageId, collect());
+            $pageRows = $pageMetrics->get($pageId, collect());
             /** @var Collection<int, SeoSearchConsoleMetric> $olderRows */
-            $olderRows = $olderPageMetrics->get($pageId, collect());
+            $olderRows = collect();
             /** @var Collection<int, SeoSearchConsoleMetric> $queryRows */
-            $queryRows = $recentQueryMetrics->get($pageId, collect());
+            $queryRows = $queryMetrics->get($pageId, collect());
             /** @var Collection<int, SeoSuggestion> $suggestionRows */
             $suggestionRows = $recentSuggestions->get($pageId, collect());
 
-            $recentImpressions = (float) $pageRows->sum('impressions');
-            $recentClicks = (float) $pageRows->sum('clicks');
+            $currentPageRows = $this->latestAnalyticsSnapshotRows($pageRows);
+            $previousPageRows = $this->previousAnalyticsSnapshotRows($pageRows, $currentPageRows);
+            $currentQueryRows = $this->latestSnapshotRowsByDate($queryRows);
+
+            $recentImpressions = (float) $currentPageRows->sum('impressions');
+            $recentClicks = (float) $currentPageRows->sum('clicks');
             $recentCtr = $recentImpressions > 0 ? $recentClicks / $recentImpressions : 0.0;
-            $recentPosition = $this->weightedPosition($pageRows);
-            $olderImpressions = (float) $olderRows->sum('impressions');
+            $recentPosition = $this->weightedPosition($currentPageRows);
+            $olderImpressions = (float) $previousPageRows->sum('impressions');
             $dropRatio = $olderImpressions > 0 ? $recentImpressions / $olderImpressions : null;
 
             $label = trim((string) ($page->title ?: $page->keyword ?: $page->slug));
@@ -152,7 +149,7 @@ class GscOpportunityService
                 ]));
             }
 
-            $queryRows
+            $currentQueryRows
                 ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
                 ->each(function (Collection $queryMetrics, string $query) use (&$items, $page, $label, $suggestionRows): void {
                     if ($query === '') {
@@ -223,16 +220,16 @@ class GscOpportunityService
      */
     private function summarizeSiteUrls(string $siteId, bool $hasConnection): array
     {
-        $recentUrlMetrics = SeoSearchConsoleMetric::query()
+        $urlMetrics = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
             ->whereNull('query')
             ->whereNotNull('url')
-            ->where('metric_date', '>=', now()->subDays(30)->toDateString())
             ->orderByDesc('metric_date')
+            ->orderByDesc('id')
             ->get()
             ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->normalizeMetricUrl($metric));
 
-        if ($recentUrlMetrics->isEmpty()) {
+        if ($urlMetrics->isEmpty()) {
             return [
                 'connected' => $hasConnection,
                 'summary' => [
@@ -246,48 +243,43 @@ class GscOpportunityService
             ];
         }
 
-        $olderUrlMetrics = SeoSearchConsoleMetric::query()
-            ->where('site_id', $siteId)
-            ->whereNull('query')
-            ->whereNotNull('url')
-            ->whereBetween('metric_date', [
-                now()->subDays(60)->toDateString(),
-                now()->subDays(31)->toDateString(),
-            ])
-            ->get()
-            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->normalizeMetricUrl($metric));
-
-        $recentQueryMetrics = SeoSearchConsoleMetric::query()
+        $queryMetrics = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
             ->whereNotNull('query')
             ->whereNotNull('url')
-            ->where('metric_date', '>=', now()->subDays(30)->toDateString())
+            ->where('window_days', 28)
+            ->orderByDesc('metric_date')
+            ->orderByDesc('id')
             ->get()
             ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->normalizeMetricUrl($metric));
 
         $items = collect();
 
-        foreach ($recentUrlMetrics as $urlKey => $pageRows) {
+        foreach ($urlMetrics as $urlKey => $pageRows) {
             /** @var Collection<int, SeoSearchConsoleMetric> $pageRows */
             $pageRows = $pageRows;
             /** @var Collection<int, SeoSearchConsoleMetric> $olderRows */
-            $olderRows = $olderUrlMetrics->get($urlKey, collect());
+            $olderRows = collect();
             /** @var Collection<int, SeoSearchConsoleMetric> $queryRows */
-            $queryRows = $recentQueryMetrics->get($urlKey, collect());
+            $queryRows = $queryMetrics->get($urlKey, collect());
+
+            $currentPageRows = $this->latestAnalyticsSnapshotRows($pageRows);
+            $previousPageRows = $this->previousAnalyticsSnapshotRows($pageRows, $currentPageRows);
+            $currentQueryRows = $this->latestSnapshotRowsByDate($queryRows);
 
             /** @var SeoSearchConsoleMetric|null $referenceMetric */
-            $referenceMetric = $pageRows->first();
+            $referenceMetric = $currentPageRows->first() ?? $pageRows->first();
             $referenceUrl = trim((string) ($referenceMetric?->url ?? ''));
 
             if ($referenceUrl === '') {
                 continue;
             }
 
-            $recentImpressions = (float) $pageRows->sum('impressions');
-            $recentClicks = (float) $pageRows->sum('clicks');
+            $recentImpressions = (float) $currentPageRows->sum('impressions');
+            $recentClicks = (float) $currentPageRows->sum('clicks');
             $recentCtr = $recentImpressions > 0 ? $recentClicks / $recentImpressions : 0.0;
-            $recentPosition = $this->weightedPosition($pageRows);
-            $olderImpressions = (float) $olderRows->sum('impressions');
+            $recentPosition = $this->weightedPosition($currentPageRows);
+            $olderImpressions = (float) $previousPageRows->sum('impressions');
             $dropRatio = $olderImpressions > 0 ? $recentImpressions / $olderImpressions : null;
 
             $label = $this->labelFromUrl($referenceUrl);
@@ -356,7 +348,7 @@ class GscOpportunityService
                 ]));
             }
 
-            $queryRows
+            $currentQueryRows
                 ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
                 ->each(function (Collection $queryMetrics, string $query) use (&$items, $label, $slug): void {
                     if ($query === '') {
@@ -490,6 +482,55 @@ class GscOpportunityService
         return $weighted / $impressions;
     }
 
+    /**
+     * @param  Collection<int,SeoSearchConsoleMetric>  $rows
+     * @return Collection<int,SeoSearchConsoleMetric>
+     */
+    private function latestAnalyticsSnapshotRows(Collection $rows): Collection
+    {
+        $analyticsRows = $rows->filter(fn (SeoSearchConsoleMetric $metric): bool => $this->metricHasAnalytics($metric));
+
+        return $this->latestSnapshotRowsByDate($analyticsRows);
+    }
+
+    /**
+     * @param  Collection<int,SeoSearchConsoleMetric>  $rows
+     * @param  Collection<int,SeoSearchConsoleMetric>  $currentRows
+     * @return Collection<int,SeoSearchConsoleMetric>
+     */
+    private function previousAnalyticsSnapshotRows(Collection $rows, Collection $currentRows): Collection
+    {
+        $referenceMetric = $currentRows->first();
+
+        if (! $referenceMetric) {
+            return collect();
+        }
+
+        $previousRows = $rows
+            ->filter(fn (SeoSearchConsoleMetric $metric): bool => $this->metricHasAnalytics($metric) && $this->isMetricOlderThan($metric, $referenceMetric));
+
+        return $this->latestSnapshotRowsByDate($previousRows);
+    }
+
+    /**
+     * @param  Collection<int,SeoSearchConsoleMetric>  $rows
+     * @return Collection<int,SeoSearchConsoleMetric>
+     */
+    private function latestSnapshotRowsByDate(Collection $rows): Collection
+    {
+        $referenceMetric = $rows->first();
+
+        if (! $referenceMetric || ! $referenceMetric->metric_date) {
+            return collect();
+        }
+
+        $date = $referenceMetric->metric_date->toDateString();
+
+        return $rows
+            ->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() === $date)
+            ->values();
+    }
+
     private function qualifiesForNearTop10Opportunity(float $impressions, float $position): bool
     {
         if ($impressions >= 50.0) {
@@ -518,6 +559,35 @@ class GscOpportunityService
         }
 
         return $host !== '' ? $scheme.'://'.$host.$path : rtrim($url, '/');
+    }
+
+    private function metricHasAnalytics(SeoSearchConsoleMetric $metric): bool
+    {
+        $payload = is_array($metric->payload_json) ? $metric->payload_json : [];
+
+        if (is_array($payload['analytics'] ?? null) && $payload['analytics'] !== []) {
+            return true;
+        }
+
+        return (float) $metric->impressions > 0.0
+            || (float) $metric->clicks > 0.0
+            || (float) $metric->position > 0.0;
+    }
+
+    private function isMetricOlderThan(SeoSearchConsoleMetric $candidate, SeoSearchConsoleMetric $reference): bool
+    {
+        $candidateDate = $candidate->metric_date?->toDateString();
+        $referenceDate = $reference->metric_date?->toDateString();
+
+        if ($candidateDate === null || $referenceDate === null) {
+            return false;
+        }
+
+        if ($candidateDate < $referenceDate) {
+            return true;
+        }
+
+        return $candidateDate === $referenceDate && (int) $candidate->id < (int) $reference->id;
     }
 
     private function slugFromUrl(string $url): string

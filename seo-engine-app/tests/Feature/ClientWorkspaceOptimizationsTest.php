@@ -257,4 +257,76 @@ class ClientWorkspaceOptimizationsTest extends TestCase
         $response->assertJsonPath('gsc_opportunities.items.0.slug', 'faq');
         $response->assertJsonPath('gsc_opportunities.items.0.page_id', null);
     }
+
+    public function test_optimizations_endpoint_uses_latest_snapshot_instead_of_summing_rolling_gsc_windows(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-rolling-window-optimizations-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'gsc_site_url' => 'sc-domain:amiantix.com',
+            'gsc_credentials_path' => 'storage/google/service-account.json',
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => null,
+            'metric_date' => now()->subDays(2)->toDateString(),
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://www.amiantix.com/faq',
+            'clicks' => 1,
+            'impressions' => 4,
+            'ctr' => 0.25,
+            'position' => 9.4,
+            'payload_json' => [
+                'analytics' => [
+                    'url' => 'https://www.amiantix.com/faq',
+                ],
+            ],
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => null,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://www.amiantix.com/faq',
+            'clicks' => 1,
+            'impressions' => 5,
+            'ctr' => 0.2,
+            'position' => 9.0,
+            'payload_json' => [
+                'analytics' => [
+                    'url' => 'https://www.amiantix.com/faq',
+                ],
+            ],
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/optimizations');
+
+        $response->assertOk();
+        $response->assertJsonPath('gsc_opportunities.items.0.slug', 'faq');
+        $response->assertJsonPath('gsc_opportunities.items.0.metrics.impressions', 5);
+        $response->assertJsonPath('gsc_opportunities.items.0.metrics.position', 9);
+    }
 }

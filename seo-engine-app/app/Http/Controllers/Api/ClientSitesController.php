@@ -659,6 +659,7 @@ class ClientSitesController extends Controller
         }
 
         $latestMetricDate = Carbon::parse((string) $latestMetricDate)->toDateString();
+        $freshnessCutoff = Carbon::parse($latestMetricDate)->subDays(7)->toDateString();
         $previousMetricDate = (clone $baseQuery)
             ->whereDate('metric_date', '<', $latestMetricDate)
             ->max('metric_date');
@@ -666,29 +667,34 @@ class ClientSitesController extends Controller
         $snapshotRows = (clone $baseQuery)
             ->whereDate('metric_date', $latestMetricDate)
             ->orderByDesc('id')
-            ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json']);
+            ->get(['id', 'metric_date', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json']);
         $previousRows = $previousMetricDate
             ? (clone $baseQuery)
                 ->whereDate('metric_date', Carbon::parse((string) $previousMetricDate)->toDateString())
                 ->orderByDesc('id')
-                ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json'])
+                ->get(['id', 'metric_date', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json'])
             : collect();
+        $pageHistory = (clone $baseQuery)
+            ->whereNotNull('url')
+            ->whereDate('metric_date', '>=', Carbon::parse($latestMetricDate)->subDays(45)->toDateString())
+            ->orderByDesc('metric_date')
+            ->orderByDesc('id')
+            ->get(['id', 'metric_date', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json']);
         $queryRows = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
             ->whereNotNull('query')
             ->where('window_days', 28)
             ->whereDate('metric_date', $latestMetricDate)
             ->orderByDesc('impressions')
-            ->get(['query', 'clicks', 'impressions', 'ctr', 'position']);
-        $previousQueryRows = $previousMetricDate
-            ? SeoSearchConsoleMetric::query()
-                ->where('site_id', $siteId)
-                ->whereNotNull('query')
-                ->where('window_days', 28)
-                ->whereDate('metric_date', Carbon::parse((string) $previousMetricDate)->toDateString())
-                ->orderByDesc('impressions')
-                ->get(['query', 'clicks', 'impressions', 'ctr', 'position'])
-            : collect();
+            ->get(['metric_date', 'query', 'clicks', 'impressions', 'ctr', 'position']);
+        $queryHistory = SeoSearchConsoleMetric::query()
+            ->where('site_id', $siteId)
+            ->whereNotNull('query')
+            ->where('window_days', 28)
+            ->whereDate('metric_date', '>=', Carbon::parse($latestMetricDate)->subDays(45)->toDateString())
+            ->orderByDesc('metric_date')
+            ->orderByDesc('id')
+            ->get(['id', 'metric_date', 'query', 'clicks', 'impressions', 'ctr', 'position']);
 
         $aggregateRow = $snapshotRows->first(
             fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) === ''
@@ -704,32 +710,55 @@ class ClientSitesController extends Controller
         $deduplicatedRows = $pageRows->unique(function (SeoSearchConsoleMetric $metric): string {
             return $this->searchConsoleUrlKey($metric);
         })->values();
-        $previousPageRows = $previousRows
-            ->filter(fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) !== '')
-            ->unique(fn (SeoSearchConsoleMetric $metric): string => $this->searchConsoleUrlKey($metric))
-            ->values()
-            ->keyBy(fn (SeoSearchConsoleMetric $metric): string => $this->searchConsoleUrlKey($metric));
+        $pageHistoryByKey = $pageHistory
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->searchConsoleUrlKey($metric));
+        $currentIndexationRows = $pageHistoryByKey
+            ->map(function ($rows) use ($freshnessCutoff) {
+                /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
+                return $rows->first(
+                    fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() >= $freshnessCutoff
+                );
+            })
+            ->filter();
+        $currentPerformanceRows = $pageHistoryByKey
+            ->map(function ($rows) use ($freshnessCutoff) {
+                /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
+                return $rows->first(
+                    fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() >= $freshnessCutoff
+                        && $this->metricHasAnalytics($metric)
+                );
+            })
+            ->filter();
+        $previousPerformanceRows = $currentPerformanceRows
+            ->map(function (SeoSearchConsoleMetric $currentMetric, string $key) use ($pageHistoryByKey) {
+                /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
+                $rows = $pageHistoryByKey->get($key, collect());
+
+                return $rows->first(
+                    fn (SeoSearchConsoleMetric $metric): bool => $this->metricHasAnalytics($metric)
+                        && $this->isMetricOlderThan($metric, $currentMetric)
+                );
+            });
 
         $impressions = $aggregateRow ? (float) $aggregateRow->impressions : (float) $deduplicatedRows->sum('impressions');
         $clicks = $aggregateRow ? (float) $aggregateRow->clicks : (float) $deduplicatedRows->sum('clicks');
         $ctr = $aggregateRow ? (float) $aggregateRow->ctr : ($impressions > 0 ? $clicks / $impressions : 0.0);
         $previousImpressions = $previousAggregateRow
             ? (float) $previousAggregateRow->impressions
-            : (float) $previousPageRows->sum('impressions');
+            : (float) $previousPerformanceRows->sum('impressions');
         $previousClicks = $previousAggregateRow
             ? (float) $previousAggregateRow->clicks
-            : (float) $previousPageRows->sum('clicks');
+            : (float) $previousPerformanceRows->sum('clicks');
         $previousCtr = $previousAggregateRow
             ? (float) $previousAggregateRow->ctr
             : ($previousImpressions > 0 ? $previousClicks / $previousImpressions : 0.0);
-        $indexedPagesSynced = $deduplicatedRows->contains(
+        $indexedPagesSynced = $currentIndexationRows->contains(
             fn (SeoSearchConsoleMetric $metric): bool => $metric->is_indexed !== null
         );
-        $pageSignals = $deduplicatedRows
-            ->map(function (SeoSearchConsoleMetric $metric) use ($previousPageRows): array {
-                $key = $this->searchConsoleUrlKey($metric);
+        $pageSignals = $currentPerformanceRows
+            ->map(function (SeoSearchConsoleMetric $metric, string $key) use ($previousPerformanceRows): array {
                 /** @var SeoSearchConsoleMetric|null $previousMetric */
-                $previousMetric = $previousPageRows->get($key);
+                $previousMetric = $previousPerformanceRows->get($key);
                 $currentImpressions = (float) $metric->impressions;
                 $beforeImpressions = (float) ($previousMetric?->impressions ?? 0.0);
                 $deltaImpressions = $currentImpressions - $beforeImpressions;
@@ -763,56 +792,38 @@ class ClientSitesController extends Controller
             ->take(3)
             ->values()
             ->all();
-        $queryTotals = $queryRows
+        $querySignals = $queryHistory
             ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
-            ->map(function ($rows, string $query): array {
+            ->map(function ($rows, string $query) use ($freshnessCutoff): ?array {
                 /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
-                $impressions = (float) $rows->sum('impressions');
-                $clicks = (float) $rows->sum('clicks');
-                $positionWeighted = $impressions > 0
-                    ? $rows->reduce(
-                        fn (float $carry, SeoSearchConsoleMetric $metric): float => $carry + (((float) $metric->position) * ((float) $metric->impressions)),
-                        0.0
-                    ) / $impressions
-                    : 0.0;
+                $currentMetric = $rows->first(
+                    fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() >= $freshnessCutoff
+                );
 
-                return [
-                    'query' => $query,
-                    'impressions' => (int) round($impressions),
-                    'clicks' => (int) round($clicks),
-                    'ctr' => round($impressions > 0 ? ($clicks / $impressions) * 100 : 0.0, 2),
-                    'position' => round($positionWeighted, 1),
-                ];
-            });
-        $previousQueryTotals = $previousQueryRows
-            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
-            ->map(function ($rows, string $query): array {
-                /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
-                $impressions = (float) $rows->sum('impressions');
-                $clicks = (float) $rows->sum('clicks');
-                $positionWeighted = $impressions > 0
-                    ? $rows->reduce(
-                        fn (float $carry, SeoSearchConsoleMetric $metric): float => $carry + (((float) $metric->position) * ((float) $metric->impressions)),
-                        0.0
-                    ) / $impressions
-                    : 0.0;
+                if (! $currentMetric) {
+                    return null;
+                }
 
-                return [
-                    'query' => $query,
-                    'impressions' => (int) round($impressions),
-                    'clicks' => (int) round($clicks),
-                    'ctr' => round($impressions > 0 ? ($clicks / $impressions) * 100 : 0.0, 2),
-                    'position' => round($positionWeighted, 1),
-                ];
-            });
-        $querySignals = $queryTotals
-            ->map(function (array $item, string $query) use ($previousQueryTotals): array {
-                $previous = $previousQueryTotals->get($query, [
+                $currentDate = $currentMetric->metric_date?->toDateString();
+                $currentRows = $rows->filter(
+                    fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() === $currentDate
+                );
+                $previousMetric = $rows->first(
+                    fn (SeoSearchConsoleMetric $metric): bool => $this->isMetricOlderThan($metric, $currentMetric)
+                );
+                $previousDate = $previousMetric?->metric_date?->toDateString();
+                $previousRows = $previousDate
+                    ? $rows->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() === $previousDate)
+                    : collect();
+                $item = $this->aggregateQueryRows($query, $currentRows);
+                $previous = $previousRows->isNotEmpty()
+                    ? $this->aggregateQueryRows($query, $previousRows)
+                    : [
                     'impressions' => 0,
                     'clicks' => 0,
                     'ctr' => 0.0,
                     'position' => 0.0,
-                ]);
+                ];
                 $deltaImpressions = (int) $item['impressions'] - (int) ($previous['impressions'] ?? 0);
                 $previousImpressions = (int) ($previous['impressions'] ?? 0);
 
@@ -825,6 +836,7 @@ class ClientSitesController extends Controller
                         : 100.0,
                 ];
             })
+            ->filter()
             ->filter(fn (array $item): bool => $item['query'] !== '' && $item['impressions'] > 0)
             ->values();
         $topQueries = $querySignals
@@ -850,7 +862,7 @@ class ClientSitesController extends Controller
             ->take(5)
             ->values()
             ->all();
-        $indexationAlerts = $deduplicatedRows
+        $indexationAlerts = $currentIndexationRows
             ->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->is_indexed === false)
             ->map(function (SeoSearchConsoleMetric $metric): array {
                 $coverage = is_array($metric->coverage_json) ? $metric->coverage_json : [];
@@ -879,7 +891,7 @@ class ClientSitesController extends Controller
             'impressions' => $impressions,
             'clicks' => $clicks,
             'ctr' => $ctr,
-            'indexed_pages' => $deduplicatedRows->where('is_indexed', true)->count(),
+            'indexed_pages' => $currentIndexationRows->where('is_indexed', true)->count(),
             'indexed_pages_synced' => $indexedPagesSynced,
             'previous_impressions' => $previousImpressions,
             'previous_clicks' => $previousClicks,
@@ -887,7 +899,7 @@ class ClientSitesController extends Controller
             'delta_impressions' => $impressions - $previousImpressions,
             'delta_clicks' => $clicks - $previousClicks,
             'delta_ctr_points' => round(($ctr - $previousCtr) * 100, 2),
-            'non_indexed_pages' => $deduplicatedRows->where('is_indexed', false)->count(),
+            'non_indexed_pages' => $currentIndexationRows->where('is_indexed', false)->count(),
             'top_rising_pages' => $topRisingPages,
             'top_falling_pages' => $topFallingPages,
             'top_queries' => $topQueries,
@@ -896,6 +908,63 @@ class ClientSitesController extends Controller
             'new_queries' => $newQueries,
             'indexation_alerts' => $indexationAlerts,
         ];
+    }
+
+    private function metricHasAnalytics(SeoSearchConsoleMetric $metric): bool
+    {
+        $payload = is_array($metric->payload_json) ? $metric->payload_json : [];
+
+        if (($payload['scope'] ?? null) === 'site_totals') {
+            return true;
+        }
+
+        if (is_array($payload['analytics'] ?? null) && $payload['analytics'] !== []) {
+            return true;
+        }
+
+        return (float) $metric->impressions > 0.0
+            || (float) $metric->clicks > 0.0
+            || (float) $metric->position > 0.0;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, SeoSearchConsoleMetric>  $rows
+     * @return array{query:string,impressions:int,clicks:int,ctr:float,position:float}
+     */
+    private function aggregateQueryRows(string $query, \Illuminate\Support\Collection $rows): array
+    {
+        $impressions = (float) $rows->sum('impressions');
+        $clicks = (float) $rows->sum('clicks');
+        $positionWeighted = $impressions > 0
+            ? $rows->reduce(
+                fn (float $carry, SeoSearchConsoleMetric $metric): float => $carry + (((float) $metric->position) * ((float) $metric->impressions)),
+                0.0
+            ) / $impressions
+            : 0.0;
+
+        return [
+            'query' => $query,
+            'impressions' => (int) round($impressions),
+            'clicks' => (int) round($clicks),
+            'ctr' => round($impressions > 0 ? ($clicks / $impressions) * 100 : 0.0, 2),
+            'position' => round($positionWeighted, 1),
+        ];
+    }
+
+    private function isMetricOlderThan(SeoSearchConsoleMetric $candidate, SeoSearchConsoleMetric $reference): bool
+    {
+        $candidateDate = $candidate->metric_date?->toDateString();
+        $referenceDate = $reference->metric_date?->toDateString();
+
+        if ($candidateDate === null || $referenceDate === null) {
+            return false;
+        }
+
+        if ($candidateDate < $referenceDate) {
+            return true;
+        }
+
+        return $candidateDate === $referenceDate && (int) $candidate->id < (int) $reference->id;
     }
 
     private function searchConsoleSlugFromUrl(string $url): string

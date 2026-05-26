@@ -170,19 +170,13 @@ class ClientWorkspaceController extends Controller
             ->get()
             ->groupBy('seo_page_id')
             ->map(fn ($rows) => $rows->first());
-        $latestMetricDates = SeoSearchConsoleMetric::query()
-            ->whereIn('site_id', $siteIds)
-            ->where('window_days', 28)
-            ->whereNull('query')
-            ->groupBy('site_id')
-            ->selectRaw('site_id, max(metric_date) as latest_metric_date')
-            ->pluck('latest_metric_date', 'site_id');
         $pageMetrics = SeoSearchConsoleMetric::query()
             ->whereIn('site_id', $siteIds)
             ->where('window_days', 28)
             ->whereNull('query')
             ->whereNotNull('url')
             ->orderByDesc('metric_date')
+            ->orderByDesc('id')
             ->get()
             ->groupBy('site_id');
 
@@ -214,7 +208,6 @@ class ClientWorkspaceController extends Controller
                 'gsc_metrics' => $this->publicationMetricsForPage(
                     $page,
                     (string) ($siteUrls[$page->site_id] ?? ''),
-                    $latestMetricDates,
                     $pageMetrics
                 ),
                 'latest_suggestion' => $this->serializePublicationSuggestion($latestSuggestions->get($page->id)),
@@ -281,20 +274,17 @@ class ClientWorkspaceController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string, mixed>  $latestMetricDates
      * @param  \Illuminate\Support\Collection<string, \Illuminate\Support\Collection<int, \App\Models\SeoSearchConsoleMetric>>  $pageMetrics
      * @return array<string, int|float|null>
      */
     private function publicationMetricsForPage(
         SeoPage $page,
         string $siteUrl,
-        \Illuminate\Support\Collection $latestMetricDates,
         \Illuminate\Support\Collection $pageMetrics,
     ): array {
-        $latestMetricDate = $latestMetricDates->get($page->site_id);
         $siteRows = $pageMetrics->get($page->site_id, collect());
 
-        if (! $latestMetricDate || $siteRows->isEmpty()) {
+        if ($siteRows->isEmpty()) {
             return [
                 'impressions' => 0,
                 'clicks' => 0,
@@ -313,12 +303,17 @@ class ClientWorkspaceController extends Controller
             ->unique()
             ->values();
 
-        $metric = $siteRows->first(function ($row) use ($latestMetricDate, $targetUrls) {
+        $metric = $siteRows->first(function ($row) use ($targetUrls) {
             $rowUrl = rtrim((string) $row->url, '/');
 
-            return (string) $row->metric_date === (string) $latestMetricDate
-                && $targetUrls->contains($rowUrl);
-        });
+            return $targetUrls->contains($rowUrl)
+                && $this->metricHasAnalytics($row);
+        })
+            ?? $siteRows->first(function ($row) use ($targetUrls) {
+                $rowUrl = rtrim((string) $row->url, '/');
+
+                return $targetUrls->contains($rowUrl);
+            });
 
         return [
             'impressions' => (int) round((float) ($metric?->impressions ?? 0)),
@@ -326,6 +321,19 @@ class ClientWorkspaceController extends Controller
             'ctr' => round(((float) ($metric?->ctr ?? 0.0)) * 100, 2),
             'position' => $metric ? round((float) $metric->position, 1) : null,
         ];
+    }
+
+    private function metricHasAnalytics(SeoSearchConsoleMetric $metric): bool
+    {
+        $payload = is_array($metric->payload_json) ? $metric->payload_json : [];
+
+        if (is_array($payload['analytics'] ?? null) && $payload['analytics'] !== []) {
+            return true;
+        }
+
+        return (float) $metric->impressions > 0.0
+            || (float) $metric->clicks > 0.0
+            || (float) $metric->position > 0.0;
     }
 
     /**
