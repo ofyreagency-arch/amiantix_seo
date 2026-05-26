@@ -106,7 +106,7 @@ class GscOpportunityService
                 ]));
             }
 
-            if ($recentImpressions >= 50 && $recentPosition >= 8.0 && $recentPosition <= 15.0) {
+            if ($this->qualifiesForNearTop10Opportunity($recentImpressions, $recentPosition)) {
                 $existingPending = $this->findPendingSuggestion($suggestionRows, 'enrich', 'near_top_10');
                 $cooldownSuggestion = $this->findRecentTriggeredSuggestion($suggestionRows, 'enrich', 'near_top_10');
                 $items->push($this->decorateOpportunity([
@@ -314,7 +314,7 @@ class GscOpportunityService
                 ]));
             }
 
-            if ($recentImpressions >= 50 && $recentPosition >= 8.0 && $recentPosition <= 15.0) {
+            if ($this->qualifiesForNearTop10Opportunity($recentImpressions, $recentPosition)) {
                 $items->push($this->decorateOpportunity([
                     'type' => 'near_top_10',
                     'label' => $label,
@@ -488,6 +488,15 @@ class GscOpportunityService
         );
 
         return $weighted / $impressions;
+    }
+
+    private function qualifiesForNearTop10Opportunity(float $impressions, float $position): bool
+    {
+        if ($impressions >= 50.0) {
+            return $position >= 8.0 && $position <= 15.0;
+        }
+
+        return $impressions >= 5.0 && $position >= 8.0 && $position <= 15.0;
     }
 
     private function normalizeMetricUrl(SeoSearchConsoleMetric $metric): string
