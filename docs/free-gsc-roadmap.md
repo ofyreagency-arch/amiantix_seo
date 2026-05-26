@@ -2,6 +2,12 @@
 
 Date: 2026-05-26
 
+Phase en cours :
+
+- stabilisation architecture complete
+- verification de synchro frontend / backend / VPS / GSC
+- decouplage final entre concepts moteur internes et objets UX client
+
 ## Positionnement
 
 PraeviSEO doit d abord exister comme un vrai service SEO gratuit base sur Google Search Console.
@@ -58,6 +64,22 @@ Le produit doit raconter:
   - baisse durable
 - les suggestions moteur historiques restent visibles en second niveau
 - un test backend protege l endpoint client enrichi
+
+## Priorite immediate
+
+Avant d ajouter une nouvelle couche produit, stabiliser :
+
+- frontend
+- backend
+- VPS
+- build Next
+- Nginx / Supervisor
+- sync local / VPS
+- mode free GSC-only sans dependance implicite a `seo_pages`
+
+Checklist de reference :
+
+- `docs/architecture-stabilization-checklist.md`
 
 ## Ce que le free doit offrir
 

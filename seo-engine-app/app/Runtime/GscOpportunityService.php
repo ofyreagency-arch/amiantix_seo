@@ -28,17 +28,7 @@ class GscOpportunityService
             ->keyBy('id');
 
         if ($pages->isEmpty()) {
-            return [
-                'connected' => $hasConnection,
-                'summary' => [
-                    'low_ctr' => 0,
-                    'near_top_10' => 0,
-                    'emerging_queries' => 0,
-                    'sustained_drop' => 0,
-                    'total' => 0,
-                ],
-                'items' => [],
-            ];
+            return $this->summarizeSiteUrls($siteId, $hasConnection);
         }
 
         $recentPageMetrics = SeoSearchConsoleMetric::query()
@@ -221,6 +211,203 @@ class GscOpportunityService
     }
 
     /**
+     * @return array{
+     *   connected:bool,
+     *   summary:array{low_ctr:int,near_top_10:int,emerging_queries:int,sustained_drop:int,total:int},
+     *   items:array<int,array<string,mixed>>
+     * }
+     */
+    private function summarizeSiteUrls(string $siteId, bool $hasConnection): array
+    {
+        $recentUrlMetrics = SeoSearchConsoleMetric::query()
+            ->where('site_id', $siteId)
+            ->whereNull('query')
+            ->whereNotNull('url')
+            ->where('metric_date', '>=', now()->subDays(30)->toDateString())
+            ->orderByDesc('metric_date')
+            ->get()
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->normalizeMetricUrl($metric));
+
+        if ($recentUrlMetrics->isEmpty()) {
+            return [
+                'connected' => $hasConnection,
+                'summary' => [
+                    'low_ctr' => 0,
+                    'near_top_10' => 0,
+                    'emerging_queries' => 0,
+                    'sustained_drop' => 0,
+                    'total' => 0,
+                ],
+                'items' => [],
+            ];
+        }
+
+        $olderUrlMetrics = SeoSearchConsoleMetric::query()
+            ->where('site_id', $siteId)
+            ->whereNull('query')
+            ->whereNotNull('url')
+            ->whereBetween('metric_date', [
+                now()->subDays(60)->toDateString(),
+                now()->subDays(31)->toDateString(),
+            ])
+            ->get()
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->normalizeMetricUrl($metric));
+
+        $recentQueryMetrics = SeoSearchConsoleMetric::query()
+            ->where('site_id', $siteId)
+            ->whereNotNull('query')
+            ->whereNotNull('url')
+            ->where('metric_date', '>=', now()->subDays(30)->toDateString())
+            ->get()
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => $this->normalizeMetricUrl($metric));
+
+        $items = collect();
+
+        foreach ($recentUrlMetrics as $urlKey => $pageRows) {
+            /** @var Collection<int, SeoSearchConsoleMetric> $pageRows */
+            $pageRows = $pageRows;
+            /** @var Collection<int, SeoSearchConsoleMetric> $olderRows */
+            $olderRows = $olderUrlMetrics->get($urlKey, collect());
+            /** @var Collection<int, SeoSearchConsoleMetric> $queryRows */
+            $queryRows = $recentQueryMetrics->get($urlKey, collect());
+
+            /** @var SeoSearchConsoleMetric|null $referenceMetric */
+            $referenceMetric = $pageRows->first();
+            $referenceUrl = trim((string) ($referenceMetric?->url ?? ''));
+
+            if ($referenceUrl === '') {
+                continue;
+            }
+
+            $recentImpressions = (float) $pageRows->sum('impressions');
+            $recentClicks = (float) $pageRows->sum('clicks');
+            $recentCtr = $recentImpressions > 0 ? $recentClicks / $recentImpressions : 0.0;
+            $recentPosition = $this->weightedPosition($pageRows);
+            $olderImpressions = (float) $olderRows->sum('impressions');
+            $dropRatio = $olderImpressions > 0 ? $recentImpressions / $olderImpressions : null;
+
+            $label = $this->labelFromUrl($referenceUrl);
+            $slug = $this->slugFromUrl($referenceUrl);
+
+            if ($recentImpressions >= 100 && $recentCtr > 0.0 && $recentCtr < 0.02) {
+                $items->push($this->decorateOpportunity([
+                    'type' => 'low_ctr',
+                    'label' => $label,
+                    'slug' => $slug,
+                    'page_id' => null,
+                    'reason' => 'La page est visible dans Google mais trop peu de personnes cliquent.',
+                    'action' => 'relancer le CTR',
+                    'mode' => 'improve-ctr',
+                    'pending_suggestion_id' => null,
+                    'pending_suggestion' => false,
+                    'cooldown_active' => false,
+                    'cooldown_suggestion_id' => null,
+                    'metrics' => [
+                        'impressions' => (int) round($recentImpressions),
+                        'ctr' => round($recentCtr * 100, 2),
+                        'position' => round($recentPosition, 1),
+                    ],
+                ]));
+            }
+
+            if ($recentImpressions >= 50 && $recentPosition >= 8.0 && $recentPosition <= 15.0) {
+                $items->push($this->decorateOpportunity([
+                    'type' => 'near_top_10',
+                    'label' => $label,
+                    'slug' => $slug,
+                    'page_id' => null,
+                    'reason' => 'La page est proche de la zone qui compte et peut gagner vite avec un refresh ciblé.',
+                    'action' => 'rafraichir la page',
+                    'mode' => 'enrich',
+                    'pending_suggestion_id' => null,
+                    'pending_suggestion' => false,
+                    'cooldown_active' => false,
+                    'cooldown_suggestion_id' => null,
+                    'metrics' => [
+                        'impressions' => (int) round($recentImpressions),
+                        'ctr' => round($recentCtr * 100, 2),
+                        'position' => round($recentPosition, 1),
+                    ],
+                ]));
+            }
+
+            if ($olderImpressions >= 80 && $dropRatio !== null && $dropRatio <= 0.7) {
+                $items->push($this->decorateOpportunity([
+                    'type' => 'sustained_drop',
+                    'label' => $label,
+                    'slug' => $slug,
+                    'page_id' => null,
+                    'reason' => 'La visibilité récente baisse durablement par rapport à la fenêtre précédente.',
+                    'action' => 'verifier puis relancer',
+                    'mode' => 'enrich',
+                    'pending_suggestion_id' => null,
+                    'pending_suggestion' => false,
+                    'cooldown_active' => false,
+                    'cooldown_suggestion_id' => null,
+                    'metrics' => [
+                        'impressions' => (int) round($recentImpressions),
+                        'previous_impressions' => (int) round($olderImpressions),
+                        'position' => round($recentPosition, 1),
+                    ],
+                ]));
+            }
+
+            $queryRows
+                ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
+                ->each(function (Collection $queryMetrics, string $query) use (&$items, $label, $slug): void {
+                    if ($query === '') {
+                        return;
+                    }
+
+                    $impressions = (float) $queryMetrics->sum('impressions');
+                    $clicks = (float) $queryMetrics->sum('clicks');
+                    $ctr = $impressions > 0 ? $clicks / $impressions : 0.0;
+                    $position = $this->weightedPosition($queryMetrics);
+
+                    if ($impressions < 20 || $position > 20.0) {
+                        return;
+                    }
+
+                    $items->push($this->decorateOpportunity([
+                        'type' => 'emerging_query',
+                        'label' => $label,
+                        'slug' => $slug,
+                        'page_id' => null,
+                        'query' => $query,
+                        'reason' => 'Une requête émergente mérite une réponse plus explicite dans la page.',
+                        'action' => 'creer une section utile',
+                        'mode' => 'enrich',
+                        'pending_suggestion_id' => null,
+                        'pending_suggestion' => false,
+                        'cooldown_active' => false,
+                        'cooldown_suggestion_id' => null,
+                        'metrics' => [
+                            'impressions' => (int) round($impressions),
+                            'ctr' => round($ctr * 100, 2),
+                            'position' => round($position, 1),
+                        ],
+                    ]));
+                });
+        }
+
+        $sortedItems = $items
+            ->sortByDesc(fn (array $item): int => (int) ($item['priority_score'] ?? 0))
+            ->values();
+
+        return [
+            'connected' => $hasConnection,
+            'summary' => [
+                'low_ctr' => $sortedItems->where('type', 'low_ctr')->count(),
+                'near_top_10' => $sortedItems->where('type', 'near_top_10')->count(),
+                'emerging_queries' => $sortedItems->where('type', 'emerging_query')->count(),
+                'sustained_drop' => $sortedItems->where('type', 'sustained_drop')->count(),
+                'total' => $sortedItems->count(),
+            ],
+            'items' => $sortedItems->take(8)->all(),
+        ];
+    }
+
+    /**
      * @param  array<string,mixed>  $item
      * @return array<string,mixed>
      */
@@ -297,6 +484,48 @@ class GscOpportunityService
         );
 
         return $weighted / $impressions;
+    }
+
+    private function normalizeMetricUrl(SeoSearchConsoleMetric $metric): string
+    {
+        $url = trim((string) $metric->url);
+
+        if ($url === '') {
+            return '';
+        }
+
+        $parts = parse_url($url);
+        $scheme = strtolower((string) ($parts['scheme'] ?? 'https'));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = trim((string) ($parts['path'] ?? '/'));
+        $path = $path === '' ? '/' : rtrim($path, '/');
+
+        if ($path === '') {
+            $path = '/';
+        }
+
+        return $host !== '' ? $scheme.'://'.$host.$path : rtrim($url, '/');
+    }
+
+    private function slugFromUrl(string $url): string
+    {
+        $path = trim((string) parse_url($url, PHP_URL_PATH));
+
+        return trim($path, '/');
+    }
+
+    private function labelFromUrl(string $url): string
+    {
+        $path = $this->slugFromUrl($url);
+
+        if ($path === '') {
+            return (string) parse_url($url, PHP_URL_HOST);
+        }
+
+        $lastSegment = (string) last(array_filter(explode('/', $path)));
+        $normalized = str_replace(['-', '_'], ' ', $lastSegment);
+
+        return mb_convert_case($normalized, MB_CASE_TITLE, 'UTF-8');
     }
 
     /**
