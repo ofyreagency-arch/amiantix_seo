@@ -50,8 +50,8 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   return (
     <div className="min-h-screen">
       <Topbar
-        title={`Activer PraeviSEO sur ${site.name}`}
-        subtitle="Choisissez votre hébergement, laissez PraeviSEO préparer l’installation et activez automatiquement le site."
+        title={`Automatisation premium · ${site.name}`}
+        subtitle="Le mode free fonctionne déjà avec Google Search Console. Cette page sert uniquement à activer la couche premium d'exécution."
       />
 
       <div className="p-6 space-y-6">
@@ -61,7 +61,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               <Badge variant="brand-subtle" className="mb-3">
                 {formatSitePlatform(site.publication_mode)}
               </Badge>
-              <h1 className="text-2xl font-bold tracking-tight text-text">Installer PraeviSEO sur votre hébergement</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-text">Activer l'automatisation premium sur votre site</h1>
               <p className="mt-2 text-sm text-text-muted max-w-2xl leading-7">
                 {installationDetail}
               </p>
@@ -70,8 +70,8 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               <div className="text-sm font-semibold text-text">{installationLabel}</div>
               <div className="mt-2 text-sm text-text-muted leading-6">
                 {installationPending
-                  ? "PraeviSEO a bien reçu vos accès. L’installation distante peut maintenant être préparée pour ce site."
-                  : "Une fois activé, PraeviSEO lancera le monitoring SEO, les publications et les optimisations pour ce site."}
+                  ? "Vos accès ont bien été enregistrés. L'activation premium peut maintenant être préparée pour ce site."
+                  : "Le free reste disponible sans installation. Cette étape ajoute seulement l'exécution et l'automatisation avancée sur le site."}
               </div>
               <div className="mt-3">
                 <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
@@ -94,7 +94,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             <div>
               <div className="text-base font-semibold text-text">Alternative avancée</div>
               <p className="mt-1 text-sm text-text-muted leading-6">
-                Si vous préférez encore une installation manuelle, vous pouvez utiliser l’installateur officiel ci-dessous.
+                Si vous souhaitez activer la couche premium manuellement, vous pouvez utiliser les scripts officiels ci-dessous.
               </p>
             </div>
             <Badge variant="secondary">Méthode actuelle</Badge>
@@ -116,7 +116,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               <CardContent className="space-y-4">
                 <Button href={getInstallerUrl(installer.filename)} className="w-full" external>
                   <Download className="w-4 h-4" />
-                  Télécharger l’installateur
+                  Télécharger le script premium
                 </Button>
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Lancement</div>
@@ -132,17 +132,17 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             {
               icon: ShieldCheck,
               title: "Script lisible",
-              text: "Le client peut ouvrir le fichier et vérifier qu’il détecte juste PHP, Composer, le framework et la connexion PraeviSEO.",
+              text: "Le client peut ouvrir le fichier et vérifier qu'il detecte simplement l'environnement et prepare la connexion premium.",
             },
             {
               icon: Download,
-              title: "Installation officielle",
-              text: "Le script installe PraeviSEO proprement sur votre site, sans manipulation manuelle compliquée.",
+              title: "Activation premium",
+              text: "Le script active la couche premium proprement sur votre site, sans manipulation manuelle compliquée.",
             },
             {
               icon: Monitor,
               title: "Monitoring activé",
-              text: "Une fois PraeviSEO actif, la plateforme suit la vraie page publique et commence à travailler automatiquement.",
+              text: "Une fois la couche premium active, la plateforme peut suivre la vraie page publique et exécuter des actions avancées.",
             },
           ].map((item) => {
             const Icon = item.icon;

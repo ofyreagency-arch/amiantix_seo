@@ -31,7 +31,7 @@ export default async function NewSitePage({ searchParams }: { searchParams: Page
             <CardHeader>
               <CardTitle>Créer un site client</CardTitle>
               <CardDescription>
-                On collecte juste le minimum utile, puis PraeviSEO prépare automatiquement l’installation et l’activation du site.
+                On collecte juste le minimum utile pour créer le site, connecter Google Search Console et ouvrir le cockpit SEO free.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -140,15 +140,15 @@ export default async function NewSitePage({ searchParams }: { searchParams: Page
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="font-semibold text-text">2. Télécharger l’installateur</div>
+                <div className="font-semibold text-text">2. Connecter Google Search Console</div>
                 <p className="mt-2 leading-6">
-                  PraeviSEO prépare ensuite l’installation du site avec les scripts Windows / Linux / Mac.
+                  Le client relie ensuite simplement sa propriété Google pour débloquer les premières analyses, priorités et opportunités.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">3. Activer le suivi</div>
                 <p className="mt-2 leading-6">
-                  Une fois PraeviSEO installé, le dashboard client suit le statut du site, GSC et le monitoring.
+                  Une fois Google relié, PraeviSEO suit déjà les performances, l indexation et les priorités SEO du site.
                 </p>
               </div>
             </CardContent>

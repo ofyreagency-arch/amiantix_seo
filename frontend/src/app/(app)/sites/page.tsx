@@ -20,7 +20,7 @@ export default async function SitesPage() {
     <div className="min-h-screen">
       <Topbar
         title="Mes sites"
-        subtitle="Tous les sites reliés à PraeviSEO, avec leur analyse GSC actuelle et leur niveau d’activation."
+        subtitle="Tous les sites suivis dans PraeviSEO, avec leur analyse GSC, leur indexation et leurs prochaines priorités."
         actions={
           <div className="flex gap-2">
             <Button href="/sites/join" variant="secondary" size="sm">

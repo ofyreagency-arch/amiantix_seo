@@ -46,6 +46,7 @@ type SidebarSite = {
   name: string;
   is_active: boolean;
   publication_bridge_status: string;
+  gsc_connection_status?: string;
 };
 
 interface SidebarProps {
@@ -81,9 +82,11 @@ export function Sidebar({ sites = [] }: SidebarProps) {
             </p>
             <p className="text-[10px] text-text-subtle truncate">
               {activeSite
-                ? activeSite.publication_bridge_status === "connected"
-                  ? "PraeviSEO actif"
-                  : "Installation requise"
+                ? activeSite.gsc_connection_status === "connected" || activeSite.gsc_connection_status === "configured"
+                  ? "Analyse GSC active"
+                  : activeSite.publication_bridge_status === "connected"
+                    ? "PraeviSEO actif"
+                    : "Search Console à connecter"
                 : "Ajoutez votre premier site"}
             </p>
           </div>

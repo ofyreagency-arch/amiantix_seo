@@ -10,14 +10,14 @@ export default async function PublicationsPage() {
     <div className="min-h-screen">
       <Topbar
         title="Publications"
-        subtitle="Suivi client des publications runtime, bridge et site public réel."
+        subtitle="Suivi des contenus préparés par PraeviSEO et de leur présence réelle sur le site."
       />
       <div className="p-6 space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            ["Publie cote moteur", publications.stats.engine_published],
-            ["Publie en live", publications.stats.live_published],
-            ["URL live detectees", publications.stats.with_live_url],
+            ["Contenus prepares", publications.stats.engine_published],
+            ["Contenus visibles sur le site", publications.stats.live_published],
+            ["URLs detectees", publications.stats.with_live_url],
           ].map(([label, value]) => (
             <Card key={label}>
               <CardHeader className="pb-2">
@@ -48,7 +48,7 @@ export default async function PublicationsPage() {
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{item.status}</Badge>
                     <Badge variant={item.published_live ? "success" : "warning"}>
-                      {item.published_live ? "live" : "moteur seulement"}
+                      {item.published_live ? "visible sur le site" : "en preparation"}
                     </Badge>
                   </div>
                 </div>

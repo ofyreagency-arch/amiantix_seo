@@ -34,7 +34,7 @@ export default async function SettingsPage() {
             <CardHeader>
               <CardTitle>Etat des sites connectes</CardTitle>
               <CardDescription>
-                Vue client de l’installation PraeviSEO, des sections publiques et des connexions Google.
+                Vue client des sites suivis, de leur connexion Google Search Console et de l'automatisation premium si elle existe.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

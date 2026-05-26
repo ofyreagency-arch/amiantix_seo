@@ -96,7 +96,7 @@ export default async function JoinSitePage({ searchParams }: { searchParams: Pag
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="font-semibold text-text">1. Le site existe déjà</div>
                 <p className="mt-2 leading-6">
-                  PraeviSEO connaît déjà le site, son installation ou sa propriété Search Console.
+                  PraeviSEO connaît déjà ce site, sa connexion Google Search Console ou son éventuelle couche premium.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">

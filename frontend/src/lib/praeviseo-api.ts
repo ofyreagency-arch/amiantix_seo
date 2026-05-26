@@ -355,8 +355,8 @@ const mockSites: PraeviseoSite[] = [
     },
     next_action: {
       kind: "connect_bridge",
-      label: "Connecter le bridge officiel",
-      detail: "Installez le bridge pour activer la vraie publication et le monitoring du site public.",
+      label: "Activer l automatisation premium",
+      detail: "Le free fonctionne déjà avec GSC. Activez ensuite la couche premium pour publier, synchroniser et exécuter des actions sur le site.",
       priority: "high",
     },
   },
@@ -959,8 +959,8 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       },
       next_action: {
         kind: "connect_bridge",
-        label: "Connecter le bridge officiel",
-        detail: "Installez le bridge pour activer la vraie publication et le monitoring du site public.",
+        label: "Activer l automatisation premium",
+        detail: "Le free fonctionne déjà avec GSC. Activez ensuite la couche premium pour publier, synchroniser et exécuter des actions sur le site.",
         priority: "high",
       },
     };
@@ -1219,28 +1219,28 @@ export function formatSitePlatform(mode: string): string {
 
 export function formatPraeviseoStatus(status: string): string {
   if (status === "connected") {
-    return "PraeviSEO actif";
+    return "Automatisation active";
   }
 
   if (status === "requested") {
     return "Installation en préparation";
   }
 
-  return "PraeviSEO non installé";
+  return "Automatisation non activée";
 }
 
 export function getPraeviseoClientStatus(
   site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
 ): string {
   if (site.publication_bridge_status === "connected") {
-    return "PraeviSEO actif";
+    return "Automatisation active";
   }
 
   if (site.publication_bridge_status === "requested") {
     return "Automatisation en préparation";
   }
 
-  return site.readiness.gsc_connected ? "Analyse GSC active" : "PraeviSEO à activer";
+  return site.readiness.gsc_connected ? "Analyse GSC active" : "Search Console à connecter";
 }
 
 export function isInstallationInProgress(status: string): boolean {
@@ -1251,52 +1251,52 @@ export function isInstallationInProgress(status: string): boolean {
 
 export function getPraeviseoInstallLabel(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
   if (site.publication_bridge_status === "requested") {
-    return "PraeviSEO prépare maintenant l installation de votre site";
+    return "Automatisation premium en préparation";
   }
 
   return site.publication_bridge_status === "connected"
-    ? "PraeviSEO actif sur votre site"
-    : "PraeviSEO n’est pas encore installé sur votre site";
+    ? "Automatisation premium active"
+    : "Automatisation premium non activée";
 }
 
 export function getPraeviseoInstallDetail(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
   if (site.publication_bridge_status === "requested") {
-    return "Vos accès ont bien été enregistrés. PraeviSEO prépare maintenant l installation distante et l activation du monitoring SEO.";
+    return "Vos accès ont bien été enregistrés. La couche premium d automatisation est en préparation.";
   }
 
   return site.publication_bridge_status === "connected"
-    ? "Le monitoring SEO, les publications et les optimisations PraeviSEO sont maintenant actifs sur votre site."
-    : "Installez PraeviSEO pour activer le monitoring SEO, les optimisations automatiques, les publications et l’analyse du site.";
+    ? "Le site peut maintenant recevoir des actions avancées, des publications supervisées et une automatisation continue."
+    : "Le mode free fonctionne déjà avec Google Search Console. L automatisation premium reste optionnelle.";
 }
 
 export function getPraeviseoClientDetail(
   site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
 ): string {
   if (site.publication_bridge_status === "connected") {
-    return "PraeviSEO pilote maintenant le monitoring SEO, les optimisations et les publications directement sur votre site.";
+    return "PraeviSEO analyse vos performances GSC et peut aussi executer des actions avancees via la couche premium.";
   }
 
   if (site.publication_bridge_status === "requested") {
-    return "Vos accès ont bien été enregistrés. PraeviSEO prépare maintenant l activation du site et l automatisation du monitoring SEO.";
+    return "Vos accès ont bien été enregistrés. L automatisation premium est en préparation, mais l analyse GSC reste déjà active.";
   }
 
   if (site.readiness.gsc_connected) {
-    return "PraeviSEO analyse déjà vos performances, vos requêtes et votre indexation via Google Search Console. L activation sur le site débloque ensuite l automatisation.";
+    return "PraeviSEO analyse déjà vos performances, vos requêtes, vos opportunités et votre indexation via Google Search Console.";
   }
 
-  return "Commencez par connecter Google Search Console pour activer l analyse SEO, puis activez PraeviSEO sur le site pour automatiser.";
+  return "Commencez par connecter Google Search Console pour activer le cockpit SEO free.";
 }
 
 export function getPraeviseoActivationLabel(
   site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
 ): string {
   if (site.publication_bridge_status === "requested") {
-    return "Suivre l’activation";
+    return "Suivre l’automatisation";
   }
 
   if (site.publication_bridge_status === "connected") {
-    return "PraeviSEO actif";
+    return "Automatisation active";
   }
 
-  return site.readiness.gsc_connected ? "Activer l’automatisation" : "Installer PraeviSEO";
+  return site.readiness.gsc_connected ? "Analyse GSC active" : "Connecter Search Console";
 }

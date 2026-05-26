@@ -130,15 +130,15 @@ export default async function OptimizationsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Suggestions moteur récentes</CardTitle>
+            <CardTitle>Recommandations récentes</CardTitle>
             <CardDescription>
-              Les suggestions déjà ouvertes par le moteur restent visibles ici, mais elles viennent après les priorités GSC.
+              Les recommandations déjà ouvertes restent visibles ici, après les priorités issues de Google Search Console.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {optimizations.items.length === 0 ? (
               <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                Aucune suggestion moteur récente pour le moment.
+                Aucune recommandation récente pour le moment.
               </div>
             ) : (
               optimizations.items.map((item) => (

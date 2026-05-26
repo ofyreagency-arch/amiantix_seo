@@ -73,7 +73,7 @@ export async function submitRemoteInstallAction(
       status: "success",
       message:
         site.installation.requested_at
-          ? "Vos accès ont bien été enregistrés. PraeviSEO prépare maintenant l’installation distante de votre site."
+          ? "Vos accès ont bien été enregistrés. La couche premium d automatisation est maintenant en préparation."
           : "Vos accès ont bien été enregistrés.",
       values: {
         ...values,

@@ -38,6 +38,37 @@ Corollaire :
 - aucun wording client ne doit exposer `runtime`, `feedback loop`, `indexability`, `semantic linking`
 - toute reponse API client doit etre orientee insight UX, pas structure interne
 
+Regle de phase :
+
+- tant que la partie free n est pas stable, lisible et utile seule, le pack installateur payant ne redevient pas prioritaire
+
+Positionnement fige pendant la stabilisation :
+
+- free = comprendre son SEO avec Google Search Console
+- installateur = couche premium d execution et d automatisation
+- on ne remet pas l installateur au centre tant que le free n explique pas deja clairement :
+  - ce qui fonctionne
+  - ce qui baisse
+  - ou agir
+
+Le free doit deja donner au client :
+
+- impressions
+- clics
+- CTR
+- positions Google
+- pages indexees
+- pages non indexees
+- requetes SEO
+- pages qui montent
+- pages qui chutent
+- opportunites SEO
+- pages proches du top 10
+- pages avec CTR faible
+- tendances SEO
+- priorites d optimisation
+- recommandations simples
+
 ## 2. Invariants a respecter
 
 ### Frontend
@@ -217,7 +248,6 @@ Avant chaque nouvelle feature :
 La phase de stabilisation sera consideree terminee quand :
 
 - le dashboard free est coherent sans installateur
-- les opportunites free ne dependent plus de `seo_pages`
 - les pages client ne fuitent plus les concepts moteur
 - le deploiement frontend VPS est fiable
 - les flux GSC critiques sont testes de bout en bout

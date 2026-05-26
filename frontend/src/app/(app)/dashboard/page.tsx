@@ -62,7 +62,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen">
       <Topbar
-        title="Dashboard client"
+        title="Vue d'ensemble SEO"
         subtitle="Votre cockpit client PraeviSEO : performances GSC, indexation Google et prochaines actions utiles."
         lastSync={backendLive ? "backend live" : "mode démonstration"}
         actions={
@@ -307,9 +307,9 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Activité optimisation</CardTitle>
+              <CardTitle>Recommandations récentes</CardTitle>
               <CardDescription>
-                Les dernières suggestions réellement ouvertes par le moteur.
+                Les dernières recommandations déjà ouvertes à partir des signaux Google Search Console.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

@@ -32,10 +32,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
       ? site.readiness.gsc_connected
-        ? "Débloquer l’automatisation PraeviSEO"
-        : "Installer PraeviSEO sur votre site"
+        ? "Activer l’automatisation premium"
+        : "Activer la couche premium"
       : site.next_action.kind === "installation_requested"
-        ? "PraeviSEO prépare votre activation"
+        ? "Automatisation premium en préparation"
       : site.next_action.label;
   const nextActionDetail =
     site.next_action.kind === "connect_bridge"
@@ -46,7 +46,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     <div className="min-h-screen">
       <Topbar
         title={site.name}
-        subtitle="Vue client : analyse GSC, activation du site et prochaines actions utiles."
+        subtitle="Vue client : performances GSC, indexation et prochaines actions utiles."
         lastSync={backendLive ? "backend live" : "données de démonstration"}
         actions={
           <Button href={getSiteConnectPath(site.site_id)} size="sm">
@@ -78,17 +78,17 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <Sparkles className="w-3.5 h-3.5" />
-                  {site.summary.pending_suggestions} suggestion(s) pending
+                  {site.summary.pending_suggestions} priorite(s) ouverte(s)
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {site.summary.pages_live} page(s) live
+                  {site.summary.gsc_indexed_pages} page(s) indexee(s)
                 </span>
               </div>
             </div>
               <div className="flex flex-wrap gap-2">
                 <Button href={getSiteConnectPath(site.site_id)}>
-                  {site.readiness.gsc_connected ? getPraeviseoActivationLabel(site) : "Télécharger l’installateur"}
+                  {site.readiness.gsc_connected ? "Voir la configuration" : "Connecter Search Console"}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -97,7 +97,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Pages moteur", site.summary.pages_total],
+            ["Pages indexees", site.summary.gsc_indexed_pages],
             ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
             ["Impressions GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)],
             ["CTR GSC", new Intl.NumberFormat("fr-FR", {
@@ -151,7 +151,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.gsc_property_url
                     ? `Propriété reliée : ${site.gsc_property_url}`
-                    : "Reliez la propriété Search Console pour que le moteur détecte les opportunités réelles."}
+                    : "Reliez la propriété Search Console pour que PraeviSEO détecte les opportunités, tendances et priorités réelles."}
                 </p>
                 <div className="mt-4">
                   <Button href={`/sites/${site.site_id}/search-console`} variant="secondary">
@@ -195,9 +195,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               <div className="space-y-3">
                 {[
                   "Google Search Console déjà relié",
-                  "Performances et indexation déjà analysées",
-                  "Activation du site pour débloquer l automatisation",
-                  "Monitoring avancé et publications ensuite",
+                  "Performances, indexation et opportunités déjà analysées",
+                  "Le free reste utile sans aucune installation",
+                  "La couche premium sert ensuite uniquement à exécuter des actions avancées",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-muted">
                     <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
