@@ -14,6 +14,7 @@ use App\RemoteInstallation\RemoteCommand;
 use App\RemoteInstallation\Strategies\InstallerStrategy;
 use App\RemoteInstallation\Strategies\LaravelInstallerStrategy;
 use App\RemoteInstallation\Strategies\SymfonyInstallerStrategy;
+use App\RemoteInstallation\Strategies\WordPressInstallerStrategy;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -135,7 +136,7 @@ class RemoteInstallationService
     {
         $normalizedHint = Str::lower(trim($hint));
 
-        if (in_array($normalizedHint, ['laravel', 'symfony'], true)) {
+        if (in_array($normalizedHint, ['laravel', 'symfony', 'wordpress'], true)) {
             return $normalizedHint;
         }
 
@@ -148,13 +149,11 @@ class RemoteInstallationService
         }
 
         if ($connector->fileExists($projectPath.'/wp-config.php')) {
-            throw RemoteInstallationException::unsupported(
-                'Le support WordPress distant n est pas encore activé automatiquement sur cette version.'
-            );
+            return 'wordpress';
         }
 
         throw RemoteInstallationException::detection(
-            'PraeviSEO n a pas reconnu automatiquement Laravel ou Symfony dans ce dossier.'
+            'PraeviSEO n a pas reconnu automatiquement Laravel, Symfony ou WordPress dans ce dossier.'
         );
     }
 
@@ -163,6 +162,7 @@ class RemoteInstallationService
         return match ($framework) {
             'laravel' => new LaravelInstallerStrategy(),
             'symfony' => new SymfonyInstallerStrategy(),
+            'wordpress' => new WordPressInstallerStrategy(),
             default => throw RemoteInstallationException::unsupported(
                 'PraeviSEO ne sait pas encore installer automatiquement ce framework.'
             ),
