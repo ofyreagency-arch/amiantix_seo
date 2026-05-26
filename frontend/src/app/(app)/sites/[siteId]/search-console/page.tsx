@@ -63,7 +63,7 @@ export default async function SiteSearchConsolePage({
     <div className="min-h-screen">
       <Topbar
         title={`Search Console · ${site.name}`}
-        subtitle="Connectez votre Google, choisissez la bonne propriété, puis laissez PraeviSEO lancer la synchronisation SEO automatiquement."
+        subtitle="Connectez votre Google, choisissez la bonne propriété, puis laissez PraeviSEO alimenter votre cockpit SEO free."
       />
 
       <div className="p-6 space-y-6">
@@ -75,8 +75,7 @@ export default async function SiteSearchConsolePage({
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">Connecter Google Search Console</h1>
               <p className="mt-2 text-sm text-text-muted leading-7">
-                PraeviSEO gère la partie technique en arrière-plan. Le client se contente de connecter Google
-                puis de choisir la propriété du site.
+                Une fois Google relié, PraeviSEO peut déjà suivre les performances, l indexation, les opportunités et les priorités SEO du site.
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[260px]">
@@ -102,7 +101,7 @@ export default async function SiteSearchConsolePage({
               <CardDescription>
                 {isConnected
                   ? "Votre site remonte déjà des informations Search Console. Vous pouvez changer de propriété si besoin."
-                  : "Le flow client doit ressembler à un SaaS classique : connecter Google, choisir la propriété, puis laisser PraeviSEO faire le reste."}
+                  : "Le client connecte Google, choisit la propriété, puis PraeviSEO transforme déjà ces signaux en lecture SEO utile."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

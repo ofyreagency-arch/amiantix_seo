@@ -150,7 +150,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <div className="mt-2 text-sm font-semibold text-text">{formatGscStatus(site.gsc_connection_status)}</div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.gsc_property_url
-                    ? `Propriété reliée : ${site.gsc_property_url}`
+                    ? `Propriété reliée : ${site.gsc_property_url}. PraeviSEO suit déjà ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions, ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics et ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_indexed_pages)} page(s) indexée(s) sur la fenêtre récente.`
                     : "Reliez la propriété Search Console pour que PraeviSEO détecte les opportunités, tendances et priorités réelles."}
                 </p>
                 <div className="mt-4">
@@ -198,6 +198,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   "Performances, indexation et opportunités déjà analysées",
                   "Le free reste utile sans aucune installation",
                   "La couche premium sert ensuite uniquement à exécuter des actions avancées",
+                  "Le cockpit revient déjà avec des priorités, tendances et recommandations lisibles",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-muted">
                     <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />

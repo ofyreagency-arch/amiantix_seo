@@ -31,6 +31,20 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
 export default async function OptimizationsPage() {
   const optimizations = await getOptimizations();
   const opportunities = optimizations.gsc_opportunities.items;
+  const summarySignals = [
+    optimizations.gsc_opportunities.summary.near_top_10 > 0
+      ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
+      : null,
+    optimizations.gsc_opportunities.summary.low_ctr > 0
+      ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) ont un CTR à relancer`
+      : null,
+    optimizations.gsc_opportunities.summary.emerging_queries > 0
+      ? `${optimizations.gsc_opportunities.summary.emerging_queries} requête(s) progressent rapidement`
+      : null,
+    optimizations.gsc_opportunities.summary.sustained_drop > 0
+      ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilité`
+      : null,
+  ].filter((item): item is string => item !== null);
 
   return (
     <div className="min-h-screen">
@@ -66,6 +80,23 @@ export default async function OptimizationsPage() {
               </CardHeader>
             </Card>
           ))}
+        </div>
+
+        <div className="rounded-2xl border border-border bg-surface px-5 py-4">
+          <div className="text-sm font-semibold text-text">Ce que PraeviSEO voit dans Google en ce moment</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {summarySignals.length === 0 ? (
+              <div className="text-sm text-text-muted">
+                Aucun signal fort supplémentaire pour le moment. Le cockpit continue de surveiller les prochains imports GSC.
+              </div>
+            ) : (
+              summarySignals.map((item) => (
+                <span key={item} className="rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+                  {item}
+                </span>
+              ))
+            )}
+          </div>
         </div>
 
         <Card>

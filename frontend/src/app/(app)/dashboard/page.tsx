@@ -21,11 +21,26 @@ export default async function DashboardPage() {
   const optimizations = await getOptimizations();
   const publications = await getPublications();
   const backendLive = hasBackendConnection();
+  const gscConnectedSites = dashboard.sites.filter((site) => site.readiness.gsc_connected).length;
   const prioritySites = dashboard.sites
     .filter((site) => site.next_action.priority !== "low")
     .slice(0, 3);
   const recentPublications = publications.items.slice(0, 3);
   const recentOptimizations = optimizations.items.slice(0, 3);
+  const insightSignals = [
+    optimizations.gsc_opportunities.summary.near_top_10 > 0
+      ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
+      : null,
+    optimizations.gsc_opportunities.summary.low_ctr > 0
+      ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) ont un CTR a relancer`
+      : null,
+    optimizations.gsc_opportunities.summary.emerging_queries > 0
+      ? `${optimizations.gsc_opportunities.summary.emerging_queries} requete(s) progressent rapidement`
+      : null,
+    optimizations.gsc_opportunities.summary.sustained_drop > 0
+      ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilite`
+      : null,
+  ].filter((item): item is string => item !== null);
 
   const priorityHref = (site: (typeof dashboard.sites)[number]) => {
     if (site.next_action.kind === "connect_gsc") {
@@ -83,9 +98,8 @@ export default async function DashboardPage() {
                 PraeviSEO analyse déjà votre SEO avec Google
               </h1>
               <p className="mt-2 text-sm text-text-muted leading-7">
-                Sans installer quoi que ce soit, PraeviSEO lit déjà Google Search Console pour suivre les
-                performances, l indexation et les opportunités SEO. L activation sur le site débloque ensuite
-                l automatisation, les publications et le monitoring avancé.
+                Sans installer quoi que ce soit, PraeviSEO transforme déjà Google Search Console en priorités,
+                opportunités, recommandations et signaux utiles à suivre régulièrement.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -128,10 +142,10 @@ export default async function DashboardPage() {
               hint: "calculé sur les clics et impressions GSC sur 28 jours",
             },
             {
-              label: "Pages observées",
-              value: dashboard.totals.observedPages,
+              label: "Sites GSC actifs",
+              value: gscConnectedSites,
               icon: SearchCheck,
-              hint: "couche monitoring crawl réel",
+              hint: "sites dont les données GSC alimentent déjà le cockpit",
             },
             {
               label: "Pages indexées",
@@ -172,7 +186,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Sites suivis</CardTitle>
               <CardDescription>
-                Vos sites, leur analyse SEO actuelle via Google Search Console et la prochaine étape pour aller plus loin.
+                Vos sites, leur lecture SEO actuelle via Google Search Console et les prochains gains visibles.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -238,7 +252,7 @@ export default async function DashboardPage() {
             <CardContent className="space-y-4">
               {prioritySites.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun blocage fort en ce moment. Le moteur est surtout en phase de monitoring.
+                  Aucun blocage fort en ce moment. PraeviSEO continue de surveiller les signaux GSC utiles.
                 </div>
               ) : (
                 prioritySites.map((site) => (
@@ -252,10 +266,10 @@ export default async function DashboardPage() {
                     <p className="mt-2 text-sm text-text">
                       {site.next_action.kind === "connect_bridge"
                         ? site.readiness.gsc_connected
-                          ? "Débloquer l’automatisation PraeviSEO"
-                          : "Installer PraeviSEO sur votre site"
+                          ? "Activer l automatisation premium"
+                          : "Connecter Google Search Console"
                         : site.next_action.kind === "installation_requested"
-                          ? "PraeviSEO prépare votre activation"
+                          ? "Automatisation premium en preparation"
                           : site.next_action.label}
                     </p>
                     <p className="mt-2 text-sm text-text-muted leading-6">
@@ -264,8 +278,8 @@ export default async function DashboardPage() {
                     {site.next_action.kind === "connect_bridge" || site.next_action.kind === "installation_requested" ? (
                       <p className="mt-2 text-sm text-text-muted leading-6">
                         {site.readiness.gsc_connected
-                          ? "Google est déjà branché. Cette étape sert maintenant à laisser PraeviSEO agir directement sur votre site."
-                          : "Commencez par connecter Google Search Console si vous voulez d abord obtenir une lecture SEO utile sans activation technique."}
+                          ? "Google est déjà branché. Cette étape sert seulement à laisser PraeviSEO agir directement sur votre site."
+                          : "Commencez par connecter Google Search Console pour débloquer les premières opportunités et priorités SEO."}
                       </p>
                     ) : null}
                     <div className="mt-3">
@@ -297,11 +311,33 @@ export default async function DashboardPage() {
                       <p className="text-xs text-text-subtle">{item.site_id}</p>
                     </div>
                     <Badge variant={item.published_live ? "success" : "secondary"}>
-                      {item.published_live ? "live" : "moteur"}
+                      {item.published_live ? "visible sur le site" : "en preparation"}
                     </Badge>
                   </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Signaux GSC à surveiller</CardTitle>
+              <CardDescription>
+                Les mouvements utiles déjà détectés par PraeviSEO à partir des données Google les plus récentes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {insightSignals.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun signal fort à surveiller pour le moment. Le cockpit continue de lire Google au fil des prochains imports.
+                </div>
+              ) : (
+                insightSignals.map((item) => (
+                  <div key={item} className="rounded-xl border border-border px-4 py-3 text-sm text-text">
+                    {item}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
