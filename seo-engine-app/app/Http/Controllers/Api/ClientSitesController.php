@@ -532,7 +532,8 @@ class ClientSitesController extends Controller
             ? (clone $pageQuery)->where('published_live', true)->count()
             : 0;
         $pendingSuggestions = (clone $suggestionQuery)->where('status', 'pending')->count();
-        $gscConnected = $site->resolvedGscConnectionStatus() === 'connected';
+        $gscStatus = $site->resolvedGscConnectionStatus();
+        $gscConnected = in_array($gscStatus, ['configured', 'connected', 'connected_empty'], true);
         $bridgeConnected = $site->publicationBridgeStatus() === 'connected';
 
         return [

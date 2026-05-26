@@ -1057,8 +1057,8 @@ export function formatGscStatus(status: string): string {
   return (
     {
       connected: "Connectée",
-      connected_empty: "Connectée sans données",
-      configured: "Configurée",
+      connected_empty: "Connectée",
+      configured: "Connectée",
       not_connected: "Non reliée",
       error: "Erreur de synchronisation",
     }[status] ?? formatRelativeStatus(status)

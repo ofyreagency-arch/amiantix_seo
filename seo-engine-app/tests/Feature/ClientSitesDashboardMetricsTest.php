@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Models\SeoSiteGoogleConnection;
 use App\Models\User;
 use App\Models\UserAccessToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,5 +75,45 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertJsonPath('sites.0.summary.gsc_clicks', 9);
         $response->assertJsonPath('sites.0.summary.gsc_impressions', 20);
         $response->assertJsonPath('sites.0.summary.gsc_ctr', 0.45);
+    }
+
+    public function test_client_sites_mark_gsc_as_connected_when_property_is_configured(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSiteGoogleConnection::query()->create([
+            'site_id' => $site->site_id,
+            'connection_mode' => 'oauth',
+            'property_url' => 'sc-domain:amiantix.com',
+            'connection_status' => 'configured',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/sites');
+
+        $response->assertOk();
+        $response->assertJsonPath('sites.0.gsc_connection_status', 'configured');
+        $response->assertJsonPath('sites.0.readiness.gsc_connected', true);
     }
 }

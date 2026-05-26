@@ -195,7 +195,7 @@ export default async function DashboardPage() {
                       </span>
                       <span>{site.summary.gsc_indexed_pages} page(s) indexée(s)</span>
                       <span>{site.summary.observed_pages} page(s) observée(s)</span>
-                      <span>{site.gsc_connection_status === "connected" ? "GSC reliée" : "GSC non reliée"}</span>
+                      <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
