@@ -15,6 +15,7 @@ import {
   getSitePath,
   hasBackendConnection,
 } from "@/lib/praeviseo-api";
+import { formatDate } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles, Waves } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -81,6 +82,47 @@ export default async function DashboardPage() {
       meta: `${item.site_id} · activité contenu`,
     })),
   ].slice(0, 6);
+  const timelineFeed = [
+    ...dashboard.sites
+      .filter((site) => site.gsc_last_sync_at)
+      .map((site) => ({
+        id: `sync-${site.site_id}`,
+        title: `${site.name} relu par Google`,
+        detail:
+          site.summary.gsc_delta_impressions > 0
+            ? `+${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions sur la dernière période suivie.`
+            : site.summary.gsc_delta_impressions < 0
+              ? `${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions sur la dernière période suivie.`
+              : "Volume d’impressions stable sur la dernière période suivie.",
+        badge: "Import GSC",
+        badgeVariant:
+          site.summary.gsc_delta_impressions < 0 ? "danger" : site.summary.gsc_delta_impressions > 0 ? "success" : "secondary",
+        meta: formatDate(site.gsc_last_sync_at as string),
+        timestamp: new Date(site.gsc_last_sync_at as string).getTime(),
+      })),
+    ...recentOptimizations.map((item) => ({
+      id: `timeline-optimization-${item.id}`,
+      title: item.page.title,
+      detail: item.summary,
+      badge: item.status === "pending" ? "Reco ouverte" : "Reco suivie",
+      badgeVariant: item.status === "pending" ? "warning" : "secondary",
+      meta: item.created_at ? formatDate(item.created_at) : "Récemment",
+      timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
+    })),
+    ...recentPublications.map((item) => ({
+      id: `timeline-publication-${item.id}`,
+      title: item.title,
+      detail: item.published_live
+        ? "Le contenu est déjà visible sur le site."
+        : "Le contenu reste prêt côté PraeviSEO.",
+      badge: item.published_live ? "Visible" : "Préparé",
+      badgeVariant: item.published_live ? "success" : "secondary",
+      meta: item.published_at ? formatDate(item.published_at) : "Récemment",
+      timestamp: item.published_at ? new Date(item.published_at).getTime() : 0,
+    })),
+  ]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 6);
   const insightSignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
@@ -653,16 +695,16 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Activité SEO récente</CardTitle>
               <CardDescription>
-                Le feed le plus vivant du cockpit : opportunités, recommandations et mouvements détectés par PraeviSEO.
+                Le feed chronologique du cockpit : imports Google, recommandations et mouvements visibles.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {activityFeed.length === 0 ? (
+              {timelineFeed.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Le feed se remplira automatiquement dès les prochains imports GSC et les prochaines recommandations.
                 </div>
               ) : (
-                activityFeed.map((item) => (
+                timelineFeed.map((item) => (
                   <div key={item.id} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>

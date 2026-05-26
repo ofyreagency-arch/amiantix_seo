@@ -4,6 +4,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOptimizations } from "@/lib/praeviseo-api";
+import { formatDate } from "@/lib/utils";
 
 function opportunityTypeLabel(type: string): string {
   return (
@@ -87,6 +88,28 @@ export default async function OptimizationsPage() {
       tone: optimizations.gsc_opportunities.summary.sustained_drop > 0 ? "danger" : "secondary",
     },
   ] as const;
+  const timelineFeed = [
+    ...opportunities.slice(0, 4).map((item) => ({
+      id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
+      title: item.label,
+      detail: item.reason,
+      badge: item.action_state_label,
+      badgeVariant: item.action_state === "ready" ? "success" : item.action_state === "pending" ? "warning" : "secondary",
+      meta: `${item.site_name} · signal Google récent`,
+      timestamp: 0,
+    })),
+    ...optimizations.items.slice(0, 4).map((item) => ({
+      id: `optimization-${item.id}`,
+      title: item.page.title,
+      detail: item.summary,
+      badge: item.status === "pending" ? "Reco ouverte" : "Reco suivie",
+      badgeVariant: item.status === "pending" ? "warning" : "secondary",
+      meta: item.created_at ? formatDate(item.created_at) : "Récemment",
+      timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
+    })),
+  ]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 6);
 
   return (
     <div className="min-h-screen">
@@ -261,35 +284,29 @@ export default async function OptimizationsPage() {
             <CardHeader>
               <CardTitle>Activité SEO</CardTitle>
               <CardDescription>
-                Les dernières recommandations déjà ouvertes, pour garder une sensation de mouvement quotidien.
+                Le feed chronologique des opportunités et recommandations déjà visibles dans PraeviSEO.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {optimizations.items.length === 0 ? (
+              {timelineFeed.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Aucune recommandation récente pour le moment. PraeviSEO remplira ce feed au prochain cycle utile.
                 </div>
               ) : (
-                optimizations.items.map((item) => (
+                timelineFeed.map((item) => (
                   <div key={item.id} className="rounded-xl border border-border p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2 justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-text">{item.page.title}</p>
-                        <p className="text-xs text-text-subtle">
-                          {item.page.site_id} / {item.page.slug || "/"}
-                        </p>
+                        <p className="text-sm font-semibold text-text">{item.title}</p>
+                        <p className="text-xs text-text-subtle">{item.meta}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={item.status === "pending" ? "warning" : item.status === "applied" ? "success" : "secondary"}>
-                          {item.status}
+                        <Badge variant={item.badgeVariant as "warning" | "secondary" | "success"}>
+                          {item.badge}
                         </Badge>
-                        <Badge variant="brand-subtle">{item.source}</Badge>
                       </div>
                     </div>
-                    <p className="text-sm text-text-muted">{item.summary}</p>
-                    <div className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-subtle">
-                      Impact attendu : {item.impact_expected}
-                    </div>
+                    <p className="text-sm text-text-muted">{item.detail}</p>
                   </div>
                 ))
               )}

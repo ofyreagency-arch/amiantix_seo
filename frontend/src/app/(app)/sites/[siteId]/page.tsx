@@ -16,6 +16,7 @@ import {
   getSiteConnectPath,
   hasBackendConnection,
 } from "@/lib/praeviseo-api";
+import { formatDate } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles } from "lucide-react";
 
 interface SiteDetailPageProps {
@@ -50,6 +51,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     ...site.summary.top_rising_pages.map((item) => ({ ...item, trend: "up" as const })),
     ...site.summary.top_falling_pages.map((item) => ({ ...item, trend: "down" as const })),
   ].slice(0, 4);
+  const siteRecommendations = optimizations.items.filter((item) => item.page.site_id === site.site_id).slice(0, 3);
   const activityFeed = [
     ...siteOpportunities.map((item) => ({
       id: `site-opportunity-${item.slug}-${item.type}`,
@@ -60,6 +62,36 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       meta: item.action,
     })),
   ].slice(0, 4);
+  const timelineFeed = [
+    ...(site.gsc_last_sync_at
+      ? [{
+          id: `site-sync-${site.site_id}`,
+          title: "Google a relu ce site",
+          detail:
+            site.summary.gsc_delta_impressions > 0
+              ? `+${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions depuis la période précédente.`
+              : site.summary.gsc_delta_impressions < 0
+                ? `${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions depuis la période précédente.`
+                : "Le volume d’impressions reste stable sur la période suivie.",
+          badge: "Import GSC",
+          badgeVariant:
+            site.summary.gsc_delta_impressions < 0 ? "danger" : site.summary.gsc_delta_impressions > 0 ? "success" : "secondary",
+          meta: formatDate(site.gsc_last_sync_at),
+          timestamp: new Date(site.gsc_last_sync_at).getTime(),
+        }]
+      : []),
+    ...siteRecommendations.map((item) => ({
+      id: `site-reco-${item.id}`,
+      title: item.page.title,
+      detail: item.summary,
+      badge: item.status === "pending" ? "Reco ouverte" : "Reco suivie",
+      badgeVariant: item.status === "pending" ? "warning" : "secondary",
+      meta: item.created_at ? formatDate(item.created_at) : "Récemment",
+      timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
+    })),
+  ]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 5);
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
       ? site.readiness.gsc_connected
@@ -503,23 +535,23 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardHeader>
               <CardTitle>Activité SEO récente</CardTitle>
               <CardDescription>
-                Le feed vivant de ce site : opportunités, alertes et recommandations déjà visibles dans PraeviSEO.
+                Le feed chronologique de ce site : imports Google et recommandations déjà visibles dans PraeviSEO.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {activityFeed.length === 0 ? (
+              {timelineFeed.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Aucune activité forte pour le moment. Les prochains signaux Google feront vivre ce fil automatiquement.
                 </div>
               ) : (
-                activityFeed.map((item) => (
+                timelineFeed.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-text">{item.title}</div>
                         <div className="text-xs text-text-subtle">{item.meta}</div>
                       </div>
-                      <Badge variant={item.badgeVariant as "warning" | "secondary"}>
+                      <Badge variant={item.badgeVariant as "warning" | "secondary" | "success"}>
                         {item.badge}
                       </Badge>
                     </div>
