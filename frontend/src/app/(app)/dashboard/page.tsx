@@ -1,13 +1,13 @@
-import Link from "next/link";
 import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  formatPraeviseoStatus,
+  getPraeviseoActivationLabel,
+  getPraeviseoClientDetail,
+  getPraeviseoClientStatus,
   formatSitePlatform,
   getDashboard,
-  getPraeviseoInstallDetail,
   getOptimizations,
   getPublications,
   getSiteConnectPath,
@@ -45,11 +45,11 @@ export default async function DashboardPage() {
     }
 
     if (site.next_action.kind === "connect_bridge") {
-      return "Installer PraeviSEO";
+      return site.readiness.gsc_connected ? "Activer l’automatisation" : "Installer PraeviSEO";
     }
 
     if (site.next_action.kind === "installation_requested") {
-      return "Suivre l’installation";
+      return "Suivre l’activation";
     }
 
     return "Ouvrir la fiche site";
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen">
       <Topbar
         title="Dashboard client"
-        subtitle="Votre cockpit client PraeviSEO : sites connectés, Google Search Console et prochaines actions."
+        subtitle="Votre cockpit client PraeviSEO : performances GSC, indexation Google et prochaines actions utiles."
         lastSync={backendLive ? "backend live" : "mode démonstration"}
         actions={
           <Button href="/sites/new" size="sm">
@@ -80,11 +80,12 @@ export default async function DashboardPage() {
                 {backendLive ? "Backend relié" : "Mode démonstration"}
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">
-                Un vrai espace client, séparé du copilote admin
+                PraeviSEO analyse déjà votre SEO avec Google
               </h1>
               <p className="mt-2 text-sm text-text-muted leading-7">
-                Ici, le client voit ses sites, ses connexions, ses prochaines actions et ses installateurs.
-                L’admin interne garde le moteur et les diagnostics avancés.
+                Sans installer quoi que ce soit, PraeviSEO lit déjà Google Search Console pour suivre les
+                performances, l indexation et les opportunités SEO. L activation sur le site débloque ensuite
+                l automatisation, les publications et le monitoring avancé.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -171,7 +172,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Sites suivis</CardTitle>
               <CardDescription>
-                Vos sites, leur état d’activation PraeviSEO, leur statut Search Console et la prochaine action recommandée.
+                Vos sites, leur analyse SEO actuelle via Google Search Console et la prochaine étape pour aller plus loin.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -189,7 +190,7 @@ export default async function DashboardPage() {
                       <h3 className="text-base font-semibold text-text">{site.name}</h3>
                       <Badge variant="secondary">{formatSitePlatform(site.publication_mode)}</Badge>
                       <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
-                        {formatPraeviseoStatus(site.publication_bridge_status)}
+                        {getPraeviseoClientStatus(site)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{site.url}</p>
@@ -219,7 +220,7 @@ export default async function DashboardPage() {
                       Ouvrir
                     </Button>
                     <Button href={getSiteConnectPath(site.site_id)} size="sm">
-                      {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Installer PraeviSEO"}
+                      {getPraeviseoActivationLabel(site)}
                     </Button>
                   </div>
                 </div>
@@ -250,14 +251,22 @@ export default async function DashboardPage() {
                     </div>
                     <p className="mt-2 text-sm text-text">
                       {site.next_action.kind === "connect_bridge"
-                        ? "Installer PraeviSEO sur votre site"
+                        ? site.readiness.gsc_connected
+                          ? "Débloquer l’automatisation PraeviSEO"
+                          : "Installer PraeviSEO sur votre site"
                         : site.next_action.kind === "installation_requested"
-                          ? "PraeviSEO prépare votre installation"
+                          ? "PraeviSEO prépare votre activation"
                           : site.next_action.label}
                     </p>
-                    <p className="mt-2 text-sm text-text-muted leading-6">{site.next_action.detail}</p>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {site.next_action.kind === "connect_bridge" ? getPraeviseoClientDetail(site) : site.next_action.detail}
+                    </p>
                     {site.next_action.kind === "connect_bridge" || site.next_action.kind === "installation_requested" ? (
-                      <p className="mt-2 text-sm text-text-muted leading-6">{getPraeviseoInstallDetail(site)}</p>
+                      <p className="mt-2 text-sm text-text-muted leading-6">
+                        {site.readiness.gsc_connected
+                          ? "Google est déjà branché. Cette étape sert maintenant à laisser PraeviSEO agir directement sur votre site."
+                          : "Commencez par connecter Google Search Console si vous voulez d abord obtenir une lecture SEO utile sans activation technique."}
+                      </p>
                     ) : null}
                     <div className="mt-3">
                       <Button href={priorityHref(site)} variant="secondary" size="sm">

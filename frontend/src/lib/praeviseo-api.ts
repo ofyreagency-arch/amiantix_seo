@@ -1103,6 +1103,20 @@ export function formatPraeviseoStatus(status: string): string {
   return "PraeviSEO non installé";
 }
 
+export function getPraeviseoClientStatus(
+  site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
+): string {
+  if (site.publication_bridge_status === "connected") {
+    return "PraeviSEO actif";
+  }
+
+  if (site.publication_bridge_status === "requested") {
+    return "Automatisation en préparation";
+  }
+
+  return site.readiness.gsc_connected ? "Analyse GSC active" : "PraeviSEO à activer";
+}
+
 export function isInstallationInProgress(status: string): boolean {
   return ["requested", "pending", "connecting", "detecting_environment", "installing", "configuring", "activating"].includes(
     status
@@ -1127,4 +1141,36 @@ export function getPraeviseoInstallDetail(site: Pick<PraeviseoSite, "publication
   return site.publication_bridge_status === "connected"
     ? "Le monitoring SEO, les publications et les optimisations PraeviSEO sont maintenant actifs sur votre site."
     : "Installez PraeviSEO pour activer le monitoring SEO, les optimisations automatiques, les publications et l’analyse du site.";
+}
+
+export function getPraeviseoClientDetail(
+  site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
+): string {
+  if (site.publication_bridge_status === "connected") {
+    return "PraeviSEO pilote maintenant le monitoring SEO, les optimisations et les publications directement sur votre site.";
+  }
+
+  if (site.publication_bridge_status === "requested") {
+    return "Vos accès ont bien été enregistrés. PraeviSEO prépare maintenant l activation du site et l automatisation du monitoring SEO.";
+  }
+
+  if (site.readiness.gsc_connected) {
+    return "PraeviSEO analyse déjà vos performances, vos requêtes et votre indexation via Google Search Console. L activation sur le site débloque ensuite l automatisation.";
+  }
+
+  return "Commencez par connecter Google Search Console pour activer l analyse SEO, puis activez PraeviSEO sur le site pour automatiser.";
+}
+
+export function getPraeviseoActivationLabel(
+  site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
+): string {
+  if (site.publication_bridge_status === "requested") {
+    return "Suivre l’activation";
+  }
+
+  if (site.publication_bridge_status === "connected") {
+    return "PraeviSEO actif";
+  }
+
+  return site.readiness.gsc_connected ? "Activer l’automatisation" : "Installer PraeviSEO";
 }

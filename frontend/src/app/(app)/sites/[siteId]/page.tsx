@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   formatGscStatus,
-  formatPraeviseoStatus,
   formatSitePlatform,
-  getPraeviseoInstallDetail,
+  getPraeviseoActivationLabel,
+  getPraeviseoClientDetail,
+  getPraeviseoClientStatus,
   getPraeviseoInstallLabel,
   getSite,
   getSiteConnectPath,
@@ -30,24 +31,26 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const backendLive = hasBackendConnection();
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
-      ? "Installer PraeviSEO sur votre site"
+      ? site.readiness.gsc_connected
+        ? "Débloquer l’automatisation PraeviSEO"
+        : "Installer PraeviSEO sur votre site"
       : site.next_action.kind === "installation_requested"
-        ? "PraeviSEO prépare votre installation"
+        ? "PraeviSEO prépare votre activation"
       : site.next_action.label;
   const nextActionDetail =
     site.next_action.kind === "connect_bridge"
-      ? "Installez PraeviSEO pour activer le monitoring SEO, les optimisations automatiques, les publications et l’analyse du site."
+      ? getPraeviseoClientDetail(site)
       : site.next_action.detail;
 
   return (
     <div className="min-h-screen">
       <Topbar
         title={site.name}
-        subtitle="Vue client : publication, Search Console, installateur et prochaines actions."
+        subtitle="Vue client : analyse GSC, activation du site et prochaines actions utiles."
         lastSync={backendLive ? "backend live" : "données de démonstration"}
         actions={
           <Button href={getSiteConnectPath(site.site_id)} size="sm">
-            {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Installer PraeviSEO"}
+            {getPraeviseoActivationLabel(site)}
           </Button>
         }
       />
@@ -60,7 +63,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <h1 className="text-2xl font-bold tracking-tight text-text">{site.name}</h1>
                 <Badge variant="secondary">{formatSitePlatform(site.publication_mode)}</Badge>
                 <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
-                  {formatPraeviseoStatus(site.publication_bridge_status)}
+                  {getPraeviseoClientStatus(site)}
                 </Badge>
               </div>
               <p className="mt-3 text-sm text-text-muted">{site.url}</p>
@@ -85,7 +88,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             </div>
               <div className="flex flex-wrap gap-2">
                 <Button href={getSiteConnectPath(site.site_id)}>
-                  {site.publication_bridge_status === "requested" ? "Suivre l’installation" : "Télécharger l’installateur"}
+                  {site.readiness.gsc_connected ? getPraeviseoActivationLabel(site) : "Télécharger l’installateur"}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -126,17 +129,17 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">PraeviSEO</div>
                 <div className="mt-2 text-sm font-semibold text-text">
-                  {getPraeviseoInstallLabel(site)}
+                  {site.readiness.gsc_connected && site.publication_bridge_status !== "connected"
+                    ? "Analyse GSC déjà active"
+                    : getPraeviseoInstallLabel(site)}
                 </div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
-                  {getPraeviseoInstallDetail(site)}
+                  {getPraeviseoClientDetail(site)}
                 </p>
                 {site.publication_bridge_status !== "connected" ? (
                   <div className="mt-4">
                     <Button href={getSiteConnectPath(site.site_id)} variant="secondary">
-                      {site.publication_bridge_status === "requested"
-                        ? "Suivre l’installation"
-                        : "Activer PraeviSEO sur mon site"}
+                      {getPraeviseoActivationLabel(site)}
                     </Button>
                   </div>
                 ) : null}
@@ -180,9 +183,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               </div>
 
               <Button href={getSiteConnectPath(site.site_id)} className="w-full">
-                {site.publication_bridge_status === "requested"
-                  ? "Suivre l’installation"
-                  : "Activer PraeviSEO sur mon site"}
+                {getPraeviseoActivationLabel(site)}
               </Button>
 
               {!site.readiness.gsc_connected ? (
@@ -193,10 +194,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
               <div className="space-y-3">
                 {[
-                  "Installateur préparé pour ce site",
-                  "Téléchargement Windows / Linux / Mac",
-                  "Installation officielle PraeviSEO",
-                  "Monitoring SEO activé après l’installation",
+                  "Google Search Console déjà relié",
+                  "Performances et indexation déjà analysées",
+                  "Activation du site pour débloquer l automatisation",
+                  "Monitoring avancé et publications ensuite",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-muted">
                     <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
