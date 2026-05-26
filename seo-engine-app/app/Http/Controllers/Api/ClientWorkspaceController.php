@@ -6,7 +6,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
+use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
+use App\Runtime\GscOpportunityService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,11 +17,22 @@ use Illuminate\Validation\Rule;
 
 class ClientWorkspaceController extends Controller
 {
-    public function optimizations(Request $request): JsonResponse
+    public function optimizations(Request $request, GscOpportunityService $gscOpportunities): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $siteIds = $user->seoSites()->pluck('seo_sites.site_id');
+        $sites = $user->seoSites()
+            ->with('googleConnection')
+            ->select([
+                'seo_sites.id',
+                'seo_sites.site_id',
+                'seo_sites.name',
+                'seo_sites.url',
+                'seo_sites.gsc_site_url',
+                'seo_sites.gsc_credentials_path',
+            ])
+            ->get();
+        $siteIds = $sites->pluck('site_id');
 
         $suggestions = SeoSuggestion::query()
             ->with(['page'])
@@ -28,12 +41,69 @@ class ClientWorkspaceController extends Controller
             ->limit(24)
             ->get();
 
+        $opportunityPayloads = $sites
+            ->map(function (SeoSite $site) use ($gscOpportunities): array {
+                $payload = $gscOpportunities->summarize($site->site_id, $site->hasSearchConsoleConfigured());
+
+                return [
+                    'site' => $site,
+                    'summary' => is_array($payload['summary'] ?? null) ? $payload['summary'] : [],
+                    'items' => collect($payload['items'] ?? []),
+                ];
+            });
+
+        $opportunityItems = $opportunityPayloads
+            ->flatMap(function (array $payload): array {
+                /** @var SeoSite $site */
+                $site = $payload['site'];
+
+                return $payload['items']
+                    ->map(function (array $item) use ($site): array {
+                        return [
+                            'site_id' => $site->site_id,
+                            'site_name' => $site->name,
+                            'site_url' => $site->url,
+                            'type' => (string) ($item['type'] ?? ''),
+                            'label' => (string) ($item['label'] ?? ''),
+                            'slug' => (string) ($item['slug'] ?? ''),
+                            'page_id' => $item['page_id'] ?? null,
+                            'query' => isset($item['query']) ? (string) $item['query'] : null,
+                            'reason' => (string) ($item['reason'] ?? ''),
+                            'action' => (string) ($item['action'] ?? ''),
+                            'priority_level' => (string) ($item['priority_level'] ?? 'watch'),
+                            'priority_label' => (string) ($item['priority_label'] ?? 'A surveiller'),
+                            'priority_score' => (int) ($item['priority_score'] ?? 0),
+                            'action_state' => (string) ($item['action_state'] ?? 'ready'),
+                            'action_state_label' => (string) ($item['action_state_label'] ?? 'Actionnable maintenant'),
+                            'pending_suggestion' => (bool) ($item['pending_suggestion'] ?? false),
+                            'metrics' => is_array($item['metrics'] ?? null) ? $item['metrics'] : [],
+                        ];
+                    })
+                    ->all();
+            })
+            ->sortByDesc('priority_score')
+            ->values();
+
+        $opportunitySummary = [
+            'low_ctr' => (int) $opportunityPayloads->sum(fn (array $payload): int => (int) ($payload['summary']['low_ctr'] ?? 0)),
+            'near_top_10' => (int) $opportunityPayloads->sum(fn (array $payload): int => (int) ($payload['summary']['near_top_10'] ?? 0)),
+            'emerging_queries' => (int) $opportunityPayloads->sum(fn (array $payload): int => (int) ($payload['summary']['emerging_queries'] ?? 0)),
+            'sustained_drop' => (int) $opportunityPayloads->sum(fn (array $payload): int => (int) ($payload['summary']['sustained_drop'] ?? 0)),
+            'total' => $opportunityItems->count(),
+            'ready' => $opportunityItems->where('action_state', 'ready')->count(),
+            'high_priority' => $opportunityItems->where('priority_level', 'high')->count(),
+        ];
+
         return response()->json([
             'stats' => [
                 'pending' => $suggestions->where('status', 'pending')->count(),
                 'applied' => $suggestions->where('status', 'applied')->count(),
                 'rejected' => $suggestions->where('status', 'rejected')->count(),
                 'total' => $suggestions->count(),
+            ],
+            'gsc_opportunities' => [
+                'summary' => $opportunitySummary,
+                'items' => $opportunityItems->take(12)->all(),
             ],
             'items' => $suggestions->map(function (SeoSuggestion $suggestion): array {
                 $page = $suggestion->page;

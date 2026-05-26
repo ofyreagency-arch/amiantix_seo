@@ -48,6 +48,17 @@ Le produit doit raconter:
   - `Activer l automatisation`
 - la fiche site explique que Google apporte deja une vraie valeur SEO
 
+### 5. Vue Optimisations free branchee sur le moteur existant
+
+- la page `Optimisations` remonte maintenant les vraies opportunites GSC du backend
+- opportunites exposees:
+  - CTR faible
+  - proche du top 10
+  - requete emergente
+  - baisse durable
+- les suggestions moteur historiques restent visibles en second niveau
+- un test backend protege l endpoint client enrichi
+
 ## Ce que le free doit offrir
 
 Avec GSC seul, PraeviSEO doit deja fournir:
@@ -81,50 +92,45 @@ Avec GSC seul, PraeviSEO doit deja fournir:
 
 La prochaine brique produit a construire est:
 
-## Vue Opportunites Free
+## Vue Publications Free
 
 Objectif:
 
-- transformer les donnees GSC en actions compréhensibles pour un client lambda
+- montrer ce que PraeviSEO peut recommander ou produire ensuite a partir des signaux GSC
 
-Le dashboard actuel montre les chiffres.
+Le dashboard montre maintenant les chiffres.
+La page optimisations montre maintenant quoi faire.
 La suite doit montrer:
 
-- quoi faire
-- sur quelles pages
-- dans quel ordre
+- quelles pages ont deja une bonne traction
+- quelles pages meritent d etre poussees ou enrichies
+- quels contenus sont prets a devenir des actions editoriales
 
-### Bloc 1. Opportunites prioritaires
+### Bloc 1. Pages qui meritent une action editoriale
 
-Afficher une liste de cartes du type:
+Afficher des cartes du type:
 
-- pages proches du top 10
-- pages avec CTR faible
-- pages qui perdent des impressions
-- pages indexees sans traction
+- pages qui performent deja
+- pages qui montent
+- pages avec opportunite de refresh
+- pages qui peuvent nourrir une future publication
 
-### Bloc 2. Recommandation IA
+### Bloc 2. Interpretation simple
 
-Pour chaque opportunite:
+Pour chaque page:
 
-- titre du probleme
-- explication simple
-- impact estime
-- action suggeree
+- pourquoi elle compte
+- quel signal Google le justifie
+- quelle action editoriale est recommandee
 
-Exemples:
+### Bloc 3. Lien avec le moteur
 
-- "Votre page est proche du top 10"
-- "Votre CTR est faible par rapport a sa position"
-- "Cette page perd de la visibilite"
+La vue doit relier:
 
-### Bloc 3. Priorisation
-
-PraeviSEO doit indiquer:
-
-- priorite haute
-- gain potentiel
-- facilite estimee
+- performances GSC
+- opportunites
+- suggestions
+- futur travail editorial
 
 ### Bloc 4. CTA premium discret
 
@@ -136,10 +142,10 @@ Le CTA premium ne doit jamais ecraser la valeur gratuite.
 
 ## Ordre de travail recommande
 
-1. Construire la vue `Optimisations` version free
-2. Afficher les vraies opportunites GSC
-3. Ajouter une recommandation IA simple par opportunite
-4. Ensuite seulement enrichir `Publications`
+1. Dashboard free clair
+2. Vue `Optimisations` free branchee
+3. Enrichir `Publications`
+4. Puis ajouter alertes / tendances
 5. Ensuite revenir sur l installateur premium
 
 ## Definition de succes

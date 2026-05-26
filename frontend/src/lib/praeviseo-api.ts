@@ -96,12 +96,44 @@ export type PraeviseoOptimization = {
   };
 };
 
+export type PraeviseoGscOpportunity = {
+  site_id: string;
+  site_name: string;
+  site_url: string;
+  type: string;
+  label: string;
+  slug: string;
+  page_id: number | null;
+  query: string | null;
+  reason: string;
+  action: string;
+  priority_level: "high" | "medium" | "watch";
+  priority_label: string;
+  priority_score: number;
+  action_state: "ready" | "pending" | "cooldown";
+  action_state_label: string;
+  pending_suggestion: boolean;
+  metrics: Record<string, number | string>;
+};
+
 export type PraeviseoOptimizations = {
   stats: {
     pending: number;
     applied: number;
     rejected: number;
     total: number;
+  };
+  gsc_opportunities: {
+    summary: {
+      low_ctr: number;
+      near_top_10: number;
+      emerging_queries: number;
+      sustained_drop: number;
+      total: number;
+      ready: number;
+      high_priority: number;
+    };
+    items: PraeviseoGscOpportunity[];
   };
   items: PraeviseoOptimization[];
 };
@@ -332,6 +364,88 @@ const mockSites: PraeviseoSite[] = [
 
 const mockOptimizations: PraeviseoOptimizations = {
   stats: { pending: 2, applied: 3, rejected: 1, total: 6 },
+  gsc_opportunities: {
+    summary: {
+      low_ctr: 1,
+      near_top_10: 2,
+      emerging_queries: 1,
+      sustained_drop: 1,
+      total: 5,
+      ready: 3,
+      high_priority: 2,
+    },
+    items: [
+      {
+        site_id: "amiantix",
+        site_name: "Amiantix",
+        site_url: "https://amiantix.com",
+        type: "near_top_10",
+        label: "Diagnostic amiante en copropriete",
+        slug: "diagnostic-amiante-copropriete",
+        page_id: 11,
+        query: null,
+        reason: "La page est proche de la zone qui compte et peut gagner vite avec un refresh ciblé.",
+        action: "rafraichir la page",
+        priority_level: "high",
+        priority_label: "Priorite haute",
+        priority_score: 670,
+        action_state: "ready",
+        action_state_label: "Actionnable maintenant",
+        pending_suggestion: false,
+        metrics: {
+          impressions: 148,
+          ctr: 2.1,
+          position: 11.2,
+        },
+      },
+      {
+        site_id: "amiantix",
+        site_name: "Amiantix",
+        site_url: "https://amiantix.com",
+        type: "low_ctr",
+        label: "Qui sommes nous",
+        slug: "qui-sommes-nous",
+        page_id: 12,
+        query: null,
+        reason: "La page est visible dans Google mais trop peu de personnes cliquent.",
+        action: "relancer le CTR",
+        priority_level: "medium",
+        priority_label: "Gain rapide",
+        priority_score: 505,
+        action_state: "ready",
+        action_state_label: "Actionnable maintenant",
+        pending_suggestion: false,
+        metrics: {
+          impressions: 122,
+          ctr: 1.4,
+          position: 7.8,
+        },
+      },
+      {
+        site_id: "amiantix",
+        site_name: "Amiantix",
+        site_url: "https://amiantix.com",
+        type: "emerging_query",
+        label: "Guide repérage avant travaux",
+        slug: "guide-reperage-avant-travaux",
+        page_id: 13,
+        query: "repérage amiante avant travaux",
+        reason: "Une requête émergente mérite une réponse plus explicite dans la page.",
+        action: "creer une section utile",
+        priority_level: "watch",
+        priority_label: "A surveiller",
+        priority_score: 360,
+        action_state: "pending",
+        action_state_label: "Suggestion deja en attente",
+        pending_suggestion: true,
+        metrics: {
+          impressions: 28,
+          ctr: 3.8,
+          position: 12.4,
+        },
+      },
+    ],
+  },
   items: [
     {
       id: 1,
@@ -418,6 +532,18 @@ const mockSettings: PraeviseoSettings = {
 
 const emptyOptimizations: PraeviseoOptimizations = {
   stats: { pending: 0, applied: 0, rejected: 0, total: 0 },
+  gsc_opportunities: {
+    summary: {
+      low_ctr: 0,
+      near_top_10: 0,
+      emerging_queries: 0,
+      sustained_drop: 0,
+      total: 0,
+      ready: 0,
+      high_priority: 0,
+    },
+    items: [],
+  },
   items: [],
 };
 
