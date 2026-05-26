@@ -138,7 +138,7 @@
 
             <div class="actions">
                 <a class="primary" href="/admin/login">Accéder à l’espace interne</a>
-                <a class="secondary" href="http://localhost:3000">Ouvrir le site client</a>
+                <a class="secondary" href="{{ rtrim(config('app.url'), '/') }}/">Ouvrir le site client</a>
             </div>
 
             <div class="grid">

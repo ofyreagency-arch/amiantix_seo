@@ -3,8 +3,8 @@
 Architecture recommandee :
 
 - backend Laravel : `https://seo.amiantix.com`
-- frontend client Next.js : `https://app.amiantix.com`
-- reverse proxy Nginx : `app.amiantix.com -> 127.0.0.1:3000`
+- frontend client Next.js : `https://seo.amiantix.com`
+- reverse proxy Nginx : `seo.amiantix.com -> Next.js sur /` + `Laravel sur /admin et /api`
 
 ## 1. Preparer le dossier sur le VPS
 
@@ -85,7 +85,7 @@ Etat attendu :
 praeviseo-frontend RUNNING
 ```
 
-## 6. Publier avec Nginx
+## 6. Publier avec Nginx sur le meme domaine
 
 Copier le template :
 
@@ -116,7 +116,7 @@ curl -I http://127.0.0.1:3000
 Verifier publiquement :
 
 ```bash
-curl -I https://app.amiantix.com
+curl -I https://seo.amiantix.com
 ```
 
 ## 8. Mise a jour
@@ -134,5 +134,6 @@ supervisorctl restart praeviseo-frontend
 
 - Le frontend reste separe du backend Laravel.
 - Le frontend parle au backend via `PRAEVISEO_API_URL`.
-- Le client ouvre seulement `https://app.amiantix.com`.
-- Le backend continue a vivre sur `https://seo.amiantix.com`.
+- Le client ouvre `https://seo.amiantix.com/`.
+- L admin Laravel reste sur `https://seo.amiantix.com/admin`.
+- Les routes API Laravel restent sur `https://seo.amiantix.com/api/...`.
