@@ -75,6 +75,7 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertJsonPath('sites.0.summary.gsc_clicks', 9);
         $response->assertJsonPath('sites.0.summary.gsc_impressions', 20);
         $response->assertJsonPath('sites.0.summary.gsc_ctr', 0.45);
+        $response->assertJsonPath('sites.0.summary.gsc_indexation_synced', true);
     }
 
     public function test_client_sites_mark_gsc_as_connected_when_property_is_configured(): void
@@ -115,5 +116,52 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('sites.0.gsc_connection_status', 'configured');
         $response->assertJsonPath('sites.0.readiness.gsc_connected', true);
+    }
+
+    public function test_client_sites_detect_when_google_indexation_state_is_available(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'metric_date' => '2026-05-25',
+            'window_days' => 28,
+            'query' => null,
+            'url' => 'https://amiantix.com/page-a',
+            'clicks' => 11,
+            'impressions' => 36,
+            'ctr' => 0.306,
+            'position' => 5.8,
+            'is_indexed' => false,
+            'payload_json' => ['coverage_state' => 'Detected, currently not indexed'],
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/sites');
+
+        $response->assertOk();
+        $response->assertJsonPath('sites.0.summary.gsc_indexation_synced', true);
+        $response->assertJsonPath('sites.0.summary.gsc_indexed_pages', 0);
     }
 }

@@ -568,6 +568,7 @@ class ClientSitesController extends Controller
                 'gsc_clicks' => $gscSnapshot['clicks'],
                 'gsc_ctr' => $gscSnapshot['ctr'],
                 'gsc_indexed_pages' => $gscSnapshot['indexed_pages'],
+                'gsc_indexation_synced' => $gscSnapshot['indexed_pages_synced'],
             ],
             'readiness' => [
                 'bridge_connected' => $bridgeConnected,
@@ -587,7 +588,7 @@ class ClientSitesController extends Controller
     }
 
     /**
-     * @return array{impressions:float,clicks:float,ctr:float,indexed_pages:int}
+     * @return array{impressions:float,clicks:float,ctr:float,indexed_pages:int,indexed_pages_synced:bool}
      */
     private function searchConsoleSnapshot(string $siteId): array
     {
@@ -604,6 +605,7 @@ class ClientSitesController extends Controller
                 'clicks' => 0.0,
                 'ctr' => 0.0,
                 'indexed_pages' => 0,
+                'indexed_pages_synced' => false,
             ];
         }
 
@@ -635,12 +637,16 @@ class ClientSitesController extends Controller
         $impressions = $aggregateRow ? (float) $aggregateRow->impressions : (float) $deduplicatedRows->sum('impressions');
         $clicks = $aggregateRow ? (float) $aggregateRow->clicks : (float) $deduplicatedRows->sum('clicks');
         $ctr = $aggregateRow ? (float) $aggregateRow->ctr : ($impressions > 0 ? $clicks / $impressions : 0.0);
+        $indexedPagesSynced = $deduplicatedRows->contains(
+            fn (SeoSearchConsoleMetric $metric): bool => $metric->is_indexed !== null
+        );
 
         return [
             'impressions' => $impressions,
             'clicks' => $clicks,
             'ctr' => $ctr,
             'indexed_pages' => $deduplicatedRows->where('is_indexed', true)->count(),
+            'indexed_pages_synced' => $indexedPagesSynced,
         ];
     }
 

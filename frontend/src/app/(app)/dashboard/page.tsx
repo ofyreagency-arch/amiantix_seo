@@ -55,6 +55,10 @@ export default async function DashboardPage() {
     return "Ouvrir la fiche site";
   };
 
+  const indexedPagesValue = dashboard.totals.indexedPagesSynced
+    ? dashboard.totals.indexedPages
+    : "—";
+
   return (
     <div className="min-h-screen">
       <Topbar
@@ -130,9 +134,11 @@ export default async function DashboardPage() {
             },
             {
               label: "Pages indexées",
-              value: dashboard.totals.indexedPages,
+              value: indexedPagesValue,
               icon: CheckCircle2,
-              hint: "pages vues comme indexées dans GSC",
+              hint: dashboard.totals.indexedPagesSynced
+                ? "pages vues comme indexées dans GSC"
+                : "indexation Google pas encore synchronisée dans PraeviSEO",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -199,7 +205,11 @@ export default async function DashboardPage() {
                         }).format(site.summary.gsc_ctr)}{" "}
                         CTR
                       </span>
-                      <span>{site.summary.gsc_indexed_pages} page(s) indexée(s)</span>
+                      <span>
+                        {site.summary.gsc_indexation_synced
+                          ? `${site.summary.gsc_indexed_pages} page(s) indexée(s)`
+                          : "Indexation Google non synchronisée"}
+                      </span>
                       <span>{site.summary.observed_pages} page(s) observée(s)</span>
                       <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
                     </div>

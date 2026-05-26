@@ -53,6 +53,7 @@ export type PraeviseoSite = {
     gsc_clicks: number;
     gsc_ctr: number;
     gsc_indexed_pages: number;
+    gsc_indexation_synced: boolean;
   };
   readiness: {
     bridge_connected: boolean;
@@ -76,6 +77,7 @@ export type PraeviseoDashboard = {
     averageCtr: number;
     observedPages: number;
     indexedPages: number;
+    indexedPagesSynced: boolean;
   };
 };
 
@@ -249,6 +251,7 @@ const mockSites: PraeviseoSite[] = [
       gsc_clicks: 9,
       gsc_ctr: 0.45,
       gsc_indexed_pages: 14,
+      gsc_indexation_synced: true,
     },
     readiness: {
       bridge_connected: true,
@@ -310,6 +313,7 @@ const mockSites: PraeviseoSite[] = [
       gsc_clicks: 0,
       gsc_ctr: 0,
       gsc_indexed_pages: 0,
+      gsc_indexation_synced: false,
     },
     readiness: {
       bridge_connected: false,
@@ -545,6 +549,7 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       gsc_clicks: Number(summary.gsc_clicks ?? 0),
       gsc_ctr: Number(summary.gsc_ctr ?? 0),
       gsc_indexed_pages: Number(summary.gsc_indexed_pages ?? 0),
+      gsc_indexation_synced: Boolean(summary.gsc_indexation_synced ?? false),
     },
     readiness: {
       bridge_connected: Boolean((site.readiness as Record<string, unknown> | undefined)?.bridge_connected ?? false),
@@ -654,6 +659,7 @@ export async function getDashboard(): Promise<PraeviseoDashboard> {
       carry.clicks += site.summary.gsc_clicks;
       carry.observedPages += site.summary.observed_pages;
       carry.indexedPages += site.summary.gsc_indexed_pages;
+      carry.indexedPagesSynced = carry.indexedPagesSynced || site.summary.gsc_indexation_synced;
 
       return carry;
     },
@@ -662,6 +668,7 @@ export async function getDashboard(): Promise<PraeviseoDashboard> {
       clicks: 0,
       observedPages: 0,
       indexedPages: 0,
+      indexedPagesSynced: false,
     }
   );
 
@@ -673,6 +680,7 @@ export async function getDashboard(): Promise<PraeviseoDashboard> {
       averageCtr: totals.impressions > 0 ? totals.clicks / totals.impressions : 0,
       observedPages: totals.observedPages,
       indexedPages: totals.indexedPages,
+      indexedPagesSynced: totals.indexedPagesSynced,
     },
   };
 }
@@ -815,6 +823,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         gsc_clicks: 0,
         gsc_ctr: 0,
         gsc_indexed_pages: 0,
+        gsc_indexation_synced: false,
       },
       readiness: {
         bridge_connected: false,
