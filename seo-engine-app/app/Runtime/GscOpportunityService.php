@@ -197,6 +197,10 @@ class GscOpportunityService
             ->sortByDesc(fn (array $item): int => (int) ($item['priority_score'] ?? 0))
             ->values();
 
+        if ($sortedItems->isEmpty()) {
+            return $this->summarizeSiteUrls($siteId, $hasConnection);
+        }
+
         return [
             'connected' => $hasConnection,
             'summary' => [
