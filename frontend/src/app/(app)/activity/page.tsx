@@ -1,7 +1,7 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
+import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
@@ -94,111 +94,76 @@ export default async function ActivityCockpitPage() {
           </p>
         </div>
 
-        <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 scroll-mt-24">
-          {[
-            ["Événements récents", timelineFeed.length],
-            ["Mouvements de pages", movementFeed.length],
-            ["Alertes actives", alertFeed.length],
-            ["Opportunités ouvertes", optimizations.gsc_opportunities.summary.total],
-          ].map(([label, value]) => (
-            <Card key={label}>
-              <CardHeader className="pb-2">
-                <CardDescription>{label}</CardDescription>
-                <CardTitle className="text-3xl">{value}</CardTitle>
-              </CardHeader>
-            </Card>
-          ))}
+        <div id="vue-ensemble" className="scroll-mt-24">
+          <CockpitMetricGrid
+            items={[
+              { label: "Événements récents", value: timelineFeed.length },
+              { label: "Mouvements de pages", value: movementFeed.length, tone: "success" },
+              { label: "Alertes actives", value: alertFeed.length, tone: alertFeed.length > 0 ? "warning" : "secondary" },
+              { label: "Opportunités ouvertes", value: optimizations.gsc_opportunities.summary.total, tone: "warning" },
+            ]}
+          />
         </div>
 
         <div id="mouvements" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Mouvements récents</CardTitle>
-              <CardDescription>Les pages qui montent ou qui ralentissent le plus en ce moment.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {movementFeed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun mouvement fort pour le moment. Les prochains imports Google animeront ce bloc.
-                </div>
-              ) : (
-                movementFeed.map((item) => (
-                  <div key={`${item.site_name}-${item.slug}-${item.trend}`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant={item.trend === "down" ? "danger" : "success"}>
-                        {item.trend === "down" ? "En baisse" : "En hausse"}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      {item.delta_impressions > 0 ? "+" : ""}
-                      {item.delta_impressions} impressions, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
-                    </p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            title="Mouvements récents"
+            description="Les pages qui montent ou qui ralentissent le plus en ce moment."
+            empty={movementFeed.length === 0}
+            emptyMessage="Aucun mouvement fort pour le moment. Les prochains imports Google animeront ce bloc."
+          >
+            {movementFeed.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.slug}-${item.trend}`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge={item.trend === "down" ? "En baisse" : "En hausse"}
+                badgeTone={item.trend === "down" ? "danger" : "success"}
+                description={`${item.delta_impressions > 0 ? "+" : ""}${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+              />
+            ))}
+          </CockpitSignalListCard>
 
-          <Card id="alertes" className="scroll-mt-24">
-            <CardHeader>
-              <CardTitle>Alertes simples</CardTitle>
-              <CardDescription>CTR faible, recul durable ou baisse de visibilité : les signaux à traiter vite.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {alertFeed.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune alerte forte pour le moment. Le cockpit reste en veille active.
-                </div>
-              ) : (
-                alertFeed.map((item) => (
-                  <div key={`${item.site_id}-${item.slug}-${item.type}-alert`} className="rounded-xl border border-border px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
-                      </div>
-                      <Badge variant={item.type === "sustained_drop" ? "danger" : "warning"}>{item.priority_label}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <CockpitSignalListCard
+            id="alertes"
+            className="scroll-mt-24"
+            title="Alertes simples"
+            description="CTR faible, recul durable ou baisse de visibilité : les signaux à traiter vite."
+            empty={alertFeed.length === 0}
+            emptyMessage="Aucune alerte forte pour le moment. Le cockpit reste en veille active."
+          >
+            {alertFeed.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_id}-${item.slug}-${item.type}-alert`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge={item.priority_label}
+                badgeTone={item.type === "sustained_drop" ? "danger" : "warning"}
+                description={item.reason}
+              />
+            ))}
+          </CockpitSignalListCard>
         </div>
 
-        <Card id="timeline" className="scroll-mt-24">
-          <CardHeader>
-            <CardTitle>Timeline SEO</CardTitle>
-            <CardDescription>Progression, historique et activité détectée récemment dans PraeviSEO.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {timelineFeed.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                La timeline se remplira automatiquement avec les prochaines variations SEO.
-              </div>
-            ) : (
-              timelineFeed.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{item.title}</p>
-                      <p className="text-xs text-text-subtle">{item.meta}</p>
-                    </div>
-                    <Badge variant={item.badgeVariant as "success" | "warning" | "secondary" | "danger"}>
-                      {item.badge}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-sm text-text-muted">{item.detail}</p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+        <CockpitSignalListCard
+          id="timeline"
+          className="scroll-mt-24"
+          title="Timeline SEO"
+          description="Progression, historique et activité détectée récemment dans PraeviSEO."
+          empty={timelineFeed.length === 0}
+          emptyMessage="La timeline se remplira automatiquement avec les prochaines variations SEO."
+        >
+          {timelineFeed.map((item) => (
+            <CockpitSignalItem
+              key={item.id}
+              title={item.title}
+              subtitle={item.meta}
+              badge={item.badge}
+              badgeTone={item.badgeVariant as "success" | "warning" | "secondary" | "danger"}
+              description={item.detail}
+            />
+          ))}
+        </CockpitSignalListCard>
       </div>
     </div>
   );
