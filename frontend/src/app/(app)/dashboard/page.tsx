@@ -1,4 +1,5 @@
 import { Topbar } from "@/components/layout/topbar";
+import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,45 @@ export default async function DashboardPage() {
   const recentPublications = publications.items.slice(0, 3);
   const recentOptimizations = optimizations.items.slice(0, 3);
   const topOpportunities = optimizations.gsc_opportunities.items.slice(0, 4);
+  const pageWatchlist = optimizations.gsc_opportunities.items.slice(0, 4);
+  const queryWatchlist = optimizations.gsc_opportunities.items.filter((item) => item.query).slice(0, 4);
+  const indexationAlerts = dashboard.sites
+    .filter((site) => site.readiness.gsc_connected)
+    .map((site) => ({
+      siteId: site.site_id,
+      siteName: site.name,
+      indexedPages: site.summary.gsc_indexed_pages,
+      synced: site.summary.gsc_indexation_synced,
+    }))
+    .slice(0, 4);
+  const activityFeed = [
+    ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
+      id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
+      title: item.label,
+      detail: item.reason,
+      badge: item.priority_label,
+      badgeVariant: item.priority_level === "high" ? "warning" : "secondary",
+      meta: `${item.site_name} · ${item.action}`,
+    })),
+    ...recentOptimizations.slice(0, 2).map((item) => ({
+      id: `suggestion-${item.id}`,
+      title: item.page.title,
+      detail: item.summary,
+      badge: item.status,
+      badgeVariant: item.status === "pending" ? "warning" : "secondary",
+      meta: `${item.page.site_id} · recommandation`,
+    })),
+    ...recentPublications.slice(0, 2).map((item) => ({
+      id: `publication-${item.id}`,
+      title: item.title,
+      detail: item.published_live
+        ? "Le contenu est déjà visible sur le site."
+        : "Le contenu reste prêt côté PraeviSEO en attendant la publication live.",
+      badge: item.published_live ? "visible" : "préparé",
+      badgeVariant: item.published_live ? "success" : "secondary",
+      meta: `${item.site_id} · activité contenu`,
+    })),
+  ].slice(0, 6);
   const insightSignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
@@ -91,6 +131,17 @@ export default async function DashboardPage() {
       />
 
       <div className="p-6 space-y-6">
+        <CockpitSectionNav
+          items={[
+            { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
+            { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
+            { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
+            { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
+            { label: "Indexation", href: "#indexation", count: indexedPagesValue, tone: "secondary" },
+            { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
+          ]}
+        />
+
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
@@ -178,7 +229,7 @@ export default async function DashboardPage() {
           })}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div id="vue-ensemble" className="grid gap-4 md:grid-cols-3 scroll-mt-24">
           <Card>
             <CardHeader>
               <CardTitle>Pages proches du top 10</CardTitle>
@@ -210,7 +261,7 @@ export default async function DashboardPage() {
           periode.
         </p>
 
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div id="opportunites" className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] scroll-mt-24">
           <Card>
             <CardHeader>
               <CardTitle>Sites suivis</CardTitle>
@@ -326,7 +377,127 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div id="pages" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pages à suivre</CardTitle>
+              <CardDescription>
+                Les pages qui bougent le plus ou qui méritent un refresh rapide dans le cockpit free.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pageWatchlist.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune page sensible pour le moment. PraeviSEO remontera ici les prochaines hausses, chutes et zones
+                  à relancer.
+                </div>
+              ) : (
+                pageWatchlist.map((item) => (
+                  <div key={`${item.site_id}-${item.slug}-${item.type}-page`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.label}</p>
+                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                      </div>
+                      <Badge variant={item.type === "sustained_drop" ? "danger" : item.priority_level === "high" ? "warning" : "secondary"}>
+                        {item.type === "sustained_drop" ? "À relancer" : item.priority_label}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
+                      <span className="rounded-full border border-border px-2.5 py-1">
+                        {item.metrics.impressions} impressions
+                      </span>
+                      <span className="rounded-full border border-border px-2.5 py-1">
+                        Position {item.metrics.position}
+                      </span>
+                      <span className="rounded-full border border-border px-2.5 py-1">
+                        CTR {item.metrics.ctr} %
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card id="requetes" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>Requêtes Google</CardTitle>
+              <CardDescription>
+                Les requêtes qui progressent, émergent ou méritent déjà une meilleure réponse.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {queryWatchlist.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune requête émergente forte pour l’instant. Le cockpit affichera ici les prochaines requêtes à
+                  potentiel dès qu’elles montent dans GSC.
+                </div>
+              ) : (
+                queryWatchlist.map((item) => (
+                  <div key={`${item.site_id}-${item.query ?? item.slug}-query`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.query}</p>
+                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                      </div>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>
+                        {item.priority_label}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
+                      <span className="rounded-full border border-border px-2.5 py-1">
+                        {item.metrics.impressions} impressions
+                      </span>
+                      <span className="rounded-full border border-border px-2.5 py-1">
+                        Position {item.metrics.position}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="indexation" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Indexation</CardTitle>
+              <CardDescription>
+                Les pages que Google voit déjà et les sites où l’indexation reste à surveiller.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {indexationAlerts.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Connectez au moins un site à Google Search Console pour ouvrir la lecture d’indexation.
+                </div>
+              ) : (
+                indexationAlerts.map((item) => (
+                  <div key={item.siteId} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.siteName}</p>
+                        <p className="text-xs text-text-subtle">{item.siteId}</p>
+                      </div>
+                      <Badge variant={item.synced ? "success" : "secondary"}>
+                        {item.synced ? "Indexation lue" : "En attente"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">
+                      {item.synced
+                        ? `${item.indexedPages} page(s) sont déjà vues comme indexées dans le cockpit PraeviSEO.`
+                        : "L’indexation n’est pas encore synchronisée pour ce site."}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Activité publication</CardTitle>
@@ -357,7 +528,9 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        </div>
 
+        <div id="activite" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <Card>
             <CardHeader>
               <CardTitle>Signaux GSC à surveiller</CardTitle>
@@ -405,6 +578,37 @@ export default async function DashboardPage() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Activité SEO récente</CardTitle>
+              <CardDescription>
+                Le feed le plus vivant du cockpit : opportunités, recommandations et mouvements détectés par PraeviSEO.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {activityFeed.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Le feed se remplira automatiquement dès les prochains imports GSC et les prochaines recommandations.
+                </div>
+              ) : (
+                activityFeed.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.title}</p>
+                        <p className="text-xs text-text-subtle">{item.meta}</p>
+                      </div>
+                      <Badge variant={item.badgeVariant as "secondary" | "warning" | "success"}>
+                        {item.badge}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.detail}</p>
                   </div>
                 ))
               )}

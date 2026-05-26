@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,9 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
 export default async function OptimizationsPage() {
   const optimizations = await getOptimizations();
   const opportunities = optimizations.gsc_opportunities.items;
+  const queryWatchlist = opportunities.filter((item) => item.query).slice(0, 4);
+  const pagesToRefresh = opportunities.filter((item) => item.type === "near_top_10" || item.type === "sustained_drop").slice(0, 4);
+  const quickWins = opportunities.filter((item) => item.priority_level === "high" || item.action_state === "ready").slice(0, 4);
   const summarySignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
@@ -58,6 +62,16 @@ export default async function OptimizationsPage() {
         }
       />
       <div className="p-6 space-y-6">
+        <CockpitSectionNav
+          items={[
+            { label: "Vue d’ensemble", href: "#vue-ensemble", count: optimizations.gsc_opportunities.summary.total, tone: "default" },
+            { label: "Gains rapides", href: "#gains-rapides", count: quickWins.length, tone: "warning" },
+            { label: "Pages à refresh", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
+            { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
+            { label: "Activité SEO", href: "#activite", count: optimizations.items.length, tone: "default" },
+          ]}
+        />
+
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
           <h1 className="text-2xl font-bold tracking-tight text-text">Vos meilleures opportunités SEO, sans installer quoi que ce soit</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
@@ -66,7 +80,7 @@ export default async function OptimizationsPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 scroll-mt-24">
           {[
             ["Actionnables maintenant", optimizations.gsc_opportunities.summary.ready],
             ["Priorité haute", optimizations.gsc_opportunities.summary.high_priority],
@@ -97,6 +111,138 @@ export default async function OptimizationsPage() {
               ))
             )}
           </div>
+        </div>
+
+        <div id="gains-rapides" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Gains rapides</CardTitle>
+              <CardDescription>
+                Les opportunités les plus actionnables maintenant pour faire bouger le SEO vite.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {quickWins.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun gain rapide net pour le moment. PraeviSEO rouvrira ce bloc dès qu’un signal plus chaud remonte.
+                </div>
+              ) : (
+                quickWins.map((item) => (
+                  <div key={`${item.site_id}-${item.slug}-${item.type}-quick`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.label}</p>
+                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                      </div>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{item.priority_label}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card id="pages-refresh" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>Pages à refresh</CardTitle>
+              <CardDescription>
+                Les pages qui approchent d’un gain réel si on les rafraîchit ou les renforce maintenant.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pagesToRefresh.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune page à refresh en ce moment. Le cockpit remontera les prochaines baisses ou zones proches du top 10.
+                </div>
+              ) : (
+                pagesToRefresh.map((item) => (
+                  <div key={`${item.site_id}-${item.slug}-${item.type}-refresh`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.label}</p>
+                        <p className="text-xs text-text-subtle">{opportunityMetricLine(item.metrics)}</p>
+                      </div>
+                      <Badge variant={item.type === "sustained_drop" ? "danger" : "secondary"}>
+                        {opportunityTypeLabel(item.type)}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.action}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="requetes" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Requêtes Google</CardTitle>
+              <CardDescription>
+                Les requêtes en hausse ou à potentiel repérées par PraeviSEO dans Google.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {queryWatchlist.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune requête montante suffisamment claire pour le moment. Le cockpit surveille déjà les prochains signaux.
+                </div>
+              ) : (
+                queryWatchlist.map((item) => (
+                  <div key={`${item.site_id}-${item.query}-query`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.query}</p>
+                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                      </div>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{item.priority_label}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card id="activite" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>Activité SEO</CardTitle>
+              <CardDescription>
+                Les dernières recommandations déjà ouvertes, pour garder une sensation de mouvement quotidien.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {optimizations.items.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune recommandation récente pour le moment. PraeviSEO remplira ce feed au prochain cycle utile.
+                </div>
+              ) : (
+                optimizations.items.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-border p-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2 justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.page.title}</p>
+                        <p className="text-xs text-text-subtle">
+                          {item.page.site_id} / {item.page.slug || "/"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={item.status === "pending" ? "warning" : item.status === "applied" ? "success" : "secondary"}>
+                          {item.status}
+                        </Badge>
+                        <Badge variant="brand-subtle">{item.source}</Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-text-muted">{item.summary}</p>
+                    <div className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-subtle">
+                      Impact attendu : {item.impact_expected}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -159,44 +305,6 @@ export default async function OptimizationsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recommandations récentes</CardTitle>
-            <CardDescription>
-              Les recommandations déjà ouvertes restent visibles ici, après les priorités issues de Google Search Console.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {optimizations.items.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                Aucune recommandation récente pour le moment.
-              </div>
-            ) : (
-              optimizations.items.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border p-4 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{item.page.title}</p>
-                      <p className="text-xs text-text-subtle">
-                        {item.page.site_id} / {item.page.slug || "/"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={item.status === "pending" ? "warning" : item.status === "applied" ? "success" : "secondary"}>
-                        {item.status}
-                      </Badge>
-                      <Badge variant="brand-subtle">{item.source}</Badge>
-                    </div>
-                  </div>
-                  <p className="text-sm text-text-muted">{item.summary}</p>
-                  <div className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-subtle">
-                    Impact attendu : {item.impact_expected}
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

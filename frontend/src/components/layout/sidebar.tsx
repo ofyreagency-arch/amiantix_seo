@@ -24,12 +24,12 @@ const NAV_ITEMS = [
       { label: "Vue d'ensemble", href: "/dashboard", icon: LayoutDashboard },
       { label: "Mes sites", href: "/sites", icon: Globe },
       {
-        label: "Optimisations",
+        label: "Opportunités",
         href: "/optimizations",
         icon: Sparkles,
         badge: "8",
       },
-      { label: "Publications", href: "/publications", icon: Send },
+      { label: "Activité SEO", href: "/publications", icon: Send },
     ],
   },
   {

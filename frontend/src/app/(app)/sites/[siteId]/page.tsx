@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Topbar } from "@/components/layout/topbar";
+import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,17 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     emergingQueryCount > 0 ? `${emergingQueryCount} requete(s) progressent vite` : null,
     sustainedDropCount > 0 ? `${sustainedDropCount} page(s) perdent de la visibilite` : null,
   ].filter((item): item is string => item !== null);
+  const queryWatchlist = siteOpportunities.filter((item) => item.query).slice(0, 3);
+  const activityFeed = [
+    ...siteOpportunities.map((item) => ({
+      id: `site-opportunity-${item.slug}-${item.type}`,
+      title: item.label,
+      detail: item.reason,
+      badge: item.priority_label,
+      badgeVariant: item.priority_level === "high" ? "warning" : "secondary",
+      meta: item.action,
+    })),
+  ].slice(0, 4);
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
       ? site.readiness.gsc_connected
@@ -71,6 +83,17 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       />
 
       <div className="p-6 space-y-6">
+        <CockpitSectionNav
+          items={[
+            { label: "Vue d’ensemble", href: "#vue-ensemble", count: site.summary.gsc_impressions, tone: "default" },
+            { label: "Opportunités", href: "#opportunites", count: siteOpportunities.length, tone: "warning" },
+            { label: "Pages", href: "#pages", count: nearTop10Count + lowCtrCount + sustainedDropCount, tone: "secondary" },
+            { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
+            { label: "Indexation", href: "#indexation", count: site.summary.gsc_indexed_pages, tone: "secondary" },
+            { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
+          ]}
+        />
+
         <div className="rounded-2xl border border-border bg-surface px-6 py-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -110,7 +133,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6 scroll-mt-24">
           {[
             ["Pages indexees", site.summary.gsc_indexed_pages],
             ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
@@ -134,7 +157,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
           ))}
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <div id="opportunites" className="grid gap-6 xl:grid-cols-[1fr_0.9fr] scroll-mt-24">
           <Card>
             <CardHeader>
               <CardTitle>État réel du site</CardTitle>
@@ -221,7 +244,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
           </Card>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <div id="pages" className="grid gap-6 xl:grid-cols-[1fr_0.9fr] scroll-mt-24">
           <Card>
             <CardHeader>
               <CardTitle>Signaux à surveiller</CardTitle>
@@ -241,6 +264,71 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   </div>
                 ))
               )}
+            </CardContent>
+          </Card>
+
+          <Card id="requetes" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>Requêtes Google</CardTitle>
+              <CardDescription>
+                Les requêtes qui montent ou qui méritent déjà une réponse plus précise sur ce site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {queryWatchlist.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune requête émergente forte pour le moment. Les prochains imports GSC nourriront ce bloc
+                  automatiquement.
+                </div>
+              ) : (
+                queryWatchlist.map((item) => (
+                  <div key={`${item.slug}-${item.query ?? item.type}-query`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.query}</div>
+                        <div className="text-xs text-text-subtle">{item.label}</div>
+                      </div>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>
+                        {item.priority_label}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">{item.reason}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="indexation" className="grid gap-6 xl:grid-cols-[1fr_0.9fr] scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Indexation</CardTitle>
+              <CardDescription>
+                Comment Google alimente déjà le cockpit sur ce site et où PraeviSEO continue de surveiller.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-text">Pages indexées</div>
+                    <div className="text-xs text-text-subtle">Lecture issue de la dernière synchronisation GSC</div>
+                  </div>
+                  <Badge variant={site.summary.gsc_indexation_synced ? "success" : "secondary"}>
+                    {site.summary.gsc_indexation_synced ? "Synchronisée" : "En attente"}
+                  </Badge>
+                </div>
+                <div className="mt-4 text-3xl font-black text-text">{site.summary.gsc_indexed_pages}</div>
+              </div>
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="text-sm font-semibold text-text">Lecture actuelle</div>
+                <p className="mt-2 text-sm text-text-muted leading-6">
+                  {site.summary.gsc_indexation_synced
+                    ? "Google alimente déjà l’indexation de ce site dans PraeviSEO. Le cockpit peut donc relier pages indexées, opportunités et priorités."
+                    : "PraeviSEO attend encore une lecture exploitable de l’indexation Google pour enrichir ce volet."}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -288,6 +376,65 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="activite" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Activité SEO récente</CardTitle>
+              <CardDescription>
+                Le feed vivant de ce site : opportunités, alertes et recommandations déjà visibles dans PraeviSEO.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {activityFeed.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune activité forte pour le moment. Les prochains signaux Google feront vivre ce fil automatiquement.
+                </div>
+              ) : (
+                activityFeed.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.title}</div>
+                        <div className="text-xs text-text-subtle">{item.meta}</div>
+                      </div>
+                      <Badge variant={item.badgeVariant as "warning" | "secondary"}>
+                        {item.badge}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">{item.detail}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rythme du cockpit</CardTitle>
+              <CardDescription>
+                Ce que le client doit ressentir chaque semaine en revenant sur PraeviSEO.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                site.summary.gsc_impressions > 0
+                  ? `${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions déjà lues sur la fenêtre récente.`
+                  : "Les premières impressions apparaîtront ici dès les prochaines remontées GSC.",
+                siteOpportunities.length > 0
+                  ? `${siteOpportunities.length} opportunité(s) sont déjà ouvertes sur ce site.`
+                  : "PraeviSEO guette encore les premiers leviers rapides sur ce site.",
+                site.readiness.gsc_connected
+                  ? "Google Search Console alimente déjà ce cockpit sans installation technique."
+                  : "La connexion Search Console reste la prochaine étape pour rendre ce cockpit vraiment vivant.",
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  {item}
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>
