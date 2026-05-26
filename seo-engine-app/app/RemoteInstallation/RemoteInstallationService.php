@@ -19,6 +19,13 @@ use Throwable;
 
 class RemoteInstallationService
 {
+    /**
+     * Run the full remote installation lifecycle in the queue.
+     *
+     * SECURITY: this service may orchestrate SSH/SFTP on client servers, but it
+     * must never execute a user-provided shell string. Every command sent to a
+     * connector has to come from the RemoteCommand whitelist.
+     */
     public function run(RemoteInstallation $installation): void
     {
         $site = $installation->site()->firstOrFail();
@@ -164,7 +171,7 @@ class RemoteInstallationService
 
     private function runRequired(RemoteConnector $connector, RemoteCommand $command, string $errorMessage): string
     {
-        $result = $connector->run($command->command, 60);
+        $result = $connector->run($command, 60);
 
         if (! $result->successful || trim($result->output) === '') {
             throw RemoteInstallationException::execution($errorMessage);

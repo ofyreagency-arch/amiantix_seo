@@ -13,9 +13,14 @@ use App\RemoteInstallation\RemoteEnvironment;
 
 class SymfonyInstallerStrategy implements InstallerStrategy
 {
+    /**
+     * SECURITY: every remote command below must come from RemoteCommand.
+     * This keeps Symfony installation steps reviewable and blocks arbitrary
+     * shell execution from ever reaching the client server.
+     */
     public function install(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
-        $result = $connector->run(RemoteCommand::installSymfonyBridge($environment->projectPath)->command, 240);
+        $result = $connector->run(RemoteCommand::installSymfonyBridge($environment->projectPath), 240);
 
         if (! $result->successful) {
             throw RemoteInstallationException::execution('Composer n est pas disponible ou l installation PraeviSEO a échoué sur le site Symfony.');
@@ -32,13 +37,13 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             throw RemoteInstallationException::execution('Code de connexion PraeviSEO introuvable pour ce site.');
         }
 
-        $clearResult = $connector->run(RemoteCommand::clearSymfonyCache($environment->projectPath)->command, 180);
+        $clearResult = $connector->run(RemoteCommand::clearSymfonyCache($environment->projectPath), 180);
 
         if (! $clearResult->successful) {
             throw RemoteInstallationException::execution('Le cache Symfony n a pas pu être préparé avant la connexion PraeviSEO.');
         }
 
-        $connectResult = $connector->run(RemoteCommand::connectSymfony($environment->projectPath, $code)->command, 180);
+        $connectResult = $connector->run(RemoteCommand::connectSymfony($environment->projectPath, $code), 180);
 
         if (! $connectResult->successful) {
             throw RemoteInstallationException::execution('PraeviSEO n a pas pu être configuré automatiquement sur Symfony.');
@@ -49,7 +54,7 @@ class SymfonyInstallerStrategy implements InstallerStrategy
 
     public function activate(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
-        $result = $connector->run(RemoteCommand::clearSymfonyCache($environment->projectPath)->command, 180);
+        $result = $connector->run(RemoteCommand::clearSymfonyCache($environment->projectPath), 180);
 
         if (! $result->successful) {
             throw RemoteInstallationException::execution('PraeviSEO a été installé mais l activation finale Symfony a échoué.');

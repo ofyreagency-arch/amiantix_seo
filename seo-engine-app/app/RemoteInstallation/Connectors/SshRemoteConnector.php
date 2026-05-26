@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\RemoteInstallation\Connectors;
 
 use App\RemoteInstallation\Exceptions\RemoteInstallationException;
+use App\RemoteInstallation\RemoteCommand;
 use App\RemoteInstallation\RemoteCommandResult;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
@@ -53,14 +54,14 @@ class SshRemoteConnector implements RemoteConnector
         }
     }
 
-    public function run(string $command, int $timeoutSeconds = 60): RemoteCommandResult
+    public function run(RemoteCommand $command, int $timeoutSeconds = 60): RemoteCommandResult
     {
         if (! $this->ssh) {
             throw RemoteInstallationException::connectivity();
         }
 
         $this->ssh->setTimeout($timeoutSeconds);
-        $output = $this->ssh->exec($command);
+        $output = $this->ssh->exec($command->command);
         $exitCode = $this->ssh->getExitStatus();
 
         return new RemoteCommandResult(

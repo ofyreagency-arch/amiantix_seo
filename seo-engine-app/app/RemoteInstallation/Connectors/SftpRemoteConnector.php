@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\RemoteInstallation\Connectors;
 
 use App\RemoteInstallation\Exceptions\RemoteInstallationException;
+use App\RemoteInstallation\RemoteCommand;
 use App\RemoteInstallation\RemoteCommandResult;
 use phpseclib3\Net\SFTP;
 use Throwable;
@@ -42,7 +43,7 @@ class SftpRemoteConnector implements RemoteConnector
         }
     }
 
-    public function run(string $command, int $timeoutSeconds = 60): RemoteCommandResult
+    public function run(RemoteCommand $command, int $timeoutSeconds = 60): RemoteCommandResult
     {
         throw RemoteInstallationException::unsupported(
             'L installation automatique distante demande un accès SSH pour executer Composer et PHP sur ce serveur.'
