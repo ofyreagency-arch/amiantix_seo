@@ -54,6 +54,43 @@ export type PraeviseoSite = {
     gsc_ctr: number;
     gsc_indexed_pages: number;
     gsc_indexation_synced: boolean;
+    gsc_previous_impressions: number;
+    gsc_previous_clicks: number;
+    gsc_previous_ctr: number;
+    gsc_delta_impressions: number;
+    gsc_delta_clicks: number;
+    gsc_delta_ctr_points: number;
+    top_rising_pages: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      impressions: number;
+      previous_impressions: number;
+      delta_impressions: number;
+      delta_percent: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+    }>;
+    top_falling_pages: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      impressions: number;
+      previous_impressions: number;
+      delta_impressions: number;
+      delta_percent: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+    }>;
+    top_queries: Array<{
+      query: string;
+      impressions: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+    }>;
   };
   readiness: {
     bridge_connected: boolean;
@@ -284,6 +321,49 @@ const mockSites: PraeviseoSite[] = [
       gsc_ctr: 0.45,
       gsc_indexed_pages: 14,
       gsc_indexation_synced: true,
+      gsc_previous_impressions: 14,
+      gsc_previous_clicks: 6,
+      gsc_previous_ctr: 0.42,
+      gsc_delta_impressions: 6,
+      gsc_delta_clicks: 3,
+      gsc_delta_ctr_points: 3,
+      top_rising_pages: [
+        {
+          label: "Faq",
+          slug: "faq",
+          url: "https://amiantix.com/faq",
+          impressions: 47,
+          previous_impressions: 29,
+          delta_impressions: 18,
+          delta_percent: 62.1,
+          clicks: 10,
+          ctr: 21.3,
+          position: 8.4,
+        },
+      ],
+      top_falling_pages: [
+        {
+          label: "Amiantix.com",
+          slug: "",
+          url: "https://amiantix.com/",
+          impressions: 23,
+          previous_impressions: 41,
+          delta_impressions: -18,
+          delta_percent: -43.9,
+          clicks: 0,
+          ctr: 0,
+          position: 11.8,
+        },
+      ],
+      top_queries: [
+        {
+          query: "faq amiante",
+          impressions: 18,
+          clicks: 5,
+          ctr: 27.8,
+          position: 8.7,
+        },
+      ],
     },
     readiness: {
       bridge_connected: true,
@@ -346,6 +426,15 @@ const mockSites: PraeviseoSite[] = [
       gsc_ctr: 0,
       gsc_indexed_pages: 0,
       gsc_indexation_synced: false,
+      gsc_previous_impressions: 0,
+      gsc_previous_clicks: 0,
+      gsc_previous_ctr: 0,
+      gsc_delta_impressions: 0,
+      gsc_delta_clicks: 0,
+      gsc_delta_ctr_points: 0,
+      top_rising_pages: [],
+      top_falling_pages: [],
+      top_queries: [],
     },
     readiness: {
       bridge_connected: false,
@@ -676,6 +765,49 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       gsc_ctr: Number(summary.gsc_ctr ?? 0),
       gsc_indexed_pages: Number(summary.gsc_indexed_pages ?? 0),
       gsc_indexation_synced: Boolean(summary.gsc_indexation_synced ?? false),
+      gsc_previous_impressions: Number(summary.gsc_previous_impressions ?? 0),
+      gsc_previous_clicks: Number(summary.gsc_previous_clicks ?? 0),
+      gsc_previous_ctr: Number(summary.gsc_previous_ctr ?? 0),
+      gsc_delta_impressions: Number(summary.gsc_delta_impressions ?? 0),
+      gsc_delta_clicks: Number(summary.gsc_delta_clicks ?? 0),
+      gsc_delta_ctr_points: Number(summary.gsc_delta_ctr_points ?? 0),
+      top_rising_pages: Array.isArray(summary.top_rising_pages)
+        ? summary.top_rising_pages.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
+            previous_impressions: Number((entry as Record<string, unknown>).previous_impressions ?? 0),
+            delta_impressions: Number((entry as Record<string, unknown>).delta_impressions ?? 0),
+            delta_percent: Number((entry as Record<string, unknown>).delta_percent ?? 0),
+            clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
+            ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
+            position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
+      top_falling_pages: Array.isArray(summary.top_falling_pages)
+        ? summary.top_falling_pages.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
+            previous_impressions: Number((entry as Record<string, unknown>).previous_impressions ?? 0),
+            delta_impressions: Number((entry as Record<string, unknown>).delta_impressions ?? 0),
+            delta_percent: Number((entry as Record<string, unknown>).delta_percent ?? 0),
+            clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
+            ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
+            position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
+      top_queries: Array.isArray(summary.top_queries)
+        ? summary.top_queries.map((entry) => ({
+            query: String((entry as Record<string, unknown>).query ?? ""),
+            impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
+            clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
+            ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
+            position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
     },
     readiness: {
       bridge_connected: Boolean((site.readiness as Record<string, unknown> | undefined)?.bridge_connected ?? false),
@@ -950,6 +1082,15 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         gsc_ctr: 0,
         gsc_indexed_pages: 0,
         gsc_indexation_synced: false,
+        gsc_previous_impressions: 0,
+        gsc_previous_clicks: 0,
+        gsc_previous_ctr: 0,
+        gsc_delta_impressions: 0,
+        gsc_delta_clicks: 0,
+        gsc_delta_ctr_points: 0,
+        top_rising_pages: [],
+        top_falling_pages: [],
+        top_queries: [],
       },
       readiness: {
         bridge_connected: false,

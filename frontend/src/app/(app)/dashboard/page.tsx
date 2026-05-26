@@ -31,8 +31,15 @@ export default async function DashboardPage() {
   const recentPublications = publications.items.slice(0, 3);
   const recentOptimizations = optimizations.items.slice(0, 3);
   const topOpportunities = optimizations.gsc_opportunities.items.slice(0, 4);
-  const pageWatchlist = optimizations.gsc_opportunities.items.slice(0, 4);
-  const queryWatchlist = optimizations.gsc_opportunities.items.filter((item) => item.query).slice(0, 4);
+  const pageWatchlist = dashboard.sites
+    .flatMap((site) => [
+      ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
+      ...site.summary.top_falling_pages.map((item) => ({ ...item, site_name: site.name, trend: "down" as const })),
+    ])
+    .slice(0, 6);
+  const queryWatchlist = dashboard.sites
+    .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
+    .slice(0, 6);
   const indexationAlerts = dashboard.sites
     .filter((site) => site.readiness.gsc_connected)
     .map((site) => ({
@@ -393,26 +400,31 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 pageWatchlist.map((item) => (
-                  <div key={`${item.site_id}-${item.slug}-${item.type}-page`} className="rounded-xl border border-border px-4 py-3">
+                  <div key={`${item.site_name}-${item.slug}-${item.trend}-page`} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-text">{item.label}</p>
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.type === "sustained_drop" ? "danger" : item.priority_level === "high" ? "warning" : "secondary"}>
-                        {item.type === "sustained_drop" ? "À relancer" : item.priority_label}
+                      <Badge variant={item.trend === "down" ? "danger" : "success"}>
+                        {item.trend === "down" ? "En baisse" : "En hausse"}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text-muted">
+                      {item.trend === "down"
+                        ? "La page perd de la visibilité récente et mérite une relance."
+                        : "La page progresse et peut devenir une vraie opportunité si on la renforce."}
+                    </p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
                       <span className="rounded-full border border-border px-2.5 py-1">
-                        {item.metrics.impressions} impressions
+                        {item.impressions} impressions
                       </span>
                       <span className="rounded-full border border-border px-2.5 py-1">
-                        Position {item.metrics.position}
+                        {item.delta_impressions > 0 ? "+" : ""}
+                        {item.delta_impressions} impressions
                       </span>
                       <span className="rounded-full border border-border px-2.5 py-1">
-                        CTR {item.metrics.ctr} %
+                        Position {item.position}
                       </span>
                     </div>
                   </div>
@@ -436,23 +448,22 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 queryWatchlist.map((item) => (
-                  <div key={`${item.site_id}-${item.query ?? item.slug}-query`} className="rounded-xl border border-border px-4 py-3">
+                  <div key={`${item.site_name}-${item.query}-query`} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-text">{item.query}</p>
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>
-                        {item.priority_label}
+                      <Badge variant={item.position <= 10 ? "warning" : "success"}>
+                        {item.position <= 10 ? "Déjà visible" : "À pousser"}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text-muted">
+                      {item.impressions} impressions, {item.clicks} clics, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
+                    </p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
                       <span className="rounded-full border border-border px-2.5 py-1">
-                        {item.metrics.impressions} impressions
-                      </span>
-                      <span className="rounded-full border border-border px-2.5 py-1">
-                        Position {item.metrics.position}
+                        Requête à potentiel
                       </span>
                     </div>
                   </div>

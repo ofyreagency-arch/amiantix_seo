@@ -570,6 +570,15 @@ class ClientSitesController extends Controller
                 'gsc_ctr' => $gscSnapshot['ctr'],
                 'gsc_indexed_pages' => $gscSnapshot['indexed_pages'],
                 'gsc_indexation_synced' => $gscSnapshot['indexed_pages_synced'],
+                'gsc_previous_impressions' => $gscSnapshot['previous_impressions'],
+                'gsc_previous_clicks' => $gscSnapshot['previous_clicks'],
+                'gsc_previous_ctr' => $gscSnapshot['previous_ctr'],
+                'gsc_delta_impressions' => $gscSnapshot['delta_impressions'],
+                'gsc_delta_clicks' => $gscSnapshot['delta_clicks'],
+                'gsc_delta_ctr_points' => $gscSnapshot['delta_ctr_points'],
+                'top_rising_pages' => $gscSnapshot['top_rising_pages'],
+                'top_falling_pages' => $gscSnapshot['top_falling_pages'],
+                'top_queries' => $gscSnapshot['top_queries'],
             ],
             'readiness' => [
                 'bridge_connected' => $bridgeConnected,
@@ -589,7 +598,22 @@ class ClientSitesController extends Controller
     }
 
     /**
-     * @return array{impressions:float,clicks:float,ctr:float,indexed_pages:int,indexed_pages_synced:bool}
+     * @return array{
+     *     impressions:float,
+     *     clicks:float,
+     *     ctr:float,
+     *     indexed_pages:int,
+     *     indexed_pages_synced:bool,
+     *     previous_impressions:float,
+     *     previous_clicks:float,
+     *     previous_ctr:float,
+     *     delta_impressions:float,
+     *     delta_clicks:float,
+     *     delta_ctr_points:float,
+     *     top_rising_pages:array<int,array<string,mixed>>,
+     *     top_falling_pages:array<int,array<string,mixed>>,
+     *     top_queries:array<int,array<string,mixed>>
+     * }
      */
     private function searchConsoleSnapshot(string $siteId): array
     {
@@ -607,17 +631,45 @@ class ClientSitesController extends Controller
                 'ctr' => 0.0,
                 'indexed_pages' => 0,
                 'indexed_pages_synced' => false,
+                'previous_impressions' => 0.0,
+                'previous_clicks' => 0.0,
+                'previous_ctr' => 0.0,
+                'delta_impressions' => 0.0,
+                'delta_clicks' => 0.0,
+                'delta_ctr_points' => 0.0,
+                'top_rising_pages' => [],
+                'top_falling_pages' => [],
+                'top_queries' => [],
             ];
         }
 
         $latestMetricDate = Carbon::parse((string) $latestMetricDate)->toDateString();
+        $previousMetricDate = (clone $baseQuery)
+            ->whereDate('metric_date', '<', $latestMetricDate)
+            ->max('metric_date');
 
         $snapshotRows = (clone $baseQuery)
             ->whereDate('metric_date', $latestMetricDate)
             ->orderByDesc('id')
             ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed', 'payload_json']);
+        $previousRows = $previousMetricDate
+            ? (clone $baseQuery)
+                ->whereDate('metric_date', Carbon::parse((string) $previousMetricDate)->toDateString())
+                ->orderByDesc('id')
+                ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed', 'payload_json'])
+            : collect();
+        $queryRows = SeoSearchConsoleMetric::query()
+            ->where('site_id', $siteId)
+            ->whereNotNull('query')
+            ->where('window_days', 28)
+            ->whereDate('metric_date', $latestMetricDate)
+            ->orderByDesc('impressions')
+            ->get(['query', 'clicks', 'impressions', 'ctr', 'position']);
 
         $aggregateRow = $snapshotRows->first(
+            fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) === ''
+        );
+        $previousAggregateRow = $previousRows->first(
             fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) === ''
         );
 
@@ -628,13 +680,91 @@ class ClientSitesController extends Controller
         $deduplicatedRows = $pageRows->unique(function (SeoSearchConsoleMetric $metric): string {
             return $this->searchConsoleUrlKey($metric);
         })->values();
+        $previousPageRows = $previousRows
+            ->filter(fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) !== '')
+            ->unique(fn (SeoSearchConsoleMetric $metric): string => $this->searchConsoleUrlKey($metric))
+            ->values()
+            ->keyBy(fn (SeoSearchConsoleMetric $metric): string => $this->searchConsoleUrlKey($metric));
 
         $impressions = $aggregateRow ? (float) $aggregateRow->impressions : (float) $deduplicatedRows->sum('impressions');
         $clicks = $aggregateRow ? (float) $aggregateRow->clicks : (float) $deduplicatedRows->sum('clicks');
         $ctr = $aggregateRow ? (float) $aggregateRow->ctr : ($impressions > 0 ? $clicks / $impressions : 0.0);
+        $previousImpressions = $previousAggregateRow
+            ? (float) $previousAggregateRow->impressions
+            : (float) $previousPageRows->sum('impressions');
+        $previousClicks = $previousAggregateRow
+            ? (float) $previousAggregateRow->clicks
+            : (float) $previousPageRows->sum('clicks');
+        $previousCtr = $previousAggregateRow
+            ? (float) $previousAggregateRow->ctr
+            : ($previousImpressions > 0 ? $previousClicks / $previousImpressions : 0.0);
         $indexedPagesSynced = $deduplicatedRows->contains(
             fn (SeoSearchConsoleMetric $metric): bool => $metric->is_indexed !== null
         );
+        $pageSignals = $deduplicatedRows
+            ->map(function (SeoSearchConsoleMetric $metric) use ($previousPageRows): array {
+                $key = $this->searchConsoleUrlKey($metric);
+                /** @var SeoSearchConsoleMetric|null $previousMetric */
+                $previousMetric = $previousPageRows->get($key);
+                $currentImpressions = (float) $metric->impressions;
+                $beforeImpressions = (float) ($previousMetric?->impressions ?? 0.0);
+                $deltaImpressions = $currentImpressions - $beforeImpressions;
+
+                return [
+                    'label' => $this->searchConsoleLabelFromUrl((string) $metric->url),
+                    'slug' => $this->searchConsoleSlugFromUrl((string) $metric->url),
+                    'url' => (string) $metric->url,
+                    'impressions' => (int) round($currentImpressions),
+                    'previous_impressions' => (int) round($beforeImpressions),
+                    'delta_impressions' => (int) round($deltaImpressions),
+                    'delta_percent' => $beforeImpressions > 0.0
+                        ? round(($deltaImpressions / $beforeImpressions) * 100, 1)
+                        : 100.0,
+                    'clicks' => (int) round((float) $metric->clicks),
+                    'ctr' => round(((float) $metric->ctr) * 100, 2),
+                    'position' => round((float) $metric->position, 1),
+                ];
+            })
+            ->filter(fn (array $item): bool => ($item['impressions'] > 0 || $item['previous_impressions'] > 0))
+            ->values();
+        $topRisingPages = $pageSignals
+            ->filter(fn (array $item): bool => (int) $item['delta_impressions'] > 0)
+            ->sortByDesc(fn (array $item): int => (int) $item['delta_impressions'])
+            ->take(3)
+            ->values()
+            ->all();
+        $topFallingPages = $pageSignals
+            ->filter(fn (array $item): bool => (int) $item['delta_impressions'] < 0)
+            ->sortBy(fn (array $item): int => (int) $item['delta_impressions'])
+            ->take(3)
+            ->values()
+            ->all();
+        $topQueries = $queryRows
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
+            ->map(function ($rows, string $query): array {
+                /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
+                $impressions = (float) $rows->sum('impressions');
+                $clicks = (float) $rows->sum('clicks');
+                $positionWeighted = $impressions > 0
+                    ? $rows->reduce(
+                        fn (float $carry, SeoSearchConsoleMetric $metric): float => $carry + (((float) $metric->position) * ((float) $metric->impressions)),
+                        0.0
+                    ) / $impressions
+                    : 0.0;
+
+                return [
+                    'query' => $query,
+                    'impressions' => (int) round($impressions),
+                    'clicks' => (int) round($clicks),
+                    'ctr' => round($impressions > 0 ? ($clicks / $impressions) * 100 : 0.0, 2),
+                    'position' => round($positionWeighted, 1),
+                ];
+            })
+            ->filter(fn (array $item): bool => $item['query'] !== '' && $item['impressions'] > 0)
+            ->sortByDesc(fn (array $item): int => (int) $item['impressions'])
+            ->take(5)
+            ->values()
+            ->all();
 
         return [
             'impressions' => $impressions,
@@ -642,7 +772,37 @@ class ClientSitesController extends Controller
             'ctr' => $ctr,
             'indexed_pages' => $deduplicatedRows->where('is_indexed', true)->count(),
             'indexed_pages_synced' => $indexedPagesSynced,
+            'previous_impressions' => $previousImpressions,
+            'previous_clicks' => $previousClicks,
+            'previous_ctr' => $previousCtr,
+            'delta_impressions' => $impressions - $previousImpressions,
+            'delta_clicks' => $clicks - $previousClicks,
+            'delta_ctr_points' => round(($ctr - $previousCtr) * 100, 2),
+            'top_rising_pages' => $topRisingPages,
+            'top_falling_pages' => $topFallingPages,
+            'top_queries' => $topQueries,
         ];
+    }
+
+    private function searchConsoleSlugFromUrl(string $url): string
+    {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+
+        return $path;
+    }
+
+    private function searchConsoleLabelFromUrl(string $url): string
+    {
+        $slug = $this->searchConsoleSlugFromUrl($url);
+
+        if ($slug === '') {
+            return (string) parse_url($url, PHP_URL_HOST);
+        }
+
+        $lastSegment = (string) last(array_filter(explode('/', $slug)));
+        $normalized = str_replace(['-', '_'], ' ', $lastSegment);
+
+        return mb_convert_case($normalized, MB_CASE_TITLE, 'UTF-8');
     }
 
     private function searchConsoleUrlKey(SeoSearchConsoleMetric $metric): string

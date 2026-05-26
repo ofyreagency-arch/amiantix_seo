@@ -45,7 +45,11 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     emergingQueryCount > 0 ? `${emergingQueryCount} requete(s) progressent vite` : null,
     sustainedDropCount > 0 ? `${sustainedDropCount} page(s) perdent de la visibilite` : null,
   ].filter((item): item is string => item !== null);
-  const queryWatchlist = siteOpportunities.filter((item) => item.query).slice(0, 3);
+  const queryWatchlist = site.summary.top_queries.slice(0, 3);
+  const pageMomentum = [
+    ...site.summary.top_rising_pages.map((item) => ({ ...item, trend: "up" as const })),
+    ...site.summary.top_falling_pages.map((item) => ({ ...item, trend: "down" as const })),
+  ].slice(0, 4);
   const activityFeed = [
     ...siteOpportunities.map((item) => ({
       id: `site-opportunity-${item.slug}-${item.type}`,
@@ -87,7 +91,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: site.summary.gsc_impressions, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: siteOpportunities.length, tone: "warning" },
-            { label: "Pages", href: "#pages", count: nearTop10Count + lowCtrCount + sustainedDropCount, tone: "secondary" },
+            { label: "Pages", href: "#pages", count: pageMomentum.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
             { label: "Indexation", href: "#indexation", count: site.summary.gsc_indexed_pages, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
@@ -267,7 +271,47 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             </CardContent>
           </Card>
 
-          <Card id="requetes" className="scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pages qui bougent</CardTitle>
+              <CardDescription>
+                Les pages qui gagnent ou perdent le plus de visibilité sur la dernière lecture Google.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pageMomentum.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Les prochains imports GSC feront remonter ici les pages qui montent et celles qui ralentissent.
+                </div>
+              ) : (
+                pageMomentum.map((item) => (
+                  <div key={`${item.slug}-${item.trend}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.label}</div>
+                        <div className="text-xs text-text-subtle">/{item.slug}</div>
+                      </div>
+                      <Badge variant={item.trend === "down" ? "danger" : "success"}>
+                        {item.trend === "down" ? "En baisse" : "En hausse"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {item.impressions} impressions récentes contre {item.previous_impressions} avant, soit{" "}
+                      {item.delta_impressions > 0 ? "+" : ""}
+                      {item.delta_impressions} sur la fenêtre suivie.
+                    </p>
+                    <p className="mt-3 text-xs text-text-subtle">
+                      CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="requetes" className="grid gap-6 xl:grid-cols-[1fr_0.9fr] scroll-mt-24">
+          <Card>
             <CardHeader>
               <CardTitle>Requêtes Google</CardTitle>
               <CardDescription>
@@ -282,20 +326,48 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </div>
               ) : (
                 queryWatchlist.map((item) => (
-                  <div key={`${item.slug}-${item.query ?? item.type}-query`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div key={item.query} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-text">{item.query}</div>
-                        <div className="text-xs text-text-subtle">{item.label}</div>
+                        <div className="text-xs text-text-subtle">{item.impressions} impressions récentes</div>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>
-                        {item.priority_label}
+                      <Badge variant={item.position <= 10 ? "warning" : "success"}>
+                        {item.position <= 10 ? "Déjà visible" : "À pousser"}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted leading-6">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {item.clicks} clic(s), CTR {item.ctr.toFixed(1)} %, position moyenne {item.position.toFixed(1)}.
+                    </p>
                   </div>
                 ))
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Tendance GSC</CardTitle>
+              <CardDescription>
+                Lecture simple des variations récentes détectées sur ce site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                site.summary.gsc_delta_impressions !== 0
+                  ? `${site.summary.gsc_delta_impressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions par rapport à la période précédente.`
+                  : "Le volume d’impressions reste stable sur la période récente.",
+                site.summary.gsc_delta_clicks !== 0
+                  ? `${site.summary.gsc_delta_clicks > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_clicks)} clic(s) par rapport à la période précédente.`
+                  : "Les clics restent stables pour le moment.",
+                site.summary.gsc_delta_ctr_points !== 0
+                  ? `${site.summary.gsc_delta_ctr_points > 0 ? "+" : ""}${site.summary.gsc_delta_ctr_points.toFixed(1)} point(s) de CTR sur la dernière lecture.`
+                  : "Le CTR reste stable sur la période comparée.",
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  {item}
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>
