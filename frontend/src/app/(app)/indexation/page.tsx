@@ -13,6 +13,10 @@ export default async function IndexationCockpitPage() {
   const syncedSites = connectedSites.filter((site) => site.summary.gsc_indexation_synced);
   const pendingSites = connectedSites.filter((site) => !site.summary.gsc_indexation_synced);
   const totalIndexedPages = syncedSites.reduce((sum, site) => sum + site.summary.gsc_indexed_pages, 0);
+  const totalNonIndexedPages = syncedSites.reduce((sum, site) => sum + site.summary.gsc_non_indexed_pages, 0);
+  const indexationAlerts = syncedSites
+    .flatMap((site) => site.summary.indexation_alerts.map((item) => ({ ...item, site_name: site.name })))
+    .slice(0, 8);
 
   return (
     <div className="min-h-screen">
@@ -26,7 +30,7 @@ export default async function IndexationCockpitPage() {
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: totalIndexedPages, tone: "default" },
             { label: "Pages indexées", href: "#indexees", count: syncedSites.length, tone: "success" },
-            { label: "Alertes", href: "#alertes", count: pendingSites.length, tone: "warning" },
+            { label: "Alertes", href: "#alertes", count: indexationAlerts.length + pendingSites.length, tone: "warning" },
             { label: "État Google", href: "#google", count: connectedSites.length, tone: "secondary" },
           ]}
         />
@@ -43,9 +47,9 @@ export default async function IndexationCockpitPage() {
           <CockpitMetricGrid
             items={[
               { label: "Pages indexées", value: totalIndexedPages, tone: "success" },
+              { label: "Pages non indexées", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
               { label: "Sites reliés à Google", value: connectedSites.length },
-              { label: "Indexation synchronisée", value: syncedSites.length, tone: "success" },
-              { label: "Alertes d’indexation", value: pendingSites.length, tone: pendingSites.length > 0 ? "warning" : "secondary" },
+              { label: "Alertes d’indexation", value: indexationAlerts.length + pendingSites.length, tone: indexationAlerts.length + pendingSites.length > 0 ? "warning" : "secondary" },
             ]}
           />
         </div>
@@ -62,7 +66,7 @@ export default async function IndexationCockpitPage() {
                 key={site.site_id}
                 title={site.name}
                 subtitle={site.gsc_property_url ?? site.site_id}
-                badge={`${site.summary.gsc_indexed_pages} indexées`}
+                badge={`${site.summary.gsc_indexed_pages} indexées / ${site.summary.gsc_non_indexed_pages} à surveiller`}
                 badgeTone="success"
                 description={`Dernière lecture Google : ${site.gsc_last_sync_at ? formatDate(site.gsc_last_sync_at) : "récemment"}.`}
               />
@@ -74,9 +78,19 @@ export default async function IndexationCockpitPage() {
             className="scroll-mt-24"
             title="Alertes simples"
             description="Les sites où l’indexation reste à surveiller ou à finaliser côté lecture Google."
-            empty={pendingSites.length === 0}
+            empty={indexationAlerts.length + pendingSites.length === 0}
             emptyMessage="Aucune alerte simple d’indexation pour le moment. Le cockpit reste déjà à jour."
           >
+            {indexationAlerts.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.slug}-alert`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge="Google surveille"
+                badgeTone="warning"
+                description={item.detail}
+              />
+            ))}
             {pendingSites.map((site) => (
               <CockpitSignalItem
                 key={site.site_id}

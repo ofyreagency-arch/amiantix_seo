@@ -13,8 +13,29 @@ export default async function QueriesCockpitPage() {
     .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
     .slice(0, 12);
   const visibleQueries = topQueries.filter((item) => item.position <= 10).slice(0, 6);
+  const risingQueries = dashboard.sites
+    .flatMap((site) => site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name })))
+    .slice(0, 6);
   const potentialQueries = topQueries.filter((item) => item.position > 10 || item.impressions >= 10).slice(0, 6);
-  const emergingQueries = optimizations.gsc_opportunities.items.filter((item) => item.type === "emerging_query" && item.query).slice(0, 6);
+  const newQueries = dashboard.sites
+    .flatMap((site) => site.summary.new_queries.map((item) => ({ ...item, site_name: site.name })))
+    .slice(0, 6);
+  const emergingQueries = [
+    ...newQueries,
+    ...optimizations.gsc_opportunities.items
+      .filter((item) => item.type === "emerging_query" && item.query)
+      .map((item) => ({
+        query: item.query ?? "Requête suivie",
+        impressions: Number(item.metrics.impressions ?? 0),
+        previous_impressions: 0,
+        delta_impressions: Number(item.metrics.impressions ?? 0),
+        delta_percent: 100,
+        clicks: Number(item.metrics.clicks ?? 0),
+        ctr: Number(item.metrics.ctr ?? 0),
+        position: Number(item.metrics.position ?? 0),
+        site_name: item.site_name,
+      })),
+  ].slice(0, 6);
 
   return (
     <div className="min-h-screen">
@@ -28,6 +49,7 @@ export default async function QueriesCockpitPage() {
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: topQueries.length, tone: "default" },
             { label: "Meilleures requêtes", href: "#meilleures", count: visibleQueries.length, tone: "success" },
+            { label: "En hausse", href: "#hausse", count: risingQueries.length, tone: "success" },
             { label: "À potentiel", href: "#potentiel", count: potentialQueries.length, tone: "warning" },
             { label: "Émergentes", href: "#emergentes", count: emergingQueries.length, tone: "secondary" },
           ]}
@@ -46,8 +68,9 @@ export default async function QueriesCockpitPage() {
             items={[
               { label: "Requêtes suivies", value: topQueries.length },
               { label: "Déjà visibles", value: visibleQueries.length, tone: "success" },
+              { label: "En hausse", value: risingQueries.length, tone: "success" },
               { label: "À potentiel", value: potentialQueries.length, tone: "warning" },
-              { label: "Émergentes", value: emergingQueries.length, tone: "secondary" },
+              { label: "Émergentes", value: newQueries.length, tone: "secondary" },
             ]}
           />
         </div>
@@ -72,8 +95,29 @@ export default async function QueriesCockpitPage() {
           </CockpitSignalListCard>
 
           <CockpitSignalListCard
-            id="potentiel"
+            id="hausse"
             className="scroll-mt-24"
+            title="Requêtes en hausse"
+            description="Les requêtes qui gagnent le plus d’impressions sur la période récente."
+            empty={risingQueries.length === 0}
+            emptyMessage="Aucune hausse franche de requête pour le moment. PraeviSEO affichera ici les prochaines progressions."
+          >
+            {risingQueries.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.query}-rising`}
+                title={item.query}
+                subtitle={item.site_name}
+                badge={`+${item.delta_impressions} impressions`}
+                badgeTone="success"
+                description={`CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}, ${item.previous_impressions} impressions avant.`}
+              />
+            ))}
+          </CockpitSignalListCard>
+        </div>
+
+        <div id="potentiel" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <CockpitSignalListCard
+            id="potentiel"
             title="Requêtes à potentiel"
             description="Celles qui peuvent devenir un vrai levier SEO si on pousse la bonne page."
             empty={potentialQueries.length === 0}
@@ -90,27 +134,27 @@ export default async function QueriesCockpitPage() {
               />
             ))}
           </CockpitSignalListCard>
-        </div>
 
-        <CockpitSignalListCard
-          id="emergentes"
-          className="scroll-mt-24"
-          title="Requêtes émergentes"
-          description="Les requêtes qui progressent vite ou que PraeviSEO commence déjà à considérer comme un signal de croissance."
-          empty={emergingQueries.length === 0}
-          emptyMessage="Aucune requête émergente forte pour le moment. Ce bloc s’enrichira dès les prochaines hausses nettes."
-        >
-          {emergingQueries.map((item) => (
-            <CockpitSignalItem
-              key={`${item.site_id}-${item.query}-emerging`}
-              title={item.query ?? "Requête suivie"}
-              subtitle={item.site_name}
-              badge={item.priority_label}
-              badgeTone={item.priority_level === "high" ? "warning" : "secondary"}
-              description={item.reason}
-            />
-          ))}
-        </CockpitSignalListCard>
+          <CockpitSignalListCard
+            id="emergentes"
+            className="scroll-mt-24"
+            title="Nouvelles requêtes"
+            description="Les requêtes que Google commence à associer à votre site et qui ouvrent de nouvelles pistes."
+            empty={emergingQueries.length === 0}
+            emptyMessage="Aucune nouvelle requête forte pour le moment. Le cockpit les fera remonter automatiquement."
+          >
+            {emergingQueries.map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.query}-emerging`}
+                title={item.query}
+                subtitle={item.site_name}
+                badge={item.previous_impressions === 0 ? "Nouvelle requête" : `+${item.delta_impressions} impressions`}
+                badgeTone="secondary"
+                description={`${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+              />
+            ))}
+          </CockpitSignalListCard>
+        </div>
       </div>
     </div>
   );

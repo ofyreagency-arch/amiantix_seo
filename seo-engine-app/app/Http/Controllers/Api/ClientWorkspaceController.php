@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
 use App\Runtime\GscOpportunityService;
@@ -159,6 +160,31 @@ class ClientWorkspaceController extends Controller
             ->orderByDesc('published_at')
             ->limit(24)
             ->get();
+        $siteUrls = SeoSite::query()
+            ->whereIn('site_id', $siteIds)
+            ->pluck('url', 'site_id');
+        $pageIds = $pages->pluck('id')->filter()->values();
+        $latestSuggestions = SeoSuggestion::query()
+            ->whereIn('seo_page_id', $pageIds)
+            ->latest()
+            ->get()
+            ->groupBy('seo_page_id')
+            ->map(fn ($rows) => $rows->first());
+        $latestMetricDates = SeoSearchConsoleMetric::query()
+            ->whereIn('site_id', $siteIds)
+            ->where('window_days', 28)
+            ->whereNull('query')
+            ->groupBy('site_id')
+            ->selectRaw('site_id, max(metric_date) as latest_metric_date')
+            ->pluck('latest_metric_date', 'site_id');
+        $pageMetrics = SeoSearchConsoleMetric::query()
+            ->whereIn('site_id', $siteIds)
+            ->where('window_days', 28)
+            ->whereNull('query')
+            ->whereNotNull('url')
+            ->orderByDesc('metric_date')
+            ->get()
+            ->groupBy('site_id');
 
         return response()->json([
             'stats' => [
@@ -182,6 +208,16 @@ class ClientWorkspaceController extends Controller
                 'live_url' => $hasLiveUrlColumn ? $page->live_url : null,
                 'seo_score' => $page->seo_score,
                 'indexability_score' => $page->indexability_score,
+                'topical_score' => $page->topical_score,
+                'quality_score' => $page->quality_score,
+                'cluster' => $page->cluster,
+                'gsc_metrics' => $this->publicationMetricsForPage(
+                    $page,
+                    (string) ($siteUrls[$page->site_id] ?? ''),
+                    $latestMetricDates,
+                    $pageMetrics
+                ),
+                'latest_suggestion' => $this->serializePublicationSuggestion($latestSuggestions->get($page->id)),
             ])->values(),
         ]);
     }
@@ -242,5 +278,75 @@ class ClientWorkspaceController extends Controller
                 'email' => (string) $user->email,
             ],
         ]);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, mixed>  $latestMetricDates
+     * @param  \Illuminate\Support\Collection<string, \Illuminate\Support\Collection<int, \App\Models\SeoSearchConsoleMetric>>  $pageMetrics
+     * @return array<string, int|float|null>
+     */
+    private function publicationMetricsForPage(
+        SeoPage $page,
+        string $siteUrl,
+        \Illuminate\Support\Collection $latestMetricDates,
+        \Illuminate\Support\Collection $pageMetrics,
+    ): array {
+        $latestMetricDate = $latestMetricDates->get($page->site_id);
+        $siteRows = $pageMetrics->get($page->site_id, collect());
+
+        if (! $latestMetricDate || $siteRows->isEmpty()) {
+            return [
+                'impressions' => 0,
+                'clicks' => 0,
+                'ctr' => 0.0,
+                'position' => null,
+            ];
+        }
+
+        $targetUrls = collect([
+            $page->live_url,
+            rtrim($siteUrl, '/').$page->canonicalPath(),
+            rtrim($siteUrl, '/').$page->canonicalPath().'/',
+        ])
+            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+            ->map(fn (string $value): string => rtrim($value, '/'))
+            ->unique()
+            ->values();
+
+        $metric = $siteRows->first(function ($row) use ($latestMetricDate, $targetUrls) {
+            $rowUrl = rtrim((string) $row->url, '/');
+
+            return (string) $row->metric_date === (string) $latestMetricDate
+                && $targetUrls->contains($rowUrl);
+        });
+
+        return [
+            'impressions' => (int) round((float) ($metric?->impressions ?? 0)),
+            'clicks' => (int) round((float) ($metric?->clicks ?? 0)),
+            'ctr' => round(((float) ($metric?->ctr ?? 0.0)) * 100, 2),
+            'position' => $metric ? round((float) $metric->position, 1) : null,
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function serializePublicationSuggestion(?SeoSuggestion $suggestion): ?array
+    {
+        if (! $suggestion) {
+            return null;
+        }
+
+        $suggestionsJson = is_array($suggestion->suggestions_json) ? $suggestion->suggestions_json : [];
+        $signalsJson = is_array($suggestion->signals_json) ? $suggestion->signals_json : [];
+
+        return [
+            'id' => $suggestion->id,
+            'status' => (string) $suggestion->status,
+            'source' => (string) $suggestion->source,
+            'summary' => (string) ($suggestionsJson['summary'] ?? $signalsJson['summary'] ?? $signalsJson['reason'] ?? 'Suggestion détectée par PraeviSEO.'),
+            'impact_expected' => (string) ($suggestionsJson['impact_expected'] ?? $signalsJson['impact_expected'] ?? ''),
+            'created_at' => $suggestion->created_at,
+        ];
     }
 }

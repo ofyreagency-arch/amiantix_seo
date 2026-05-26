@@ -9,6 +9,27 @@ export default async function ActivityCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const queryMovementFeed = dashboard.sites.flatMap((site) => [
+    ...site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
+    ...site.summary.new_queries.map((item) => ({ ...item, site_name: site.name, trend: "new" as const })),
+  ]);
+  const indexationFeed = dashboard.sites.flatMap((site) =>
+    site.summary.indexation_alerts.map((item) => ({
+      ...item,
+      site_name: site.name,
+    }))
+  );
+  const publicationSuggestionFeed = publications.items
+    .filter((item) => !!item.latest_suggestion)
+    .map((item) => ({
+      id: `content-suggestion-${item.id}`,
+      title: item.title,
+      detail: item.latest_suggestion?.summary ?? "Suggestion éditoriale détectée.",
+      badge: "Refresh conseillé",
+      badgeVariant: "warning" as const,
+      meta: item.latest_suggestion?.created_at ? formatDate(item.latest_suggestion.created_at) : item.site_id,
+      timestamp: item.latest_suggestion?.created_at ? new Date(item.latest_suggestion.created_at).getTime() : 0,
+    }));
 
   const timelineFeed = [
     ...dashboard.sites
@@ -57,13 +78,63 @@ export default async function ActivityCockpitPage() {
       meta: item.published_at ? formatDate(item.published_at) : "Récemment",
       timestamp: item.published_at ? new Date(item.published_at).getTime() : 0,
     })),
+    ...queryMovementFeed.slice(0, 6).map((item) => ({
+      id: `query-${item.site_name}-${item.query}-${item.trend}`,
+      title: item.query,
+      detail:
+        item.trend === "new"
+          ? `Nouvelle requête détectée avec ${item.impressions} impressions et une position moyenne de ${item.position.toFixed(1)}.`
+          : `La requête gagne ${item.delta_impressions} impressions sur la période récente.`,
+      badge: item.trend === "new" ? "Nouvelle requête" : "Requête en hausse",
+      badgeVariant: "success" as const,
+      meta: `${item.site_name} · lecture GSC`,
+      timestamp: 0,
+    })),
+    ...indexationFeed.slice(0, 6).map((item) => ({
+      id: `indexation-${item.site_name}-${item.slug}`,
+      title: item.label,
+      detail: item.detail,
+      badge: "Indexation",
+      badgeVariant: "warning" as const,
+      meta: `${item.site_name} · signal Google`,
+      timestamp: 0,
+    })),
+    ...publicationSuggestionFeed.slice(0, 6),
   ]
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 12);
 
-  const alertFeed = optimizations.gsc_opportunities.items
-    .filter((item) => item.type === "low_ctr" || item.type === "sustained_drop")
-    .slice(0, 6);
+  const alertFeed = [
+    ...optimizations.gsc_opportunities.items
+      .filter((item) => item.type === "low_ctr" || item.type === "sustained_drop")
+      .map((item) => ({
+        id: `${item.site_id}-${item.slug}-${item.type}-alert`,
+        title: item.label,
+        subtitle: item.site_name,
+        badge: item.priority_label,
+        badgeTone: item.type === "sustained_drop" ? "danger" : "warning",
+        description: item.reason,
+      })),
+    ...indexationFeed.slice(0, 4).map((item) => ({
+      id: `${item.site_name}-${item.slug}-index-alert`,
+      title: item.label,
+      subtitle: item.site_name,
+      badge: "Indexation",
+      badgeTone: "warning" as const,
+      description: item.detail,
+    })),
+    ...publications.items
+      .filter((item) => !!item.latest_suggestion)
+      .slice(0, 4)
+      .map((item) => ({
+        id: `${item.site_id}-${item.slug}-refresh-alert`,
+        title: item.title,
+        subtitle: item.site_id,
+        badge: "Refresh",
+        badgeTone: "warning" as const,
+        description: item.latest_suggestion?.summary ?? "Un refresh éditorial est recommandé.",
+      })),
+  ].slice(0, 8);
   const movementFeed = dashboard.sites.flatMap((site) => [
     ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
     ...site.summary.top_falling_pages.map((item) => ({ ...item, site_name: site.name, trend: "down" as const })),
@@ -81,6 +152,7 @@ export default async function ActivityCockpitPage() {
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: timelineFeed.length, tone: "default" },
             { label: "Mouvements", href: "#mouvements", count: movementFeed.length, tone: "success" },
+            { label: "Requêtes", href: "#requetes", count: queryMovementFeed.length, tone: "success" },
             { label: "Alertes", href: "#alertes", count: alertFeed.length, tone: "warning" },
             { label: "Timeline", href: "#timeline", count: timelineFeed.length, tone: "secondary" },
           ]}
@@ -99,6 +171,7 @@ export default async function ActivityCockpitPage() {
             items={[
               { label: "Événements récents", value: timelineFeed.length },
               { label: "Mouvements de pages", value: movementFeed.length, tone: "success" },
+              { label: "Requêtes en mouvement", value: queryMovementFeed.length, tone: "success" },
               { label: "Alertes actives", value: alertFeed.length, tone: alertFeed.length > 0 ? "warning" : "secondary" },
               { label: "Opportunités ouvertes", value: optimizations.gsc_opportunities.summary.total, tone: "warning" },
             ]}
@@ -125,6 +198,30 @@ export default async function ActivityCockpitPage() {
           </CockpitSignalListCard>
 
           <CockpitSignalListCard
+            id="requetes"
+            className="scroll-mt-24"
+            title="Requêtes qui bougent"
+            description="Les requêtes qui montent ou qui viennent juste d’apparaître dans la lecture Google."
+            empty={queryMovementFeed.length === 0}
+            emptyMessage="Aucun mouvement de requête fort pour le moment. PraeviSEO affichera ici les prochaines progressions."
+          >
+            {queryMovementFeed.slice(0, 8).map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_name}-${item.query}-${item.trend}`}
+                title={item.query}
+                subtitle={item.site_name}
+                badge={item.trend === "new" ? "Nouvelle requête" : "En hausse"}
+                badgeTone="success"
+                description={
+                  item.trend === "new"
+                    ? `${item.impressions} impressions, position ${item.position.toFixed(1)}.`
+                    : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`
+                }
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
             id="alertes"
             className="scroll-mt-24"
             title="Alertes simples"
@@ -134,12 +231,12 @@ export default async function ActivityCockpitPage() {
           >
             {alertFeed.map((item) => (
               <CockpitSignalItem
-                key={`${item.site_id}-${item.slug}-${item.type}-alert`}
-                title={item.label}
-                subtitle={item.site_name}
-                badge={item.priority_label}
-                badgeTone={item.type === "sustained_drop" ? "danger" : "warning"}
-                description={item.reason}
+                key={item.id}
+                title={item.title}
+                subtitle={item.subtitle}
+                badge={item.badge}
+                badgeTone={item.badgeTone as "success" | "warning" | "secondary" | "danger"}
+                description={item.description}
               />
             ))}
           </CockpitSignalListCard>

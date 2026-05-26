@@ -11,6 +11,7 @@ import {
   getPraeviseoClientStatus,
   getPraeviseoInstallLabel,
   getOptimizations,
+  getPublications,
   getSite,
   getSiteConnectPath,
   hasBackendConnection,
@@ -32,6 +33,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
   const backendLive = hasBackendConnection();
   const optimizations = await getOptimizations();
+  const publications = await getPublications();
   const siteOpportunities = optimizations.gsc_opportunities.items
     .filter((item) => item.site_id === site.site_id)
     .slice(0, 3);
@@ -46,11 +48,16 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     sustainedDropCount > 0 ? `${sustainedDropCount} page(s) perdent de la visibilite` : null,
   ].filter((item): item is string => item !== null);
   const queryWatchlist = site.summary.top_queries.slice(0, 3);
+  const risingQueries = site.summary.top_rising_queries.slice(0, 3);
+  const newQueries = site.summary.new_queries.slice(0, 3);
   const pageMomentum = [
     ...site.summary.top_rising_pages.map((item) => ({ ...item, trend: "up" as const })),
     ...site.summary.top_falling_pages.map((item) => ({ ...item, trend: "down" as const })),
   ].slice(0, 4);
+  const siteIndexationAlerts = site.summary.indexation_alerts.slice(0, 4);
   const siteRecommendations = optimizations.items.filter((item) => item.page.site_id === site.site_id).slice(0, 3);
+  const siteContent = publications.items.filter((item) => item.site_id === site.site_id);
+  const refreshContent = siteContent.filter((item) => !!item.latest_suggestion || (item.seo_score ?? 0) < 80).slice(0, 3);
   const activityFeed = [
     ...siteOpportunities.map((item) => ({
       id: `site-opportunity-${item.slug}-${item.type}`,
@@ -59,6 +66,22 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       badge: item.priority_label,
       badgeVariant: item.priority_level === "high" ? "warning" : "secondary",
       meta: item.action,
+    })),
+    ...risingQueries.map((item) => ({
+      id: `site-query-${item.query}`,
+      title: item.query,
+      detail: `+${item.delta_impressions} impressions sur la période récente, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`,
+      badge: "Requête en hausse",
+      badgeVariant: "success" as const,
+      meta: "lecture GSC",
+    })),
+    ...refreshContent.map((item) => ({
+      id: `site-content-${item.id}`,
+      title: item.title,
+      detail: item.latest_suggestion?.summary ?? "Ce contenu mérite une relance.",
+      badge: "Refresh",
+      badgeVariant: "warning" as const,
+      meta: item.cluster ?? "contenu",
     })),
   ].slice(0, 4);
   const timelineFeed = [
@@ -87,6 +110,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       badgeVariant: item.status === "pending" ? "warning" : "secondary",
       meta: item.created_at ? formatDate(item.created_at) : "Récemment",
       timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
+    })),
+    ...siteIndexationAlerts.map((item) => ({
+      id: `site-index-${item.slug}`,
+      title: item.label,
+      detail: item.detail,
+      badge: "Indexation",
+      badgeVariant: "warning" as const,
+      meta: "signal Google",
+      timestamp: 0,
     })),
   ]
     .sort((a, b) => b.timestamp - a.timestamp)
@@ -134,6 +166,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       detail: pageMomentum.length > 0 ? "hausses ou chutes récentes détectées" : "mouvement encore limité",
       tone: pageMomentum.length > 0 ? "success" : "secondary",
     },
+    {
+      label: "Requêtes qui montent",
+      value: risingQueries.length + newQueries.length,
+      detail: risingQueries.length + newQueries.length > 0 ? "mouvements visibles dans Google" : "pas encore de hausse franche",
+      tone: risingQueries.length + newQueries.length > 0 ? "success" : "secondary",
+    },
   ] as const;
 
   return (
@@ -155,8 +193,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: site.summary.gsc_impressions, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: siteOpportunities.length, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageMomentum.length, tone: "secondary" },
-            { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
-            { label: "Indexation", href: "#indexation", count: site.summary.gsc_indexed_pages, tone: "secondary" },
+            { label: "Requêtes Google", href: "#requetes", count: risingQueries.length + newQueries.length + queryWatchlist.length, tone: "success" },
+            { label: "Indexation", href: "#indexation", count: siteIndexationAlerts.length || site.summary.gsc_indexed_pages, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
           ]}
         />
@@ -188,6 +226,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {site.summary.gsc_indexed_pages} page(s) indexee(s)
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {site.summary.gsc_non_indexed_pages} page(s) à surveiller
                 </span>
               </div>
             </div>
@@ -424,27 +466,36 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tendance GSC</CardTitle>
+              <CardTitle>Requêtes qui bougent</CardTitle>
               <CardDescription>
-                Lecture simple des variations récentes détectées sur ce site.
+                Les requêtes en hausse ou nouvellement visibles qui rendent ce cockpit plus vivant.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {[
-                site.summary.gsc_delta_impressions !== 0
-                  ? `${site.summary.gsc_delta_impressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions par rapport à la période précédente.`
-                  : "Le volume d’impressions reste stable sur la période récente.",
-                site.summary.gsc_delta_clicks !== 0
-                  ? `${site.summary.gsc_delta_clicks > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_clicks)} clic(s) par rapport à la période précédente.`
-                  : "Les clics restent stables pour le moment.",
-                site.summary.gsc_delta_ctr_points !== 0
-                  ? `${site.summary.gsc_delta_ctr_points > 0 ? "+" : ""}${site.summary.gsc_delta_ctr_points.toFixed(1)} point(s) de CTR sur la dernière lecture.`
-                  : "Le CTR reste stable sur la période comparée.",
-              ].map((item) => (
-                <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  {item}
+              {risingQueries.length + newQueries.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun mouvement fort de requête pour le moment. Les prochains imports GSC feront vivre ce bloc.
                 </div>
-              ))}
+              ) : (
+                [...risingQueries, ...newQueries].map((item) => (
+                  <div key={`${item.query}-${item.delta_impressions}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.query}</div>
+                        <div className="text-xs text-text-subtle">{item.impressions} impressions récentes</div>
+                      </div>
+                      <Badge variant={item.previous_impressions === 0 ? "secondary" : "success"}>
+                        {item.previous_impressions === 0 ? "Nouvelle requête" : "En hausse"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {item.previous_impressions === 0
+                        ? `Google commence à relier cette requête à votre site. Position moyenne ${item.position.toFixed(1)}.`
+                        : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                    </p>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
@@ -478,6 +529,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     : "PraeviSEO attend encore une lecture exploitable de l’indexation Google pour enrichir ce volet."}
                 </p>
               </div>
+              {siteIndexationAlerts.map((item) => (
+                <div key={item.slug} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{item.label}</div>
+                    <Badge variant="warning">Google surveille</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-text-muted leading-6">{item.detail}</p>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
@@ -576,6 +636,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 siteOpportunities.length > 0
                   ? `${siteOpportunities.length} opportunité(s) sont déjà ouvertes sur ce site.`
                   : "PraeviSEO guette encore les premiers leviers rapides sur ce site.",
+                refreshContent.length > 0
+                  ? `${refreshContent.length} contenu(s) méritent déjà un refresh ou une relance.`
+                  : "Aucun contenu chaud à relancer pour le moment.",
                 site.readiness.gsc_connected
                   ? "Google Search Console alimente déjà ce cockpit sans installation technique."
                   : "La connexion Search Console reste la prochaine étape pour rendre ce cockpit vraiment vivant.",

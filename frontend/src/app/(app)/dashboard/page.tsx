@@ -40,18 +40,21 @@ export default async function DashboardPage() {
   const queryWatchlist = dashboard.sites
     .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
     .slice(0, 6);
+  const risingQueryWatchlist = dashboard.sites
+    .flatMap((site) => site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name })))
+    .slice(0, 6);
+  const newQueryWatchlist = dashboard.sites
+    .flatMap((site) => site.summary.new_queries.map((item) => ({ ...item, site_name: site.name })))
+    .slice(0, 6);
   const totalDeltaImpressions = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_impressions, 0);
   const totalDeltaClicks = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_clicks, 0);
   const risingSitesCount = dashboard.sites.filter((site) => site.summary.gsc_delta_impressions > 0).length;
   const slippingSitesCount = dashboard.sites.filter((site) => site.summary.gsc_delta_impressions < 0).length;
   const indexationAlerts = dashboard.sites
-    .filter((site) => site.readiness.gsc_connected)
-    .map((site) => ({
-      siteId: site.site_id,
-      siteName: site.name,
-      indexedPages: site.summary.gsc_indexed_pages,
-      synced: site.summary.gsc_indexation_synced,
-    }))
+    .flatMap((site) => site.summary.indexation_alerts.map((item) => ({ ...item, site_name: site.name, site_id: site.site_id })))
+    .slice(0, 6);
+  const contentRefreshFeed = publications.items
+    .filter((item) => !!item.latest_suggestion)
     .slice(0, 4);
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
@@ -79,6 +82,14 @@ export default async function DashboardPage() {
       badge: item.published_live ? "visible" : "préparé",
       badgeVariant: item.published_live ? "success" : "secondary",
       meta: `${item.site_id} · activité contenu`,
+    })),
+    ...contentRefreshFeed.slice(0, 2).map((item) => ({
+      id: `content-refresh-${item.id}`,
+      title: item.title,
+      detail: item.latest_suggestion?.summary ?? "Un refresh éditorial est recommandé.",
+      badge: "Refresh",
+      badgeVariant: "warning" as const,
+      meta: `${item.site_id} · contenu`,
     })),
   ].slice(0, 6);
   const timelineFeed = [
@@ -119,6 +130,24 @@ export default async function DashboardPage() {
       meta: item.published_at ? formatDate(item.published_at) : "Récemment",
       timestamp: item.published_at ? new Date(item.published_at).getTime() : 0,
     })),
+    ...risingQueryWatchlist.map((item) => ({
+      id: `timeline-query-${item.site_name}-${item.query}`,
+      title: item.query,
+      detail: `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`,
+      badge: "Requête en hausse",
+      badgeVariant: "success" as const,
+      meta: `${item.site_name} · lecture GSC`,
+      timestamp: 0,
+    })),
+    ...indexationAlerts.map((item) => ({
+      id: `timeline-index-${item.site_id}-${item.slug}`,
+      title: item.label,
+      detail: item.detail,
+      badge: "Indexation",
+      badgeVariant: "warning" as const,
+      meta: `${item.site_name} · signal Google`,
+      timestamp: 0,
+    })),
   ]
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 6);
@@ -132,8 +161,14 @@ export default async function DashboardPage() {
     optimizations.gsc_opportunities.summary.emerging_queries > 0
       ? `${optimizations.gsc_opportunities.summary.emerging_queries} requete(s) progressent rapidement`
       : null,
+    newQueryWatchlist.length > 0
+      ? `${newQueryWatchlist.length} nouvelle(s) requete(s) apparaissent dans Google`
+      : null,
     optimizations.gsc_opportunities.summary.sustained_drop > 0
       ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilite`
+      : null,
+    indexationAlerts.length > 0
+      ? `${indexationAlerts.length} alerte(s) d indexation restent a surveiller`
       : null,
   ].filter((item): item is string => item !== null);
   const cockpitMoments = [
@@ -220,8 +255,8 @@ export default async function DashboardPage() {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
-            { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
-            { label: "Indexation", href: "#indexation", count: indexedPagesValue, tone: "secondary" },
+            { label: "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length, tone: "success" },
+            { label: "Indexation", href: "#indexation", count: indexationAlerts.length || indexedPagesValue, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
           ]}
         />
@@ -404,6 +439,8 @@ export default async function DashboardPage() {
                           : "Indexation Google non synchronisée"}
                       </span>
                       <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
+                      <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
+                      <span>{site.summary.gsc_non_indexed_pages} page(s) non indexée(s)</span>
                       <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
                       <span>
                         {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
@@ -583,21 +620,17 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 indexationAlerts.map((item) => (
-                  <div key={item.siteId} className="rounded-xl border border-border px-4 py-3">
+                  <div key={`${item.site_id}-${item.slug}`} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-text">{item.siteName}</p>
-                        <p className="text-xs text-text-subtle">{item.siteId}</p>
+                        <p className="text-sm font-semibold text-text">{item.label}</p>
+                        <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.synced ? "success" : "secondary"}>
-                        {item.synced ? "Indexation lue" : "En attente"}
+                      <Badge variant="warning">
+                        Google surveille
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      {item.synced
-                        ? `${item.indexedPages} page(s) sont déjà vues comme indexées dans le cockpit PraeviSEO.`
-                        : "L’indexation n’est pas encore synchronisée pour ce site."}
-                    </p>
+                    <p className="mt-2 text-sm text-text-muted">{item.detail}</p>
                   </div>
                 ))
               )}
@@ -629,6 +662,10 @@ export default async function DashboardPage() {
                         {item.published_live ? "visible sur le site" : "en preparation"}
                       </Badge>
                     </div>
+                    <p className="mt-2 text-sm text-text-muted">
+                      {item.latest_suggestion?.summary ??
+                        `${item.gsc_metrics.impressions} impressions, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`}
+                    </p>
                   </div>
                 ))
               )}

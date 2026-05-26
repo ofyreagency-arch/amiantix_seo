@@ -576,9 +576,14 @@ class ClientSitesController extends Controller
                 'gsc_delta_impressions' => $gscSnapshot['delta_impressions'],
                 'gsc_delta_clicks' => $gscSnapshot['delta_clicks'],
                 'gsc_delta_ctr_points' => $gscSnapshot['delta_ctr_points'],
+                'gsc_non_indexed_pages' => $gscSnapshot['non_indexed_pages'],
                 'top_rising_pages' => $gscSnapshot['top_rising_pages'],
                 'top_falling_pages' => $gscSnapshot['top_falling_pages'],
                 'top_queries' => $gscSnapshot['top_queries'],
+                'top_rising_queries' => $gscSnapshot['top_rising_queries'],
+                'top_falling_queries' => $gscSnapshot['top_falling_queries'],
+                'new_queries' => $gscSnapshot['new_queries'],
+                'indexation_alerts' => $gscSnapshot['indexation_alerts'],
             ],
             'readiness' => [
                 'bridge_connected' => $bridgeConnected,
@@ -610,9 +615,14 @@ class ClientSitesController extends Controller
      *     delta_impressions:float,
      *     delta_clicks:float,
      *     delta_ctr_points:float,
+     *     non_indexed_pages:int,
      *     top_rising_pages:array<int,array<string,mixed>>,
      *     top_falling_pages:array<int,array<string,mixed>>,
-     *     top_queries:array<int,array<string,mixed>>
+     *     top_queries:array<int,array<string,mixed>>,
+     *     top_rising_queries:array<int,array<string,mixed>>,
+     *     top_falling_queries:array<int,array<string,mixed>>,
+     *     new_queries:array<int,array<string,mixed>>,
+     *     indexation_alerts:array<int,array<string,mixed>>
      * }
      */
     private function searchConsoleSnapshot(string $siteId): array
@@ -637,9 +647,14 @@ class ClientSitesController extends Controller
                 'delta_impressions' => 0.0,
                 'delta_clicks' => 0.0,
                 'delta_ctr_points' => 0.0,
+                'non_indexed_pages' => 0,
                 'top_rising_pages' => [],
                 'top_falling_pages' => [],
                 'top_queries' => [],
+                'top_rising_queries' => [],
+                'top_falling_queries' => [],
+                'new_queries' => [],
+                'indexation_alerts' => [],
             ];
         }
 
@@ -651,12 +666,12 @@ class ClientSitesController extends Controller
         $snapshotRows = (clone $baseQuery)
             ->whereDate('metric_date', $latestMetricDate)
             ->orderByDesc('id')
-            ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed', 'payload_json']);
+            ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json']);
         $previousRows = $previousMetricDate
             ? (clone $baseQuery)
                 ->whereDate('metric_date', Carbon::parse((string) $previousMetricDate)->toDateString())
                 ->orderByDesc('id')
-                ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'is_indexed', 'payload_json'])
+                ->get(['id', 'url', 'clicks', 'impressions', 'ctr', 'position', 'is_indexed', 'coverage_json', 'payload_json'])
             : collect();
         $queryRows = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
@@ -665,6 +680,15 @@ class ClientSitesController extends Controller
             ->whereDate('metric_date', $latestMetricDate)
             ->orderByDesc('impressions')
             ->get(['query', 'clicks', 'impressions', 'ctr', 'position']);
+        $previousQueryRows = $previousMetricDate
+            ? SeoSearchConsoleMetric::query()
+                ->where('site_id', $siteId)
+                ->whereNotNull('query')
+                ->where('window_days', 28)
+                ->whereDate('metric_date', Carbon::parse((string) $previousMetricDate)->toDateString())
+                ->orderByDesc('impressions')
+                ->get(['query', 'clicks', 'impressions', 'ctr', 'position'])
+            : collect();
 
         $aggregateRow = $snapshotRows->first(
             fn (SeoSearchConsoleMetric $metric): bool => trim((string) $metric->url) === ''
@@ -739,7 +763,7 @@ class ClientSitesController extends Controller
             ->take(3)
             ->values()
             ->all();
-        $topQueries = $queryRows
+        $queryTotals = $queryRows
             ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
             ->map(function ($rows, string $query): array {
                 /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
@@ -759,9 +783,94 @@ class ClientSitesController extends Controller
                     'ctr' => round($impressions > 0 ? ($clicks / $impressions) * 100 : 0.0, 2),
                     'position' => round($positionWeighted, 1),
                 ];
+            });
+        $previousQueryTotals = $previousQueryRows
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
+            ->map(function ($rows, string $query): array {
+                /** @var \Illuminate\Support\Collection<int, SeoSearchConsoleMetric> $rows */
+                $impressions = (float) $rows->sum('impressions');
+                $clicks = (float) $rows->sum('clicks');
+                $positionWeighted = $impressions > 0
+                    ? $rows->reduce(
+                        fn (float $carry, SeoSearchConsoleMetric $metric): float => $carry + (((float) $metric->position) * ((float) $metric->impressions)),
+                        0.0
+                    ) / $impressions
+                    : 0.0;
+
+                return [
+                    'query' => $query,
+                    'impressions' => (int) round($impressions),
+                    'clicks' => (int) round($clicks),
+                    'ctr' => round($impressions > 0 ? ($clicks / $impressions) * 100 : 0.0, 2),
+                    'position' => round($positionWeighted, 1),
+                ];
+            });
+        $querySignals = $queryTotals
+            ->map(function (array $item, string $query) use ($previousQueryTotals): array {
+                $previous = $previousQueryTotals->get($query, [
+                    'impressions' => 0,
+                    'clicks' => 0,
+                    'ctr' => 0.0,
+                    'position' => 0.0,
+                ]);
+                $deltaImpressions = (int) $item['impressions'] - (int) ($previous['impressions'] ?? 0);
+                $previousImpressions = (int) ($previous['impressions'] ?? 0);
+
+                return [
+                    ...$item,
+                    'previous_impressions' => $previousImpressions,
+                    'delta_impressions' => $deltaImpressions,
+                    'delta_percent' => $previousImpressions > 0
+                        ? round(($deltaImpressions / $previousImpressions) * 100, 1)
+                        : 100.0,
+                ];
             })
             ->filter(fn (array $item): bool => $item['query'] !== '' && $item['impressions'] > 0)
+            ->values();
+        $topQueries = $querySignals
             ->sortByDesc(fn (array $item): int => (int) $item['impressions'])
+            ->take(5)
+            ->values()
+            ->all();
+        $topRisingQueries = $querySignals
+            ->filter(fn (array $item): bool => (int) $item['delta_impressions'] > 0)
+            ->sortByDesc(fn (array $item): int => (int) $item['delta_impressions'])
+            ->take(5)
+            ->values()
+            ->all();
+        $topFallingQueries = $querySignals
+            ->filter(fn (array $item): bool => (int) $item['delta_impressions'] < 0)
+            ->sortBy(fn (array $item): int => (int) $item['delta_impressions'])
+            ->take(5)
+            ->values()
+            ->all();
+        $newQueries = $querySignals
+            ->filter(fn (array $item): bool => (int) $item['previous_impressions'] === 0 && (int) $item['impressions'] > 0)
+            ->sortByDesc(fn (array $item): int => (int) $item['impressions'])
+            ->take(5)
+            ->values()
+            ->all();
+        $indexationAlerts = $deduplicatedRows
+            ->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->is_indexed === false)
+            ->map(function (SeoSearchConsoleMetric $metric): array {
+                $coverage = is_array($metric->coverage_json) ? $metric->coverage_json : [];
+                $payload = is_array($metric->payload_json) ? $metric->payload_json : [];
+                $inspection = is_array($payload['inspection'] ?? null) ? $payload['inspection'] : [];
+                $detail = (string) (
+                    $coverage['coverageState']
+                    ?? data_get($inspection, 'inspectionResult.indexStatusResult.coverageState')
+                    ?? data_get($inspection, 'inspectionResult.indexStatusResult.verdict')
+                    ?? 'Google ne lit pas encore cette page comme indexée.'
+                );
+
+                return [
+                    'label' => $this->searchConsoleLabelFromUrl((string) $metric->url),
+                    'slug' => $this->searchConsoleSlugFromUrl((string) $metric->url),
+                    'url' => (string) $metric->url,
+                    'state' => $detail,
+                    'detail' => $detail,
+                ];
+            })
             ->take(5)
             ->values()
             ->all();
@@ -778,9 +887,14 @@ class ClientSitesController extends Controller
             'delta_impressions' => $impressions - $previousImpressions,
             'delta_clicks' => $clicks - $previousClicks,
             'delta_ctr_points' => round(($ctr - $previousCtr) * 100, 2),
+            'non_indexed_pages' => $deduplicatedRows->where('is_indexed', false)->count(),
             'top_rising_pages' => $topRisingPages,
             'top_falling_pages' => $topFallingPages,
             'top_queries' => $topQueries,
+            'top_rising_queries' => $topRisingQueries,
+            'top_falling_queries' => $topFallingQueries,
+            'new_queries' => $newQueries,
+            'indexation_alerts' => $indexationAlerts,
         ];
     }
 

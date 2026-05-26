@@ -60,6 +60,7 @@ export type PraeviseoSite = {
     gsc_delta_impressions: number;
     gsc_delta_clicks: number;
     gsc_delta_ctr_points: number;
+    gsc_non_indexed_pages: number;
     top_rising_pages: Array<{
       label: string;
       slug: string;
@@ -90,6 +91,43 @@ export type PraeviseoSite = {
       clicks: number;
       ctr: number;
       position: number;
+    }>;
+    top_rising_queries: Array<{
+      query: string;
+      impressions: number;
+      previous_impressions: number;
+      delta_impressions: number;
+      delta_percent: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+    }>;
+    top_falling_queries: Array<{
+      query: string;
+      impressions: number;
+      previous_impressions: number;
+      delta_impressions: number;
+      delta_percent: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+    }>;
+    new_queries: Array<{
+      query: string;
+      impressions: number;
+      previous_impressions: number;
+      delta_impressions: number;
+      delta_percent: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+    }>;
+    indexation_alerts: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      state: string;
+      detail: string;
     }>;
   };
   readiness: {
@@ -187,6 +225,23 @@ export type PraeviseoPublication = {
   live_url: string | null;
   seo_score: number | null;
   indexability_score: number | null;
+  topical_score: number | null;
+  quality_score: number | null;
+  cluster: string | null;
+  gsc_metrics: {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    position: number | null;
+  };
+  latest_suggestion: {
+    id: number;
+    status: string;
+    source: string;
+    summary: string;
+    impact_expected: string;
+    created_at: string | null;
+  } | null;
 };
 
 export type PraeviseoPublications = {
@@ -327,6 +382,7 @@ const mockSites: PraeviseoSite[] = [
       gsc_delta_impressions: 6,
       gsc_delta_clicks: 3,
       gsc_delta_ctr_points: 3,
+      gsc_non_indexed_pages: 4,
       top_rising_pages: [
         {
           label: "Faq",
@@ -362,6 +418,51 @@ const mockSites: PraeviseoSite[] = [
           clicks: 5,
           ctr: 27.8,
           position: 8.7,
+        },
+      ],
+      top_rising_queries: [
+        {
+          query: "faq amiante",
+          impressions: 18,
+          previous_impressions: 11,
+          delta_impressions: 7,
+          delta_percent: 63.6,
+          clicks: 5,
+          ctr: 27.8,
+          position: 8.7,
+        },
+      ],
+      top_falling_queries: [
+        {
+          query: "amiantix",
+          impressions: 9,
+          previous_impressions: 16,
+          delta_impressions: -7,
+          delta_percent: -43.8,
+          clicks: 1,
+          ctr: 11.1,
+          position: 11.2,
+        },
+      ],
+      new_queries: [
+        {
+          query: "combien coute un diagnostic amiante",
+          impressions: 6,
+          previous_impressions: 0,
+          delta_impressions: 6,
+          delta_percent: 100,
+          clicks: 1,
+          ctr: 16.7,
+          position: 13.4,
+        },
+      ],
+      indexation_alerts: [
+        {
+          label: "Qui Sommes Nous",
+          slug: "qui-sommes-nous",
+          url: "https://amiantix.com/qui-sommes-nous",
+          state: "Détectée, actuellement non indexée",
+          detail: "Google connaît la page mais ne l’a pas encore indexée.",
         },
       ],
     },
@@ -432,9 +533,14 @@ const mockSites: PraeviseoSite[] = [
       gsc_delta_impressions: 0,
       gsc_delta_clicks: 0,
       gsc_delta_ctr_points: 0,
+      gsc_non_indexed_pages: 0,
       top_rising_pages: [],
       top_falling_pages: [],
       top_queries: [],
+      top_rising_queries: [],
+      top_falling_queries: [],
+      new_queries: [],
+      indexation_alerts: [],
     },
     readiness: {
       bridge_connected: false,
@@ -582,6 +688,23 @@ const mockPublications: PraeviseoPublications = {
       live_url: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
       seo_score: 78,
       indexability_score: 84,
+      topical_score: 81,
+      quality_score: 77,
+      cluster: "diagnostic amiante",
+      gsc_metrics: {
+        impressions: 47,
+        clicks: 10,
+        ctr: 21.3,
+        position: 8.4,
+      },
+      latest_suggestion: {
+        id: 101,
+        status: "pending",
+        source: "gsc_opportunity",
+        summary: "Un refresh éditorial est recommandé pour prolonger la traction de cet article.",
+        impact_expected: "Consolider la visibilité autour de la requête qui progresse.",
+        created_at: new Date().toISOString(),
+      },
     },
     {
       id: 12,
@@ -595,6 +718,16 @@ const mockPublications: PraeviseoPublications = {
       live_url: null,
       seo_score: 72,
       indexability_score: 70,
+      topical_score: 74,
+      quality_score: 69,
+      cluster: "estimation locale",
+      gsc_metrics: {
+        impressions: 0,
+        clicks: 0,
+        ctr: 0,
+        position: null,
+      },
+      latest_suggestion: null,
     },
   ],
 };
@@ -771,6 +904,7 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       gsc_delta_impressions: Number(summary.gsc_delta_impressions ?? 0),
       gsc_delta_clicks: Number(summary.gsc_delta_clicks ?? 0),
       gsc_delta_ctr_points: Number(summary.gsc_delta_ctr_points ?? 0),
+      gsc_non_indexed_pages: Number(summary.gsc_non_indexed_pages ?? 0),
       top_rising_pages: Array.isArray(summary.top_rising_pages)
         ? summary.top_rising_pages.map((entry) => ({
             label: String((entry as Record<string, unknown>).label ?? ""),
@@ -806,6 +940,51 @@ function normaliseSite(raw: unknown): PraeviseoSite {
             clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
             ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
             position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
+      top_rising_queries: Array.isArray(summary.top_rising_queries)
+        ? summary.top_rising_queries.map((entry) => ({
+            query: String((entry as Record<string, unknown>).query ?? ""),
+            impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
+            previous_impressions: Number((entry as Record<string, unknown>).previous_impressions ?? 0),
+            delta_impressions: Number((entry as Record<string, unknown>).delta_impressions ?? 0),
+            delta_percent: Number((entry as Record<string, unknown>).delta_percent ?? 0),
+            clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
+            ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
+            position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
+      top_falling_queries: Array.isArray(summary.top_falling_queries)
+        ? summary.top_falling_queries.map((entry) => ({
+            query: String((entry as Record<string, unknown>).query ?? ""),
+            impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
+            previous_impressions: Number((entry as Record<string, unknown>).previous_impressions ?? 0),
+            delta_impressions: Number((entry as Record<string, unknown>).delta_impressions ?? 0),
+            delta_percent: Number((entry as Record<string, unknown>).delta_percent ?? 0),
+            clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
+            ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
+            position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
+      new_queries: Array.isArray(summary.new_queries)
+        ? summary.new_queries.map((entry) => ({
+            query: String((entry as Record<string, unknown>).query ?? ""),
+            impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
+            previous_impressions: Number((entry as Record<string, unknown>).previous_impressions ?? 0),
+            delta_impressions: Number((entry as Record<string, unknown>).delta_impressions ?? 0),
+            delta_percent: Number((entry as Record<string, unknown>).delta_percent ?? 0),
+            clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
+            ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
+            position: Number((entry as Record<string, unknown>).position ?? 0),
+          }))
+        : [],
+      indexation_alerts: Array.isArray(summary.indexation_alerts)
+        ? summary.indexation_alerts.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            state: String((entry as Record<string, unknown>).state ?? ""),
+            detail: String((entry as Record<string, unknown>).detail ?? ""),
           }))
         : [],
     },
@@ -1088,9 +1267,14 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         gsc_delta_impressions: 0,
         gsc_delta_clicks: 0,
         gsc_delta_ctr_points: 0,
+        gsc_non_indexed_pages: 0,
         top_rising_pages: [],
         top_falling_pages: [],
         top_queries: [],
+        top_rising_queries: [],
+        top_falling_queries: [],
+        new_queries: [],
+        indexation_alerts: [],
       },
       readiness: {
         bridge_connected: false,
