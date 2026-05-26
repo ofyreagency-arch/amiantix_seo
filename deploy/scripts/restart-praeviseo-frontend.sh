@@ -4,6 +4,7 @@ set -euo pipefail
 
 APP_NAME="praeviseo-frontend"
 PORT="3000"
+STATUS=""
 
 echo "[1/5] Stopping ${APP_NAME}..."
 supervisorctl stop "${APP_NAME}" >/dev/null 2>&1 || true
@@ -31,8 +32,34 @@ supervisorctl reread >/dev/null
 supervisorctl update >/dev/null
 
 echo "[4/5] Starting ${APP_NAME}..."
-supervisorctl start "${APP_NAME}"
+supervisorctl start "${APP_NAME}" >/dev/null 2>&1 || true
+
+for _ in $(seq 1 20); do
+    STATUS="$(supervisorctl status "${APP_NAME}" 2>/dev/null || true)"
+
+    if printf '%s' "${STATUS}" | grep -q "RUNNING"; then
+        break
+    fi
+
+    sleep 1
+done
 
 echo "[5/5] Verifying frontend..."
-supervisorctl status "${APP_NAME}"
-curl -I "http://127.0.0.1:${PORT}"
+printf '%s\n' "${STATUS}"
+
+if ! printf '%s' "${STATUS}" | grep -q "RUNNING"; then
+    echo "${APP_NAME} did not reach RUNNING state." >&2
+    exit 1
+fi
+
+for _ in $(seq 1 20); do
+    if curl -fsSI "http://127.0.0.1:${PORT}" >/dev/null 2>&1; then
+        curl -I "http://127.0.0.1:${PORT}"
+        exit 0
+    fi
+
+    sleep 1
+done
+
+echo "Frontend did not answer on port ${PORT} in time." >&2
+exit 1
