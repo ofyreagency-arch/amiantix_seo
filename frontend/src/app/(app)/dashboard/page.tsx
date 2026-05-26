@@ -22,11 +22,14 @@ export default async function DashboardPage() {
   const publications = await getPublications();
   const backendLive = hasBackendConnection();
   const gscConnectedSites = dashboard.sites.filter((site) => site.readiness.gsc_connected).length;
+  const activeAlerts =
+    optimizations.gsc_opportunities.summary.low_ctr + optimizations.gsc_opportunities.summary.sustained_drop;
   const prioritySites = dashboard.sites
     .filter((site) => site.next_action.priority !== "low")
     .slice(0, 3);
   const recentPublications = publications.items.slice(0, 3);
   const recentOptimizations = optimizations.items.slice(0, 3);
+  const topOpportunities = optimizations.gsc_opportunities.items.slice(0, 4);
   const insightSignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
@@ -60,7 +63,7 @@ export default async function DashboardPage() {
     }
 
     if (site.next_action.kind === "connect_bridge") {
-      return site.readiness.gsc_connected ? "Activer l’automatisation" : "Installer PraeviSEO";
+      return site.readiness.gsc_connected ? "Activer l’automatisation premium" : "Connecter Search Console";
     }
 
     if (site.next_action.kind === "installation_requested") {
@@ -142,10 +145,10 @@ export default async function DashboardPage() {
               hint: "calculé sur les clics et impressions GSC sur 28 jours",
             },
             {
-              label: "Sites GSC actifs",
-              value: gscConnectedSites,
+              label: "Opportunités actives",
+              value: optimizations.gsc_opportunities.summary.total,
               icon: SearchCheck,
-              hint: "sites dont les données GSC alimentent déjà le cockpit",
+              hint: "priorités SEO déjà détectées à partir de Google Search Console",
             },
             {
               label: "Pages indexées",
@@ -173,6 +176,32 @@ export default async function DashboardPage() {
               </Card>
             );
           })}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pages proches du top 10</CardTitle>
+              <CardDescription>Levier le plus rapide à pousser dans Google en ce moment.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-3xl font-black text-text">
+              {optimizations.gsc_opportunities.summary.near_top_10}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Alertes simples</CardTitle>
+              <CardDescription>CTR faible ou visibilité qui glisse : les signaux à surveiller vite.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-3xl font-black text-text">{activeAlerts}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Sites GSC actifs</CardTitle>
+              <CardDescription>Sites déjà alimentés en données Google dans le cockpit free.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-3xl font-black text-text">{gscConnectedSites}</CardContent>
+          </Card>
         </div>
 
         <p className="text-xs text-text-subtle">
@@ -209,7 +238,7 @@ export default async function DashboardPage() {
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{site.url}</p>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-subtle">
-                      <span>{site.summary.pages_total} page(s) moteur</span>
+                      <span>{site.summary.pages_total} page(s) suivie(s)</span>
                       <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions GSC (28 j)</span>
                       <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics GSC (28 j)</span>
                       <span>
@@ -225,7 +254,7 @@ export default async function DashboardPage() {
                           ? `${site.summary.gsc_indexed_pages} page(s) indexée(s)`
                           : "Indexation Google non synchronisée"}
                       </span>
-                      <span>{site.summary.observed_pages} page(s) observée(s)</span>
+                      <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
                       <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
                     </div>
                   </div>
@@ -233,7 +262,10 @@ export default async function DashboardPage() {
                     <Button href={getSitePath(site.site_id)} variant="secondary" size="sm">
                       Ouvrir
                     </Button>
-                    <Button href={getSiteConnectPath(site.site_id)} size="sm">
+                    <Button
+                      href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}
+                      size="sm"
+                    >
                       {getPraeviseoActivationLabel(site)}
                     </Button>
                   </div>
@@ -299,23 +331,30 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Activité publication</CardTitle>
               <CardDescription>
-                Les dernières pages passées en publication moteur ou live.
+                Les derniers contenus préparés par PraeviSEO ou déjà visibles sur le site.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {recentPublications.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{item.title}</p>
-                      <p className="text-xs text-text-subtle">{item.site_id}</p>
-                    </div>
-                    <Badge variant={item.published_live ? "success" : "secondary"}>
-                      {item.published_live ? "visible sur le site" : "en preparation"}
-                    </Badge>
-                  </div>
+              {recentPublications.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune publication récente pour le moment. Le free reste déjà utile grâce aux signaux GSC, même
+                  sans exécution sur le site.
                 </div>
-              ))}
+              ) : (
+                recentPublications.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.title}</p>
+                        <p className="text-xs text-text-subtle">{item.site_id}</p>
+                      </div>
+                      <Badge variant={item.published_live ? "success" : "secondary"}>
+                        {item.published_live ? "visible sur le site" : "en preparation"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -335,6 +374,37 @@ export default async function DashboardPage() {
                 insightSignals.map((item) => (
                   <div key={item} className="rounded-xl border border-border px-4 py-3 text-sm text-text">
                     {item}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Meilleures opportunités du moment</CardTitle>
+              <CardDescription>
+                Les pages ou requêtes qui donnent déjà envie de revenir sur PraeviSEO pour agir.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {topOpportunities.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune opportunité forte pour le moment. Les prochaines remontées GSC viendront enrichir ce bloc.
+                </div>
+              ) : (
+                topOpportunities.map((item) => (
+                  <div key={`${item.site_id}-${item.slug}-${item.type}`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.label}</p>
+                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                      </div>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "secondary"}>
+                        {item.priority_label}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
                   </div>
                 ))
               )}

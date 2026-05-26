@@ -1,7 +1,7 @@
 import { requireCurrentUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Globe, Plug, SearchCheck } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Globe, SearchCheck, Sparkles } from "lucide-react";
 
 export default async function OnboardingPage() {
   await requireCurrentUser();
@@ -12,7 +12,8 @@ export default async function OnboardingPage() {
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-4xl font-bold tracking-tight">Bienvenue dans PraeviSEO</h1>
           <p className="mt-4 text-text-muted leading-7">
-            L’espace client est prêt. La prochaine vraie étape est d’ajouter votre premier site, d’installer PraeviSEO dessus, puis de relier Search Console.
+            L’espace client est prêt. La prochaine vraie étape est d’ajouter votre premier site, de relier
+            Google Search Console, puis de laisser PraeviSEO faire remonter vos premières priorités SEO.
           </p>
         </div>
 
@@ -21,17 +22,17 @@ export default async function OnboardingPage() {
             {
               icon: Globe,
               title: "1. Ajouter un site",
-              text: "Renseignez le domaine, le framework et la section de publication.",
-            },
-            {
-              icon: Plug,
-              title: "2. Installer PraeviSEO",
-              text: "Téléchargez l’installateur officiel et laissez le script activer PraeviSEO sur le site.",
+              text: "Renseignez le domaine public et créez votre espace de suivi SEO.",
             },
             {
               icon: SearchCheck,
-              title: "3. Relier la Search Console",
-              text: "Activez ensuite les signaux Google pour nourrir l’autopilot.",
+              title: "2. Connecter Search Console",
+              text: "Reliez la propriété Google pour alimenter impressions, clics, CTR, indexation et tendances.",
+            },
+            {
+              icon: Sparkles,
+              title: "3. Lire vos premiers insights",
+              text: "PraeviSEO transforme déjà les signaux GSC en priorités, opportunités et recommandations lisibles.",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -55,13 +56,17 @@ export default async function OnboardingPage() {
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-text">
                 <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
-                Le cockpit client remplace maintenant l’usage de l’admin interne pour l’onboarding.
+                Le free PraeviSEO est déjà un vrai cockpit SEO, sans installation technique.
               </div>
               <p className="mt-2 text-sm text-text-muted">
-                Créez votre premier site depuis l’app publique, puis laissez PraeviSEO faire le reste.
+                Connectez d’abord votre site et Google Search Console. L’automatisation premium pourra venir plus
+                tard si vous voulez laisser PraeviSEO agir directement sur le site.
               </p>
             </div>
-            <Button href="/sites/new">Connecter mon premier site</Button>
+            <Button href="/sites/new">
+              Connecter mon premier site
+              <ArrowUpRight className="w-4 h-4" />
+            </Button>
           </CardContent>
         </Card>
       </div>

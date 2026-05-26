@@ -1223,7 +1223,7 @@ export function formatPraeviseoStatus(status: string): string {
   }
 
   if (status === "requested") {
-    return "Installation en préparation";
+    return "Automatisation en préparation";
   }
 
   return "Automatisation non activée";
@@ -1298,5 +1298,5 @@ export function getPraeviseoActivationLabel(
     return "Automatisation active";
   }
 
-  return site.readiness.gsc_connected ? "Analyse GSC active" : "Connecter Search Console";
+  return site.readiness.gsc_connected ? "Activer l’automatisation premium" : "Connecter Search Console";
 }

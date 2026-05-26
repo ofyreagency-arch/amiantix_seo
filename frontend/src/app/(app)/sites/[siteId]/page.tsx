@@ -10,6 +10,7 @@ import {
   getPraeviseoClientDetail,
   getPraeviseoClientStatus,
   getPraeviseoInstallLabel,
+  getOptimizations,
   getSite,
   getSiteConnectPath,
   hasBackendConnection,
@@ -29,11 +30,25 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   }
 
   const backendLive = hasBackendConnection();
+  const optimizations = await getOptimizations();
+  const siteOpportunities = optimizations.gsc_opportunities.items
+    .filter((item) => item.site_id === site.site_id)
+    .slice(0, 3);
+  const nearTop10Count = siteOpportunities.filter((item) => item.type === "near_top_10").length;
+  const lowCtrCount = siteOpportunities.filter((item) => item.type === "low_ctr").length;
+  const emergingQueryCount = siteOpportunities.filter((item) => item.type === "emerging_query").length;
+  const sustainedDropCount = siteOpportunities.filter((item) => item.type === "sustained_drop").length;
+  const siteSignals = [
+    nearTop10Count > 0 ? `${nearTop10Count} page(s) approchent du top 10` : null,
+    lowCtrCount > 0 ? `${lowCtrCount} page(s) ont un CTR a relancer` : null,
+    emergingQueryCount > 0 ? `${emergingQueryCount} requete(s) progressent vite` : null,
+    sustainedDropCount > 0 ? `${sustainedDropCount} page(s) perdent de la visibilite` : null,
+  ].filter((item): item is string => item !== null);
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
       ? site.readiness.gsc_connected
         ? "Activer l’automatisation premium"
-        : "Activer la couche premium"
+        : "Connecter Search Console"
       : site.next_action.kind === "installation_requested"
         ? "Automatisation premium en préparation"
       : site.next_action.label;
@@ -49,7 +64,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         subtitle="Vue client : performances GSC, indexation et prochaines actions utiles."
         lastSync={backendLive ? "backend live" : "données de démonstration"}
         actions={
-          <Button href={getSiteConnectPath(site.site_id)} size="sm">
+          <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`} size="sm">
             {getPraeviseoActivationLabel(site)}
           </Button>
         }
@@ -78,7 +93,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <Sparkles className="w-3.5 h-3.5" />
-                  {site.summary.pending_suggestions} priorite(s) ouverte(s)
+                  {siteOpportunities.length} opportunite(s) detectee(s)
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -86,16 +101,16 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </span>
               </div>
             </div>
-              <div className="flex flex-wrap gap-2">
-                <Button href={getSiteConnectPath(site.site_id)}>
-                  {site.readiness.gsc_connected ? "Voir la configuration" : "Connecter Search Console"}
+            <div className="flex flex-wrap gap-2">
+              <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}>
+                {site.readiness.gsc_connected ? "Activer l’automatisation premium" : "Connecter Search Console"}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           {[
             ["Pages indexees", site.summary.gsc_indexed_pages],
             ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
@@ -105,6 +120,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               minimumFractionDigits: 1,
               maximumFractionDigits: 1,
             }).format(site.summary.gsc_ctr)],
+            ["Opportunites", siteOpportunities.length],
+            ["Signaux actifs", siteSignals.length],
           ].map(([label, value]) => (
             <Card key={label}>
               <CardContent className="pt-5">
@@ -138,7 +155,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </p>
                 {site.publication_bridge_status !== "connected" ? (
                   <div className="mt-4">
-                    <Button href={getSiteConnectPath(site.site_id)} variant="secondary">
+                    <Button
+                      href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}
+                      variant="secondary"
+                    >
                       {getPraeviseoActivationLabel(site)}
                     </Button>
                   </div>
@@ -167,6 +187,65 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
           <Card>
             <CardHeader>
+              <CardTitle>Opportunités détectées</CardTitle>
+              <CardDescription>
+                Les premières actions que PraeviSEO remonte déjà à partir des signaux Google de ce site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {siteOpportunities.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune opportunité forte pour le moment. Le cockpit continuera de détecter les prochains mouvements
+                  utiles sur vos pages et requêtes.
+                </div>
+              ) : (
+                siteOpportunities.map((item) => (
+                  <div key={`${item.slug}-${item.type}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.label}</div>
+                        <div className="text-xs text-text-subtle">{item.action}</div>
+                      </div>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "secondary"}>
+                        {item.priority_label}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">{item.reason}</p>
+                    <p className="mt-3 text-xs text-text-subtle">
+                      {item.metrics.impressions} impressions, CTR {item.metrics.ctr} %, position {item.metrics.position}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Signaux à surveiller</CardTitle>
+              <CardDescription>
+                Ce que PraeviSEO voit dans Google en ce moment pour ce site précis.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {siteSignals.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun signal critique pour le moment. PraeviSEO continue d’agréger les prochains imports GSC.
+                </div>
+              ) : (
+                siteSignals.map((item) => (
+                  <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text">
+                    {item}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Prochaine action recommandée</CardTitle>
               <CardDescription>
                 Le dashboard client pousse la prochaine vraie étape, pas les diagnostics internes.
@@ -182,7 +261,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </p>
               </div>
 
-              <Button href={getSiteConnectPath(site.site_id)} className="w-full">
+              <Button
+                href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}
+                className="w-full"
+              >
                 {getPraeviseoActivationLabel(site)}
               </Button>
 
@@ -194,7 +276,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
               <div className="space-y-3">
                 {[
-                  "Google Search Console déjà relié",
+                  site.readiness.gsc_connected ? "Google Search Console déjà relié" : "Google Search Console à relier",
                   "Performances, indexation et opportunités déjà analysées",
                   "Le free reste utile sans aucune installation",
                   "La couche premium sert ensuite uniquement à exécuter des actions avancées",
