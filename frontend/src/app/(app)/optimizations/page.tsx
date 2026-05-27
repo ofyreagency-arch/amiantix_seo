@@ -33,9 +33,11 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
 export default async function OptimizationsPage() {
   const optimizations = await getOptimizations();
   const opportunities = optimizations.gsc_opportunities.items;
+  const observedRecommendations = optimizations.recommendations.items;
   const queryWatchlist = opportunities.filter((item) => item.query).slice(0, 4);
   const pagesToRefresh = opportunities.filter((item) => item.type === "near_top_10" || item.type === "sustained_drop").slice(0, 4);
   const quickWins = opportunities.filter((item) => item.priority_level === "high" || item.action_state === "ready").slice(0, 4);
+  const actionPlan = observedRecommendations.slice(0, 4);
   const summarySignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
@@ -79,13 +81,13 @@ export default async function OptimizationsPage() {
       tone: optimizations.gsc_opportunities.summary.low_ctr > 0 ? "warning" : "secondary",
     },
     {
-      label: "Baisses détectées",
-      value: optimizations.gsc_opportunities.summary.sustained_drop,
+      label: "Plan d’action prêt",
+      value: optimizations.recommendations.summary.total,
       detail:
-        optimizations.gsc_opportunities.summary.sustained_drop > 0
-          ? "certaines pages perdent de la visibilité"
-          : "pas de recul durable fort en ce moment",
-      tone: optimizations.gsc_opportunities.summary.sustained_drop > 0 ? "danger" : "secondary",
+        optimizations.recommendations.summary.total > 0
+          ? "le moteur a déjà des actions concrètes à recommander"
+          : "aucune action observée forte pour le moment",
+      tone: optimizations.recommendations.summary.total > 0 ? "warning" : "secondary",
     },
   ] as const;
   const timelineFeed = [
@@ -106,6 +108,15 @@ export default async function OptimizationsPage() {
       badgeVariant: item.status === "pending" ? "warning" : "secondary",
       meta: item.created_at ? formatDate(item.created_at) : "Récemment",
       timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
+    })),
+    ...observedRecommendations.slice(0, 4).map((item) => ({
+      id: `recommendation-${item.id}`,
+      title: item.title,
+      detail: item.suggested_action ?? item.reasoning,
+      badge: item.priority <= 30 ? "Action prioritaire" : "Reco moteur",
+      badgeVariant: item.priority <= 30 ? "warning" : "secondary",
+      meta: item.generated_at ? formatDate(item.generated_at) : `${item.site_id} · moteur observé`,
+      timestamp: item.generated_at ? new Date(item.generated_at).getTime() : 0,
     })),
   ]
     .sort((a, b) => b.timestamp - a.timestamp)
@@ -129,6 +140,7 @@ export default async function OptimizationsPage() {
             { label: "Gains rapides", href: "#gains-rapides", count: quickWins.length, tone: "warning" },
             { label: "Pages à refresh", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
+            { label: "Plan d’action", href: "#plan-action", count: actionPlan.length, tone: "warning" },
             { label: "Activité SEO", href: "#activite", count: optimizations.items.length, tone: "default" },
           ]}
         />
@@ -313,6 +325,47 @@ export default async function OptimizationsPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card id="plan-action" className="scroll-mt-24">
+          <CardHeader>
+            <CardTitle>Plan d’action recommandé par PraeviSEO</CardTitle>
+            <CardDescription>
+              Les actions observées les plus utiles déjà prêtes dans le moteur pour aider le client à améliorer son SEO.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {actionPlan.length === 0 ? (
+              <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                Aucun plan d’action observé fort pour le moment. Le moteur enrichira ce bloc dès que de nouvelles recommandations deviennent utiles.
+              </div>
+            ) : (
+              actionPlan.map((item) => (
+                <div key={item.id} className="rounded-xl border border-border p-4 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{item.title}</p>
+                      <p className="text-xs text-text-subtle">
+                        {item.site_id}
+                        {item.cluster ? ` · cluster ${item.cluster}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={item.priority <= 30 ? "warning" : "secondary"}>
+                        Priorité {item.priority}
+                      </Badge>
+                      <Badge variant="secondary">{item.estimated_impact}</Badge>
+                      <Badge variant="secondary">difficulté {item.difficulty}</Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-text-muted">{item.reasoning}</p>
+                  <p className="text-sm text-text">
+                    Action suggérée : <span className="font-medium">{item.suggested_action ?? "à préciser dans le moteur"}</span>
+                  </p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

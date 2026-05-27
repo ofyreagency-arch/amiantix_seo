@@ -3,11 +3,12 @@ import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
-import { getPublications } from "@/lib/praeviseo-api";
+import { getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 export default async function PublicationsPage() {
   const publications = await getPublications();
+  const optimizations = await getOptimizations();
   const visibleItems = publications.items.filter((item) => item.published_live);
   const draftItems = publications.items.filter((item) => !item.published_live);
   const risingItems = [...visibleItems]
@@ -22,6 +23,9 @@ export default async function PublicationsPage() {
     })
     .slice(0, 4);
   const clusterItems = publications.items.filter((item) => !!item.cluster).slice(0, 4);
+  const recommendationItems = optimizations.recommendations.items.filter((item) =>
+    item.type === "refresh_page" || item.type === "add_internal_links" || item.type === "create_page" || item.type === "expand_cluster"
+  ).slice(0, 4);
   const refreshItems = [
     ...draftItems,
     ...visibleItems.filter(
@@ -43,6 +47,7 @@ export default async function PublicationsPage() {
             { label: "En hausse", href: "#visibles", count: visibleItems.length, tone: "success" },
             { label: "Potentiel contenu", href: "#potentiel", count: strongestContent.length, tone: "secondary" },
             { label: "Clusters", href: "#clusters", count: clusterItems.length, tone: "secondary" },
+            { label: "Plan contenu", href: "#plan-contenu", count: recommendationItems.length, tone: "warning" },
             { label: "À refresh", href: "#activite", count: refreshItems.length, tone: "warning" },
           ]}
         />
@@ -155,6 +160,26 @@ export default async function PublicationsPage() {
             ))}
           </CockpitSignalListCard>
         </div>
+
+        <CockpitSignalListCard
+          id="plan-contenu"
+          className="scroll-mt-24"
+          title="Plan contenu recommandé"
+          description="Les recommandations du moteur déjà prêtes pour améliorer les contenus, les clusters ou le maillage."
+          empty={recommendationItems.length === 0}
+          emptyMessage="Aucune recommandation contenu forte pour le moment. Le moteur enrichira ce bloc dès qu’un plan d’action devient utile."
+        >
+          {recommendationItems.map((item) => (
+            <CockpitSignalItem
+              key={`recommendation-${item.id}`}
+              title={item.title}
+              subtitle={`${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`}
+              badge={item.priority <= 30 ? "Action prioritaire" : "Reco moteur"}
+              badgeTone={item.priority <= 30 ? "warning" : "secondary"}
+              description={item.suggested_action ?? item.reasoning}
+            />
+          ))}
+        </CockpitSignalListCard>
 
         <CockpitSignalListCard
           id="activite"

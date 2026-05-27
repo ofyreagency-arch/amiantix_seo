@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\SeoPage;
+use App\Models\SeoRecommendation;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
@@ -328,5 +329,57 @@ class ClientWorkspaceOptimizationsTest extends TestCase
         $response->assertJsonPath('gsc_opportunities.items.0.slug', 'faq');
         $response->assertJsonPath('gsc_opportunities.items.0.metrics.impressions', 5);
         $response->assertJsonPath('gsc_opportunities.items.0.metrics.position', 9);
+    }
+
+    public function test_optimizations_endpoint_exposes_pending_observed_recommendations(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-observed-recommendations-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoRecommendation::query()->create([
+            'site_id' => $site->site_id,
+            'type' => 'refresh_page',
+            'priority' => 20,
+            'estimated_impact' => 'high',
+            'difficulty' => 'medium',
+            'cluster' => 'diagnostic-amiante',
+            'title' => 'Refresh the FAQ cluster page',
+            'reasoning' => 'The page already ranks but still lacks enough depth to convert the current visibility.',
+            'suggested_action' => 'Expand the answer structure and strengthen supporting evidence.',
+            'status' => 'pending',
+            'generated_at' => now()->subHour(),
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/optimizations');
+
+        $response->assertOk();
+        $response->assertJsonPath('recommendations.summary.total', 1);
+        $response->assertJsonPath('recommendations.summary.high_priority', 1);
+        $response->assertJsonPath('recommendations.summary.refresh', 1);
+        $response->assertJsonPath('recommendations.items.0.type', 'refresh_page');
+        $response->assertJsonPath('recommendations.items.0.site_id', 'amiantix');
+        $response->assertJsonPath('recommendations.items.0.cluster', 'diagnostic-amiante');
+        $response->assertJsonPath('recommendations.items.0.title', 'Refresh the FAQ cluster page');
     }
 }

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
+use App\Models\SeoRecommendation;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSuggestion;
@@ -39,6 +40,13 @@ class ClientWorkspaceController extends Controller
             ->with(['page'])
             ->whereHas('page', fn ($query) => $query->whereIn('site_id', $siteIds))
             ->latest()
+            ->limit(24)
+            ->get();
+        $recommendations = SeoRecommendation::query()
+            ->whereIn('site_id', $siteIds)
+            ->where('status', 'pending')
+            ->orderBy('priority')
+            ->orderByDesc('generated_at')
             ->limit(24)
             ->get();
 
@@ -105,6 +113,31 @@ class ClientWorkspaceController extends Controller
             'gsc_opportunities' => [
                 'summary' => $opportunitySummary,
                 'items' => $opportunityItems->take(12)->all(),
+            ],
+            'recommendations' => [
+                'summary' => [
+                    'total' => $recommendations->count(),
+                    'high_priority' => $recommendations->filter(fn (SeoRecommendation $recommendation): bool => (int) $recommendation->priority <= 30)->count(),
+                    'refresh' => $recommendations->where('type', 'refresh_page')->count(),
+                    'internal_links' => $recommendations->where('type', 'add_internal_links')->count(),
+                    'clusters' => $recommendations->filter(
+                        fn (SeoRecommendation $recommendation): bool => in_array((string) $recommendation->type, ['create_page', 'expand_cluster'], true)
+                    )->count(),
+                ],
+                'items' => $recommendations->map(fn (SeoRecommendation $recommendation): array => [
+                    'id' => $recommendation->id,
+                    'site_id' => (string) $recommendation->site_id,
+                    'type' => (string) $recommendation->type,
+                    'priority' => (int) $recommendation->priority,
+                    'estimated_impact' => (string) $recommendation->estimated_impact,
+                    'difficulty' => (string) $recommendation->difficulty,
+                    'cluster' => $recommendation->cluster ? (string) $recommendation->cluster : null,
+                    'title' => (string) $recommendation->title,
+                    'reasoning' => (string) $recommendation->reasoning,
+                    'suggested_action' => $recommendation->suggested_action ? (string) $recommendation->suggested_action : null,
+                    'status' => (string) $recommendation->status,
+                    'generated_at' => $recommendation->generated_at,
+                ])->values()->all(),
             ],
             'items' => $suggestions->map(function (SeoSuggestion $suggestion): array {
                 $page = $suggestion->page;

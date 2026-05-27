@@ -195,6 +195,21 @@ export type PraeviseoGscOpportunity = {
   metrics: Record<string, number | string>;
 };
 
+export type PraeviseoObservedRecommendation = {
+  id: number;
+  site_id: string;
+  type: string;
+  priority: number;
+  estimated_impact: string;
+  difficulty: string;
+  cluster: string | null;
+  title: string;
+  reasoning: string;
+  suggested_action: string | null;
+  status: string;
+  generated_at: string | null;
+};
+
 export type PraeviseoOptimizations = {
   stats: {
     pending: number;
@@ -213,6 +228,16 @@ export type PraeviseoOptimizations = {
       high_priority: number;
     };
     items: PraeviseoGscOpportunity[];
+  };
+  recommendations: {
+    summary: {
+      total: number;
+      high_priority: number;
+      refresh: number;
+      internal_links: number;
+      clusters: number;
+    };
+    items: PraeviseoObservedRecommendation[];
   };
   items: PraeviseoOptimization[];
 };
@@ -655,6 +680,59 @@ const mockOptimizations: PraeviseoOptimizations = {
       },
     ],
   },
+  recommendations: {
+    summary: {
+      total: 3,
+      high_priority: 1,
+      refresh: 1,
+      internal_links: 1,
+      clusters: 1,
+    },
+    items: [
+      {
+        id: 301,
+        site_id: "amiantix",
+        type: "refresh_page",
+        priority: 20,
+        estimated_impact: "high",
+        difficulty: "medium",
+        cluster: "diagnostic amiante",
+        title: "Refresh the FAQ cluster page",
+        reasoning: "The page already ranks but still lacks enough depth to convert the current visibility.",
+        suggested_action: "Expand the answer structure and strengthen supporting evidence.",
+        status: "pending",
+        generated_at: new Date().toISOString(),
+      },
+      {
+        id: 302,
+        site_id: "amiantix",
+        type: "add_internal_links",
+        priority: 35,
+        estimated_impact: "medium",
+        difficulty: "low",
+        cluster: "diagnostic amiante",
+        title: "Reinforce the main diagnostic page with stronger internal links",
+        reasoning: "The cluster already has relevant support pages that can push more authority to the main target.",
+        suggested_action: "Add contextual links from stronger support pages to the target page.",
+        status: "pending",
+        generated_at: new Date().toISOString(),
+      },
+      {
+        id: 303,
+        site_id: "amiantix",
+        type: "create_page",
+        priority: 45,
+        estimated_impact: "medium",
+        difficulty: "medium",
+        cluster: "reglementation",
+        title: "Expand cluster: réglementation",
+        reasoning: "Google already hints at an uncovered angle that deserves a dedicated supporting page.",
+        suggested_action: "Create a supporting page to strengthen the existing cluster.",
+        status: "pending",
+        generated_at: new Date().toISOString(),
+      },
+    ],
+  },
   items: [
     {
       id: 1,
@@ -777,6 +855,16 @@ const emptyOptimizations: PraeviseoOptimizations = {
       total: 0,
       ready: 0,
       high_priority: 0,
+    },
+    items: [],
+  },
+  recommendations: {
+    summary: {
+      total: 0,
+      high_priority: 0,
+      refresh: 0,
+      internal_links: 0,
+      clusters: 0,
     },
     items: [],
   },

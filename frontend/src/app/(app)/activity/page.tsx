@@ -9,6 +9,7 @@ export default async function ActivityCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const observedRecommendations = optimizations.recommendations.items;
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -118,6 +119,15 @@ export default async function ActivityCockpitPage() {
       timestamp: 0,
     })),
     ...publicationSuggestionFeed.slice(0, 6),
+    ...observedRecommendations.slice(0, 6).map((item) => ({
+      id: `observed-recommendation-${item.id}`,
+      title: item.title,
+      detail: item.suggested_action ?? item.reasoning,
+      badge: item.priority <= 30 ? "Action prioritaire" : "Reco moteur",
+      badgeVariant: item.priority <= 30 ? "warning" as const : "secondary" as const,
+      meta: item.generated_at ? formatDate(item.generated_at) : `${item.site_id} · moteur observé`,
+      timestamp: item.generated_at ? new Date(item.generated_at).getTime() : 0,
+    })),
   ]
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 12);
@@ -152,6 +162,14 @@ export default async function ActivityCockpitPage() {
         badgeTone: "warning" as const,
         description: item.latest_suggestion?.summary ?? "Un refresh éditorial est recommandé.",
       })),
+    ...observedRecommendations.slice(0, 4).map((item) => ({
+      id: `observed-alert-${item.id}`,
+      title: item.title,
+      subtitle: item.site_id,
+      badge: item.priority <= 30 ? "Action prioritaire" : "Reco moteur",
+      badgeTone: item.priority <= 30 ? "warning" as const : "secondary" as const,
+      description: item.suggested_action ?? item.reasoning,
+    })),
   ].slice(0, 8);
   const movementFeed = dashboard.sites.flatMap((site) => [
     ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
@@ -201,7 +219,7 @@ export default async function ActivityCockpitPage() {
               { label: "Mouvements de pages", value: movementFeed.length, tone: "success" },
               { label: "Requêtes en mouvement", value: queryMovementFeed.length, tone: "success" },
               { label: "Alertes actives", value: alertFeed.length, tone: alertFeed.length > 0 ? "warning" : "secondary" },
-              { label: "Opportunités ouvertes", value: optimizations.gsc_opportunities.summary.total, tone: "warning" },
+              { label: "Actions recommandées", value: optimizations.recommendations.summary.total, tone: optimizations.recommendations.summary.total > 0 ? "warning" : "secondary" },
             ]}
           />
         </div>
