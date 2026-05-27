@@ -10,6 +10,7 @@ export default async function ActivityCockpitPage() {
   const optimizations = await getOptimizations();
   const publications = await getPublications();
   const observedRecommendations = optimizations.recommendations.items;
+  const observedContentFeed = publications.items.filter((item) => !!item.observed_content);
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -40,6 +41,61 @@ export default async function ActivityCockpitPage() {
       badgeVariant: "warning" as const,
       meta: item.latest_suggestion?.created_at ? formatDate(item.latest_suggestion.created_at) : item.site_id,
       timestamp: item.latest_suggestion?.created_at ? new Date(item.latest_suggestion.created_at).getTime() : 0,
+    }));
+  const linkingFeed = observedContentFeed
+    .filter((item) => (item.observed_content?.internal_link_suggestions_count ?? 0) > 0)
+    .map((item) => ({
+      id: `content-linking-${item.id}`,
+      title: item.title,
+      detail: item.observed_content?.top_internal_link_target
+        ? `PraeviSEO voit ${item.observed_content.internal_link_suggestions_count} ouverture(s) de maillage, dont ${item.observed_content.top_internal_link_target}.`
+        : `PraeviSEO voit ${item.observed_content?.internal_link_suggestions_count ?? 0} ouverture(s) de maillage sur cette page.`,
+      badge: "Maillage",
+      badgeVariant: "warning" as const,
+      meta: `${item.site_id} · contenu observé`,
+      timestamp: item.observed_content?.snapshot_observed_at ? new Date(item.observed_content.snapshot_observed_at).getTime() : 0,
+    }));
+  const cannibalizationFeed = observedContentFeed
+    .filter(
+      (item) =>
+        (item.observed_content?.cannibalization_count ?? 0) > 0 ||
+        (item.observed_content?.overlap_count ?? 0) > 0
+    )
+    .map((item) => ({
+      id: `content-cannibalization-${item.id}`,
+      title: item.title,
+      detail: item.observed_content?.top_cannibalization_target
+        ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}. Overlap ${item.observed_content.overlap_score} / 100.`
+        : `PraeviSEO garde ${item.observed_content?.overlap_count ?? 0} recouvrement(s) sous surveillance sur ce contenu.`,
+      badge: "Cannibalisation",
+      badgeVariant: "warning" as const,
+      meta: `${item.site_id} · contenu observé`,
+      timestamp: item.observed_content?.snapshot_observed_at ? new Date(item.observed_content.snapshot_observed_at).getTime() : 0,
+    }));
+  const enrichmentFeed = observedContentFeed
+    .filter((item) => {
+      const observed = item.observed_content;
+
+      if (!observed) {
+        return false;
+      }
+
+      return (
+        !!item.latest_suggestion ||
+        observed.snapshot_word_count < 900 ||
+        observed.query_match_count > 0 ||
+        observed.authority_score >= 40
+      );
+    })
+    .map((item) => ({
+      id: `content-enrichment-${item.id}`,
+      title: item.title,
+      detail: item.latest_suggestion?.summary ??
+        `Contenu à enrichir : ${item.observed_content?.snapshot_word_count ?? 0} mots observés, ${item.observed_content?.query_match_count ?? 0} requête(s) déjà reliée(s).`,
+      badge: "Contenu à enrichir",
+      badgeVariant: "secondary" as const,
+      meta: `${item.site_id} · contenu observé`,
+      timestamp: item.observed_content?.snapshot_observed_at ? new Date(item.observed_content.snapshot_observed_at).getTime() : 0,
     }));
   const opportunityFeed = optimizations.gsc_opportunities.items.slice(0, 6).map((item) => ({
     id: `opportunity-card-${item.site_id}-${item.slug}-${item.type}`,
@@ -119,6 +175,9 @@ export default async function ActivityCockpitPage() {
       timestamp: 0,
     })),
     ...publicationSuggestionFeed.slice(0, 6),
+    ...linkingFeed.slice(0, 6),
+    ...cannibalizationFeed.slice(0, 6),
+    ...enrichmentFeed.slice(0, 6),
     ...observedRecommendations.slice(0, 6).map((item) => ({
       id: `observed-recommendation-${item.id}`,
       title: item.title,
@@ -162,6 +221,22 @@ export default async function ActivityCockpitPage() {
         badgeTone: "warning" as const,
         description: item.latest_suggestion?.summary ?? "Un refresh éditorial est recommandé.",
       })),
+    ...cannibalizationFeed.slice(0, 4).map((item) => ({
+      id: `${item.id}-alert`,
+      title: item.title,
+      subtitle: item.meta,
+      badge: item.badge,
+      badgeTone: "warning" as const,
+      description: item.detail,
+    })),
+    ...linkingFeed.slice(0, 4).map((item) => ({
+      id: `${item.id}-alert`,
+      title: item.title,
+      subtitle: item.meta,
+      badge: item.badge,
+      badgeTone: "secondary" as const,
+      description: item.detail,
+    })),
     ...observedRecommendations.slice(0, 4).map((item) => ({
       id: `observed-alert-${item.id}`,
       title: item.title,
@@ -190,6 +265,7 @@ export default async function ActivityCockpitPage() {
             { label: "Mouvements", href: "#mouvements", count: movementFeed.length, tone: "success" },
             { label: "Requêtes", href: "#requetes", count: queryMovementFeed.length, tone: "success" },
             { label: "Alertes", href: "#alertes", count: alertFeed.length, tone: "warning" },
+            { label: "Contenu", href: "#contenu", count: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length, tone: "secondary" },
             { label: "Timeline", href: "#timeline", count: timelineFeed.length, tone: "secondary" },
           ]}
         />
@@ -220,6 +296,7 @@ export default async function ActivityCockpitPage() {
               { label: "Requêtes en mouvement", value: queryMovementFeed.length, tone: "success" },
               { label: "Alertes actives", value: alertFeed.length, tone: alertFeed.length > 0 ? "warning" : "secondary" },
               { label: "Actions recommandées", value: optimizations.recommendations.summary.total, tone: optimizations.recommendations.summary.total > 0 ? "warning" : "secondary" },
+              { label: "Signaux contenu", value: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length, tone: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0 ? "secondary" : "secondary" },
             ]}
           />
         </div>
@@ -301,6 +378,62 @@ export default async function ActivityCockpitPage() {
                 badge={item.badge}
                 badgeTone={item.badgeTone as "success" | "warning" | "secondary" | "danger"}
                 description={item.description}
+              />
+            ))}
+          </CockpitSignalListCard>
+        </div>
+
+        <div id="contenu" className="grid gap-6 xl:grid-cols-3 scroll-mt-24">
+          <CockpitSignalListCard
+            title="Maillage détecté"
+            description="Les contenus où PraeviSEO voit déjà des liens internes utiles à ouvrir."
+            empty={linkingFeed.length === 0}
+            emptyMessage="Aucun besoin de maillage fort pour le moment."
+          >
+            {linkingFeed.slice(0, 6).map((item) => (
+              <CockpitSignalItem
+                key={item.id}
+                title={item.title}
+                subtitle={item.meta}
+                badge={item.badge}
+                badgeTone="warning"
+                description={item.detail}
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Cannibalisation observée"
+            description="Les contenus qui se recouvrent ou qui méritent une clarification éditoriale."
+            empty={cannibalizationFeed.length === 0}
+            emptyMessage="Aucun recouvrement fort détecté pour le moment."
+          >
+            {cannibalizationFeed.slice(0, 6).map((item) => (
+              <CockpitSignalItem
+                key={item.id}
+                title={item.title}
+                subtitle={item.meta}
+                badge={item.badge}
+                badgeTone="warning"
+                description={item.detail}
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Contenus à enrichir"
+            description="Les pages qui ont déjà une base SEO exploitable, mais qui peuvent encore gagner en profondeur."
+            empty={enrichmentFeed.length === 0}
+            emptyMessage="Aucun enrichissement fort détecté pour le moment."
+          >
+            {enrichmentFeed.slice(0, 6).map((item) => (
+              <CockpitSignalItem
+                key={item.id}
+                title={item.title}
+                subtitle={item.meta}
+                badge={item.badge}
+                badgeTone="secondary"
+                description={item.detail}
               />
             ))}
           </CockpitSignalListCard>
