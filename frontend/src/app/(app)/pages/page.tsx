@@ -36,6 +36,47 @@ export default async function PagesCockpitPage() {
   const observedWeakPages = dashboard.sites.flatMap((site) =>
     site.summary.observed_weak_page_details.map((item) => ({ ...item, site_name: site.name, site_id: site.site_id }))
   );
+  const observedPriorityPages = [
+    ...observedPillarPages.map((item) => ({
+      id: `${item.site_id}-${item.slug}-pillar-priority`,
+      title: item.label,
+      site_name: item.site_name,
+      badge: "Pilier potentiel",
+      badgeTone: "success" as const,
+      description: item.cluster_label
+        ? `Cluster ${item.cluster_label}, autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}, ${item.internal_inlinks} lien(s) entrant(s).`
+        : `Autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}, ${item.internal_inlinks} lien(s) entrant(s).`,
+    })),
+    ...observedLinkGapPages.map((item) => ({
+      id: `${item.site_id}-${item.slug}-link-gap-priority`,
+      title: item.label,
+      site_name: item.site_name,
+      badge: "Sous-maillée",
+      badgeTone: "warning" as const,
+      description: `Autorité ${item.authority_score}, seulement ${item.internal_inlinks} lien(s) entrant(s), ${item.internal_outlinks} sortant(s).`,
+    })),
+    ...observedOrphanAlerts.map((item) => ({
+      id: `${item.site_id}-${item.slug}-orphan-priority`,
+      title: item.label,
+      site_name: item.site_name,
+      badge: "Orpheline",
+      badgeTone: "danger" as const,
+      description: `Score orphelin ${item.orphan_score}, autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`,
+    })),
+    ...observedWeakPages.map((item) => ({
+      id: `${item.site_id}-${item.slug}-weak-priority`,
+      title: item.label,
+      site_name: item.site_name,
+      badge: "Faible",
+      badgeTone: "secondary" as const,
+      description:
+        item.indexability_state !== "indexable"
+          ? `Page encore peu claire pour Google (${item.indexability_state}), ${item.latest_word_count} mots observés.`
+          : `${item.latest_word_count} mots observés, autorité ${item.authority_score}, maillage encore discret.`,
+    })),
+  ]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
+    .slice(0, 8);
   const risingPages = pageSignals.filter((item) => item.trend === "up").slice(0, 6);
   const fallingPages = pageSignals.filter((item) => item.trend === "down").slice(0, 6);
   const watchOpportunityPages = optimizations.gsc_opportunities.items
@@ -191,6 +232,7 @@ export default async function PagesCockpitPage() {
             { label: "Pages qui montent", href: "#montent", count: risingPages.length, tone: "success" },
             { label: "Pages qui chutent", href: "#chutent", count: fallingPages.length, tone: "warning" },
             { label: "Meilleures pages", href: "#meilleures", count: bestPages.length, tone: "secondary" },
+            { label: "Priorités structurelles", href: "#priorites", count: observedPriorityPages.length, tone: "secondary" },
             { label: "Potentiel SEO", href: "#potentiel", count: potentialPages.length, tone: "secondary" },
             { label: "À refresh", href: "#refresh", count: refreshPages.length, tone: "warning" },
             { label: "À surveiller", href: "#surveiller", count: pagesToWatch.length, tone: "danger" },
@@ -240,6 +282,11 @@ export default async function PagesCockpitPage() {
                 ? `${observedPagesTotal} URL${observedPagesTotal > 1 ? "s" : ""} observée${observedPagesTotal > 1 ? "s" : ""} permettent déjà de lire l’autorité, le maillage et les pages encore fragiles.`
                 : "PraeviSEO enrichira encore cette vue dès qu’il aura observé plus de pages directement sur le site."}
             </p>
+            <p>
+              {observedPriorityPages.length > 0
+                ? `${observedPriorityPages.length} page${observedPriorityPages.length > 1 ? "s" : ""} ont déjà une vraie priorité structurelle : pilier à pousser, maillage à ouvrir ou faiblesse à corriger.`
+                : "Aucune priorité structurelle forte n’apparaît encore : la lecture reste surtout portée par Google Search Console pour le moment."}
+            </p>
           </div>
         </div>
 
@@ -253,11 +300,58 @@ export default async function PagesCockpitPage() {
               { label: "Pistes de refresh", value: observedWeakTotal > 0 ? observedWeakTotal : refreshPages.length, tone: (observedWeakTotal > 0 || refreshPages.length > 0) ? "warning" : "secondary" },
               {
                 label: "Pages sous-maillées",
+                value: observedLinkGapPages.length > 0 ? observedLinkGapPages.length : observedOrphanTotal,
+                tone: observedLinkGapPages.length > 0 || observedOrphanTotal > 0 ? "warning" : "secondary",
+              },
+              {
+                label: "Pages orphelines",
                 value: observedOrphanTotal > 0 ? observedOrphanTotal : `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
-                tone: observedOrphanTotal > 0 ? "warning" : totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
+                tone: observedOrphanTotal > 0 ? "danger" : totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
               },
             ]}
           />
+        </div>
+
+        <div id="priorites" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <CockpitSignalListCard
+            title="Priorités structurelles"
+            description="Les pages que PraeviSEO priorise déjà par structure réelle : piliers, sous-maillage, orphelines et faiblesses de fond."
+            empty={observedPriorityPages.length === 0}
+            emptyMessage="Aucune priorité structurelle forte pour le moment. Le cockpit reviendra ici dès que le moteur détecte un vrai besoin de fond."
+          >
+            {observedPriorityPages.map((item) => (
+              <CockpitSignalItem
+                key={item.id}
+                title={item.title}
+                subtitle={item.site_name}
+                badge={item.badge}
+                badgeTone={item.badgeTone}
+                description={item.description}
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Pages piliers et sous-maillées"
+            description="La lecture la plus produit utile : quelles pages peuvent porter un cluster, et lesquelles manquent encore de soutien interne."
+            empty={observedPillarPages.length + observedLinkGapPages.length === 0}
+            emptyMessage="Aucune page pilier ou sous-maillée forte pour le moment."
+          >
+            {[...observedPillarPages.slice(0, 3), ...observedLinkGapPages.slice(0, 3)].map((item) => (
+              <CockpitSignalItem
+                key={`${item.site_id}-${item.slug}-pillar-gap`}
+                title={item.label}
+                subtitle={item.site_name}
+                badge={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "Pilier" : "Maillage"}
+                badgeTone={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "success" : "warning"}
+                description={
+                  observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
+                    ? `Potentiel pilier ${item.pillar_likelihood}, autorité ${item.authority_score}, cluster ${item.cluster_label ?? "n/a"}.`
+                    : `Seulement ${item.internal_inlinks} lien(s) entrant(s) pour une page déjà utile, autorité ${item.authority_score}.`
+                }
+              />
+            ))}
+          </CockpitSignalListCard>
         </div>
 
         <div id="montent" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
