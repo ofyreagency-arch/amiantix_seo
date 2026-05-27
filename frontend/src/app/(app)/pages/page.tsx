@@ -24,10 +24,46 @@ export default async function PagesCockpitPage() {
     ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
     ...site.summary.top_falling_pages.map((item) => ({ ...item, site_name: site.name, trend: "down" as const })),
   ]);
+  const observedPillarPages = dashboard.sites.flatMap((site) =>
+    site.summary.observed_pillar_pages.map((item) => ({ ...item, site_name: site.name, site_id: site.site_id }))
+  );
+  const observedLinkGapPages = dashboard.sites.flatMap((site) =>
+    site.summary.observed_link_gap_pages.map((item) => ({ ...item, site_name: site.name, site_id: site.site_id }))
+  );
+  const observedOrphanAlerts = dashboard.sites.flatMap((site) =>
+    site.summary.observed_orphan_alerts.map((item) => ({ ...item, site_name: site.name, site_id: site.site_id }))
+  );
+  const observedWeakPages = dashboard.sites.flatMap((site) =>
+    site.summary.observed_weak_page_details.map((item) => ({ ...item, site_name: site.name, site_id: site.site_id }))
+  );
   const risingPages = pageSignals.filter((item) => item.trend === "up").slice(0, 6);
   const fallingPages = pageSignals.filter((item) => item.trend === "down").slice(0, 6);
-  const pagesToWatch = optimizations.gsc_opportunities.items
-    .filter((item) => item.type === "near_top_10" || item.type === "low_ctr" || item.type === "sustained_drop")
+  const watchOpportunityPages = optimizations.gsc_opportunities.items
+    .filter((item) => item.type === "near_top_10" || item.type === "low_ctr" || item.type === "sustained_drop");
+  const pagesToWatch = [
+    ...watchOpportunityPages,
+    ...observedOrphanAlerts.map((item) => ({
+      site_id: item.site_id,
+      site_name: item.site_name,
+      slug: item.slug,
+      label: item.label,
+      type: "observed_orphan",
+      priority_label: "Sous-maillée",
+      priority_level: "medium" as const,
+      reason: `Autorité ${item.authority_score}, score orphelin ${item.orphan_score}, ${item.internal_inlinks} lien(s) interne(s).`,
+    })),
+    ...observedLinkGapPages.map((item) => ({
+      site_id: item.site_id,
+      site_name: item.site_name,
+      slug: item.slug,
+      label: item.label,
+      type: "observed_link_gap",
+      priority_label: "Maillage faible",
+      priority_level: "medium" as const,
+      reason: `Page indexable mais encore sous-maillée avec ${item.internal_inlinks} lien(s) interne(s).`,
+    })),
+  ]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) === index)
     .slice(0, 6);
   const bestPages = [...risingPages]
     .sort((a, b) => b.impressions - a.impressions)
@@ -50,9 +86,37 @@ export default async function PagesCockpitPage() {
     })
     .filter((item) => (item.seo_score ?? 0) > 0 || (item.topical_score ?? 0) > 0 || (item.quality_score ?? 0) > 0)
     .slice(0, 6);
+  const observedPotentialPages = [
+    ...observedPillarPages.map((item) => ({
+      id: `${item.site_id}-${item.slug}-pillar`,
+      title: item.label,
+      site_id: item.site_id,
+      seo_score: item.authority_score,
+      topical_score: item.pillar_likelihood,
+      quality_score: item.internal_outlinks,
+      indexability_score: item.indexability_state === "indexable" ? 100 : 40,
+      reason: item.cluster_label
+        ? `Cluster ${item.cluster_label}, autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}.`
+        : `Autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}.`,
+    })),
+    ...observedLinkGapPages.map((item) => ({
+      id: `${item.site_id}-${item.slug}-link-gap`,
+      title: item.label,
+      site_id: item.site_id,
+      seo_score: item.authority_score,
+      topical_score: item.pillar_likelihood,
+      quality_score: item.internal_inlinks,
+      indexability_score: item.indexability_state === "indexable" ? 100 : 40,
+      reason: `Page déjà utile mais encore sous-maillée avec ${item.internal_inlinks} lien(s) interne(s).`,
+    })),
+  ]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.site_id === item.site_id && candidate.title === item.title) === index)
+    .slice(0, 6);
   const potentialPages =
-    scoredPages.length > 0
-      ? scoredPages
+    observedPotentialPages.length > 0
+      ? observedPotentialPages
+      : scoredPages.length > 0
+        ? scoredPages
       : pagesToWatch
           .filter((item) => item.type === "near_top_10" || item.type === "low_ctr")
           .map((item) => ({
@@ -66,11 +130,33 @@ export default async function PagesCockpitPage() {
             reason: item.reason,
           }))
           .slice(0, 6);
+  const observedRefreshPages = observedWeakPages.map((item) => ({
+    id: `${item.site_id}-${item.slug}-weak`,
+    title: item.label,
+    site_id: item.site_id,
+    latest_suggestion: null,
+    published_live: item.indexability_state === "indexable",
+    gsc_metrics: {
+      impressions: 0,
+      ctr: 0,
+      position: 0,
+    },
+    seo_score: item.authority_score,
+    reason:
+      item.indexability_state !== "indexable"
+        ? `Google ne confirme pas encore clairement cette page (${item.indexability_state}).`
+        : `La page reste légère ou trop discrète (${item.latest_word_count} mots, autorité ${item.authority_score}).`,
+  }));
   const refreshPages =
-    explicitRefreshPages.length > 0
-      ? explicitRefreshPages
+    observedRefreshPages.length > 0
+      ? observedRefreshPages
+      : explicitRefreshPages.length > 0
+        ? explicitRefreshPages
       : pagesToWatch
-          .filter((item) => item.type === "near_top_10" || item.type === "sustained_drop")
+          .filter(
+            (item): item is (typeof optimizations.gsc_opportunities.items)[number] =>
+              "metrics" in item && (item.type === "near_top_10" || item.type === "sustained_drop")
+          )
           .map((item) => ({
             id: `${item.site_id}-${item.slug}`,
             title: item.label,
@@ -86,6 +172,9 @@ export default async function PagesCockpitPage() {
             reason: item.reason,
           }))
           .slice(0, 6);
+  const observedPagesTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_pages, 0);
+  const observedWeakTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_weak_pages, 0);
+  const observedOrphanTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_orphan_pages, 0);
   const totalDeltaImpressions = pageSignals.reduce((sum, item) => sum + item.delta_impressions, 0);
 
   return (
@@ -146,21 +235,26 @@ export default async function PagesCockpitPage() {
                 ? `${refreshPages.length} piste${refreshPages.length > 1 ? "s" : ""} de refresh ou de consolidation sont déjà identifiées.`
                 : "Aucune relance éditoriale forte pour le moment : cela peut simplement vouloir dire que Google remonte encore peu de signaux exploitables."}
             </p>
+            <p>
+              {observedPagesTotal > 0
+                ? `${observedPagesTotal} URL${observedPagesTotal > 1 ? "s" : ""} observée${observedPagesTotal > 1 ? "s" : ""} permettent déjà de lire l’autorité, le maillage et les pages encore fragiles.`
+                : "PraeviSEO enrichira encore cette vue dès qu’il aura observé plus de pages directement sur le site."}
+            </p>
           </div>
         </div>
 
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid
             items={[
-              { label: "Pages suivies", value: pageSignals.length },
+              { label: "Pages suivies", value: observedPagesTotal > 0 ? observedPagesTotal : pageSignals.length },
               { label: "Pages en hausse", value: risingPages.length, tone: "success" },
               { label: "Pages en baisse", value: fallingPages.length, tone: "danger" },
               { label: "Pages à fort potentiel", value: potentialPages.length, tone: potentialPages.length > 0 ? "secondary" : "warning" },
-              { label: "Pistes de refresh", value: refreshPages.length, tone: refreshPages.length > 0 ? "warning" : "secondary" },
+              { label: "Pistes de refresh", value: observedWeakTotal > 0 ? observedWeakTotal : refreshPages.length, tone: (observedWeakTotal > 0 || refreshPages.length > 0) ? "warning" : "secondary" },
               {
-                label: "Variation globale",
-                value: `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
-                tone: totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
+                label: "Pages sous-maillées",
+                value: observedOrphanTotal > 0 ? observedOrphanTotal : `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
+                tone: observedOrphanTotal > 0 ? "warning" : totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
               },
             ]}
           />
@@ -272,8 +366,7 @@ export default async function PagesCockpitPage() {
                   item.latest_suggestion?.summary ??
                   ("reason" in item && typeof item.reason === "string" && item.reason.length > 0
                     ? item.reason
-                    :
-                  `${item.gsc_metrics.impressions} impressions, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}, SEO score ${item.seo_score ?? "n/a"}.`
+                    : `${item.gsc_metrics.impressions} impressions, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}, SEO score ${item.seo_score ?? "n/a"}.`
                   )
                 }
               />

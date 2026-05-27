@@ -524,6 +524,7 @@ class ClientSitesController extends Controller
             ->whereHas('page', fn ($query) => $query->where('site_id', $site->site_id));
         $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
         $gscSnapshot = $this->searchConsoleSnapshot($site->site_id);
+        $observedSnapshot = $this->observedSiteSnapshot($site->site_id);
         $installation = $site->relationLoaded('latestRemoteInstallation')
             ? $site->getRelation('latestRemoteInstallation')
             : $site->latestRemoteInstallation()->first();
@@ -565,7 +566,16 @@ class ClientSitesController extends Controller
                 'pages_published' => $pagesPublished,
                 'pages_live' => $pagesLive,
                 'pending_suggestions' => $pendingSuggestions,
-                'observed_pages' => SeoSitePage::query()->where('site_id', $site->site_id)->count(),
+                'observed_pages' => $observedSnapshot['total'],
+                'observed_weak_pages' => $observedSnapshot['weak_pages'],
+                'observed_orphan_pages' => $observedSnapshot['orphan_pages'],
+                'observed_pillar_candidates' => $observedSnapshot['pillar_candidates'],
+                'observed_avg_authority' => $observedSnapshot['avg_authority'],
+                'observed_avg_orphan' => $observedSnapshot['avg_orphan'],
+                'observed_pillar_pages' => $observedSnapshot['pillar_pages'],
+                'observed_link_gap_pages' => $observedSnapshot['link_gap_pages'],
+                'observed_orphan_alerts' => $observedSnapshot['orphan_alerts'],
+                'observed_weak_page_details' => $observedSnapshot['weak_page_details'],
                 'gsc_impressions' => $gscSnapshot['impressions'],
                 'gsc_clicks' => $gscSnapshot['clicks'],
                 'gsc_ctr' => $gscSnapshot['ctr'],
@@ -603,6 +613,146 @@ class ClientSitesController extends Controller
                 pagesLive: $pagesLive,
                 pendingSuggestions: $pendingSuggestions,
             ),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     total:int,
+     *     weak_pages:int,
+     *     orphan_pages:int,
+     *     pillar_candidates:int,
+     *     avg_authority:int,
+     *     avg_orphan:int,
+     *     pillar_pages:array<int,array<string,mixed>>,
+     *     link_gap_pages:array<int,array<string,mixed>>,
+     *     orphan_alerts:array<int,array<string,mixed>>,
+     *     weak_page_details:array<int,array<string,mixed>>
+     * }
+     */
+    private function observedSiteSnapshot(string $siteId): array
+    {
+        $pages = SeoSitePage::query()
+            ->where('site_id', $siteId)
+            ->get([
+                'id',
+                'site_id',
+                'normalized_url',
+                'path',
+                'title',
+                'indexability_state',
+                'latest_word_count',
+                'internal_inlinks',
+                'internal_outlinks',
+                'authority_score',
+                'orphan_score',
+                'overlap_score',
+                'pillar_likelihood',
+                'cluster_label',
+                'last_seen_at',
+            ]);
+
+        if ($pages->isEmpty()) {
+            return [
+                'total' => 0,
+                'weak_pages' => 0,
+                'orphan_pages' => 0,
+                'pillar_candidates' => 0,
+                'avg_authority' => 0,
+                'avg_orphan' => 0,
+                'pillar_pages' => [],
+                'link_gap_pages' => [],
+                'orphan_alerts' => [],
+                'weak_page_details' => [],
+            ];
+        }
+
+        $weakPages = $pages->filter(function (SeoSitePage $page): bool {
+            return (int) $page->latest_word_count < 300
+                || (float) $page->authority_score < 0.20
+                || (string) $page->indexability_state !== 'indexable';
+        });
+        $orphanPages = $pages->filter(fn (SeoSitePage $page): bool => (float) $page->orphan_score >= 0.75);
+        $pillarPages = $pages
+            ->filter(fn (SeoSitePage $page): bool => (float) $page->pillar_likelihood >= 0.70)
+            ->sortByDesc(fn (SeoSitePage $page): float => (float) $page->pillar_likelihood)
+            ->values();
+        $linkGapPages = $pages
+            ->filter(function (SeoSitePage $page): bool {
+                return (string) $page->indexability_state === 'indexable'
+                    && (
+                        (int) $page->internal_inlinks <= 1
+                        || ((float) $page->authority_score >= 0.20 && (int) $page->internal_inlinks <= 2)
+                    );
+            })
+            ->sortBy([
+                fn (SeoSitePage $page): int => (int) $page->internal_inlinks,
+                fn (SeoSitePage $page): float => -1 * (float) $page->authority_score,
+            ])
+            ->values();
+
+        return [
+            'total' => $pages->count(),
+            'weak_pages' => $weakPages->count(),
+            'orphan_pages' => $orphanPages->count(),
+            'pillar_candidates' => $pillarPages->count(),
+            'avg_authority' => (int) round($pages->avg('authority_score') * 100),
+            'avg_orphan' => (int) round($pages->avg('orphan_score') * 100),
+            'pillar_pages' => $pillarPages
+                ->take(6)
+                ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
+                ->values()
+                ->all(),
+            'link_gap_pages' => $linkGapPages
+                ->take(6)
+                ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
+                ->values()
+                ->all(),
+            'orphan_alerts' => $orphanPages
+                ->sortByDesc(fn (SeoSitePage $page): float => (float) $page->orphan_score)
+                ->take(6)
+                ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
+                ->values()
+                ->all(),
+            'weak_page_details' => $weakPages
+                ->sortBy([
+                    fn (SeoSitePage $page): int => (string) $page->indexability_state === 'indexable' ? 1 : 0,
+                    fn (SeoSitePage $page): int => (int) $page->latest_word_count,
+                    fn (SeoSitePage $page): float => (float) $page->authority_score,
+                ])
+                ->take(6)
+                ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function observedPagePayload(SeoSitePage $page): array
+    {
+        $path = trim((string) ($page->path ?? ''), '/');
+        $slug = $path === '' ? '' : basename($path);
+        $label = trim((string) ($page->title ?? '')) !== ''
+            ? (string) $page->title
+            : ($path === '' ? 'Page d accueil' : str_replace(['-', '_'], ' ', ucfirst($slug)));
+
+        return [
+            'label' => $label,
+            'slug' => $slug,
+            'url' => (string) $page->normalized_url,
+            'path' => $page->path ? (string) $page->path : '/',
+            'authority_score' => (int) round((float) $page->authority_score * 100),
+            'orphan_score' => (int) round((float) $page->orphan_score * 100),
+            'overlap_score' => (int) round((float) $page->overlap_score * 100),
+            'pillar_likelihood' => (int) round((float) $page->pillar_likelihood * 100),
+            'internal_inlinks' => (int) $page->internal_inlinks,
+            'internal_outlinks' => (int) $page->internal_outlinks,
+            'latest_word_count' => (int) $page->latest_word_count,
+            'indexability_state' => (string) $page->indexability_state,
+            'cluster_label' => $page->cluster_label ? (string) $page->cluster_label : null,
+            'last_seen_at' => $page->last_seen_at,
         ];
     }
 

@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSiteGoogleConnection;
+use App\Models\SeoSitePage;
 use App\Models\User;
 use App\Models\UserAccessToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -332,5 +333,77 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertJsonPath('sites.0.summary.top_rising_pages.0.slug', 'faq');
         $response->assertJsonPath('sites.0.summary.top_rising_pages.0.delta_impressions', 2);
         $response->assertJsonPath('sites.0.summary.top_falling_pages', []);
+    }
+
+    public function test_client_sites_summary_exposes_observed_page_health_signals(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://amiantix.com/faq',
+            'url_hash' => hash('sha256', 'https://amiantix.com/faq'),
+            'path' => '/faq',
+            'title' => 'Faq',
+            'indexability_state' => 'indexable',
+            'latest_word_count' => 860,
+            'internal_inlinks' => 1,
+            'internal_outlinks' => 8,
+            'authority_score' => 0.42,
+            'orphan_score' => 0.18,
+            'overlap_score' => 0.10,
+            'pillar_likelihood' => 0.78,
+        ]);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://amiantix.com/mentions-legales',
+            'url_hash' => hash('sha256', 'https://amiantix.com/mentions-legales'),
+            'path' => '/mentions-legales',
+            'title' => 'Mentions légales',
+            'indexability_state' => 'unknown',
+            'latest_word_count' => 120,
+            'internal_inlinks' => 0,
+            'internal_outlinks' => 1,
+            'authority_score' => 0.08,
+            'orphan_score' => 0.92,
+            'overlap_score' => 0.04,
+            'pillar_likelihood' => 0.18,
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/sites');
+
+        $response->assertOk();
+        $response->assertJsonPath('sites.0.summary.observed_pages', 2);
+        $response->assertJsonPath('sites.0.summary.observed_weak_pages', 1);
+        $response->assertJsonPath('sites.0.summary.observed_orphan_pages', 1);
+        $response->assertJsonPath('sites.0.summary.observed_pillar_candidates', 1);
+        $response->assertJsonPath('sites.0.summary.observed_avg_authority', 25);
+        $response->assertJsonPath('sites.0.summary.observed_pillar_pages.0.slug', 'faq');
+        $response->assertJsonPath('sites.0.summary.observed_link_gap_pages.0.slug', 'faq');
+        $response->assertJsonPath('sites.0.summary.observed_orphan_alerts.0.slug', 'mentions-legales');
+        $response->assertJsonPath('sites.0.summary.observed_weak_page_details.0.slug', 'mentions-legales');
     }
 }

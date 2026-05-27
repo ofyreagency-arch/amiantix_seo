@@ -50,6 +50,75 @@ export type PraeviseoSite = {
     pages_live: number;
     pending_suggestions: number;
     observed_pages: number;
+    observed_weak_pages: number;
+    observed_orphan_pages: number;
+    observed_pillar_candidates: number;
+    observed_avg_authority: number;
+    observed_avg_orphan: number;
+    observed_pillar_pages: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      path: string;
+      authority_score: number;
+      orphan_score: number;
+      overlap_score: number;
+      pillar_likelihood: number;
+      internal_inlinks: number;
+      internal_outlinks: number;
+      latest_word_count: number;
+      indexability_state: string;
+      cluster_label: string | null;
+      last_seen_at: string | null;
+    }>;
+    observed_link_gap_pages: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      path: string;
+      authority_score: number;
+      orphan_score: number;
+      overlap_score: number;
+      pillar_likelihood: number;
+      internal_inlinks: number;
+      internal_outlinks: number;
+      latest_word_count: number;
+      indexability_state: string;
+      cluster_label: string | null;
+      last_seen_at: string | null;
+    }>;
+    observed_orphan_alerts: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      path: string;
+      authority_score: number;
+      orphan_score: number;
+      overlap_score: number;
+      pillar_likelihood: number;
+      internal_inlinks: number;
+      internal_outlinks: number;
+      latest_word_count: number;
+      indexability_state: string;
+      cluster_label: string | null;
+      last_seen_at: string | null;
+    }>;
+    observed_weak_page_details: Array<{
+      label: string;
+      slug: string;
+      url: string;
+      path: string;
+      authority_score: number;
+      orphan_score: number;
+      overlap_score: number;
+      pillar_likelihood: number;
+      internal_inlinks: number;
+      internal_outlinks: number;
+      latest_word_count: number;
+      indexability_state: string;
+      cluster_label: string | null;
+      last_seen_at: string | null;
+    }>;
     gsc_impressions: number;
     gsc_clicks: number;
     gsc_ctr: number;
@@ -401,6 +470,83 @@ const mockSites: PraeviseoSite[] = [
       pages_live: 3,
       pending_suggestions: 2,
       observed_pages: 19,
+      observed_weak_pages: 6,
+      observed_orphan_pages: 3,
+      observed_pillar_candidates: 2,
+      observed_avg_authority: 38,
+      observed_avg_orphan: 29,
+      observed_pillar_pages: [
+        {
+          label: "Faq",
+          slug: "faq",
+          url: "https://amiantix.com/faq",
+          path: "/faq",
+          authority_score: 64,
+          orphan_score: 18,
+          overlap_score: 12,
+          pillar_likelihood: 81,
+          internal_inlinks: 3,
+          internal_outlinks: 8,
+          latest_word_count: 1240,
+          indexability_state: "indexable",
+          cluster_label: "diagnostic amiante",
+          last_seen_at: new Date().toISOString(),
+        },
+      ],
+      observed_link_gap_pages: [
+        {
+          label: "Diagnostic amiante copropriete",
+          slug: "diagnostic-amiante-copropriete",
+          url: "https://amiantix.com/diagnostic-amiante-copropriete",
+          path: "/diagnostic-amiante-copropriete",
+          authority_score: 58,
+          orphan_score: 22,
+          overlap_score: 18,
+          pillar_likelihood: 72,
+          internal_inlinks: 1,
+          internal_outlinks: 5,
+          latest_word_count: 980,
+          indexability_state: "indexable",
+          cluster_label: "diagnostic amiante",
+          last_seen_at: new Date().toISOString(),
+        },
+      ],
+      observed_orphan_alerts: [
+        {
+          label: "Mentions légales",
+          slug: "mentions-legales",
+          url: "https://amiantix.com/mentions-legales",
+          path: "/mentions-legales",
+          authority_score: 8,
+          orphan_score: 91,
+          overlap_score: 4,
+          pillar_likelihood: 12,
+          internal_inlinks: 0,
+          internal_outlinks: 1,
+          latest_word_count: 110,
+          indexability_state: "unknown",
+          cluster_label: null,
+          last_seen_at: new Date().toISOString(),
+        },
+      ],
+      observed_weak_page_details: [
+        {
+          label: "Qui sommes nous",
+          slug: "qui-sommes-nous",
+          url: "https://amiantix.com/qui-sommes-nous",
+          path: "/qui-sommes-nous",
+          authority_score: 16,
+          orphan_score: 64,
+          overlap_score: 22,
+          pillar_likelihood: 35,
+          internal_inlinks: 1,
+          internal_outlinks: 2,
+          latest_word_count: 180,
+          indexability_state: "unknown",
+          cluster_label: null,
+          last_seen_at: new Date().toISOString(),
+        },
+      ],
       gsc_impressions: 20,
       gsc_clicks: 9,
       gsc_ctr: 0.45,
@@ -557,6 +703,15 @@ const mockSites: PraeviseoSite[] = [
       pages_live: 0,
       pending_suggestions: 0,
       observed_pages: 0,
+      observed_weak_pages: 0,
+      observed_orphan_pages: 0,
+      observed_pillar_candidates: 0,
+      observed_avg_authority: 0,
+      observed_avg_orphan: 0,
+      observed_pillar_pages: [],
+      observed_link_gap_pages: [],
+      observed_orphan_alerts: [],
+      observed_weak_page_details: [],
       gsc_impressions: 0,
       gsc_clicks: 0,
       gsc_ctr: 0,
@@ -996,6 +1151,83 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       pages_live: Number(summary.pages_live ?? 0),
       pending_suggestions: Number(summary.pending_suggestions ?? 0),
       observed_pages: Number(summary.observed_pages ?? 0),
+      observed_weak_pages: Number(summary.observed_weak_pages ?? 0),
+      observed_orphan_pages: Number(summary.observed_orphan_pages ?? 0),
+      observed_pillar_candidates: Number(summary.observed_pillar_candidates ?? 0),
+      observed_avg_authority: Number(summary.observed_avg_authority ?? 0),
+      observed_avg_orphan: Number(summary.observed_avg_orphan ?? 0),
+      observed_pillar_pages: Array.isArray(summary.observed_pillar_pages)
+        ? summary.observed_pillar_pages.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            path: String((entry as Record<string, unknown>).path ?? "/"),
+            authority_score: Number((entry as Record<string, unknown>).authority_score ?? 0),
+            orphan_score: Number((entry as Record<string, unknown>).orphan_score ?? 0),
+            overlap_score: Number((entry as Record<string, unknown>).overlap_score ?? 0),
+            pillar_likelihood: Number((entry as Record<string, unknown>).pillar_likelihood ?? 0),
+            internal_inlinks: Number((entry as Record<string, unknown>).internal_inlinks ?? 0),
+            internal_outlinks: Number((entry as Record<string, unknown>).internal_outlinks ?? 0),
+            latest_word_count: Number((entry as Record<string, unknown>).latest_word_count ?? 0),
+            indexability_state: String((entry as Record<string, unknown>).indexability_state ?? "unknown"),
+            cluster_label: (entry as Record<string, unknown>).cluster_label ? String((entry as Record<string, unknown>).cluster_label) : null,
+            last_seen_at: (entry as Record<string, unknown>).last_seen_at ? String((entry as Record<string, unknown>).last_seen_at) : null,
+          }))
+        : [],
+      observed_link_gap_pages: Array.isArray(summary.observed_link_gap_pages)
+        ? summary.observed_link_gap_pages.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            path: String((entry as Record<string, unknown>).path ?? "/"),
+            authority_score: Number((entry as Record<string, unknown>).authority_score ?? 0),
+            orphan_score: Number((entry as Record<string, unknown>).orphan_score ?? 0),
+            overlap_score: Number((entry as Record<string, unknown>).overlap_score ?? 0),
+            pillar_likelihood: Number((entry as Record<string, unknown>).pillar_likelihood ?? 0),
+            internal_inlinks: Number((entry as Record<string, unknown>).internal_inlinks ?? 0),
+            internal_outlinks: Number((entry as Record<string, unknown>).internal_outlinks ?? 0),
+            latest_word_count: Number((entry as Record<string, unknown>).latest_word_count ?? 0),
+            indexability_state: String((entry as Record<string, unknown>).indexability_state ?? "unknown"),
+            cluster_label: (entry as Record<string, unknown>).cluster_label ? String((entry as Record<string, unknown>).cluster_label) : null,
+            last_seen_at: (entry as Record<string, unknown>).last_seen_at ? String((entry as Record<string, unknown>).last_seen_at) : null,
+          }))
+        : [],
+      observed_orphan_alerts: Array.isArray(summary.observed_orphan_alerts)
+        ? summary.observed_orphan_alerts.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            path: String((entry as Record<string, unknown>).path ?? "/"),
+            authority_score: Number((entry as Record<string, unknown>).authority_score ?? 0),
+            orphan_score: Number((entry as Record<string, unknown>).orphan_score ?? 0),
+            overlap_score: Number((entry as Record<string, unknown>).overlap_score ?? 0),
+            pillar_likelihood: Number((entry as Record<string, unknown>).pillar_likelihood ?? 0),
+            internal_inlinks: Number((entry as Record<string, unknown>).internal_inlinks ?? 0),
+            internal_outlinks: Number((entry as Record<string, unknown>).internal_outlinks ?? 0),
+            latest_word_count: Number((entry as Record<string, unknown>).latest_word_count ?? 0),
+            indexability_state: String((entry as Record<string, unknown>).indexability_state ?? "unknown"),
+            cluster_label: (entry as Record<string, unknown>).cluster_label ? String((entry as Record<string, unknown>).cluster_label) : null,
+            last_seen_at: (entry as Record<string, unknown>).last_seen_at ? String((entry as Record<string, unknown>).last_seen_at) : null,
+          }))
+        : [],
+      observed_weak_page_details: Array.isArray(summary.observed_weak_page_details)
+        ? summary.observed_weak_page_details.map((entry) => ({
+            label: String((entry as Record<string, unknown>).label ?? ""),
+            slug: String((entry as Record<string, unknown>).slug ?? ""),
+            url: String((entry as Record<string, unknown>).url ?? ""),
+            path: String((entry as Record<string, unknown>).path ?? "/"),
+            authority_score: Number((entry as Record<string, unknown>).authority_score ?? 0),
+            orphan_score: Number((entry as Record<string, unknown>).orphan_score ?? 0),
+            overlap_score: Number((entry as Record<string, unknown>).overlap_score ?? 0),
+            pillar_likelihood: Number((entry as Record<string, unknown>).pillar_likelihood ?? 0),
+            internal_inlinks: Number((entry as Record<string, unknown>).internal_inlinks ?? 0),
+            internal_outlinks: Number((entry as Record<string, unknown>).internal_outlinks ?? 0),
+            latest_word_count: Number((entry as Record<string, unknown>).latest_word_count ?? 0),
+            indexability_state: String((entry as Record<string, unknown>).indexability_state ?? "unknown"),
+            cluster_label: (entry as Record<string, unknown>).cluster_label ? String((entry as Record<string, unknown>).cluster_label) : null,
+            last_seen_at: (entry as Record<string, unknown>).last_seen_at ? String((entry as Record<string, unknown>).last_seen_at) : null,
+          }))
+        : [],
       gsc_impressions: Number(summary.gsc_impressions ?? 0),
       gsc_clicks: Number(summary.gsc_clicks ?? 0),
       gsc_ctr: Number(summary.gsc_ctr ?? 0),
@@ -1366,6 +1598,15 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         pages_live: 0,
         pending_suggestions: 0,
         observed_pages: 0,
+        observed_weak_pages: 0,
+        observed_orphan_pages: 0,
+        observed_pillar_candidates: 0,
+        observed_avg_authority: 0,
+        observed_avg_orphan: 0,
+        observed_pillar_pages: [],
+        observed_link_gap_pages: [],
+        observed_orphan_alerts: [],
+        observed_weak_page_details: [],
         gsc_impressions: 0,
         gsc_clicks: 0,
         gsc_ctr: 0,
