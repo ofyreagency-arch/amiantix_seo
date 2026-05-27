@@ -30,6 +30,26 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
   return `${new Intl.NumberFormat("fr-FR").format(impressions)} impressions, CTR ${ctr.toFixed(1)} %, position ${position.toFixed(1)}`;
 }
 
+function impactLabel(impact: string): string {
+  return (
+    {
+      high: "Gain attendu fort",
+      medium: "Gain attendu moyen",
+      low: "Gain attendu leger",
+    }[impact] ?? "Gain a confirmer"
+  );
+}
+
+function difficultyLabel(difficulty: string): string {
+  return (
+    {
+      low: "Effort leger",
+      medium: "Effort modere",
+      high: "Effort soutenu",
+    }[difficulty] ?? "Effort a cadrer"
+  );
+}
+
 export default async function OptimizationsPage() {
   const optimizations = await getOptimizations();
   const opportunities = optimizations.gsc_opportunities.items;
@@ -38,6 +58,8 @@ export default async function OptimizationsPage() {
   const pagesToRefresh = opportunities.filter((item) => item.type === "near_top_10" || item.type === "sustained_drop").slice(0, 4);
   const quickWins = opportunities.filter((item) => item.priority_level === "high" || item.action_state === "ready").slice(0, 4);
   const actionPlan = observedRecommendations.slice(0, 4);
+  const leadOpportunity = quickWins[0] ?? opportunities[0] ?? null;
+  const leadRecommendation = actionPlan[0] ?? null;
   const summarySignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
@@ -200,6 +222,90 @@ export default async function OptimizationsPage() {
           </div>
         </div>
 
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card className="border-border-subtle bg-surface/90">
+            <CardHeader>
+              <CardTitle>Pourquoi agir maintenant</CardTitle>
+              <CardDescription>
+                Le signal le plus concret que PraeviSEO voit déjà dans Google.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {leadOpportunity ? (
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{leadOpportunity.label}</p>
+                      <p className="text-xs text-text-subtle">
+                        {leadOpportunity.site_name} / {leadOpportunity.slug || "/"}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={leadOpportunity.priority_level === "high" ? "warning" : "secondary"}>
+                        {leadOpportunity.priority_label}
+                      </Badge>
+                      <Badge variant={leadOpportunity.action_state === "ready" ? "success" : "secondary"}>
+                        {leadOpportunity.action_state_label}
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-text-muted">{leadOpportunity.reason}</p>
+                  <div className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-subtle">
+                    {opportunityMetricLine(leadOpportunity.metrics)}
+                  </div>
+                  <p className="text-sm text-text">
+                    Action a ouvrir : <span className="font-medium">{leadOpportunity.action}</span>
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun signal assez fort pour prioriser une action immediate. PraeviSEO continuera de rouvrir ce bloc au prochain import utile.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border-subtle bg-surface/90">
+            <CardHeader>
+              <CardTitle>Gain attendu et effort</CardTitle>
+              <CardDescription>
+                La meilleure action moteur deja preparee pour faire progresser le SEO.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {leadRecommendation ? (
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{leadRecommendation.title}</p>
+                      <p className="text-xs text-text-subtle">
+                        {leadRecommendation.site_id}
+                        {leadRecommendation.cluster ? ` · cluster ${leadRecommendation.cluster}` : ""}
+                      </p>
+                    </div>
+                    <Badge variant={leadRecommendation.priority <= 30 ? "warning" : "secondary"}>
+                      Priorite {leadRecommendation.priority}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">{impactLabel(leadRecommendation.estimated_impact)}</Badge>
+                    <Badge variant="secondary">{difficultyLabel(leadRecommendation.difficulty)}</Badge>
+                  </div>
+                  <p className="text-sm text-text-muted">{leadRecommendation.reasoning}</p>
+                  <p className="text-sm text-text">
+                    Action a ouvrir :{" "}
+                    <span className="font-medium">{leadRecommendation.suggested_action ?? "a preciser dans le moteur"}</span>
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun plan moteur assez fort pour l’instant. Ce bloc se remplira des qu’une action a bon ratio impact / effort remonte.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         <div id="gains-rapides" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <Card>
             <CardHeader>
@@ -224,6 +330,9 @@ export default async function OptimizationsPage() {
                       <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{item.priority_label}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text">
+                      A ouvrir maintenant : <span className="font-medium">{item.action}</span>
+                    </p>
                   </div>
                 ))
               )}
@@ -255,6 +364,9 @@ export default async function OptimizationsPage() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.action}</p>
+                    <p className="mt-2 text-xs text-text-subtle">
+                      Pourquoi maintenant : {item.type === "sustained_drop" ? "la page a deja perdu un signal durable" : "la page est proche d’un gain visible sans changement lourd"}.
+                    </p>
                   </div>
                 ))
               )}
@@ -286,6 +398,9 @@ export default async function OptimizationsPage() {
                       <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{item.priority_label}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text">
+                      Page a renforcer : <span className="font-medium">{item.label}</span>
+                    </p>
                   </div>
                 ))
               )}
@@ -353,13 +468,16 @@ export default async function OptimizationsPage() {
                       <Badge variant={item.priority <= 30 ? "warning" : "secondary"}>
                         Priorité {item.priority}
                       </Badge>
-                      <Badge variant="secondary">{item.estimated_impact}</Badge>
-                      <Badge variant="secondary">difficulté {item.difficulty}</Badge>
+                      <Badge variant="secondary">{impactLabel(item.estimated_impact)}</Badge>
+                      <Badge variant="secondary">{difficultyLabel(item.difficulty)}</Badge>
                     </div>
                   </div>
                   <p className="text-sm text-text-muted">{item.reasoning}</p>
                   <p className="text-sm text-text">
                     Action suggérée : <span className="font-medium">{item.suggested_action ?? "à préciser dans le moteur"}</span>
+                  </p>
+                  <p className="text-xs text-text-subtle">
+                    Pourquoi maintenant : {item.estimated_impact === "high" ? "le moteur voit un gain significatif a court terme" : "le moteur voit un levier utile a ouvrir dans le bon ordre"}.
                   </p>
                 </div>
               ))
@@ -397,6 +515,7 @@ export default async function OptimizationsPage() {
                       <Badge variant={item.action_state === "ready" ? "success" : item.action_state === "pending" ? "warning" : "secondary"}>
                         {item.action_state_label}
                       </Badge>
+                      {item.pending_suggestion ? <Badge variant="secondary">Suggestion deja ouverte</Badge> : null}
                       <Badge variant="secondary">{opportunityTypeLabel(item.type)}</Badge>
                     </div>
                   </div>
