@@ -65,6 +65,7 @@ export default async function DashboardPage() {
   const recentPublications = publications.items.slice(0, 3);
   const recentOptimizations = optimizations.items.slice(0, 3);
   const topOpportunities = optimizations.gsc_opportunities.items.slice(0, 4);
+  const actionPlan = optimizations.recommendations.items.slice(0, 4);
   const pageWatchlist = dashboard.sites
     .flatMap((site) => [
       ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
@@ -122,6 +123,22 @@ export default async function DashboardPage() {
         site.summary.observed_orphan_pages > 0
     )
     .slice(0, 6);
+  const progressMoments = [
+    totalDeltaImpressions > 0
+      ? `La visibilité remonte avec ${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) supplémentaires sur la période.`
+      : totalDeltaImpressions < 0
+        ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impression(s) sur la période suivie.`
+        : "Le volume d’impressions reste stable sur la dernière lecture GSC.",
+    linkedQueryWatchlist.length > 0
+      ? `${linkedQueryWatchlist.length} requête(s) sont déjà reliée(s) à une page observée, ce qui clarifie où agir.`
+      : "PraeviSEO attend encore le prochain lien net entre requête et page pour ouvrir une cible éditoriale plus claire.",
+    actionPlan.length > 0
+      ? `${actionPlan.length} action(s) moteur sont déjà prêtes à être traitées en priorité.`
+      : "Le moteur continue de préparer les prochains plans d’action utiles.",
+    contentRefreshFeed.length > 0
+      ? `${contentRefreshFeed.length} contenu(s) méritent déjà un refresh ou un enrichissement.`
+      : "Aucun refresh chaud n’est remonté pour le moment sur les contenus suivis.",
+  ];
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -910,29 +927,70 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Meilleures opportunités du moment</CardTitle>
+              <CardTitle>Quoi traiter d’abord</CardTitle>
               <CardDescription>
-                Les pages ou requêtes qui donnent déjà envie de revenir sur PraeviSEO pour agir.
+                Le plan d’action le plus utile à ouvrir maintenant, à partir des opportunités Google et des recommandations moteur.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {topOpportunities.length === 0 ? (
+              {actionPlan.length === 0 && topOpportunities.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune opportunité forte pour le moment. Les prochaines remontées GSC viendront enrichir ce bloc.
+                  Aucune action prioritaire forte pour le moment. Les prochaines remontées GSC ou recommandations moteur viendront enrichir ce bloc.
                 </div>
               ) : (
-                topOpportunities.map((item) => (
-                  <div key={`${item.site_id}-${item.slug}-${item.type}`} className="rounded-xl border border-border px-4 py-3">
+                [
+                  ...actionPlan.map((item) => ({
+                    key: `action-${item.id}`,
+                    title: item.title,
+                    subtitle: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
+                    badge: item.priority <= 30 ? "À traiter d’abord" : "Plan moteur",
+                    badgeVariant: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
+                    description: item.suggested_action ?? item.reasoning,
+                  })),
+                  ...topOpportunities.map((item) => ({
+                    key: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
+                    title: item.label,
+                    subtitle: item.site_name,
+                    badge: item.priority_label,
+                    badgeVariant: item.priority_level === "high" ? ("warning" as const) : ("secondary" as const),
+                    description: `${item.reason} Action conseillée : ${item.action}.`,
+                  })),
+                ]
+                  .slice(0, 4)
+                  .map((item) => (
+                  <div key={item.key} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-text">{item.label}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                        <p className="text-sm font-semibold text-text">{item.title}</p>
+                        <p className="text-xs text-text-subtle">{item.subtitle}</p>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "secondary"}>
-                        {item.priority_label}
+                      <Badge variant={item.badgeVariant}>
+                        {item.badge}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text-muted">{item.description}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Ce qui a progressé depuis la dernière lecture</CardTitle>
+              <CardDescription>
+                Les signaux qui donnent une vraie sensation d’évolution entre deux lectures du cockpit.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {progressMoments.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Le cockpit fera remonter ici les premiers signes de progression dès les prochains imports GSC.
+                </div>
+              ) : (
+                progressMoments.map((item) => (
+                  <div key={item} className="rounded-xl border border-border px-4 py-3 text-sm text-text-muted">
+                    {item}
                   </div>
                 ))
               )}
@@ -967,31 +1025,6 @@ export default async function DashboardPage() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recommandations récentes</CardTitle>
-              <CardDescription>
-                Les dernières recommandations déjà ouvertes à partir des signaux Google Search Console.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recentOptimizations.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">{item.page.title}</p>
-                      <p className="text-xs text-text-subtle">{item.page.site_id}</p>
-                    </div>
-                    <Badge variant={item.status === "pending" ? "warning" : "secondary"}>
-                      {item.status}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-sm text-text-muted">{item.summary}</p>
-                </div>
-              ))}
             </CardContent>
           </Card>
         </div>
