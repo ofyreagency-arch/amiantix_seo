@@ -335,7 +335,7 @@ export default async function DashboardPage() {
               hint: "priorités SEO déjà détectées à partir de Google Search Console",
             },
             {
-              label: "Pages indexées",
+              label: "URLs confirmées",
               value: indexedPagesValue,
               icon: CheckCircle2,
               hint: dashboard.totals.indexedPagesSynced
@@ -435,12 +435,12 @@ export default async function DashboardPage() {
                       </span>
                       <span>
                         {site.summary.gsc_indexation_synced
-                          ? `${site.summary.gsc_indexed_pages} page(s) indexée(s)`
+                          ? `${site.summary.gsc_indexed_pages} URL(s) confirmée(s)`
                           : "Indexation Google non synchronisée"}
                       </span>
                       <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
                       <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
-                      <span>{site.summary.gsc_non_indexed_pages} page(s) non indexée(s)</span>
+                      <span>{site.summary.gsc_non_indexed_pages} URL(s) à surveiller</span>
                       <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
                       <span>
                         {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
@@ -610,13 +610,13 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Indexation</CardTitle>
               <CardDescription>
-                Les pages que Google voit déjà et les sites où l’indexation reste à surveiller.
+                Les URLs que PraeviSEO suit déjà dans Google et les sites où l’indexation reste à surveiller.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {indexationAlerts.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Connectez au moins un site à Google Search Console pour ouvrir la lecture d’indexation.
+                  Connectez au moins un site à Google Search Console pour ouvrir la lecture d’URLs suivies.
                 </div>
               ) : (
                 indexationAlerts.map((item) => (

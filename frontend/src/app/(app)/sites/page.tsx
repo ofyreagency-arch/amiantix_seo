@@ -96,7 +96,7 @@ export default async function SitesPage() {
                     <div className="mt-2 text-lg font-bold text-text">{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)}</div>
                   </div>
                   <div className="rounded-xl border border-border-subtle bg-surface-2 px-3 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Indexées</div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Confirmées</div>
                     <div className="mt-2 text-lg font-bold text-text">
                       {site.summary.gsc_indexation_synced ? site.summary.gsc_indexed_pages : "—"}
                     </div>

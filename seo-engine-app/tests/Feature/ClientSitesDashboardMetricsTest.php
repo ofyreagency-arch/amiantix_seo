@@ -76,6 +76,8 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertJsonPath('sites.0.summary.gsc_impressions', 20);
         $response->assertJsonPath('sites.0.summary.gsc_ctr', 0.45);
         $response->assertJsonPath('sites.0.summary.gsc_indexation_synced', true);
+        $response->assertJsonPath('sites.0.summary.gsc_indexation_scope', 'inspected_urls');
+        $response->assertJsonPath('sites.0.summary.gsc_indexation_scope_label', 'URLs inspectées via Google');
     }
 
     public function test_client_sites_mark_gsc_as_connected_when_property_is_configured(): void

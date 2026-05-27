@@ -54,6 +54,9 @@ export type PraeviseoSite = {
     gsc_ctr: number;
     gsc_indexed_pages: number;
     gsc_indexation_synced: boolean;
+    gsc_indexation_scope: string;
+    gsc_indexation_scope_label: string;
+    gsc_indexation_scope_hint: string;
     gsc_previous_impressions: number;
     gsc_previous_clicks: number;
     gsc_previous_ctr: number;
@@ -376,6 +379,10 @@ const mockSites: PraeviseoSite[] = [
       gsc_ctr: 0.45,
       gsc_indexed_pages: 14,
       gsc_indexation_synced: true,
+      gsc_indexation_scope: "inspected_urls",
+      gsc_indexation_scope_label: "URLs inspectées via Google",
+      gsc_indexation_scope_hint:
+        "PraeviSEO compte ici les URLs qu’il suit et inspecte dans Google Search Console. Le rapport Pages complet de Google peut afficher davantage d’URLs.",
       gsc_previous_impressions: 14,
       gsc_previous_clicks: 6,
       gsc_previous_ctr: 0.42,
@@ -527,6 +534,10 @@ const mockSites: PraeviseoSite[] = [
       gsc_ctr: 0,
       gsc_indexed_pages: 0,
       gsc_indexation_synced: false,
+      gsc_indexation_scope: "inspected_urls",
+      gsc_indexation_scope_label: "URLs inspectées via Google",
+      gsc_indexation_scope_hint:
+        "PraeviSEO compte ici les URLs qu’il suit et inspecte dans Google Search Console. Le rapport Pages complet de Google peut afficher davantage d’URLs.",
       gsc_previous_impressions: 0,
       gsc_previous_clicks: 0,
       gsc_previous_ctr: 0,
@@ -898,6 +909,12 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       gsc_ctr: Number(summary.gsc_ctr ?? 0),
       gsc_indexed_pages: Number(summary.gsc_indexed_pages ?? 0),
       gsc_indexation_synced: Boolean(summary.gsc_indexation_synced ?? false),
+      gsc_indexation_scope: String(summary.gsc_indexation_scope ?? "inspected_urls"),
+      gsc_indexation_scope_label: String(summary.gsc_indexation_scope_label ?? "URLs inspectées via Google"),
+      gsc_indexation_scope_hint: String(
+        summary.gsc_indexation_scope_hint ??
+          "PraeviSEO compte ici les URLs qu’il suit et inspecte dans Google Search Console. Le rapport Pages complet de Google peut afficher davantage d’URLs."
+      ),
       gsc_previous_impressions: Number(summary.gsc_previous_impressions ?? 0),
       gsc_previous_clicks: Number(summary.gsc_previous_clicks ?? 0),
       gsc_previous_ctr: Number(summary.gsc_previous_ctr ?? 0),
@@ -1261,6 +1278,10 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         gsc_ctr: 0,
         gsc_indexed_pages: 0,
         gsc_indexation_synced: false,
+        gsc_indexation_scope: "inspected_urls",
+        gsc_indexation_scope_label: "URLs inspectées via Google",
+        gsc_indexation_scope_hint:
+          "PraeviSEO compte ici les URLs qu’il suit et inspecte dans Google Search Console. Le rapport Pages complet de Google peut afficher davantage d’URLs.",
         gsc_previous_impressions: 0,
         gsc_previous_clicks: 0,
         gsc_previous_ctr: 0,

@@ -225,11 +225,11 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {site.summary.gsc_indexed_pages} page(s) indexee(s)
+                  {site.summary.gsc_indexed_pages} URL(s) confirmée(s)
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <Sparkles className="w-3.5 h-3.5" />
-                  {site.summary.gsc_non_indexed_pages} page(s) à surveiller
+                  {site.summary.gsc_non_indexed_pages} URL(s) à surveiller
                 </span>
               </div>
             </div>
@@ -258,7 +258,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
         <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6 scroll-mt-24">
           {[
-            ["Pages indexees", site.summary.gsc_indexed_pages],
+            ["URLs confirmees", site.summary.gsc_indexed_pages],
             ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
             ["Impressions GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)],
             ["CTR GSC", new Intl.NumberFormat("fr-FR", {
@@ -316,7 +316,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <div className="mt-2 text-sm font-semibold text-text">{formatGscStatus(site.gsc_connection_status)}</div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.gsc_property_url
-                    ? `Propriété reliée : ${site.gsc_property_url}. PraeviSEO suit déjà ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions, ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics et ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_indexed_pages)} page(s) indexée(s) sur la fenêtre récente.`
+                    ? `Propriété reliée : ${site.gsc_property_url}. PraeviSEO suit déjà ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions, ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics et ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_indexed_pages)} URL(s) confirmée(s) sur les URLs inspectées récemment.`
                     : "Reliez la propriété Search Console pour que PraeviSEO détecte les opportunités, tendances et priorités réelles."}
                 </p>
                 <div className="mt-4">
@@ -512,8 +512,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-text">Pages indexées</div>
-                    <div className="text-xs text-text-subtle">Lecture issue de la dernière synchronisation GSC</div>
+                    <div className="text-sm font-semibold text-text">URLs confirmées</div>
+                    <div className="text-xs text-text-subtle">Lecture issue des URLs inspectées lors de la dernière synchronisation GSC</div>
                   </div>
                   <Badge variant={site.summary.gsc_indexation_synced ? "success" : "secondary"}>
                     {site.summary.gsc_indexation_synced ? "Synchronisée" : "En attente"}
@@ -525,7 +525,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <div className="text-sm font-semibold text-text">Lecture actuelle</div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.summary.gsc_indexation_synced
-                    ? "Google alimente déjà l’indexation de ce site dans PraeviSEO. Le cockpit peut donc relier pages indexées, opportunités et priorités."
+                    ? "Google alimente déjà les URLs inspectées de ce site dans PraeviSEO. Le cockpit peut donc relier URLs confirmées, opportunités et priorités."
                     : "PraeviSEO attend encore une lecture exploitable de l’indexation Google pour enrichir ce volet."}
                 </p>
               </div>
