@@ -332,6 +332,26 @@ export type PraeviseoPublication = {
     ctr: number;
     position: number | null;
   };
+  observed_content: {
+    authority_score: number;
+    orphan_score: number;
+    overlap_score: number;
+    pillar_likelihood: number;
+    cluster_label: string | null;
+    indexability_state: string;
+    internal_inlinks: number;
+    internal_outlinks: number;
+    snapshot_word_count: number;
+    snapshot_observed_at: string | null;
+    snapshot_title: string | null;
+    internal_link_suggestions_count: number;
+    cannibalization_count: number;
+    query_match_count: number;
+    overlap_count: number;
+    top_internal_link_target: string | null;
+    top_cannibalization_target: string | null;
+    top_query_match: string | null;
+  } | null;
   latest_suggestion: {
     id: number;
     status: string;
@@ -938,15 +958,35 @@ const mockPublications: PraeviseoPublications = {
       topical_score: 81,
       quality_score: 77,
       cluster: "diagnostic amiante",
-      gsc_metrics: {
-        impressions: 47,
-        clicks: 10,
-        ctr: 21.3,
-        position: 8.4,
-      },
-      latest_suggestion: {
-        id: 101,
-        status: "pending",
+        gsc_metrics: {
+          impressions: 47,
+          clicks: 10,
+          ctr: 21.3,
+          position: 8.4,
+        },
+        observed_content: {
+          authority_score: 64,
+          orphan_score: 18,
+          overlap_score: 41,
+          pillar_likelihood: 82,
+          cluster_label: "diagnostic amiante",
+          indexability_state: "indexable",
+          internal_inlinks: 2,
+          internal_outlinks: 7,
+          snapshot_word_count: 1240,
+          snapshot_observed_at: new Date().toISOString(),
+          snapshot_title: "Diagnostic amiante en copropriete",
+          internal_link_suggestions_count: 2,
+          cannibalization_count: 1,
+          query_match_count: 2,
+          overlap_count: 1,
+          top_internal_link_target: "Guide DTA",
+          top_cannibalization_target: "Diagnostic amiante",
+          top_query_match: "faq amiante",
+        },
+        latest_suggestion: {
+          id: 101,
+          status: "pending",
         source: "gsc_opportunity",
         summary: "Un refresh éditorial est recommandé pour prolonger la traction de cet article.",
         impact_expected: "Consolider la visibilité autour de la requête qui progresse.",
@@ -968,14 +1008,34 @@ const mockPublications: PraeviseoPublications = {
       topical_score: 74,
       quality_score: 69,
       cluster: "estimation locale",
-      gsc_metrics: {
-        impressions: 0,
-        clicks: 0,
-        ctr: 0,
-        position: null,
+        gsc_metrics: {
+          impressions: 0,
+          clicks: 0,
+          ctr: 0,
+          position: null,
+        },
+        observed_content: {
+          authority_score: 39,
+          orphan_score: 62,
+          overlap_score: 12,
+          pillar_likelihood: 44,
+          cluster_label: "estimation locale",
+          indexability_state: "indexable",
+          internal_inlinks: 1,
+          internal_outlinks: 3,
+          snapshot_word_count: 640,
+          snapshot_observed_at: new Date().toISOString(),
+          snapshot_title: "Guide estimation locale",
+          internal_link_suggestions_count: 1,
+          cannibalization_count: 0,
+          query_match_count: 1,
+          overlap_count: 0,
+          top_internal_link_target: "Prix m2 par quartier",
+          top_cannibalization_target: null,
+          top_query_match: "estimation locale",
+        },
+        latest_suggestion: null,
       },
-      latest_suggestion: null,
-    },
   ],
 };
 

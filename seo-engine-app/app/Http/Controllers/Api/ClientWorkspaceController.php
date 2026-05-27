@@ -8,7 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSemanticLink;
 use App\Models\SeoSite;
+use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSuggestion;
 use App\Runtime\GscOpportunityService;
 use App\Models\User;
@@ -190,6 +192,7 @@ class ClientWorkspaceController extends Controller
         }
 
         $pages = $query
+            ->with('observedPage')
             ->orderByDesc('published_at')
             ->limit(24)
             ->get();
@@ -212,6 +215,22 @@ class ClientWorkspaceController extends Controller
             ->orderByDesc('id')
             ->get()
             ->groupBy('site_id');
+        $observedPageIds = $pages->pluck('observed_site_page_id')->filter()->values();
+        $latestObservedSnapshots = SeoSitePageSnapshot::query()
+            ->whereIn('site_page_id', $observedPageIds)
+            ->orderByDesc('observed_at')
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('site_page_id')
+            ->map(fn ($rows) => $rows->first());
+        $semanticLinks = SeoSemanticLink::query()
+            ->whereIn('site_id', $siteIds)
+            ->where(function ($query) use ($observedPageIds): void {
+                $query->whereIn('source_id', $observedPageIds)
+                    ->orWhereIn('target_id', $observedPageIds);
+            })
+            ->whereIn('relation_type', ['observed_internal_link', 'observed_cannibalization', 'observed_query_match', 'observed_overlap'])
+            ->get();
 
         return response()->json([
             'stats' => [
@@ -242,6 +261,11 @@ class ClientWorkspaceController extends Controller
                     $page,
                     (string) ($siteUrls[$page->site_id] ?? ''),
                     $pageMetrics
+                ),
+                'observed_content' => $this->serializeObservedPublicationContext(
+                    $page,
+                    $latestObservedSnapshots,
+                    $semanticLinks
                 ),
                 'latest_suggestion' => $this->serializePublicationSuggestion($latestSuggestions->get($page->id)),
             ])->values(),
@@ -388,6 +412,66 @@ class ClientWorkspaceController extends Controller
             'summary' => (string) ($suggestionsJson['summary'] ?? $signalsJson['summary'] ?? $signalsJson['reason'] ?? 'Suggestion détectée par PraeviSEO.'),
             'impact_expected' => (string) ($suggestionsJson['impact_expected'] ?? $signalsJson['impact_expected'] ?? ''),
             'created_at' => $suggestion->created_at,
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, SeoSitePageSnapshot>  $snapshots
+     * @param  \Illuminate\Support\Collection<int, SeoSemanticLink>  $semanticLinks
+     * @return array<string,mixed>|null
+     */
+    private function serializeObservedPublicationContext(
+        SeoPage $page,
+        \Illuminate\Support\Collection $snapshots,
+        \Illuminate\Support\Collection $semanticLinks,
+    ): ?array {
+        $observedPage = $page->observedPage;
+
+        if (! $observedPage) {
+            return null;
+        }
+
+        $snapshot = $snapshots->get($observedPage->id);
+        $pageLinks = $semanticLinks->filter(function (SeoSemanticLink $link) use ($observedPage): bool {
+            return (int) $link->source_id === (int) $observedPage->id
+                || (int) $link->target_id === (int) $observedPage->id;
+        });
+        $internalLinkSuggestions = $pageLinks
+            ->where('relation_type', 'observed_internal_link')
+            ->sortByDesc('similarity_score')
+            ->values();
+        $cannibalizationLinks = $pageLinks
+            ->where('relation_type', 'observed_cannibalization')
+            ->sortByDesc('similarity_score')
+            ->values();
+        $queryMatches = $pageLinks
+            ->where('relation_type', 'observed_query_match')
+            ->sortByDesc('similarity_score')
+            ->values();
+        $overlaps = $pageLinks
+            ->where('relation_type', 'observed_overlap')
+            ->sortByDesc('similarity_score')
+            ->values();
+
+        return [
+            'authority_score' => (int) round((float) $observedPage->authority_score * 100),
+            'orphan_score' => (int) round((float) $observedPage->orphan_score * 100),
+            'overlap_score' => (int) round((float) $observedPage->overlap_score * 100),
+            'pillar_likelihood' => (int) round((float) $observedPage->pillar_likelihood * 100),
+            'cluster_label' => $observedPage->cluster_label ? (string) $observedPage->cluster_label : null,
+            'indexability_state' => (string) $observedPage->indexability_state,
+            'internal_inlinks' => (int) $observedPage->internal_inlinks,
+            'internal_outlinks' => (int) $observedPage->internal_outlinks,
+            'snapshot_word_count' => $snapshot ? (int) $snapshot->word_count : (int) $observedPage->latest_word_count,
+            'snapshot_observed_at' => $snapshot?->observed_at,
+            'snapshot_title' => $snapshot?->title ?: $observedPage->title,
+            'internal_link_suggestions_count' => $internalLinkSuggestions->count(),
+            'cannibalization_count' => $cannibalizationLinks->count(),
+            'query_match_count' => $queryMatches->count(),
+            'overlap_count' => $overlaps->count(),
+            'top_internal_link_target' => $internalLinkSuggestions->first()?->label,
+            'top_cannibalization_target' => $cannibalizationLinks->first()?->label,
+            'top_query_match' => $queryMatches->first()?->label,
         ];
     }
 }

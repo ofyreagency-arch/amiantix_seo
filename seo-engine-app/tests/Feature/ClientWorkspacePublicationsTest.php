@@ -6,7 +6,10 @@ namespace Tests\Feature;
 
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
+use App\Models\SeoSemanticLink;
 use App\Models\SeoSite;
+use App\Models\SeoSitePage;
+use App\Models\SeoSitePageSnapshot;
 use App\Models\User;
 use App\Models\UserAccessToken;
 use Illuminate\Database\Schema\Blueprint;
@@ -166,5 +169,118 @@ class ClientWorkspacePublicationsTest extends TestCase
         $response->assertJsonPath('items.0.gsc_metrics.clicks', 3);
         $response->assertJsonPath('items.0.gsc_metrics.ctr', 25);
         $response->assertJsonPath('items.0.gsc_metrics.position', 8.7);
+    }
+
+    public function test_publications_endpoint_exposes_observed_content_signals(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-publications-observed-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        $observed = SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://amiantix.com/faq',
+            'url_hash' => hash('sha256', 'https://amiantix.com/faq'),
+            'path' => '/faq',
+            'title' => 'Faq',
+            'indexability_state' => 'indexable',
+            'latest_word_count' => 820,
+            'internal_inlinks' => 1,
+            'internal_outlinks' => 6,
+            'authority_score' => 0.44,
+            'orphan_score' => 0.11,
+            'overlap_score' => 0.36,
+            'pillar_likelihood' => 0.73,
+            'cluster_label' => 'diagnostic-amiante',
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'observed_site_page_id' => $observed->id,
+            'keyword' => 'faq amiante',
+            'slug' => 'faq',
+            'title' => 'Faq',
+            'status' => 'published',
+            'published_at' => now()->subHour(),
+            'published_live' => true,
+            'live_url' => 'https://amiantix.com/faq',
+        ]);
+
+        SeoSitePageSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => 1,
+            'site_page_id' => $observed->id,
+            'url' => 'https://amiantix.com/faq',
+            'title' => 'Faq',
+            'word_count' => 910,
+            'content_hash' => hash('sha256', 'faq-v1'),
+            'observed_at' => now()->subDay(),
+        ]);
+
+        SeoSemanticLink::query()->create([
+            'site_id' => $site->site_id,
+            'relation_type' => 'observed_internal_link',
+            'source_key' => 'page:faq',
+            'source_id' => $observed->id,
+            'target_key' => 'page:guide-dta',
+            'target_id' => null,
+            'label' => 'Guide DTA',
+            'similarity_score' => 0.84,
+        ]);
+
+        SeoSemanticLink::query()->create([
+            'site_id' => $site->site_id,
+            'relation_type' => 'observed_cannibalization',
+            'source_key' => 'page:faq',
+            'source_id' => $observed->id,
+            'target_key' => 'page:diagnostic-amiante',
+            'target_id' => null,
+            'label' => 'Diagnostic amiante',
+            'similarity_score' => 0.88,
+        ]);
+
+        SeoSemanticLink::query()->create([
+            'site_id' => $site->site_id,
+            'relation_type' => 'observed_query_match',
+            'source_key' => 'query:faq amiante',
+            'source_id' => null,
+            'target_key' => 'page:faq',
+            'target_id' => $observed->id,
+            'label' => 'faq amiante',
+            'similarity_score' => 0.79,
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/publications');
+
+        $response->assertOk();
+        $response->assertJsonPath('items.0.observed_content.authority_score', 44);
+        $response->assertJsonPath('items.0.observed_content.cluster_label', 'diagnostic-amiante');
+        $response->assertJsonPath('items.0.observed_content.snapshot_word_count', 910);
+        $response->assertJsonPath('items.0.observed_content.internal_link_suggestions_count', 1);
+        $response->assertJsonPath('items.0.observed_content.cannibalization_count', 1);
+        $response->assertJsonPath('items.0.observed_content.query_match_count', 1);
+        $response->assertJsonPath('items.0.observed_content.top_internal_link_target', 'Guide DTA');
+        $response->assertJsonPath('items.0.observed_content.top_cannibalization_target', 'Diagnostic amiante');
+        $response->assertJsonPath('items.0.observed_content.top_query_match', 'faq amiante');
     }
 }
