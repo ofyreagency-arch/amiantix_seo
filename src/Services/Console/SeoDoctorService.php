@@ -6,6 +6,8 @@ namespace Ofyre\SeoEngine\Services\Console;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class SeoDoctorService
 {
@@ -34,8 +36,8 @@ class SeoDoctorService
             $warnings[] = 'OPENAI_API_KEY is not configured. AI generation and rewrite calls will fallback or be skipped.';
         }
 
-        if (! config('seo-engine.search_console.enabled', false)) {
-            $warnings[] = 'Search Console is disabled. Historical import and inspection features will stay inactive.';
+        if ($searchConsoleWarning = $this->searchConsoleWarning()) {
+            $warnings[] = $searchConsoleWarning;
         }
 
         if (! config('seo-engine.embeddings.enabled', false)) {
@@ -54,6 +56,30 @@ class SeoDoctorService
             'warnings' => $warnings,
             'errors' => $errors,
         ];
+    }
+
+    private function searchConsoleWarning(): ?string
+    {
+        if (config('seo-engine.search_console.enabled', false)) {
+            return null;
+        }
+
+        if (! Schema::hasTable('seo_site_google_connections')) {
+            return 'Search Console is disabled. Historical import and inspection features will stay inactive.';
+        }
+
+        $siteLevelConnections = DB::table('seo_site_google_connections')
+            ->whereNotNull('property_url')
+            ->count();
+
+        if ($siteLevelConnections > 0) {
+            return sprintf(
+                'Global Search Console config is disabled, but %d site-level Search Console connection(s) are configured. Site sync can still run, while global inspection helpers may stay limited.',
+                $siteLevelConnections
+            );
+        }
+
+        return 'Search Console is disabled. Historical import and inspection features will stay inactive.';
     }
 
     /**

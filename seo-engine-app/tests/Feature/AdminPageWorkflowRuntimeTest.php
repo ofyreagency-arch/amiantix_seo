@@ -1199,6 +1199,14 @@ class AdminPageWorkflowRuntimeTest extends TestCase
             ->expectsOutputToContain('Diagnostic SSL OpenAI');
     }
 
+    public function test_seo_smoke_check_command_is_available(): void
+    {
+        $this->artisan('seo:smoke-check')
+            ->assertSuccessful()
+            ->expectsOutputToContain('SEO Smoke Check')
+            ->expectsOutputToContain('SEO smoke check completed.');
+    }
+
     public function test_page_show_refresh_uses_site_preset_context(): void
     {
         $this->withoutVite();
