@@ -217,6 +217,70 @@ export default async function PagesCockpitPage() {
   const observedWeakTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_weak_pages, 0);
   const observedOrphanTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_orphan_pages, 0);
   const totalDeltaImpressions = pageSignals.reduce((sum, item) => sum + item.delta_impressions, 0);
+  const leadWatchPage = pagesToWatch[0] ?? null;
+  const leadPriorityPage = observedPriorityPages[0] ?? null;
+  const leadRisingPage = risingPages[0] ?? null;
+  const leadBestPage = bestPages[0] ?? null;
+  const leadPageSummary = leadWatchPage
+    ? {
+        title: leadWatchPage.label,
+        site_name: leadWatchPage.site_name,
+        badge: leadWatchPage.priority_label,
+        reason: leadWatchPage.reason,
+        whyNow:
+          leadWatchPage.type === "near_top_10"
+            ? "la page est déjà proche d’un gain visible dans Google"
+            : leadWatchPage.type === "low_ctr"
+              ? "la page est vue mais sous-cliquée"
+              : leadWatchPage.type === "sustained_drop"
+                ? "la page perd déjà de la traction"
+                : "elle remonte déjà comme une page à garder sous surveillance prioritaire",
+      }
+    : leadPriorityPage
+      ? {
+          title: leadPriorityPage.title,
+          site_name: leadPriorityPage.site_name,
+          badge: leadPriorityPage.badge,
+          reason: leadPriorityPage.description,
+          whyNow:
+            leadPriorityPage.badge === "Orpheline"
+              ? "la structure du site la laisse encore trop seule"
+              : leadPriorityPage.badge === "Sous-maillée"
+                ? "elle a déjà de la valeur mais manque encore de soutien interne"
+                : "elle peut devenir un vrai appui SEO si on l’ouvre dans le bon ordre",
+        }
+      : leadRisingPage
+        ? {
+            title: leadRisingPage.label,
+            site_name: leadRisingPage.site_name,
+            badge: "En hausse",
+            reason: `+${leadRisingPage.delta_impressions} impressions, CTR ${leadRisingPage.ctr.toFixed(1)} %, position ${leadRisingPage.position.toFixed(1)}.`,
+            whyNow: "la page gagne déjà du terrain et mérite d’être consolidée pendant qu’elle monte",
+          }
+        : leadBestPage
+          ? {
+              title: leadBestPage.label,
+              site_name: leadBestPage.site_name,
+              badge: `${leadBestPage.impressions} impressions`,
+              reason: `CTR ${leadBestPage.ctr.toFixed(1)} %, position ${leadBestPage.position.toFixed(1)}, ${leadBestPage.previous_impressions} impressions avant.`,
+              whyNow: "c’est déjà un appui visible qui peut encore être renforcé",
+            }
+          : null;
+  const leadStructuralPage =
+    observedPriorityPages[0] ??
+    observedPillarPages[0]
+      ? {
+          title: observedPriorityPages[0]?.title ?? observedPillarPages[0]?.label ?? "",
+          site_name: observedPriorityPages[0]?.site_name ?? observedPillarPages[0]?.site_name ?? "",
+          badge: observedPriorityPages[0]?.badge ?? "Pilier potentiel",
+          badgeTone: observedPriorityPages[0]?.badgeTone ?? ("success" as const),
+          description:
+            observedPriorityPages[0]?.description ??
+            (observedPillarPages[0]
+              ? `Cluster ${observedPillarPages[0].cluster_label ?? "n/a"}, autorité ${observedPillarPages[0].authority_score}, potentiel pilier ${observedPillarPages[0].pillar_likelihood}.`
+              : ""),
+        }
+      : null;
 
   return (
     <div className="min-h-screen">
@@ -310,6 +374,70 @@ export default async function PagesCockpitPage() {
               },
             ]}
           />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <CockpitSignalListCard
+            title="Quelle page traiter d’abord"
+            description="La page qui donne déjà le signal le plus utile à ouvrir maintenant."
+            empty={!leadPageSummary}
+            emptyMessage="Aucune page n’émerge encore assez clairement pour devenir la priorité numéro un."
+          >
+            {leadPageSummary ? (
+              <div className="rounded-xl border border-border p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">{leadPageSummary.title}</p>
+                    <p className="text-xs text-text-subtle">{leadPageSummary.site_name}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+                      {leadPageSummary.badge}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-sm text-text-muted">{leadPageSummary.reason}</p>
+                <p className="text-sm text-text">
+                  Pourquoi maintenant :{" "}
+                  <span className="font-medium">{leadPageSummary.whyNow}</span>
+                </p>
+              </div>
+            ) : null}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Levier structurel débloqué"
+            description="Ce que PraeviSEO peut améliorer au niveau structurel si on traite la bonne page."
+            empty={!leadStructuralPage}
+            emptyMessage="Aucun levier structurel fort n’émerge encore : la lecture reste surtout portée par Google Search Console."
+          >
+            {leadStructuralPage ? (
+              <div className="rounded-xl border border-border p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">{leadStructuralPage.title}</p>
+                    <p className="text-xs text-text-subtle">{leadStructuralPage.site_name}</p>
+                  </div>
+                  <span className="inline-flex rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+                    {leadStructuralPage.badge}
+                  </span>
+                </div>
+                <p className="text-sm text-text-muted">{leadStructuralPage.description}</p>
+                <p className="text-sm text-text">
+                  Ce que ça débloque :{" "}
+                  <span className="font-medium">
+                    {leadStructuralPage.badge === "Pilier potentiel"
+                      ? "une page plus forte pour porter un cluster entier"
+                      : leadStructuralPage.badge === "Sous-maillée"
+                        ? "un meilleur transfert d’autorité depuis le reste du site"
+                        : leadStructuralPage.badge === "Orpheline"
+                          ? "une page enfin reliée à la structure réelle du site"
+                          : "une base plus saine avant les prochaines optimisations éditoriales"}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+          </CockpitSignalListCard>
         </div>
 
         <div id="priorites" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
