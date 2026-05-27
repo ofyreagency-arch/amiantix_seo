@@ -179,7 +179,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       <Topbar
         title={site.name}
         subtitle="Vue client : performances GSC, indexation et prochaines actions utiles."
-        lastSync={backendLive ? "synchronisation active" : "données de démonstration"}
+        lastSync={backendLive ? "lecture GSC actualisée" : "données de démonstration"}
         actions={
           <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`} size="sm">
             {getPraeviseoActivationLabel(site)}
@@ -225,7 +225,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {site.summary.gsc_indexed_pages} URL(s) confirmée(s)
+                  {site.summary.gsc_indexed_pages} URL(s) relue(s) comme confirmée(s)
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1">
                   <Sparkles className="w-3.5 h-3.5" />
@@ -258,7 +258,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
         <div id="vue-ensemble" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6 scroll-mt-24">
           {[
-            ["URLs confirmees", site.summary.gsc_indexed_pages],
+            ["URLs relues comme confirmees", site.summary.gsc_indexed_pages],
             ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
             ["Impressions GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)],
             ["CTR GSC", new Intl.NumberFormat("fr-FR", {
@@ -316,7 +316,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 <div className="mt-2 text-sm font-semibold text-text">{formatGscStatus(site.gsc_connection_status)}</div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {site.gsc_property_url
-                    ? `Propriété reliée : ${site.gsc_property_url}. PraeviSEO suit déjà ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions, ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics et ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_indexed_pages)} URL(s) confirmée(s) sur les URLs inspectées récemment.`
+                    ? `Propriété reliée : ${site.gsc_property_url}. PraeviSEO suit déjà ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions, ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics et ${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_indexed_pages)} URL(s) relue(s) comme confirmée(s) sur les URLs inspectées récemment.`
                     : "Reliez la propriété Search Console pour que PraeviSEO détecte les opportunités, tendances et priorités réelles."}
                 </p>
                 <div className="mt-4">
@@ -326,8 +326,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </div>
                 {site.gsc_last_sync_at ? (
                   <p className="mt-2 text-xs text-text-subtle">
-                    Dernière synchro : {site.gsc_last_sync_at}
-                    {site.gsc_data_as_of ? ` · données arrêtées au ${site.gsc_data_as_of}` : ""}
+                    Dernière synchro : {formatDate(site.gsc_last_sync_at)}
+                    {site.gsc_data_as_of ? ` · données arrêtées au ${formatDate(site.gsc_data_as_of)}` : ""}
                   </p>
                 ) : null}
               </div>
@@ -515,7 +515,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-text">URLs confirmées</div>
+                    <div className="text-sm font-semibold text-text">URLs relues comme confirmées</div>
                     <div className="text-xs text-text-subtle">Lecture issue des URLs inspectées lors de la dernière synchronisation GSC</div>
                   </div>
                   <Badge variant={site.summary.gsc_indexation_synced ? "success" : "secondary"}>

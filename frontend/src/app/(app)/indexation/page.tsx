@@ -32,15 +32,15 @@ export default async function IndexationCockpitPage() {
     .slice(0, 8);
   const indexationNarrative =
     totalNonIndexedPages > 0
-      ? `Google confirme déjà ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} suivie${totalIndexedPages > 1 ? "s" : ""}, mais ${totalNonIndexedPages} reste${totalNonIndexedPages > 1 ? "nt" : ""} encore à surveiller ou à clarifier.`
-      : `Google confirme déjà ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} suivie${totalIndexedPages > 1 ? "s" : ""} et le cockpit ne détecte pas de blocage fort pour le moment.`;
+      ? `PraeviSEO voit déjà ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} confirmée${totalIndexedPages > 1 ? "s" : ""} dans sa lecture Google, mais ${totalNonIndexedPages} reste${totalNonIndexedPages > 1 ? "nt" : ""} encore à surveiller ou à clarifier.`
+      : `PraeviSEO voit déjà ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} confirmée${totalIndexedPages > 1 ? "s" : ""} dans sa lecture Google, sans blocage fort pour le moment.`;
   const mostExposedSite = [...syncedSites].sort(
     (a, b) => b.summary.gsc_non_indexed_pages - a.summary.gsc_non_indexed_pages
   )[0];
   const indexationHighlights = [
     totalIndexedPages > 0
-      ? `La base indexée est déjà réelle : ${totalIndexedPages} page${totalIndexedPages > 1 ? "s" : ""} lue${totalIndexedPages > 1 ? "s" : ""} par Google.`
-      : "PraeviSEO attend encore la première base de pages clairement indexées.",
+      ? `PraeviSEO a déjà une base utile : ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} confirmée${totalIndexedPages > 1 ? "s" : ""} dans sa lecture Google.`
+      : "PraeviSEO attend encore la première base d’URLs clairement confirmées.",
     totalNonIndexedPages > 0
       ? `${totalNonIndexedPages} URL${totalNonIndexedPages > 1 ? "s" : ""} reste${totalNonIndexedPages > 1 ? "nt" : ""} à surveiller côté indexation.`
       : "Aucune URL non indexée forte n’apparaît dans la dernière lecture.",
@@ -53,21 +53,21 @@ export default async function IndexationCockpitPage() {
     <div className="min-h-screen">
       <Topbar
         title="Indexation"
-        subtitle="La lecture Google des URLs suivies par PraeviSEO : confirmées, à surveiller, ou encore en attente de synchronisation."
+        subtitle="La lecture Google des URLs suivies par PraeviSEO : confirmées, à surveiller, ou encore en attente de lecture exploitable."
       />
 
       <div className="p-6 space-y-6">
         <CockpitSectionNav
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: totalIndexedPages, tone: "default" },
-            { label: "URLs suivies", href: "#indexees", count: syncedSites.length, tone: "success" },
+            { label: "URLs relues", href: "#indexees", count: syncedSites.length, tone: "success" },
             { label: "Alertes", href: "#alertes", count: indexationAlerts.length + pendingSites.length, tone: "warning" },
             { label: "État Google", href: "#google", count: connectedSites.length, tone: "secondary" },
           ]}
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Votre lecture Google des URLs suivies</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Votre lecture Google des URLs relues par PraeviSEO</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
             PraeviSEO rassemble déjà les URLs qu’il suit et inspecte dans Google Search Console pour montrer celles que
             Google confirme, celles qui restent à surveiller, et les sites encore en attente de lecture exploitable.
@@ -83,8 +83,8 @@ export default async function IndexationCockpitPage() {
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid
             items={[
-              { label: "URLs confirmées", value: totalIndexedPages, tone: "success" },
-              { label: "URLs à surveiller", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
+              { label: "URLs relues comme confirmées", value: totalIndexedPages, tone: "success" },
+              { label: "URLs encore à surveiller", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
               { label: "Sites reliés à Google", value: connectedSites.length },
               { label: "Alertes d’indexation", value: indexationAlerts.length + pendingSites.length, tone: indexationAlerts.length + pendingSites.length > 0 ? "warning" : "secondary" },
             ]}
@@ -141,7 +141,7 @@ export default async function IndexationCockpitPage() {
         <div id="indexees" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title={`${indexationScopeLabel} par site`}
-            description="La lecture actuelle des URLs que PraeviSEO suit déjà et que Google confirme ou laisse à surveiller."
+            description="La lecture actuelle des URLs que PraeviSEO relit déjà dans Google et que le cockpit confirme ou garde à surveiller."
             empty={syncedSites.length === 0}
             emptyMessage="Aucune indexation synchronisée pour le moment. Reliez d’abord Google pour ouvrir ce cockpit."
           >

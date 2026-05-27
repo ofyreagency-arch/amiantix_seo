@@ -251,7 +251,7 @@ export default async function DashboardPage() {
       <Topbar
         title="Vue d'ensemble SEO"
         subtitle="Votre cockpit client PraeviSEO : performances GSC, indexation Google et prochaines actions utiles."
-        lastSync={backendLive ? "synchronisation active" : "mode démonstration"}
+        lastSync={backendLive ? "lecture GSC actualisée" : "mode démonstration"}
         actions={
           <Button href="/sites/new" size="sm">
             Connecter un site
@@ -275,7 +275,7 @@ export default async function DashboardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
               <Badge variant="brand-subtle" className="mb-3">
-                {backendLive ? "Backend relié" : "Mode démonstration"}
+                {backendLive ? "Analyse GSC active" : "Mode démonstration"}
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">
                 PraeviSEO analyse déjà votre SEO avec Google
@@ -351,12 +351,12 @@ export default async function DashboardPage() {
               hint: "priorités SEO déjà détectées à partir de Google Search Console",
             },
             {
-              label: "URLs confirmées",
+              label: "URLs relues",
               value: indexedPagesValue,
               icon: CheckCircle2,
               hint: dashboard.totals.indexedPagesSynced
-                ? "pages vues comme indexées dans GSC"
-                : "indexation Google pas encore synchronisée dans PraeviSEO",
+                ? "urls suivies que PraeviSEO a déjà vues confirmées dans Google"
+                : "lecture des urls Google encore en attente dans PraeviSEO",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -415,7 +415,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Sites suivis</CardTitle>
               <CardDescription>
-                Vos sites, leur lecture SEO actuelle via Google Search Console et les prochains gains visibles.
+                Vos sites, leur lecture SEO actuelle dans Google et les prochains gains visibles dans le cockpit.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -451,8 +451,8 @@ export default async function DashboardPage() {
                       </span>
                       <span>
                         {site.summary.gsc_indexation_synced
-                          ? `${site.summary.gsc_indexed_pages} URL(s) confirmée(s)`
-                          : "Indexation Google non synchronisée"}
+                          ? `${site.summary.gsc_indexed_pages} URL(s) confirmée(s) dans la lecture PraeviSEO`
+                          : "Lecture des URLs Google encore en attente"}
                       </span>
                       <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
                       <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
