@@ -34,9 +34,13 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const backendLive = hasBackendConnection();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const normalizeQuery = (value: string) => value.trim().toLowerCase();
   const siteOpportunities = optimizations.gsc_opportunities.items
     .filter((item) => item.site_id === site.site_id)
     .slice(0, 3);
+  const siteActionPlan = optimizations.recommendations.items
+    .filter((item) => item.site_id === site.site_id)
+    .slice(0, 4);
   const nearTop10Count = siteOpportunities.filter((item) => item.type === "near_top_10").length;
   const lowCtrCount = siteOpportunities.filter((item) => item.type === "low_ctr").length;
   const emergingQueryCount = siteOpportunities.filter((item) => item.type === "emerging_query").length;
@@ -59,6 +63,30 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const siteContent = publications.items.filter((item) => item.site_id === site.site_id);
   const refreshContent = siteContent.filter((item) => !!item.latest_suggestion || (item.seo_score ?? 0) < 80).slice(0, 3);
   const observedContent = siteContent.filter((item) => !!item.observed_content);
+  const observedQueryMatches = observedContent
+    .filter(
+      (item) =>
+        !!item.observed_content &&
+        (!!item.observed_content.top_query_match || (item.observed_content.query_match_count ?? 0) > 0)
+    )
+    .map((item) => ({
+      ...item,
+      normalizedTopQueryMatch: item.observed_content?.top_query_match
+        ? normalizeQuery(item.observed_content.top_query_match)
+        : null,
+    }));
+  const findLinkedPublication = (query: string) => {
+    const normalizedQuery = normalizeQuery(query);
+
+    return observedQueryMatches.find((item) => item.normalizedTopQueryMatch === normalizedQuery) ?? null;
+  };
+  const linkedQueryWatchlist = queryWatchlist
+    .map((item) => ({
+      ...item,
+      linkedPublication: findLinkedPublication(item.query),
+    }))
+    .filter((item) => !!item.linkedPublication)
+    .slice(0, 3);
   const linkingContent = observedContent
     .filter((item) => (item.observed_content?.internal_link_suggestions_count ?? 0) > 0)
     .slice(0, 3);
@@ -85,6 +113,22 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       );
     })
     .slice(0, 3);
+  const progressMoments = [
+    site.summary.gsc_delta_impressions > 0
+      ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impression(s) depuis la lecture précédente.`
+      : site.summary.gsc_delta_impressions < 0
+        ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(site.summary.gsc_delta_impressions))} impression(s) sur la dernière période suivie.`
+        : "Le volume d’impressions reste stable sur la dernière lecture GSC de ce site.",
+    linkedQueryWatchlist.length > 0
+      ? `${linkedQueryWatchlist.length} requête(s) sont déjà reliée(s) à une page observée, ce qui clarifie où agir.`
+      : "PraeviSEO attend encore le prochain lien net entre requête et page pour ouvrir une cible éditoriale encore plus claire.",
+    siteActionPlan.length > 0
+      ? `${siteActionPlan.length} action(s) moteur sont déjà prêtes à être traitées sur ce site.`
+      : "Le moteur continue de préparer les prochaines actions utiles sur ce site.",
+    refreshContent.length > 0
+      ? `${refreshContent.length} contenu(s) méritent déjà un refresh ou une relance.`
+      : "Aucun contenu chaud à relancer pour le moment sur ce site.",
+  ];
   const activityFeed = [
     ...siteOpportunities.map((item) => ({
       id: `site-opportunity-${item.slug}-${item.type}`,
@@ -101,6 +145,14 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       badge: "Requête en hausse",
       badgeVariant: "success" as const,
       meta: "lecture GSC",
+    })),
+    ...linkedQueryWatchlist.map((item) => ({
+      id: `site-linked-query-${item.query}`,
+      title: item.query,
+      detail: `PraeviSEO relie déjà cette requête à ${item.linkedPublication?.title}. Position ${item.position.toFixed(1)}, ${item.impressions} impression(s).`,
+      badge: "Page cible",
+      badgeVariant: "secondary" as const,
+      meta: item.linkedPublication?.cluster ?? item.linkedPublication?.observed_content?.cluster_label ?? "requête reliée",
     })),
     ...refreshContent.map((item) => ({
       id: `site-content-${item.id}`,
@@ -220,6 +272,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       tone: risingQueries.length + newQueries.length > 0 ? "success" : "secondary",
     },
     {
+      label: "Requêtes déjà reliées",
+      value: linkedQueryWatchlist.length,
+      detail: linkedQueryWatchlist.length > 0 ? "page cible déjà connue" : "le moteur cherche encore la meilleure cible",
+      tone: linkedQueryWatchlist.length > 0 ? "secondary" : "secondary",
+    },
+    {
       label: "Contenus à pousser",
       value: enrichmentContent.length + linkingContent.length + cannibalContent.length,
       detail:
@@ -299,7 +357,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {cockpitMoments.map((item) => (
             <Card key={item.label} className="border-border-subtle bg-surface/80">
               <CardHeader className="pb-3">
@@ -494,30 +552,49 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardHeader>
               <CardTitle>Requêtes Google</CardTitle>
               <CardDescription>
-                Les requêtes qui montent ou qui méritent déjà une réponse plus précise sur ce site.
+                Les requêtes qui montent ou que PraeviSEO sait déjà relier à une page observée sur ce site.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {queryWatchlist.length === 0 ? (
+              {queryWatchlist.length === 0 && linkedQueryWatchlist.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Aucune requête émergente forte pour le moment. Les prochains imports GSC nourriront ce bloc
                   automatiquement.
                 </div>
               ) : (
-                queryWatchlist.map((item) => (
+                [
+                  ...linkedQueryWatchlist,
+                  ...queryWatchlist
+                    .filter((item) => !findLinkedPublication(item.query))
+                    .map((item) => ({
+                      ...item,
+                      linkedPublication: null,
+                    })),
+                ]
+                  .slice(0, 4)
+                  .map((item) => (
                   <div key={item.query} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-text">{item.query}</div>
-                        <div className="text-xs text-text-subtle">{item.impressions} impressions récentes</div>
+                        <div className="text-xs text-text-subtle">
+                          {item.linkedPublication
+                            ? `${item.impressions} impressions · page liée ${item.linkedPublication.title}`
+                            : `${item.impressions} impressions récentes`}
+                        </div>
                       </div>
-                      <Badge variant={item.position <= 10 ? "warning" : "success"}>
-                        {item.position <= 10 ? "Déjà visible" : "À pousser"}
+                      <Badge variant={item.linkedPublication ? "secondary" : item.position <= 10 ? "warning" : "success"}>
+                        {item.linkedPublication ? "Page liée" : item.position <= 10 ? "Déjà visible" : "À pousser"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted leading-6">
                       {item.clicks} clic(s), CTR {item.ctr.toFixed(1)} %, position moyenne {item.position.toFixed(1)}.
                     </p>
+                    {item.linkedPublication ? (
+                      <p className="mt-3 text-xs text-text-subtle">
+                        Cible actuelle : {item.linkedPublication.slug || "/"}{item.linkedPublication.observed_content?.cluster_label ? ` · cluster ${item.linkedPublication.observed_content.cluster_label}` : ""}.
+                      </p>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -758,18 +835,37 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <div id="activite" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <Card>
             <CardHeader>
-              <CardTitle>Activité SEO récente</CardTitle>
+              <CardTitle>Quoi traiter d’abord</CardTitle>
               <CardDescription>
-                Le feed chronologique de ce site : imports Google et recommandations déjà visibles dans PraeviSEO.
+                Le meilleur plan d’action disponible maintenant sur ce site, entre recommandations moteur, requêtes et contenus.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {timelineFeed.length === 0 ? (
+              {siteActionPlan.length === 0 && siteOpportunities.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune activité forte pour le moment. Les prochains signaux Google feront vivre ce fil automatiquement.
+                  Aucune action prioritaire forte pour le moment. Le moteur enrichira ce bloc dès que la prochaine action utile devient claire.
                 </div>
               ) : (
-                timelineFeed.map((item) => (
+                [
+                  ...siteActionPlan.map((item) => ({
+                    id: `site-action-${item.id}`,
+                    title: item.title,
+                    meta: `${site.name}${item.cluster ? ` · ${item.cluster}` : ""}`,
+                    badge: item.priority <= 30 ? "À traiter d’abord" : "Plan moteur",
+                    badgeVariant: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
+                    detail: item.suggested_action ?? item.reasoning,
+                  })),
+                  ...siteOpportunities.map((item) => ({
+                    id: `site-opportunity-action-${item.slug}-${item.type}`,
+                    title: item.label,
+                    meta: item.site_name,
+                    badge: item.priority_label,
+                    badgeVariant: item.priority_level === "high" ? ("warning" as const) : ("secondary" as const),
+                    detail: `${item.reason} Action suggérée : ${item.action}.`,
+                  })),
+                ]
+                  .slice(0, 4)
+                  .map((item) => (
                   <div key={item.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -789,26 +885,13 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Rythme du cockpit</CardTitle>
+              <CardTitle>Ce qui a progressé depuis la dernière lecture</CardTitle>
               <CardDescription>
-                Ce que le client doit ressentir chaque semaine en revenant sur PraeviSEO.
+                La lecture la plus utile pour comprendre ce qui bouge déjà sur ce site d’une visite à l’autre.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {[
-                site.summary.gsc_impressions > 0
-                  ? `${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions déjà lues sur la fenêtre récente.`
-                  : "Les premières impressions apparaîtront ici dès les prochaines remontées GSC.",
-                siteOpportunities.length > 0
-                  ? `${siteOpportunities.length} opportunité(s) sont déjà ouvertes sur ce site.`
-                  : "PraeviSEO guette encore les premiers leviers rapides sur ce site.",
-                refreshContent.length > 0
-                  ? `${refreshContent.length} contenu(s) méritent déjà un refresh ou une relance.`
-                  : "Aucun contenu chaud à relancer pour le moment.",
-                site.readiness.gsc_connected
-                  ? "Google Search Console alimente déjà ce cockpit sans installation technique."
-                  : "La connexion Search Console reste la prochaine étape pour rendre ce cockpit vraiment vivant.",
-              ].map((item) => (
+              {progressMoments.map((item) => (
                 <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   {item}
                 </div>
