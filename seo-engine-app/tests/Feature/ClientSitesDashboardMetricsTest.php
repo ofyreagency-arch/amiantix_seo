@@ -6,8 +6,10 @@ namespace Tests\Feature;
 
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Models\SeoSiteCrawlIssue;
 use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
+use App\Models\SeoSiteSnapshot;
 use App\Models\User;
 use App\Models\UserAccessToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -405,5 +407,64 @@ class ClientSitesDashboardMetricsTest extends TestCase
         $response->assertJsonPath('sites.0.summary.observed_link_gap_pages.0.slug', 'faq');
         $response->assertJsonPath('sites.0.summary.observed_orphan_alerts.0.slug', 'mentions-legales');
         $response->assertJsonPath('sites.0.summary.observed_weak_page_details.0.slug', 'mentions-legales');
+    }
+
+    public function test_client_sites_summary_exposes_observed_site_health_snapshot(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoSiteSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'health_score' => 74,
+            'page_count' => 12,
+            'published_count' => 8,
+            'avg_seo_score' => 71,
+            'avg_quality_score' => 68,
+            'avg_topical_score' => 73,
+            'snapshot_date' => '2026-05-26',
+        ]);
+
+        SeoSiteCrawlIssue::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => 1,
+            'site_page_id' => null,
+            'issue_type' => 'missing_title',
+            'severity' => 'warning',
+            'url' => 'https://amiantix.com/faq',
+            'details' => 'Missing title',
+            'detected_at' => now(),
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/sites');
+
+        $response->assertOk();
+        $response->assertJsonPath('sites.0.summary.observed_site_health_score', 74);
+        $response->assertJsonPath('sites.0.summary.observed_snapshot_date', '2026-05-26');
+        $response->assertJsonPath('sites.0.summary.observed_avg_seo_score', 71);
+        $response->assertJsonPath('sites.0.summary.observed_avg_quality_score', 68);
+        $response->assertJsonPath('sites.0.summary.observed_avg_topical_score', 73);
+        $response->assertJsonPath('sites.0.summary.observed_crawl_issues', 1);
     }
 }

@@ -10,8 +10,10 @@ use App\Models\RemoteInstallation;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Models\SeoSiteCrawlIssue;
 use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
+use App\Models\SeoSiteSnapshot;
 use App\Models\SeoSuggestion;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -525,6 +527,7 @@ class ClientSitesController extends Controller
         $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
         $gscSnapshot = $this->searchConsoleSnapshot($site->site_id);
         $observedSnapshot = $this->observedSiteSnapshot($site->site_id);
+        $observedHealth = $this->observedSiteHealthSnapshot($site->site_id);
         $installation = $site->relationLoaded('latestRemoteInstallation')
             ? $site->getRelation('latestRemoteInstallation')
             : $site->latestRemoteInstallation()->first();
@@ -576,6 +579,12 @@ class ClientSitesController extends Controller
                 'observed_link_gap_pages' => $observedSnapshot['link_gap_pages'],
                 'observed_orphan_alerts' => $observedSnapshot['orphan_alerts'],
                 'observed_weak_page_details' => $observedSnapshot['weak_page_details'],
+                'observed_site_health_score' => $observedHealth['health_score'],
+                'observed_snapshot_date' => $observedHealth['snapshot_date'],
+                'observed_avg_seo_score' => $observedHealth['avg_seo_score'],
+                'observed_avg_quality_score' => $observedHealth['avg_quality_score'],
+                'observed_avg_topical_score' => $observedHealth['avg_topical_score'],
+                'observed_crawl_issues' => $observedHealth['crawl_issues'],
                 'gsc_impressions' => $gscSnapshot['impressions'],
                 'gsc_clicks' => $gscSnapshot['clicks'],
                 'gsc_ctr' => $gscSnapshot['ctr'],
@@ -724,6 +733,40 @@ class ClientSitesController extends Controller
                 ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     health_score:int,
+     *     snapshot_date:string|null,
+     *     avg_seo_score:int,
+     *     avg_quality_score:int,
+     *     avg_topical_score:int,
+     *     crawl_issues:int
+     * }
+     */
+    private function observedSiteHealthSnapshot(string $siteId): array
+    {
+        $snapshot = SeoSiteSnapshot::query()
+            ->where('site_id', $siteId)
+            ->orderByDesc('snapshot_date')
+            ->orderByDesc('id')
+            ->first([
+                'health_score',
+                'avg_seo_score',
+                'avg_quality_score',
+                'avg_topical_score',
+                'snapshot_date',
+            ]);
+
+        return [
+            'health_score' => $snapshot ? (int) round((float) $snapshot->health_score) : 0,
+            'snapshot_date' => $snapshot?->snapshot_date?->toDateString(),
+            'avg_seo_score' => $snapshot ? (int) round((float) $snapshot->avg_seo_score) : 0,
+            'avg_quality_score' => $snapshot ? (int) round((float) $snapshot->avg_quality_score) : 0,
+            'avg_topical_score' => $snapshot ? (int) round((float) $snapshot->avg_topical_score) : 0,
+            'crawl_issues' => SeoSiteCrawlIssue::query()->where('site_id', $siteId)->count(),
         ];
     }
 

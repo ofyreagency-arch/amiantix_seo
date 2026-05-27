@@ -55,6 +55,12 @@ export type PraeviseoSite = {
     observed_pillar_candidates: number;
     observed_avg_authority: number;
     observed_avg_orphan: number;
+    observed_site_health_score: number;
+    observed_snapshot_date: string | null;
+    observed_avg_seo_score: number;
+    observed_avg_quality_score: number;
+    observed_avg_topical_score: number;
+    observed_crawl_issues: number;
     observed_pillar_pages: Array<{
       label: string;
       slug: string;
@@ -495,6 +501,12 @@ const mockSites: PraeviseoSite[] = [
       observed_pillar_candidates: 2,
       observed_avg_authority: 38,
       observed_avg_orphan: 29,
+      observed_site_health_score: 74,
+      observed_snapshot_date: new Date().toISOString().slice(0, 10),
+      observed_avg_seo_score: 71,
+      observed_avg_quality_score: 68,
+      observed_avg_topical_score: 73,
+      observed_crawl_issues: 3,
       observed_pillar_pages: [
         {
           label: "Faq",
@@ -728,6 +740,12 @@ const mockSites: PraeviseoSite[] = [
       observed_pillar_candidates: 0,
       observed_avg_authority: 0,
       observed_avg_orphan: 0,
+      observed_site_health_score: 0,
+      observed_snapshot_date: null,
+      observed_avg_seo_score: 0,
+      observed_avg_quality_score: 0,
+      observed_avg_topical_score: 0,
+      observed_crawl_issues: 0,
       observed_pillar_pages: [],
       observed_link_gap_pages: [],
       observed_orphan_alerts: [],
@@ -1216,6 +1234,12 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       observed_pillar_candidates: Number(summary.observed_pillar_candidates ?? 0),
       observed_avg_authority: Number(summary.observed_avg_authority ?? 0),
       observed_avg_orphan: Number(summary.observed_avg_orphan ?? 0),
+      observed_site_health_score: Number(summary.observed_site_health_score ?? 0),
+      observed_snapshot_date: summary.observed_snapshot_date ? String(summary.observed_snapshot_date) : null,
+      observed_avg_seo_score: Number(summary.observed_avg_seo_score ?? 0),
+      observed_avg_quality_score: Number(summary.observed_avg_quality_score ?? 0),
+      observed_avg_topical_score: Number(summary.observed_avg_topical_score ?? 0),
+      observed_crawl_issues: Number(summary.observed_crawl_issues ?? 0),
       observed_pillar_pages: Array.isArray(summary.observed_pillar_pages)
         ? summary.observed_pillar_pages.map((entry) => ({
             label: String((entry as Record<string, unknown>).label ?? ""),
@@ -1663,6 +1687,12 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         observed_pillar_candidates: 0,
         observed_avg_authority: 0,
         observed_avg_orphan: 0,
+        observed_site_health_score: 0,
+        observed_snapshot_date: null,
+        observed_avg_seo_score: 0,
+        observed_avg_quality_score: 0,
+        observed_avg_topical_score: 0,
+        observed_crawl_issues: 0,
         observed_pillar_pages: [],
         observed_link_gap_pages: [],
         observed_orphan_alerts: [],

@@ -66,6 +66,22 @@ export default async function DashboardPage() {
   const contentRefreshFeed = publications.items
     .filter((item) => !!item.latest_suggestion)
     .slice(0, 4);
+  const totalObservedCrawlIssues = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_crawl_issues, 0);
+  const healthTrackedSites = dashboard.sites.filter((site) => site.summary.observed_site_health_score > 0);
+  const averageObservedHealth =
+    healthTrackedSites.length > 0
+      ? Math.round(
+          healthTrackedSites.reduce((sum, site) => sum + site.summary.observed_site_health_score, 0) / healthTrackedSites.length
+        )
+      : 0;
+  const healthWatchlist = dashboard.sites
+    .filter(
+      (site) =>
+        site.summary.observed_crawl_issues > 0 ||
+        site.summary.observed_weak_pages > 0 ||
+        site.summary.observed_orphan_pages > 0
+    )
+    .slice(0, 6);
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -100,6 +116,17 @@ export default async function DashboardPage() {
       badge: "Refresh",
       badgeVariant: "warning" as const,
       meta: `${item.site_id} · contenu`,
+    })),
+    ...healthWatchlist.slice(0, 2).map((site) => ({
+      id: `health-${site.site_id}`,
+      title: site.name,
+      detail:
+        site.summary.observed_crawl_issues > 0
+          ? `${site.summary.observed_crawl_issues} issue(s) crawl observée(s), ${site.summary.observed_weak_pages} page(s) faible(s), ${site.summary.observed_orphan_pages} page(s) orpheline(s).`
+          : `${site.summary.observed_weak_pages} page(s) faible(s) et ${site.summary.observed_orphan_pages} page(s) orpheline(s) déjà observées.`,
+      badge: "Santé SEO",
+      badgeVariant: "secondary" as const,
+      meta: site.summary.observed_snapshot_date ? `snapshot du ${formatDate(site.summary.observed_snapshot_date)}` : "observation récente",
     })),
   ].slice(0, 6);
   const timelineFeed = [
@@ -180,6 +207,9 @@ export default async function DashboardPage() {
     indexationAlerts.length > 0
       ? `${indexationAlerts.length} alerte(s) d indexation restent a surveiller`
       : null,
+    totalObservedCrawlIssues > 0
+      ? `${totalObservedCrawlIssues} issue(s) crawl observée(s) restent à surveiller`
+      : null,
   ].filter((item): item is string => item !== null);
   const cockpitMoments = [
     {
@@ -211,6 +241,12 @@ export default async function DashboardPage() {
       value: activeAlerts + slippingSitesCount,
       detail: "CTR faible, baisse durable ou recul d’impressions",
       tone: activeAlerts + slippingSitesCount > 0 ? "warning" : "secondary",
+    },
+    {
+      label: "Santé SEO moyenne",
+      value: averageObservedHealth,
+      detail: healthTrackedSites.length > 0 ? "score observé sur les sites relus" : "aucune lecture santé encore disponible",
+      tone: averageObservedHealth >= 70 ? "success" : averageObservedHealth > 0 ? "secondary" : "secondary",
     },
   ] as const;
 
@@ -266,6 +302,7 @@ export default async function DashboardPage() {
             { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length, tone: "success" },
+            { label: "Santé SEO", href: "#sante", count: healthWatchlist.length, tone: "secondary" },
             { label: "Indexation", href: "#indexation", count: indexationAlerts.length || indexedPagesValue, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
           ]}
@@ -320,7 +357,7 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           {[
             {
               label: "Impressions",
@@ -357,6 +394,14 @@ export default async function DashboardPage() {
               hint: dashboard.totals.indexedPagesSynced
                 ? "urls suivies que PraeviSEO a déjà vues confirmées dans Google"
                 : "lecture des urls Google encore en attente dans PraeviSEO",
+            },
+            {
+              label: "Issues crawl",
+              value: totalObservedCrawlIssues,
+              icon: SearchCheck,
+              hint: totalObservedCrawlIssues > 0
+                ? "problèmes structurels déjà observés lors des dernières lectures site"
+                : "aucune issue crawl forte observée pour le moment",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -684,6 +729,97 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                 ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="sante" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Santé SEO observée</CardTitle>
+              <CardDescription>
+                Le moteur relit aussi la structure réelle des sites : qualité moyenne, pages faibles, orphelines et issues crawl.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {healthWatchlist.length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune faiblesse structurelle forte observée pour le moment. PraeviSEO continue de relire le site en arrière-plan.
+                </div>
+              ) : (
+                healthWatchlist.map((site) => (
+                  <div key={`health-watch-${site.site_id}`} className="rounded-xl border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{site.name}</p>
+                        <p className="text-xs text-text-subtle">
+                          {site.summary.observed_snapshot_date
+                            ? `snapshot du ${formatDate(site.summary.observed_snapshot_date)}`
+                            : "observation récente"}
+                        </p>
+                      </div>
+                      <Badge variant={site.summary.observed_site_health_score >= 70 ? "success" : "secondary"}>
+                        Santé {site.summary.observed_site_health_score || "n/a"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted">
+                      {site.summary.observed_weak_pages} page(s) faible(s), {site.summary.observed_orphan_pages} page(s) orpheline(s),
+                      {` ${site.summary.observed_crawl_issues}`} issue(s) crawl, autorité moyenne {site.summary.observed_avg_authority}.
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pages structurellement à renforcer</CardTitle>
+              <CardDescription>
+                Les pages repérées par PraeviSEO comme piliers potentiels, sous-maillées ou encore trop faibles.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {dashboard.sites.flatMap((site) => site.summary.observed_link_gap_pages).length === 0 &&
+              dashboard.sites.flatMap((site) => site.summary.observed_orphan_alerts).length === 0 ? (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucune faiblesse structurelle forte pour le moment. Ce bloc se remplira dès qu’un maillage ou une page orpheline devient utile à traiter.
+                </div>
+              ) : (
+                [
+                  ...dashboard.sites.flatMap((site) =>
+                    site.summary.observed_link_gap_pages.slice(0, 1).map((item) => ({
+                      siteName: site.name,
+                      label: item.label,
+                      detail: `${item.internal_inlinks} lien(s) entrant(s), autorité ${item.authority_score}, cluster ${item.cluster_label ?? "n/a"}.`,
+                      badge: "Maillage",
+                      variant: "warning" as const,
+                    }))
+                  ),
+                  ...dashboard.sites.flatMap((site) =>
+                    site.summary.observed_orphan_alerts.slice(0, 1).map((item) => ({
+                      siteName: site.name,
+                      label: item.label,
+                      detail: `Page orpheline ou quasi orpheline, autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`,
+                      badge: "Orpheline",
+                      variant: "secondary" as const,
+                    }))
+                  ),
+                ]
+                  .slice(0, 6)
+                  .map((item) => (
+                    <div key={`${item.siteName}-${item.label}-${item.badge}`} className="rounded-xl border border-border px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text">{item.label}</p>
+                          <p className="text-xs text-text-subtle">{item.siteName}</p>
+                        </div>
+                        <Badge variant={item.variant}>{item.badge}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted">{item.detail}</p>
+                    </div>
+                  ))
               )}
             </CardContent>
           </Card>

@@ -27,6 +27,13 @@ export default async function IndexationCockpitPage() {
   const pendingSites = connectedSites.filter((site) => !site.summary.gsc_indexation_synced);
   const totalIndexedPages = syncedSites.reduce((sum, site) => sum + site.summary.gsc_indexed_pages, 0);
   const totalNonIndexedPages = syncedSites.reduce((sum, site) => sum + site.summary.gsc_non_indexed_pages, 0);
+  const totalObservedCrawlIssues = connectedSites.reduce((sum, site) => sum + site.summary.observed_crawl_issues, 0);
+  const observedHealthSites = connectedSites.filter(
+    (site) =>
+      site.summary.observed_crawl_issues > 0 ||
+      site.summary.observed_orphan_pages > 0 ||
+      site.summary.observed_weak_pages > 0
+  );
   const indexationAlerts = syncedSites
     .flatMap((site) => site.summary.indexation_alerts.map((item) => ({ ...item, site_name: site.name })))
     .slice(0, 8);
@@ -47,6 +54,9 @@ export default async function IndexationCockpitPage() {
     mostExposedSite
       ? `${mostExposedSite.name} concentre ${mostExposedSite.summary.gsc_non_indexed_pages} URL${mostExposedSite.summary.gsc_non_indexed_pages > 1 ? "s" : ""} encore à surveiller.`
       : "Le cockpit ne détecte pas encore de site particulièrement exposé.",
+    totalObservedCrawlIssues > 0
+      ? `${totalObservedCrawlIssues} issue(s) crawl observée(s) complètent aussi la lecture d’indexation de PraeviSEO.`
+      : "Aucune issue crawl forte n’alourdit la lecture actuelle de l’indexation.",
   ];
 
   return (
@@ -62,6 +72,7 @@ export default async function IndexationCockpitPage() {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: totalIndexedPages, tone: "default" },
             { label: "URLs relues", href: "#indexees", count: syncedSites.length, tone: "success" },
             { label: "Alertes", href: "#alertes", count: indexationAlerts.length + pendingSites.length, tone: "warning" },
+            { label: "Santé site", href: "#sante", count: observedHealthSites.length, tone: "secondary" },
             { label: "État Google", href: "#google", count: connectedSites.length, tone: "secondary" },
           ]}
         />
@@ -87,6 +98,7 @@ export default async function IndexationCockpitPage() {
               { label: "URLs encore à surveiller", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
               { label: "Sites reliés à Google", value: connectedSites.length },
               { label: "Alertes d’indexation", value: indexationAlerts.length + pendingSites.length, tone: indexationAlerts.length + pendingSites.length > 0 ? "warning" : "secondary" },
+              { label: "Issues crawl observées", value: totalObservedCrawlIssues, tone: totalObservedCrawlIssues > 0 ? "warning" : "secondary" },
             ]}
           />
         </div>
@@ -185,6 +197,52 @@ export default async function IndexationCockpitPage() {
                 description="PraeviSEO attend encore une lecture d’indexation exploitable sur ce site."
               />
             ))}
+          </CockpitSignalListCard>
+        </div>
+
+        <div id="sante" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <CockpitSignalListCard
+            title="Santé site liée à l’indexation"
+            description="Les signaux structurels que PraeviSEO relie déjà à la lecture Google : pages faibles, orphelines et issues crawl."
+            empty={observedHealthSites.length === 0}
+            emptyMessage="Aucune faiblesse structurelle forte observée pour le moment autour de l’indexation."
+          >
+            {observedHealthSites.slice(0, 6).map((site) => (
+              <CockpitSignalItem
+                key={`${site.site_id}-health-indexation`}
+                title={site.name}
+                subtitle={site.summary.observed_snapshot_date ? `snapshot du ${formatDate(site.summary.observed_snapshot_date)}` : "observation récente"}
+                badge={`Santé ${site.summary.observed_site_health_score || "n/a"}`}
+                badgeTone={site.summary.observed_site_health_score >= 70 ? "success" : "secondary"}
+                description={`${site.summary.observed_weak_pages} page(s) faible(s), ${site.summary.observed_orphan_pages} page(s) orpheline(s), ${site.summary.observed_crawl_issues} issue(s) crawl.`}
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="URLs structurellement fragiles"
+            description="Les URLs que PraeviSEO surveille aussi côté structure avant même qu’elles deviennent un vrai problème Google."
+            empty={connectedSites.flatMap((site) => site.summary.observed_orphan_alerts).length === 0}
+            emptyMessage="Aucune URL structurellement fragile à remonter pour le moment."
+          >
+            {connectedSites
+              .flatMap((site) =>
+                site.summary.observed_orphan_alerts.slice(0, 2).map((item) => ({
+                  siteName: site.name,
+                  item,
+                }))
+              )
+              .slice(0, 6)
+              .map(({ siteName, item }) => (
+                <CockpitSignalItem
+                  key={`${siteName}-${item.slug}-fragile`}
+                  title={item.label}
+                  subtitle={siteName}
+                  badge="À relier"
+                  badgeTone="warning"
+                  description={`Page peu reliée ou fragile : autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`}
+                />
+              ))}
           </CockpitSignalListCard>
         </div>
 
