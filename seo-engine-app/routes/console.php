@@ -208,6 +208,17 @@ Artisan::command('seo:smoke-check {--site_id=} {--include-tests : Run targeted f
                 $test,
             ], base_path());
             $process->setTimeout(300);
+            $process->setEnv([
+                ...$_ENV,
+                ...$_SERVER,
+                'APP_ENV' => 'testing',
+                'DB_CONNECTION' => 'sqlite',
+                'DB_DATABASE' => ':memory:',
+                'CACHE_STORE' => 'array',
+                'SESSION_DRIVER' => 'array',
+                'QUEUE_CONNECTION' => 'sync',
+                'MAIL_MAILER' => 'array',
+            ]);
             $process->run(function (string $type, string $buffer): void {
                 $this->output->write($buffer);
             });
