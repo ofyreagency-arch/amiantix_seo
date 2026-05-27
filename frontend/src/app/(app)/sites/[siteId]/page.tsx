@@ -58,6 +58,33 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const siteRecommendations = optimizations.items.filter((item) => item.page.site_id === site.site_id).slice(0, 3);
   const siteContent = publications.items.filter((item) => item.site_id === site.site_id);
   const refreshContent = siteContent.filter((item) => !!item.latest_suggestion || (item.seo_score ?? 0) < 80).slice(0, 3);
+  const observedContent = siteContent.filter((item) => !!item.observed_content);
+  const linkingContent = observedContent
+    .filter((item) => (item.observed_content?.internal_link_suggestions_count ?? 0) > 0)
+    .slice(0, 3);
+  const cannibalContent = observedContent
+    .filter(
+      (item) =>
+        (item.observed_content?.cannibalization_count ?? 0) > 0 ||
+        (item.observed_content?.overlap_count ?? 0) > 0
+    )
+    .slice(0, 3);
+  const enrichmentContent = observedContent
+    .filter((item) => {
+      const observed = item.observed_content;
+
+      if (!observed) {
+        return false;
+      }
+
+      return (
+        !!item.latest_suggestion ||
+        observed.snapshot_word_count < 900 ||
+        observed.query_match_count > 0 ||
+        observed.authority_score >= 40
+      );
+    })
+    .slice(0, 3);
   const activityFeed = [
     ...siteOpportunities.map((item) => ({
       id: `site-opportunity-${item.slug}-${item.type}`,
@@ -82,6 +109,26 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       badge: "Refresh",
       badgeVariant: "warning" as const,
       meta: item.cluster ?? "contenu",
+    })),
+    ...linkingContent.map((item) => ({
+      id: `site-linking-${item.id}`,
+      title: item.title,
+      detail: item.observed_content?.top_internal_link_target
+        ? `PraeviSEO suggère d’ouvrir du maillage vers ${item.observed_content.top_internal_link_target}.`
+        : `PraeviSEO détecte ${item.observed_content?.internal_link_suggestions_count ?? 0} piste(s) de maillage sur ce contenu.`,
+      badge: "Maillage",
+      badgeVariant: "secondary" as const,
+      meta: item.observed_content?.cluster_label ?? "contenu observé",
+    })),
+    ...cannibalContent.map((item) => ({
+      id: `site-cannibal-${item.id}`,
+      title: item.title,
+      detail: item.observed_content?.top_cannibalization_target
+        ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}.`
+        : `PraeviSEO garde ${item.observed_content?.overlap_count ?? 0} recouvrement(s) sous surveillance sur ce contenu.`,
+      badge: "Cannibalisation",
+      badgeVariant: "warning" as const,
+      meta: item.observed_content?.cluster_label ?? "contenu observé",
     })),
   ].slice(0, 4);
   const timelineFeed = [
@@ -172,6 +219,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       detail: risingQueries.length + newQueries.length > 0 ? "mouvements visibles dans Google" : "pas encore de hausse franche",
       tone: risingQueries.length + newQueries.length > 0 ? "success" : "secondary",
     },
+    {
+      label: "Contenus à pousser",
+      value: enrichmentContent.length + linkingContent.length + cannibalContent.length,
+      detail:
+        enrichmentContent.length + linkingContent.length + cannibalContent.length > 0
+          ? "contenu, maillage ou recouvrements déjà visibles"
+          : "contenu encore calme pour le moment",
+      tone: enrichmentContent.length + linkingContent.length + cannibalContent.length > 0 ? "secondary" : "secondary",
+    },
   ] as const;
 
   return (
@@ -194,6 +250,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             { label: "Opportunités", href: "#opportunites", count: siteOpportunities.length, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageMomentum.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: risingQueries.length + newQueries.length + queryWatchlist.length, tone: "success" },
+            { label: "Blogs", href: "#blogs", count: enrichmentContent.length + linkingContent.length + cannibalContent.length, tone: "secondary" },
             { label: "Indexation", href: "#indexation", count: siteIndexationAlerts.length || site.summary.gsc_indexed_pages, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
           ]}
@@ -495,6 +552,112 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                       {item.previous_impressions === 0
                         ? `Google commence à relier cette requête à votre site. Position moyenne ${item.position.toFixed(1)}.`
                         : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="blogs" className="grid gap-6 xl:grid-cols-3 scroll-mt-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contenus à enrichir</CardTitle>
+              <CardDescription>
+                Les pages qui ont déjà une vraie base SEO, mais qui peuvent gagner en profondeur ou en précision.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {enrichmentContent.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun contenu à enrichir fortement pour le moment. PraeviSEO rouvrira ce bloc dès qu’un contenu commence à porter.
+                </div>
+              ) : (
+                enrichmentContent.map((item) => (
+                  <div key={`enrichment-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.title}</div>
+                        <div className="text-xs text-text-subtle">{item.observed_content?.cluster_label ?? item.cluster ?? "contenu observé"}</div>
+                      </div>
+                      <Badge variant="secondary">
+                        Autorité {item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {item.latest_suggestion?.summary ??
+                        `${item.observed_content?.snapshot_word_count ?? 0} mots observés, ${item.observed_content?.query_match_count ?? 0} requête(s) déjà reliée(s) à cette page.`}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Maillage à renforcer</CardTitle>
+              <CardDescription>
+                Les contenus où PraeviSEO voit déjà des liens internes utiles à ouvrir pour mieux pousser la page.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {linkingContent.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun besoin de maillage fort pour le moment sur ce site.
+                </div>
+              ) : (
+                linkingContent.map((item) => (
+                  <div key={`linking-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.title}</div>
+                        <div className="text-xs text-text-subtle">{item.observed_content?.internal_inlinks ?? 0} lien(s) entrant(s) observé(s)</div>
+                      </div>
+                      <Badge variant="warning">
+                        {item.observed_content?.internal_link_suggestions_count ?? 0} piste(s)
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {item.observed_content?.top_internal_link_target
+                        ? `PraeviSEO suggère déjà de relier cette page à ${item.observed_content.top_internal_link_target}.`
+                        : "PraeviSEO voit déjà des ouvertures de maillage sur cette page."}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Cannibalisation à surveiller</CardTitle>
+              <CardDescription>
+                Les sujets proches ou les recouvrements que PraeviSEO garde déjà sous contrôle.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {cannibalContent.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun risque de cannibalisation fort détecté pour le moment.
+                </div>
+              ) : (
+                cannibalContent.map((item) => (
+                  <div key={`cannibal-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-text">{item.title}</div>
+                        <div className="text-xs text-text-subtle">Overlap {item.observed_content?.overlap_score ?? 0} / 100</div>
+                      </div>
+                      <Badge variant="warning">
+                        {(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} signal(s)
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-text-muted leading-6">
+                      {item.observed_content?.top_cannibalization_target
+                        ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}.`
+                        : "PraeviSEO voit déjà des recouvrements à clarifier sur ce contenu."}
                     </p>
                   </div>
                 ))
