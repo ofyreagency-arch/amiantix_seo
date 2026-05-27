@@ -9,8 +9,32 @@ export default async function ActivityCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const normalizeQuery = (value: string) => value.trim().toLowerCase();
   const observedRecommendations = optimizations.recommendations.items;
   const observedContentFeed = publications.items.filter((item) => !!item.observed_content);
+  const observedQueryMatches = observedContentFeed
+    .filter(
+      (item) =>
+        !!item.observed_content &&
+        (!!item.observed_content.top_query_match || (item.observed_content.query_match_count ?? 0) > 0)
+    )
+    .map((item) => ({
+      ...item,
+      normalizedTopQueryMatch: item.observed_content?.top_query_match
+        ? normalizeQuery(item.observed_content.top_query_match)
+        : null,
+    }));
+  const findLinkedPublication = (query: string, siteId?: string | null) => {
+    const normalizedQuery = normalizeQuery(query);
+
+    return (
+      observedQueryMatches.find(
+        (item) => item.site_id === siteId && item.normalizedTopQueryMatch === normalizedQuery
+      ) ??
+      observedQueryMatches.find((item) => item.normalizedTopQueryMatch === normalizedQuery) ??
+      null
+    );
+  };
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -22,9 +46,16 @@ export default async function ActivityCockpitPage() {
     .sort()
     .at(-1);
   const queryMovementFeed = dashboard.sites.flatMap((site) => [
-    ...site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
-    ...site.summary.new_queries.map((item) => ({ ...item, site_name: site.name, trend: "new" as const })),
+    ...site.summary.top_rising_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name, trend: "up" as const })),
+    ...site.summary.new_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name, trend: "new" as const })),
   ]);
+  const linkedQueryFeed = queryMovementFeed
+    .map((item) => ({
+      ...item,
+      linkedPublication: findLinkedPublication(item.query, item.site_id),
+    }))
+    .filter((item) => !!item.linkedPublication)
+    .slice(0, 6);
   const indexationFeed = dashboard.sites.flatMap((site) =>
     site.summary.indexation_alerts.map((item) => ({
       ...item,
@@ -105,6 +136,47 @@ export default async function ActivityCockpitPage() {
     badgeTone: item.priority_level === "high" ? "warning" : "secondary",
     description: item.reason,
   }));
+  const actionPlanFeed = [
+    ...observedRecommendations.slice(0, 6).map((item) => ({
+      id: `plan-${item.id}`,
+      title: item.title,
+      subtitle: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
+      badge: item.priority <= 30 ? "À traiter d’abord" : "Plan moteur",
+      badgeTone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
+      description: item.suggested_action ?? item.reasoning,
+    })),
+    ...optimizations.gsc_opportunities.items.slice(0, 6).map((item) => ({
+      id: `plan-opportunity-${item.site_id}-${item.slug}-${item.type}`,
+      title: item.label,
+      subtitle: item.site_name,
+      badge: item.priority_label,
+      badgeTone: item.priority_level === "high" ? ("warning" as const) : ("secondary" as const),
+      description: `${item.reason} Action suggérée : ${item.action}.`,
+    })),
+  ].slice(0, 8);
+  const totalDeltaImpressions = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_impressions, 0);
+  const totalDeltaClicks = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_clicks, 0);
+  const progressFeed = [
+    totalDeltaImpressions > 0
+      ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) sur la dernière période suivie.`
+      : totalDeltaImpressions < 0
+        ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impression(s) sur la dernière période suivie.`
+        : "Le volume d’impressions reste stable sur la dernière lecture GSC.",
+    totalDeltaClicks > 0
+      ? `Les clics progressent aussi avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaClicks)} clic(s) sur la période.`
+      : totalDeltaClicks < 0
+        ? `Les clics reculent de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaClicks))} clic(s) sur la période.`
+        : "Le volume de clics reste stable pour le moment.",
+    linkedQueryFeed.length > 0
+      ? `${linkedQueryFeed.length} requête(s) sont déjà reliée(s) à une page observée, ce qui clarifie la cible éditoriale.`
+      : "PraeviSEO attend encore les prochains liens nets entre requêtes et pages observées.",
+    actionPlanFeed.length > 0
+      ? `${actionPlanFeed.length} action(s) sont déjà prêtes à être traitées dans le cockpit.`
+      : "Le moteur continue de préparer les prochaines actions utiles.",
+    linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0
+      ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} signal(s) contenu complètent déjà la simple lecture GSC.`
+      : "Le bloc contenu s’enrichira dès que le moteur observe plus de matière sur les pages suivies.",
+  ];
 
   const timelineFeed = [
     ...dashboard.sites
@@ -162,7 +234,13 @@ export default async function ActivityCockpitPage() {
           : `La requête gagne ${item.delta_impressions} impressions sur la période récente.`,
       badge: item.trend === "new" ? "Nouvelle requête" : "Requête en hausse",
       badgeVariant: "success" as const,
-      meta: `${item.site_name} · lecture GSC`,
+      meta: (() => {
+        const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+        return linkedPublication
+          ? `${item.site_name} · page liée ${linkedPublication.title}`
+          : `${item.site_name} · lecture GSC`;
+      })(),
       timestamp: 0,
     })),
     ...indexationFeed.slice(0, 6).map((item) => ({
@@ -264,6 +342,7 @@ export default async function ActivityCockpitPage() {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: timelineFeed.length, tone: "default" },
             { label: "Mouvements", href: "#mouvements", count: movementFeed.length, tone: "success" },
             { label: "Requêtes", href: "#requetes", count: queryMovementFeed.length, tone: "success" },
+            { label: "Plan d’action", href: "#plan-action", count: actionPlanFeed.length, tone: "warning" },
             { label: "Alertes", href: "#alertes", count: alertFeed.length, tone: "warning" },
             { label: "Contenu", href: "#contenu", count: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length, tone: "secondary" },
             { label: "Timeline", href: "#timeline", count: timelineFeed.length, tone: "secondary" },
@@ -294,6 +373,7 @@ export default async function ActivityCockpitPage() {
               { label: "Événements récents", value: timelineFeed.length },
               { label: "Mouvements de pages", value: movementFeed.length, tone: "success" },
               { label: "Requêtes en mouvement", value: queryMovementFeed.length, tone: "success" },
+              { label: "Requêtes déjà reliées", value: linkedQueryFeed.length, tone: "secondary" },
               { label: "Alertes actives", value: alertFeed.length, tone: alertFeed.length > 0 ? "warning" : "secondary" },
               { label: "Actions recommandées", value: optimizations.recommendations.summary.total, tone: optimizations.recommendations.summary.total > 0 ? "warning" : "secondary" },
               { label: "Signaux contenu", value: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length, tone: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0 ? "secondary" : "secondary" },
@@ -340,6 +420,39 @@ export default async function ActivityCockpitPage() {
                     ? `${item.impressions} impressions, position ${item.position.toFixed(1)}.`
                     : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`
                 }
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Ce qui progresse vraiment"
+            description="La lecture la plus utile pour sentir les gains, les reculs et les prochaines ouvertures du cockpit."
+            empty={progressFeed.length === 0}
+            emptyMessage="Le cockpit remplira cette zone dès que les prochaines variations deviendront lisibles."
+          >
+            {progressFeed.map((item) => (
+              <div key={item} className="rounded-xl border border-border px-4 py-3 text-sm text-text-muted">
+                {item}
+              </div>
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            id="plan-action"
+            className="scroll-mt-24"
+            title="Quoi traiter ensuite"
+            description="Le plan d’action le plus utile déjà prêt entre opportunités Google et recommandations moteur."
+            empty={actionPlanFeed.length === 0}
+            emptyMessage="Aucune action prioritaire forte pour le moment. Le moteur enrichira automatiquement ce bloc au prochain cycle utile."
+          >
+            {actionPlanFeed.map((item) => (
+              <CockpitSignalItem
+                key={item.id}
+                title={item.title}
+                subtitle={item.subtitle}
+                badge={item.badge}
+                badgeTone={item.badgeTone}
+                description={item.description}
               />
             ))}
           </CockpitSignalListCard>
