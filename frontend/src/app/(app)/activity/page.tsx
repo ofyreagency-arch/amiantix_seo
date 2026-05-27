@@ -188,6 +188,10 @@ export default async function ActivityCockpitPage() {
               {freshestDataAsOf ? `Données arrêtées au ${formatDate(freshestDataAsOf)}.` : ""}
             </p>
           )}
+          <p className="mt-3 max-w-3xl text-xs leading-6 text-text-subtle">
+            L’activité affichée ici dépend du dernier import GSC disponible. Sur un site à faible volume, une période
+            calme ne signifie pas une panne : elle reflète simplement peu de mouvements détectables par Google.
+          </p>
         </div>
 
         <div id="vue-ensemble" className="scroll-mt-24">
@@ -227,7 +231,7 @@ export default async function ActivityCockpitPage() {
             title="Requêtes qui bougent"
             description="Les requêtes qui montent ou qui viennent juste d’apparaître dans la lecture Google."
             empty={queryMovementFeed.length === 0}
-            emptyMessage="Aucun mouvement de requête fort pour le moment. PraeviSEO affichera ici les prochaines progressions."
+            emptyMessage="Aucun mouvement de requête fort pour le moment. Avec peu de volume GSC, plusieurs lectures peuvent rester calmes avant la prochaine progression."
           >
             {queryMovementFeed.slice(0, 8).map((item) => (
               <CockpitSignalItem
@@ -249,7 +253,7 @@ export default async function ActivityCockpitPage() {
             title="Opportunités qui viennent d’ouvrir"
             description="Les opportunités GSC les plus fraîches que PraeviSEO garde déjà en tête."
             empty={opportunityFeed.length === 0}
-            emptyMessage="Aucune nouvelle opportunité forte pour le moment. Les prochains signaux remonteront ici."
+            emptyMessage="Aucune nouvelle opportunité forte pour le moment. Les prochains signaux utiles remonteront ici dès qu’ils dépasseront le bruit naturel."
           >
             {opportunityFeed.map((item) => (
               <CockpitSignalItem
@@ -269,7 +273,7 @@ export default async function ActivityCockpitPage() {
             title="Alertes simples"
             description="CTR faible, recul durable ou baisse de visibilité : les signaux à traiter vite."
             empty={alertFeed.length === 0}
-            emptyMessage="Aucune alerte forte pour le moment. Le cockpit reste en veille active."
+            emptyMessage="Aucune alerte forte pour le moment. Le cockpit reste en veille active et rouvrira ce bloc dès qu’un signal devient utile."
           >
             {alertFeed.map((item) => (
               <CockpitSignalItem

@@ -3,6 +3,7 @@ import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { getDashboard, getOptimizations } from "@/lib/praeviseo-api";
+import { formatDate } from "@/lib/utils";
 
 export default async function QueriesCockpitPage() {
   const dashboard = await getDashboard();
@@ -101,10 +102,14 @@ export default async function QueriesCockpitPage() {
           </p>
           {(freshestSyncAt || freshestDataAsOf) && (
             <p className="mt-3 text-xs text-text-subtle">
-              {freshestSyncAt ? `Dernière synchro GSC : ${freshestSyncAt}.` : "Synchronisation GSC en attente."}{" "}
-              {freshestDataAsOf ? `Données arrêtées au ${freshestDataAsOf}.` : ""}
+              {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
+              {freshestDataAsOf ? `Données arrêtées au ${formatDate(freshestDataAsOf)}.` : ""}
             </p>
           )}
+          <p className="mt-3 max-w-3xl text-xs leading-6 text-text-subtle">
+            Cette vue raconte une lecture GSC sur une fenêtre récente de 28 jours. Sur un site à faible volume,
+            il est normal que certaines périodes restent calmes avant que Google fasse remonter de nouveaux signaux.
+          </p>
         </div>
 
         <div id="vue-ensemble" className="scroll-mt-24">
@@ -165,7 +170,7 @@ export default async function QueriesCockpitPage() {
                 : "Même avec peu de volume, PraeviSEO garde ici les requêtes les plus prometteuses à pousser."
             }
             empty={queryRadar.length === 0}
-            emptyMessage="Aucune requête déjà lisible pour le moment. Le cockpit les affichera dès qu’elles montent."
+            emptyMessage="Aucune requête encore assez forte pour occuper la première zone. Le cockpit les affichera dès qu’elles gagneront vraiment du terrain."
           >
             {(visibleQueries.length > 0 ? visibleQueries : potentialQueries.slice(0, 4)).map((item) => (
               <CockpitSignalItem
@@ -185,7 +190,7 @@ export default async function QueriesCockpitPage() {
             title="Requêtes en hausse"
             description="Les requêtes qui gagnent le plus d’impressions sur la période récente."
             empty={risingQueries.length === 0}
-            emptyMessage="Aucune hausse franche de requête pour le moment. PraeviSEO affichera ici les prochaines progressions."
+            emptyMessage="Aucune hausse franche de requête pour le moment. Avec un faible volume GSC, plusieurs périodes peuvent rester stables avant la prochaine progression."
           >
             {risingQueries.map((item) => (
               <CockpitSignalItem
@@ -226,7 +231,7 @@ export default async function QueriesCockpitPage() {
             title="Nouvelles requêtes et signaux émergents"
             description="Les requêtes que Google commence à associer à votre site et celles qui ouvrent de nouvelles pistes éditoriales."
             empty={emergingQueries.length === 0}
-            emptyMessage="Aucune nouvelle requête forte pour le moment. Le cockpit les fera remonter automatiquement."
+            emptyMessage="Aucune nouvelle requête forte pour le moment. Le cockpit les fera remonter dès que Google créera une nouvelle association utile."
           >
             {emergingQueries.map((item) => (
               <CockpitSignalItem
