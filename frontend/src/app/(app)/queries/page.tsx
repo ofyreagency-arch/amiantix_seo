@@ -2,12 +2,13 @@ import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
-import { getDashboard, getOptimizations } from "@/lib/praeviseo-api";
+import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 export default async function QueriesCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
+  const publications = await getPublications();
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -18,17 +19,41 @@ export default async function QueriesCockpitPage() {
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
+  const normalizeQuery = (value: string) => value.trim().toLowerCase();
+  const observedQueryMatches = publications.items
+    .filter(
+      (item) =>
+        !!item.observed_content &&
+        (!!item.observed_content.top_query_match || (item.observed_content.query_match_count ?? 0) > 0)
+    )
+    .map((item) => ({
+      ...item,
+      normalizedTopQueryMatch: item.observed_content?.top_query_match
+        ? normalizeQuery(item.observed_content.top_query_match)
+        : null,
+    }));
+  const findLinkedPublication = (query: string, siteId?: string | null) => {
+    const normalizedQuery = normalizeQuery(query);
+
+    return (
+      observedQueryMatches.find(
+        (item) => item.site_id === siteId && item.normalizedTopQueryMatch === normalizedQuery
+      ) ??
+      observedQueryMatches.find((item) => item.normalizedTopQueryMatch === normalizedQuery) ??
+      null
+    );
+  };
 
   const topQueries = dashboard.sites
-    .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
+    .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name })))
     .slice(0, 12);
   const visibleQueries = topQueries.filter((item) => item.position <= 10).slice(0, 6);
   const risingQueries = dashboard.sites
-    .flatMap((site) => site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name })))
+    .flatMap((site) => site.summary.top_rising_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name })))
     .slice(0, 6);
   const potentialQueries = topQueries.filter((item) => item.position > 10 || item.impressions >= 10).slice(0, 6);
   const newQueries = dashboard.sites
-    .flatMap((site) => site.summary.new_queries.map((item) => ({ ...item, site_name: site.name })))
+    .flatMap((site) => site.summary.new_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name })))
     .slice(0, 6);
   const emergingQueries = [
     ...newQueries,
@@ -43,27 +68,49 @@ export default async function QueriesCockpitPage() {
         clicks: Number(item.metrics.clicks ?? 0),
         ctr: Number(item.metrics.ctr ?? 0),
         position: Number(item.metrics.position ?? 0),
+        site_id: item.site_id,
         site_name: item.site_name,
       })),
   ].slice(0, 6);
+  const linkedQueryItems = observedQueryMatches
+    .filter((item) => !!item.observed_content?.top_query_match)
+    .slice(0, 6);
   const queryRadar = [
     ...visibleQueries.map((item) => ({
       title: item.query,
-      subtitle: `${item.site_name} · déjà visible dans Google`,
+      subtitle: (() => {
+        const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+        return linkedPublication
+          ? `${item.site_name} · déjà reliée à ${linkedPublication.title}`
+          : `${item.site_name} · déjà visible dans Google`;
+      })(),
       badge: "Priorité visibilité",
       badgeTone: "success" as const,
       description: `${item.impressions} impressions, ${item.clicks} clics, position ${item.position.toFixed(1)}.`,
     })),
     ...risingQueries.map((item) => ({
       title: item.query,
-      subtitle: `${item.site_name} · accélération détectée`,
+      subtitle: (() => {
+        const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+        return linkedPublication
+          ? `${item.site_name} · accélération sur ${linkedPublication.title}`
+          : `${item.site_name} · accélération détectée`;
+      })(),
       badge: `+${item.delta_impressions} impressions`,
       badgeTone: "success" as const,
       description: `La requête monte depuis ${item.previous_impressions} impressions avec une position moyenne ${item.position.toFixed(1)}.`,
     })),
     ...potentialQueries.slice(0, 3).map((item) => ({
       title: item.query,
-      subtitle: `${item.site_name} · potentiel éditorial`,
+      subtitle: (() => {
+        const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+        return linkedPublication
+          ? `${item.site_name} · potentiel déjà lié à ${linkedPublication.title}`
+          : `${item.site_name} · potentiel éditorial`;
+      })(),
       badge: "À pousser",
       badgeTone: "warning" as const,
       description: `${item.impressions} impressions déjà visibles, position ${item.position.toFixed(1)} et marge de progression claire.`,
@@ -75,6 +122,10 @@ export default async function QueriesCockpitPage() {
       : potentialQueries.length > 0
         ? `${potentialQueries.length} requête${potentialQueries.length > 1 ? "s" : ""} montre${potentialQueries.length > 1 ? "nt" : ""} un potentiel éditorial à travailler.`
         : "PraeviSEO surveille déjà les prochaines requêtes qui commenceront à porter votre visibilité.";
+  const linkedQueryStory =
+    linkedQueryItems.length > 0
+      ? `${linkedQueryItems.length} requête${linkedQueryItems.length > 1 ? "s" : ""} sont déjà reliée${linkedQueryItems.length > 1 ? "s" : ""} à une page observée par PraeviSEO.`
+      : "Le cockpit reliera ici automatiquement les prochaines requêtes aux pages déjà observées sur votre site.";
 
   return (
     <div className="min-h-screen">
@@ -90,6 +141,7 @@ export default async function QueriesCockpitPage() {
             { label: "Meilleures requêtes", href: "#meilleures", count: visibleQueries.length, tone: "success" },
             { label: "En hausse", href: "#hausse", count: risingQueries.length, tone: "success" },
             { label: "À potentiel", href: "#potentiel", count: potentialQueries.length, tone: "warning" },
+            { label: "Pages liées", href: "#liees", count: linkedQueryItems.length, tone: "secondary" },
             { label: "Émergentes", href: "#emergentes", count: emergingQueries.length, tone: "secondary" },
           ]}
         />
@@ -119,6 +171,7 @@ export default async function QueriesCockpitPage() {
               { label: "Déjà visibles", value: visibleQueries.length, tone: "success" },
               { label: "En hausse", value: risingQueries.length, tone: "success" },
               { label: "À potentiel", value: potentialQueries.length, tone: "warning" },
+              { label: "Déjà reliées à une page", value: linkedQueryItems.length, tone: "secondary" },
               { label: "Émergentes", value: newQueries.length, tone: "secondary" },
             ]}
           />
@@ -157,6 +210,7 @@ export default async function QueriesCockpitPage() {
                   ? `${newQueries.length} nouvelle${newQueries.length > 1 ? "s" : ""} association${newQueries.length > 1 ? "s" : ""} de Google ouvre${newQueries.length > 1 ? "nt" : ""} de nouvelles pistes.`
                   : "Le cockpit transformera automatiquement les prochaines nouvelles requêtes en recommandations lisibles."}
               </p>
+              <p>{linkedQueryStory}</p>
             </div>
           </div>
         </div>
@@ -205,6 +259,51 @@ export default async function QueriesCockpitPage() {
           </CockpitSignalListCard>
         </div>
 
+        <div id="liees" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+          <CockpitSignalListCard
+            title="Requêtes déjà reliées à vos pages"
+            description="PraeviSEO ne montre pas seulement la requête : il commence déjà à la raccrocher à la bonne page observée."
+            empty={linkedQueryItems.length === 0}
+            emptyMessage="Aucune requête encore clairement reliée à une page observée. Ce bloc se remplira dès que le moteur verra un lien requête -> page plus net."
+          >
+            {linkedQueryItems.map((item) => (
+              <CockpitSignalItem
+                key={`${item.id}-${item.observed_content?.top_query_match ?? "linked-query"}`}
+                title={item.observed_content?.top_query_match ?? "Requête reliée"}
+                subtitle={`${item.site_id} · ${item.title}`}
+                badge={`${item.observed_content?.query_match_count ?? 0} liaison(s)`}
+                badgeTone="secondary"
+                description={
+                  item.gsc_metrics.impressions > 0
+                    ? `${item.gsc_metrics.impressions} impressions sur la page, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                    : `${item.observed_content?.snapshot_word_count ?? 0} mots observés, cluster ${item.observed_content?.cluster_label ?? item.cluster ?? "n/a"}.`
+                }
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Pistes éditoriales déjà reliées"
+            description="Les requêtes à potentiel où PraeviSEO sait déjà quelle page enrichir, pousser ou clarifier."
+            empty={potentialQueries.every((item) => !findLinkedPublication(item.query, item.site_id))}
+            emptyMessage="Aucune requête à potentiel encore reliée à une page précise. Le cockpit les reliera automatiquement dès qu’une page observée deviendra la bonne cible."
+          >
+            {potentialQueries
+              .map((item) => ({ item, linkedPublication: findLinkedPublication(item.query, item.site_id) }))
+              .filter((entry) => !!entry.linkedPublication)
+              .map(({ item, linkedPublication }) => (
+                <CockpitSignalItem
+                  key={`${item.site_id}-${item.query}-linked-potential`}
+                  title={item.query}
+                  subtitle={`${item.site_name} · page cible ${linkedPublication?.title ?? "observée"}`}
+                  badge="À pousser"
+                  badgeTone="warning"
+                  description={`${item.impressions} impressions, position ${item.position.toFixed(1)}. PraeviSEO peut déjà lier cette requête à ${linkedPublication?.slug || "/"}.`}
+                />
+              ))}
+          </CockpitSignalListCard>
+        </div>
+
         <div id="potentiel" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             id="potentiel"
@@ -217,10 +316,22 @@ export default async function QueriesCockpitPage() {
               <CockpitSignalItem
                 key={`${item.site_name}-${item.query}-potential`}
                 title={item.query}
-                subtitle={item.site_name}
+                subtitle={(() => {
+                  const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+                  return linkedPublication
+                    ? `${item.site_name} · page observée ${linkedPublication.title}`
+                    : item.site_name;
+                })()}
                 badge="À pousser"
                 badgeTone="warning"
-                description={`${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                description={(() => {
+                  const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+                  return linkedPublication
+                    ? `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}. Page liée : ${linkedPublication.slug || "/"}.`
+                    : `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`;
+                })()}
               />
             ))}
           </CockpitSignalListCard>
@@ -237,10 +348,22 @@ export default async function QueriesCockpitPage() {
               <CockpitSignalItem
                 key={`${item.site_name}-${item.query}-emerging`}
                 title={item.query}
-                subtitle={item.site_name}
+                subtitle={(() => {
+                  const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+                  return linkedPublication
+                    ? `${item.site_name} · signal relié à ${linkedPublication.title}`
+                    : item.site_name;
+                })()}
                 badge={item.previous_impressions === 0 ? "Nouvelle requête" : `+${item.delta_impressions} impressions`}
                 badgeTone="secondary"
-                description={`${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                description={(() => {
+                  const linkedPublication = findLinkedPublication(item.query, item.site_id);
+
+                  return linkedPublication
+                    ? `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}. Page observée : ${linkedPublication.slug || "/"}.`
+                    : `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`;
+                })()}
               />
             ))}
           </CockpitSignalListCard>
