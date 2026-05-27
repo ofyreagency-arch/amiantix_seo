@@ -21,6 +21,7 @@ export default async function DashboardPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const normalizeQuery = (value: string) => value.trim().toLowerCase();
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -33,6 +34,29 @@ export default async function DashboardPage() {
     .at(-1);
   const backendLive = hasBackendConnection();
   const gscConnectedSites = dashboard.sites.filter((site) => site.readiness.gsc_connected).length;
+  const observedQueryMatches = publications.items
+    .filter(
+      (item) =>
+        !!item.observed_content &&
+        (!!item.observed_content.top_query_match || (item.observed_content.query_match_count ?? 0) > 0)
+    )
+    .map((item) => ({
+      ...item,
+      normalizedTopQueryMatch: item.observed_content?.top_query_match
+        ? normalizeQuery(item.observed_content.top_query_match)
+        : null,
+    }));
+  const findLinkedPublication = (query: string, siteId?: string | null) => {
+    const normalizedQuery = normalizeQuery(query);
+
+    return (
+      observedQueryMatches.find(
+        (item) => item.site_id === siteId && item.normalizedTopQueryMatch === normalizedQuery
+      ) ??
+      observedQueryMatches.find((item) => item.normalizedTopQueryMatch === normalizedQuery) ??
+      null
+    );
+  };
   const activeAlerts =
     optimizations.gsc_opportunities.summary.low_ctr + optimizations.gsc_opportunities.summary.sustained_drop;
   const prioritySites = dashboard.sites
@@ -48,14 +72,30 @@ export default async function DashboardPage() {
     ])
     .slice(0, 6);
   const queryWatchlist = dashboard.sites
-    .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
+    .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name })))
     .slice(0, 6);
   const risingQueryWatchlist = dashboard.sites
-    .flatMap((site) => site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name })))
+    .flatMap((site) => site.summary.top_rising_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name })))
     .slice(0, 6);
   const newQueryWatchlist = dashboard.sites
-    .flatMap((site) => site.summary.new_queries.map((item) => ({ ...item, site_name: site.name })))
+    .flatMap((site) => site.summary.new_queries.map((item) => ({ ...item, site_id: site.site_id, site_name: site.name })))
     .slice(0, 6);
+  const linkedQueryWatchlist = queryWatchlist
+    .map((item) => ({
+      ...item,
+      linkedPublication: findLinkedPublication(item.query, item.site_id),
+    }))
+    .filter((item) => !!item.linkedPublication)
+    .slice(0, 6);
+  const dashboardQuerySignals = [
+    ...linkedQueryWatchlist,
+    ...queryWatchlist
+      .filter((item) => !findLinkedPublication(item.query, item.site_id))
+      .map((item) => ({
+        ...item,
+        linkedPublication: null,
+      })),
+  ].slice(0, 6);
   const totalDeltaImpressions = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_impressions, 0);
   const totalDeltaClicks = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_clicks, 0);
   const risingSitesCount = dashboard.sites.filter((site) => site.summary.gsc_delta_impressions > 0).length;
@@ -201,6 +241,9 @@ export default async function DashboardPage() {
     newQueryWatchlist.length > 0
       ? `${newQueryWatchlist.length} nouvelle(s) requete(s) apparaissent dans Google`
       : null,
+    linkedQueryWatchlist.length > 0
+      ? `${linkedQueryWatchlist.length} requête(s) sont déjà reliée(s) à une page observée`
+      : null,
     optimizations.gsc_opportunities.summary.sustained_drop > 0
       ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilite`
       : null,
@@ -247,6 +290,12 @@ export default async function DashboardPage() {
       value: averageObservedHealth,
       detail: healthTrackedSites.length > 0 ? "score observé sur les sites relus" : "aucune lecture santé encore disponible",
       tone: averageObservedHealth >= 70 ? "success" : averageObservedHealth > 0 ? "secondary" : "secondary",
+    },
+    {
+      label: "Requêtes déjà reliées",
+      value: linkedQueryWatchlist.length,
+      detail: linkedQueryWatchlist.length > 0 ? "PraeviSEO connaît déjà la page cible" : "les prochains liens requête -> page apparaîtront ici",
+      tone: linkedQueryWatchlist.length > 0 ? "secondary" : "secondary",
     },
   ] as const;
 
@@ -301,7 +350,7 @@ export default async function DashboardPage() {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
-            { label: "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length, tone: "success" },
+            { label: "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length + linkedQueryWatchlist.length, tone: "success" },
             { label: "Santé SEO", href: "#sante", count: healthWatchlist.length, tone: "secondary" },
             { label: "Indexation", href: "#indexation", count: indexationAlerts.length || indexedPagesValue, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
@@ -343,7 +392,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {cockpitMoments.map((item) => (
             <Card key={item.label} className="border-border-subtle bg-surface/80">
               <CardHeader className="pb-3">
@@ -630,25 +679,30 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Requêtes Google</CardTitle>
               <CardDescription>
-                Les requêtes qui progressent, émergent ou méritent déjà une meilleure réponse.
+                Les requêtes qui progressent, émergent ou que PraeviSEO sait déjà rattacher à une page observée.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {queryWatchlist.length === 0 ? (
+              {queryWatchlist.length === 0 && linkedQueryWatchlist.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Aucune requête émergente forte pour l’instant. Le cockpit affichera ici les prochaines requêtes à
                   potentiel dès qu’elles montent dans GSC.
                 </div>
               ) : (
-                queryWatchlist.map((item) => (
+                dashboardQuerySignals.map((item) => {
+                  const linkedPublication = item.linkedPublication;
+
+                  return (
                   <div key={`${item.site_name}-${item.query}-query`} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-text">{item.query}</p>
-                        <p className="text-xs text-text-subtle">{item.site_name}</p>
+                        <p className="text-xs text-text-subtle">
+                          {linkedPublication ? `${item.site_name} · page liée ${linkedPublication.title}` : item.site_name}
+                        </p>
                       </div>
-                      <Badge variant={item.position <= 10 ? "warning" : "success"}>
-                        {item.position <= 10 ? "Déjà visible" : "À pousser"}
+                      <Badge variant={linkedPublication ? "secondary" : item.position <= 10 ? "warning" : "success"}>
+                        {linkedPublication ? "Page liée" : item.position <= 10 ? "Déjà visible" : "À pousser"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
@@ -656,11 +710,17 @@ export default async function DashboardPage() {
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
                       <span className="rounded-full border border-border px-2.5 py-1">
-                        Requête à potentiel
+                        {linkedPublication ? `Cible : ${linkedPublication.slug || "/"}` : "Requête à potentiel"}
                       </span>
+                      {linkedPublication?.observed_content?.cluster_label ? (
+                        <span className="rounded-full border border-border px-2.5 py-1">
+                          Cluster {linkedPublication.observed_content.cluster_label}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </CardContent>
           </Card>
