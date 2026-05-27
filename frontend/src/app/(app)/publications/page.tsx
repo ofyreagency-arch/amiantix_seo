@@ -6,6 +6,26 @@ import { Topbar } from "@/components/layout/topbar";
 import { getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
+function impactLabel(impact: string): string {
+  return (
+    {
+      high: "Gain attendu fort",
+      medium: "Gain attendu moyen",
+      low: "Gain attendu leger",
+    }[impact] ?? "Gain a confirmer"
+  );
+}
+
+function difficultyLabel(difficulty: string): string {
+  return (
+    {
+      low: "Effort leger",
+      medium: "Effort modere",
+      high: "Effort soutenu",
+    }[difficulty] ?? "Effort a cadrer"
+  );
+}
+
 export default async function PublicationsPage() {
   const publications = await getPublications();
   const optimizations = await getOptimizations();
@@ -73,6 +93,8 @@ export default async function PublicationsPage() {
     })
     .sort((a, b) => (b.observed_content?.authority_score ?? 0) - (a.observed_content?.authority_score ?? 0))
     .slice(0, 4);
+  const leadContent = enrichmentItems[0] ?? risingItems[0] ?? publications.items[0] ?? null;
+  const leadRecommendation = recommendationItems[0] ?? null;
 
   return (
     <div className="min-h-screen">
@@ -105,6 +127,82 @@ export default async function PublicationsPage() {
               { label: "Articles à relancer", value: refreshItems.length, tone: refreshItems.length > 0 ? "warning" : "secondary" },
             ]}
           />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <CockpitSignalListCard
+            title="Pourquoi enrichir ce contenu maintenant"
+            description="Le contenu qui peut débloquer le plus vite un gain SEO ou éditorial."
+            empty={!leadContent}
+            emptyMessage="Aucun contenu prioritaire clair pour le moment. PraeviSEO rouvrira ce bloc dès qu’un levier éditorial plus net remonte."
+          >
+            {leadContent ? (
+              <div className="rounded-xl border border-border p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">{leadContent.title}</p>
+                    <p className="text-xs text-text-subtle">
+                      {leadContent.site_id}
+                      {leadContent.observed_content?.cluster_label ?? leadContent.cluster
+                        ? ` · ${leadContent.observed_content?.cluster_label ?? leadContent.cluster}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={(leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? 0) >= 60 ? "success" : "secondary"}>
+                      Autorite {leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? "n/a"}
+                    </Badge>
+                    <Badge variant={leadContent.latest_suggestion ? "warning" : "secondary"}>
+                      {leadContent.latest_suggestion ? "Reco ouverte" : "A enrichir"}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-sm text-text-muted">
+                  {leadContent.latest_suggestion?.summary ??
+                    `Ce contenu a deja ${leadContent.observed_content?.query_match_count ?? 0} requete(s) reliee(s), ${leadContent.observed_content?.snapshot_word_count ?? "n/a"} mots observes et un vrai potentiel a renforcer.`}
+                </p>
+                <div className="grid gap-2 md:grid-cols-4 text-xs text-text-subtle">
+                  <span>Impressions : {leadContent.gsc_metrics.impressions}</span>
+                  <span>CTR : {leadContent.gsc_metrics.ctr.toFixed(1)} %</span>
+                  <span>Position : {leadContent.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
+                  <span>Maillage : {leadContent.observed_content ? `${leadContent.observed_content.internal_inlinks} entrant(s)` : "n/a"}</span>
+                </div>
+              </div>
+            ) : null}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Action contenu a ouvrir"
+            description="La meilleure action moteur deja prete pour faire progresser le cockpit contenu."
+            empty={!leadRecommendation}
+            emptyMessage="Aucune action contenu prioritaire pour le moment. Le moteur enrichira ce bloc dès qu’un plan a bon ratio impact / effort remonte."
+          >
+            {leadRecommendation ? (
+              <div className="rounded-xl border border-border p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">{leadRecommendation.title}</p>
+                    <p className="text-xs text-text-subtle">
+                      {leadRecommendation.site_id}
+                      {leadRecommendation.cluster ? ` · ${leadRecommendation.cluster}` : ""}
+                    </p>
+                  </div>
+                  <Badge variant={leadRecommendation.priority <= 30 ? "warning" : "secondary"}>
+                    Priorite {leadRecommendation.priority}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{impactLabel(leadRecommendation.estimated_impact)}</Badge>
+                  <Badge variant="secondary">{difficultyLabel(leadRecommendation.difficulty)}</Badge>
+                </div>
+                <p className="text-sm text-text-muted">{leadRecommendation.reasoning}</p>
+                <p className="text-sm text-text">
+                  Action a ouvrir :{" "}
+                  <span className="font-medium">{leadRecommendation.suggested_action ?? "a preciser dans le moteur"}</span>
+                </p>
+              </div>
+            ) : null}
+          </CockpitSignalListCard>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
@@ -201,11 +299,11 @@ export default async function PublicationsPage() {
                 subtitle={item.site_id}
                 badge={`${item.observed_content?.internal_link_suggestions_count ?? 0} piste(s)`}
                 badgeTone="warning"
-                description={
-                  item.observed_content?.top_internal_link_target
-                    ? `PraeviSEO suggère de relier cette page à ${item.observed_content.top_internal_link_target}. ${item.observed_content.internal_inlinks} lien(s) entrant(s) observé(s).`
-                    : `Seulement ${item.observed_content?.internal_inlinks ?? 0} lien(s) entrant(s) observé(s) pour l’instant.`
-                }
+              description={
+                item.observed_content?.top_internal_link_target
+                  ? `PraeviSEO suggère de relier cette page à ${item.observed_content.top_internal_link_target}. ${item.observed_content.internal_inlinks} lien(s) entrant(s) observé(s).`
+                  : `Seulement ${item.observed_content?.internal_inlinks ?? 0} lien(s) entrant(s) observé(s) pour l’instant.`
+              }
               />
             ))}
           </CockpitSignalListCard>
