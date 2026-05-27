@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Ofyre\SeoEngine\Services\Console\SeoDoctorService;
+use Symfony\Component\Process\Process;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -173,6 +174,7 @@ Artisan::command('seo:smoke-check {--site_id=} {--include-tests : Run targeted f
         $metrics28 = (clone $metricsQuery)->where('window_days', 28)->count();
         $latestMetricDate = (clone $metricsQuery)->max('metric_date');
         $pagesCount = DB::table('seo_pages')->where('site_id', $connection->site_id)->count();
+        $observedPagesCount = DB::table('seo_site_pages')->where('site_id', $connection->site_id)->count();
 
         $this->line(sprintf(
             'Metrics: total=%d | window_28=%d | latest_metric_date=%s',
@@ -180,7 +182,11 @@ Artisan::command('seo:smoke-check {--site_id=} {--include-tests : Run targeted f
             $metrics28,
             (string) ($latestMetricDate ?? 'n/a')
         ));
-        $this->line(sprintf('SEO pages: %d', $pagesCount));
+        $this->line(sprintf(
+            'SEO pages: generated=%d | observed=%d',
+            $pagesCount,
+            $observedPagesCount
+        ));
     }
 
     if ((bool) $this->option('include-tests')) {
@@ -195,10 +201,18 @@ Artisan::command('seo:smoke-check {--site_id=} {--include-tests : Run targeted f
 
         foreach ($tests as $test) {
             $this->line('> '.$test);
-            $exitCode = Artisan::call('test', ['tests' => [$test]]);
-            $this->output->write(Artisan::output());
+            $process = new Process([
+                PHP_BINARY,
+                'artisan',
+                'test',
+                $test,
+            ], base_path());
+            $process->setTimeout(300);
+            $process->run(function (string $type, string $buffer): void {
+                $this->output->write($buffer);
+            });
 
-            if ($exitCode !== 0) {
+            if (! $process->isSuccessful()) {
                 $this->error('Smoke check failed on '.$test);
 
                 return self::FAILURE;
