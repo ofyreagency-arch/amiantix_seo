@@ -21,6 +21,7 @@ export type PraeviseoSite = {
   gsc_connection_status: string;
   gsc_account_email: string | null;
   gsc_last_sync_at: string | null;
+  gsc_data_as_of: string | null;
   installation: {
     status: string;
     current_step: string | null;
@@ -351,6 +352,7 @@ const mockSites: PraeviseoSite[] = [
     gsc_connection_status: "connected",
     gsc_account_email: "service-account@project.iam.gserviceaccount.com",
     gsc_last_sync_at: new Date().toISOString(),
+    gsc_data_as_of: new Date().toISOString().slice(0, 10),
     installation: {
       status: "connected",
       current_step: "completed",
@@ -506,6 +508,7 @@ const mockSites: PraeviseoSite[] = [
     gsc_connection_status: "not_connected",
     gsc_account_email: null,
     gsc_last_sync_at: null,
+    gsc_data_as_of: null,
     installation: {
       status: "not_started",
       current_step: null,
@@ -852,6 +855,7 @@ function normaliseSite(raw: unknown): PraeviseoSite {
     gsc_connection_status: String(site.gsc_connection_status ?? "not_connected"),
     gsc_account_email: site.gsc_account_email ? String(site.gsc_account_email) : null,
     gsc_last_sync_at: site.gsc_last_sync_at ? String(site.gsc_last_sync_at) : null,
+    gsc_data_as_of: site.gsc_data_as_of ? String(site.gsc_data_as_of) : null,
     installation: {
       status: String((site.installation as Record<string, unknown> | undefined)?.status ?? "not_started"),
       current_step: (site.installation as Record<string, unknown> | undefined)?.current_step
@@ -1250,6 +1254,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       gsc_connection_status: "not_connected",
       gsc_account_email: null,
       gsc_last_sync_at: null,
+      gsc_data_as_of: null,
       installation: {
         status: "not_started",
         current_step: null,
@@ -1376,6 +1381,7 @@ export async function connectSiteGsc(input: SiteGscConnectionInput): Promise<Pra
       gsc_connection_status: "configured",
       gsc_account_email: null,
       gsc_last_sync_at: null,
+      gsc_data_as_of: null,
       readiness: {
         ...site.readiness,
         gsc_connected: false,

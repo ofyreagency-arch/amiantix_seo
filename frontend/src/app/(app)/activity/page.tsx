@@ -9,6 +9,16 @@ export default async function ActivityCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const freshestSyncAt = dashboard.sites
+    .map((site) => site.gsc_last_sync_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  const freshestDataAsOf = dashboard.sites
+    .map((site) => site.gsc_data_as_of)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
   const queryMovementFeed = dashboard.sites.flatMap((site) => [
     ...site.summary.top_rising_queries.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
     ...site.summary.new_queries.map((item) => ({ ...item, site_name: site.name, trend: "new" as const })),
@@ -30,6 +40,14 @@ export default async function ActivityCockpitPage() {
       meta: item.latest_suggestion?.created_at ? formatDate(item.latest_suggestion.created_at) : item.site_id,
       timestamp: item.latest_suggestion?.created_at ? new Date(item.latest_suggestion.created_at).getTime() : 0,
     }));
+  const opportunityFeed = optimizations.gsc_opportunities.items.slice(0, 6).map((item) => ({
+    id: `opportunity-card-${item.site_id}-${item.slug}-${item.type}`,
+    title: item.label,
+    subtitle: item.site_name,
+    badge: item.priority_label,
+    badgeTone: item.priority_level === "high" ? "warning" : "secondary",
+    description: item.reason,
+  }));
 
   const timelineFeed = [
     ...dashboard.sites
@@ -164,6 +182,12 @@ export default async function ActivityCockpitPage() {
             PraeviSEO donne ici une sensation de mouvement continu : variations Google, opportunités détectées,
             recommandations ouvertes et activité récente du cockpit.
           </p>
+          {(freshestSyncAt || freshestDataAsOf) && (
+            <p className="mt-3 text-xs text-text-subtle">
+              {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
+              {freshestDataAsOf ? `Données arrêtées au ${formatDate(freshestDataAsOf)}.` : ""}
+            </p>
+          )}
         </div>
 
         <div id="vue-ensemble" className="scroll-mt-24">
@@ -178,7 +202,7 @@ export default async function ActivityCockpitPage() {
           />
         </div>
 
-        <div id="mouvements" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+        <div id="mouvements" className="grid gap-6 xl:grid-cols-3 scroll-mt-24">
           <CockpitSignalListCard
             title="Mouvements récents"
             description="Les pages qui montent ou qui ralentissent le plus en ce moment."
@@ -217,6 +241,24 @@ export default async function ActivityCockpitPage() {
                     ? `${item.impressions} impressions, position ${item.position.toFixed(1)}.`
                     : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`
                 }
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <CockpitSignalListCard
+            title="Opportunités qui viennent d’ouvrir"
+            description="Les opportunités GSC les plus fraîches que PraeviSEO garde déjà en tête."
+            empty={opportunityFeed.length === 0}
+            emptyMessage="Aucune nouvelle opportunité forte pour le moment. Les prochains signaux remonteront ici."
+          >
+            {opportunityFeed.map((item) => (
+              <CockpitSignalItem
+                key={item.id}
+                title={item.title}
+                subtitle={item.subtitle}
+                badge={item.badge}
+                badgeTone={item.badgeTone as "success" | "warning" | "secondary" | "danger"}
+                description={item.description}
               />
             ))}
           </CockpitSignalListCard>

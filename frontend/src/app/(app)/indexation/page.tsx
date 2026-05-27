@@ -14,6 +14,16 @@ export default async function IndexationCockpitPage() {
   const indexationScopeHint =
     syncedSites[0]?.summary.gsc_indexation_scope_hint ??
     "PraeviSEO compte ici les URLs qu’il suit et inspecte dans Google Search Console. Le rapport Pages complet de Google peut afficher davantage d’URLs.";
+  const freshestSyncAt = connectedSites
+    .map((site) => site.gsc_last_sync_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  const freshestDataAsOf = connectedSites
+    .map((site) => site.gsc_data_as_of)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
   const pendingSites = connectedSites.filter((site) => !site.summary.gsc_indexation_synced);
   const totalIndexedPages = syncedSites.reduce((sum, site) => sum + site.summary.gsc_indexed_pages, 0);
   const totalNonIndexedPages = syncedSites.reduce((sum, site) => sum + site.summary.gsc_non_indexed_pages, 0);
@@ -62,6 +72,12 @@ export default async function IndexationCockpitPage() {
             PraeviSEO rassemble déjà les URLs qu’il suit et inspecte dans Google Search Console pour montrer celles que
             Google confirme, celles qui restent à surveiller, et les sites encore en attente de lecture exploitable.
           </p>
+          {(freshestSyncAt || freshestDataAsOf) && (
+            <p className="mt-3 text-xs text-text-subtle">
+              {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
+              {freshestDataAsOf ? `Données arrêtées au ${formatDate(freshestDataAsOf)}.` : ""}
+            </p>
+          )}
         </div>
 
         <div id="vue-ensemble" className="scroll-mt-24">
@@ -136,7 +152,7 @@ export default async function IndexationCockpitPage() {
                 subtitle={site.gsc_property_url ?? site.site_id}
                 badge={`${site.summary.gsc_indexed_pages} confirmées / ${site.summary.gsc_non_indexed_pages} à surveiller`}
                 badgeTone="success"
-                description={`Dernière lecture Google : ${site.gsc_last_sync_at ? formatDate(site.gsc_last_sync_at) : "récemment"}.`}
+                description={`Dernière synchro GSC : ${site.gsc_last_sync_at ? formatDate(site.gsc_last_sync_at) : "récemment"}${site.gsc_data_as_of ? ` · données arrêtées au ${formatDate(site.gsc_data_as_of)}` : ""}.`}
               />
             ))}
           </CockpitSignalListCard>

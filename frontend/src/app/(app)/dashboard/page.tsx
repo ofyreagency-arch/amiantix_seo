@@ -21,6 +21,16 @@ export default async function DashboardPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const freshestSyncAt = dashboard.sites
+    .map((site) => site.gsc_last_sync_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  const freshestDataAsOf = dashboard.sites
+    .map((site) => site.gsc_data_as_of)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
   const backendLive = hasBackendConnection();
   const gscConnectedSites = dashboard.sites.filter((site) => site.readiness.gsc_connected).length;
   const activeAlerts =
@@ -274,6 +284,12 @@ export default async function DashboardPage() {
                 Sans installer quoi que ce soit, PraeviSEO transforme déjà Google Search Console en priorités,
                 opportunités, recommandations et signaux utiles à suivre régulièrement.
               </p>
+              {(freshestSyncAt || freshestDataAsOf) && (
+                <p className="mt-3 text-xs text-text-subtle">
+                  {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
+                  {freshestDataAsOf ? `Données arrêtées au ${formatDate(freshestDataAsOf)}.` : ""}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <Button href="/sites/join" variant="secondary">

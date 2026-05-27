@@ -557,6 +557,7 @@ class ClientSitesController extends Controller
             'gsc_connection_status' => $site->resolvedGscConnectionStatus(),
             'gsc_account_email' => $site->resolvedGoogleConnection()?->google_account_email,
             'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
+            'gsc_data_as_of' => $this->resolvedGscDataAsOf($site),
             'installation' => $this->serializeInstallation($installation),
             'created_at' => $site->created_at,
             'summary' => [
@@ -977,6 +978,29 @@ class ClientSitesController extends Controller
         }
 
         return $candidateDate === $referenceDate && (int) $candidate->id < (int) $reference->id;
+    }
+
+    private function resolvedGscDataAsOf(SeoSite $site): ?string
+    {
+        $connection = $site->resolvedGoogleConnection();
+        $lastSync = is_array($connection?->meta_json['last_sync'] ?? null)
+            ? $connection->meta_json['last_sync']
+            : null;
+
+        if (! is_array($lastSync)) {
+            return null;
+        }
+
+        $candidates = collect([
+            data_get($lastSync, 'analytics.site_totals.end_date'),
+            data_get($lastSync, 'analytics.top_pages.end_date'),
+            data_get($lastSync, 'analytics.top_query_pages.end_date'),
+            data_get($lastSync, 'analytics.top_queries.end_date'),
+        ])->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '');
+
+        $date = $candidates->first();
+
+        return is_string($date) ? $date : null;
     }
 
     private function searchConsoleSlugFromUrl(string $url): string

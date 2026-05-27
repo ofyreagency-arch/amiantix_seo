@@ -325,7 +325,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   </Button>
                 </div>
                 {site.gsc_last_sync_at ? (
-                  <p className="mt-2 text-xs text-text-subtle">Dernière synchro : {site.gsc_last_sync_at}</p>
+                  <p className="mt-2 text-xs text-text-subtle">
+                    Dernière synchro : {site.gsc_last_sync_at}
+                    {site.gsc_data_as_of ? ` · données arrêtées au ${site.gsc_data_as_of}` : ""}
+                  </p>
                 ) : null}
               </div>
             </CardContent>

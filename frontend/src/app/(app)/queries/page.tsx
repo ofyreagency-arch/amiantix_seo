@@ -2,12 +2,21 @@ import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
-import { Card } from "@/components/ui/card";
 import { getDashboard, getOptimizations } from "@/lib/praeviseo-api";
 
 export default async function QueriesCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
+  const freshestSyncAt = dashboard.sites
+    .map((site) => site.gsc_last_sync_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  const freshestDataAsOf = dashboard.sites
+    .map((site) => site.gsc_data_as_of)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
 
   const topQueries = dashboard.sites
     .flatMap((site) => site.summary.top_queries.map((item) => ({ ...item, site_name: site.name })))
@@ -36,6 +45,35 @@ export default async function QueriesCockpitPage() {
         site_name: item.site_name,
       })),
   ].slice(0, 6);
+  const queryRadar = [
+    ...visibleQueries.map((item) => ({
+      title: item.query,
+      subtitle: `${item.site_name} · déjà visible dans Google`,
+      badge: "Priorité visibilité",
+      badgeTone: "success" as const,
+      description: `${item.impressions} impressions, ${item.clicks} clics, position ${item.position.toFixed(1)}.`,
+    })),
+    ...risingQueries.map((item) => ({
+      title: item.query,
+      subtitle: `${item.site_name} · accélération détectée`,
+      badge: `+${item.delta_impressions} impressions`,
+      badgeTone: "success" as const,
+      description: `La requête monte depuis ${item.previous_impressions} impressions avec une position moyenne ${item.position.toFixed(1)}.`,
+    })),
+    ...potentialQueries.slice(0, 3).map((item) => ({
+      title: item.query,
+      subtitle: `${item.site_name} · potentiel éditorial`,
+      badge: "À pousser",
+      badgeTone: "warning" as const,
+      description: `${item.impressions} impressions déjà visibles, position ${item.position.toFixed(1)} et marge de progression claire.`,
+    })),
+  ].slice(0, 6);
+  const queryStory =
+    risingQueries.length > 0
+      ? `${risingQueries.length} requête${risingQueries.length > 1 ? "s" : ""} gagne${risingQueries.length > 1 ? "nt" : ""} déjà du terrain dans Google.`
+      : potentialQueries.length > 0
+        ? `${potentialQueries.length} requête${potentialQueries.length > 1 ? "s" : ""} montre${potentialQueries.length > 1 ? "nt" : ""} un potentiel éditorial à travailler.`
+        : "PraeviSEO surveille déjà les prochaines requêtes qui commenceront à porter votre visibilité.";
 
   return (
     <div className="min-h-screen">
@@ -61,6 +99,12 @@ export default async function QueriesCockpitPage() {
             PraeviSEO montre déjà les requêtes qui portent votre visibilité, celles qui émergent, et celles qui
             méritent une meilleure réponse éditoriale.
           </p>
+          {(freshestSyncAt || freshestDataAsOf) && (
+            <p className="mt-3 text-xs text-text-subtle">
+              {freshestSyncAt ? `Dernière synchro GSC : ${freshestSyncAt}.` : "Synchronisation GSC en attente."}{" "}
+              {freshestDataAsOf ? `Données arrêtées au ${freshestDataAsOf}.` : ""}
+            </p>
+          )}
         </div>
 
         <div id="vue-ensemble" className="scroll-mt-24">
@@ -75,20 +119,61 @@ export default async function QueriesCockpitPage() {
           />
         </div>
 
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <CockpitSignalListCard
+            title="Lecture du moment"
+            description="Les requêtes que PraeviSEO considère déjà comme les plus parlantes pour comprendre votre présence Google."
+            empty={queryRadar.length === 0}
+            emptyMessage="Aucune requête suffisamment lisible pour le moment. PraeviSEO surveille déjà les prochains signaux."
+          >
+            {queryRadar.map((item) => (
+              <CockpitSignalItem
+                key={`${item.subtitle}-${item.title}-${item.badge}`}
+                title={item.title}
+                subtitle={item.subtitle}
+                badge={item.badge}
+                badgeTone={item.badgeTone}
+                description={item.description}
+              />
+            ))}
+          </CockpitSignalListCard>
+
+          <div className="rounded-xl border border-border bg-surface p-5">
+            <p className="text-xs text-text-subtle">Ce que PraeviSEO comprend déjà</p>
+            <p className="mt-3 text-lg font-semibold text-text">{queryStory}</p>
+            <div className="mt-4 space-y-3 text-sm text-text-muted">
+              <p>
+                {visibleQueries.length > 0
+                  ? `${visibleQueries.length} requête${visibleQueries.length > 1 ? "s" : ""} sont déjà visibles en première zone.`
+                  : "La visibilité reste encore légère, mais les premières requêtes à potentiel sont déjà détectées."}
+              </p>
+              <p>
+                {newQueries.length > 0
+                  ? `${newQueries.length} nouvelle${newQueries.length > 1 ? "s" : ""} association${newQueries.length > 1 ? "s" : ""} de Google ouvre${newQueries.length > 1 ? "nt" : ""} de nouvelles pistes.`
+                  : "Le cockpit transformera automatiquement les prochaines nouvelles requêtes en recommandations lisibles."}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div id="meilleures" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
-            title="Meilleures requêtes"
-            description="Les requêtes où votre site est déjà vraiment compris par Google."
-            empty={visibleQueries.length === 0}
-            emptyMessage="Aucune requête déjà bien visible pour le moment. Le cockpit les affichera dès qu’elles montent."
+            title={visibleQueries.length > 0 ? "Meilleures requêtes" : "Requêtes déjà prometteuses"}
+            description={
+              visibleQueries.length > 0
+                ? "Les requêtes où votre site est déjà vraiment compris par Google."
+                : "Même avec peu de volume, PraeviSEO garde ici les requêtes les plus prometteuses à pousser."
+            }
+            empty={queryRadar.length === 0}
+            emptyMessage="Aucune requête déjà lisible pour le moment. Le cockpit les affichera dès qu’elles montent."
           >
-            {visibleQueries.map((item) => (
+            {(visibleQueries.length > 0 ? visibleQueries : potentialQueries.slice(0, 4)).map((item) => (
               <CockpitSignalItem
                 key={`${item.site_name}-${item.query}-visible`}
                 title={item.query}
                 subtitle={item.site_name}
-                badge="Déjà visible"
-                badgeTone="success"
+                badge={visibleQueries.length > 0 ? "Déjà visible" : "À pousser"}
+                badgeTone={visibleQueries.length > 0 ? "success" : "warning"}
                 description={`${item.impressions} impressions, ${item.clicks} clics, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
               />
             ))}
@@ -138,8 +223,8 @@ export default async function QueriesCockpitPage() {
           <CockpitSignalListCard
             id="emergentes"
             className="scroll-mt-24"
-            title="Nouvelles requêtes"
-            description="Les requêtes que Google commence à associer à votre site et qui ouvrent de nouvelles pistes."
+            title="Nouvelles requêtes et signaux émergents"
+            description="Les requêtes que Google commence à associer à votre site et celles qui ouvrent de nouvelles pistes éditoriales."
             empty={emergingQueries.length === 0}
             emptyMessage="Aucune nouvelle requête forte pour le moment. Le cockpit les fera remonter automatiquement."
           >

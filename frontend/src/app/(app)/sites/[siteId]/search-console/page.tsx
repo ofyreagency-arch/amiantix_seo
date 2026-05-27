@@ -82,7 +82,9 @@ export default async function SiteSearchConsolePage({
               <div className="text-[11px] uppercase tracking-[0.18em] text-text-subtle font-semibold">Statut</div>
               <div className="mt-2 text-lg font-black text-text">{formatGscStatus(site.gsc_connection_status)}</div>
               <div className="mt-2 text-xs text-text-subtle">
-                {site.gsc_last_sync_at ? `Dernière synchro : ${site.gsc_last_sync_at}` : "Synchronisation inactive pour le moment."}
+                {site.gsc_last_sync_at
+                  ? `Dernière synchro : ${site.gsc_last_sync_at}${site.gsc_data_as_of ? ` · données arrêtées au ${site.gsc_data_as_of}` : ""}`
+                  : "Synchronisation inactive pour le moment."}
               </div>
             </div>
           </div>
