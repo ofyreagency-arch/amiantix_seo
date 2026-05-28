@@ -1,5 +1,6 @@
 import { Topbar } from "@/components/layout/topbar";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
+import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,6 +140,27 @@ export default async function DashboardPage() {
           healthTrackedSites.reduce((sum, site) => sum + site.summary.observed_site_health_score, 0) / healthTrackedSites.length
         )
       : 0;
+  const assistantNextStep = freePriorityFeed[0];
+  const dashboardAssistantWhat =
+    totalDeltaImpressions > 0
+      ? `Votre visibilité remonte avec ${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) supplémentaires sur la période suivie.`
+      : topOpportunities.length > 0
+        ? `${topOpportunities.length} opportunité${topOpportunities.length > 1 ? "s sont" : " est"} déjà visible${topOpportunities.length > 1 ? "s" : ""} dans Google.`
+        : "PraeviSEO continue de surveiller votre visibilité Google, même quand la période reste calme.";
+  const dashboardAssistantWhy =
+    totalObservedCrawlIssues > 0
+      ? `${new Intl.NumberFormat("fr-FR").format(totalObservedCrawlIssues)} point(s) de structure ou de lecture Google restent à surveiller, ce qui peut freiner votre progression.`
+      : linkedQueryWatchlist.length > 0
+        ? `${linkedQueryWatchlist.length} recherche${linkedQueryWatchlist.length > 1 ? "s sont" : " est"} déjà reliée${linkedQueryWatchlist.length > 1 ? "s" : ""} à une bonne page, ce qui clarifie mieux où agir.`
+        : "Le principal enjeu est maintenant de renforcer les pages et contenus qui ont déjà commencé à bouger dans Google.";
+  const dashboardAssistantNext =
+    assistantNextStep?.description
+      ? `${assistantNextStep.title}. ${assistantNextStep.description}`
+      : "Ouvrez d’abord la priorité en haut du cockpit : c’est là que PraeviSEO voit le meilleur gain concret à court terme.";
+  const dashboardAssistantImpact =
+    averageObservedHealth > 0
+      ? `Votre site présente aujourd’hui une santé SEO observée de ${averageObservedHealth}/100. En traitant les priorités du moment, vous aidez Google à mieux comprendre et mieux faire remonter votre site.`
+      : "Chaque action bien traitée aide PraeviSEO à repérer ensuite plus clairement ce qui progresse réellement dans Google.";
   const healthWatchlist = dashboard.sites
     .filter(
       (site) =>
@@ -544,6 +566,15 @@ export default async function DashboardPage() {
           fenetre de 28 jours. Elles peuvent donc differer d un ecran Search Console regle sur 3 mois ou une autre
           periode.
         </p>
+
+        <CockpitAssistantGuide
+          title="PraeviSEO vous guide, pas a pas"
+          description="Cette vue resume ce qui bouge, pourquoi cela compte et quelle action merite votre attention en premier."
+          whatText={dashboardAssistantWhat}
+          whyText={dashboardAssistantWhy}
+          nextText={dashboardAssistantNext}
+          impactText={dashboardAssistantImpact}
+        />
 
         <div id="opportunites" className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] scroll-mt-24">
           <Card>

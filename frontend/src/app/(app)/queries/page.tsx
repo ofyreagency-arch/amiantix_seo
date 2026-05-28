@@ -1,5 +1,6 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
@@ -132,6 +133,16 @@ export default async function QueriesCockpitPage() {
     linkedQueryItems.length > 0
       ? `${linkedQueryItems.length} recherche${linkedQueryItems.length > 1 ? "s sont" : " est"} déjà reliée${linkedQueryItems.length > 1 ? "s" : ""} à la bonne page de votre site.`
       : "PraeviSEO reliera ici automatiquement les prochaines recherches aux pages déjà vues sur votre site.";
+  const queriesAssistantWhat = queryStory;
+  const queriesAssistantWhy = linkedQueryStory;
+  const leadQuery = queryRadar[0] ?? null;
+  const queriesAssistantNext = leadQuery
+    ? `${leadQuery.title}. ${leadQuery.description}`
+    : "Quand Google ne donne encore que peu de matière, gardez cette vue comme radar et concentrez-vous surtout sur vos pages et opportunités.";
+  const queriesAssistantImpact =
+    lowQueryVolume
+      ? "Dès que Google donnera un signal plus fort, PraeviSEO vous dira quelle recherche devient vraiment intéressante à travailler."
+      : "Quand une recherche devient plus claire, PraeviSEO peut ensuite vous aider à renforcer la bonne page et gagner plus de visibilité.";
 
   return (
     <div className="min-h-screen">
@@ -168,6 +179,15 @@ export default async function QueriesCockpitPage() {
             il est normal que certaines périodes restent calmes avant que Google fasse remonter de nouveaux signaux.
           </p>
         </div>
+
+        <CockpitAssistantGuide
+          title="PraeviSEO vous aide a comprendre si ces recherches comptent vraiment"
+          description="Cette vue sert surtout de radar : elle dit quand une recherche devient utile, pourquoi elle merite votre attention et quand elle peut encore attendre."
+          whatText={queriesAssistantWhat}
+          whyText={queriesAssistantWhy}
+          nextText={queriesAssistantNext}
+          impactText={queriesAssistantImpact}
+        />
 
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid

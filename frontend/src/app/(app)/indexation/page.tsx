@@ -1,5 +1,6 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { getDashboard } from "@/lib/praeviseo-api";
@@ -58,6 +59,26 @@ export default async function IndexationCockpitPage() {
       ? `${totalObservedCrawlIssues} problème(s) technique(s) observé(s) aident aussi PraeviSEO à comprendre ce qui peut freiner vos pages.`
       : "Aucun problème technique fort ne freine la lecture actuelle de l’indexation.",
   ];
+  const firstIndexationAlert = indexationAlerts[0] ?? null;
+  const indexationAssistantWhat =
+    totalNonIndexedPages > 0
+      ? `Google lit deja bien ${totalIndexedPages} page(s), mais ${totalNonIndexedPages} autre(s) restent encore fragiles ou mal confirmees.`
+      : totalIndexedPages > 0
+        ? "Google comprend deja correctement les pages suivies par PraeviSEO sur ce site."
+        : "PraeviSEO attend encore plus de lecture Google pour confirmer clairement quelles pages sont solides.";
+  const indexationAssistantWhy =
+    totalObservedCrawlIssues > 0
+      ? `${totalObservedCrawlIssues} point(s) de structure ou de crawl peuvent encore freiner la lecture de certaines pages.`
+      : pendingSites.length > 0
+        ? `Google n'a pas encore donne une lecture complete sur ${pendingSites.length} site(s), donc certaines pages restent en attente de confirmation.`
+        : "Une page mal lue ou mal reliee peut rester invisible plus longtemps, meme si son contenu est bon.";
+  const indexationAssistantNext = firstIndexationAlert
+    ? `Commencez par verifier ${firstIndexationAlert.label}. PraeviSEO la remonte parce que Google n'a pas encore confirme sa lecture correctement.`
+    : "Commencez par les pages marquees a verifier : ce sont celles qui ont le plus besoin d'etre clarifiees ou mieux reliees.";
+  const indexationAssistantImpact =
+    observedHealthSites.length > 0
+      ? "En clarifiant ces pages, vous aidez Google a mieux lire le site et vous reduisez les zones encore fragiles."
+      : "Une indexation plus nette aide vos bonnes pages a ressortir plus facilement dans Google.";
 
   return (
     <div className="min-h-screen">
@@ -102,6 +123,15 @@ export default async function IndexationCockpitPage() {
             ]}
           />
         </div>
+
+        <CockpitAssistantGuide
+          title="PraeviSEO vous explique ce que Google lit vraiment"
+          description="Cette vue traduit l'indexation en langage simple : ce qui est deja bien lu, ce qui reste fragile et quoi verifier d'abord."
+          whatText={indexationAssistantWhat}
+          whyText={indexationAssistantWhy}
+          nextText={indexationAssistantNext}
+          impactText={indexationAssistantImpact}
+        />
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-xl border border-border bg-surface p-5">

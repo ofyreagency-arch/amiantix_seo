@@ -1,5 +1,6 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import {
@@ -184,7 +185,6 @@ export default async function ActivityCockpitPage() {
       ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} piste(s) contenu complètent déjà la simple lecture GSC.`
       : "Le bloc contenu s’enrichira dès que le moteur observera plus de matière sur les pages suivies.",
   ];
-
   const timelineFeed = [
     ...dashboard.sites
       .filter((site) => site.gsc_last_sync_at)
@@ -335,6 +335,24 @@ export default async function ActivityCockpitPage() {
     ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
     ...site.summary.top_falling_pages.map((item) => ({ ...item, site_name: site.name, trend: "down" as const })),
   ]).slice(0, 8);
+  const assistantAction = actionPlanFeed[0];
+  const activityAssistantWhat =
+    timelineFeed.length > 0
+      ? `${timelineFeed.length} signal(s) recent(s) montrent deja ce qui a bouge dans Google ou dans vos pages suivies.`
+      : "PraeviSEO continue de surveiller les prochains mouvements utiles.";
+  const activityAssistantWhy =
+    alertFeed.length > 0
+      ? `${alertFeed.length} alerte(s) restent actives, ce qui aide a reperer rapidement ce qui demande une verification.`
+      : queryMovementFeed.length > 0
+        ? "Certaines recherches ou pages commencent a bouger, ce qui confirme mieux les prochaines priorites."
+        : "Meme une periode calme reste utile : elle confirme qu'aucun signal fort ne s'est degrade brutalement.";
+  const activityAssistantNext =
+    assistantAction
+      ? `${assistantAction.title}. ${assistantAction.description}`
+      : "Commencez par la premiere action du plan d'action : c'est la recommandation la plus concrete a ouvrir maintenant.";
+  const activityAssistantImpact =
+    progressFeed[0] ??
+    "PraeviSEO continuera a mesurer ce qui progresse, ce qui ralentit et quand une nouvelle action devient rentable.";
 
   return (
     <div className="min-h-screen">
@@ -373,6 +391,15 @@ export default async function ActivityCockpitPage() {
             calme ne signifie pas une panne : elle reflète simplement peu de mouvements détectables par Google.
           </p>
         </div>
+
+        <CockpitAssistantGuide
+          title="PraeviSEO vous aide a lire ce qui bouge vraiment"
+          description="Cette vue sert a separer le bruit du vrai signal : ce qui a change, ce qui merite une verification et ce qu'il faut ouvrir ensuite."
+          whatText={activityAssistantWhat}
+          whyText={activityAssistantWhy}
+          nextText={activityAssistantNext}
+          impactText={activityAssistantImpact}
+        />
 
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid

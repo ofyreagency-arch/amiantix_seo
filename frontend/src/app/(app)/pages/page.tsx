@@ -1,5 +1,6 @@
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
+import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
@@ -281,6 +282,22 @@ export default async function PagesCockpitPage() {
               : ""),
         }
       : null;
+  const pagesAssistantWhat = leadPageSummary
+    ? `${leadPageSummary.title} est la page la plus utile a ouvrir maintenant, car elle montre deja un signal concret dans Google.`
+    : risingPages.length > 0
+      ? `${risingPages.length} page${risingPages.length > 1 ? "s progressent" : " progresse"} deja dans Google.`
+      : `${pagesToWatch.length} page${pagesToWatch.length > 1 ? "s restent" : " reste"} a surveiller meme si la periode reste calme.`;
+  const pagesAssistantWhy = leadStructuralPage
+    ? `${leadStructuralPage.title} montre aussi un levier structurel : maillage, page trop isolee ou page pilier a renforcer.`
+    : observedWeakTotal > 0
+      ? `${observedWeakTotal} page(s) meritent encore un refresh ou une consolidation, ce qui peut freiner votre progression.`
+      : "Le principal enjeu est de renforcer les pages qui commencent deja a remonter dans Google.";
+  const pagesAssistantNext = leadPageSummary
+    ? `Commencez par ${leadPageSummary.title}. ${leadPageSummary.whyNow}`
+    : "Commencez par la premiere page de la section Pages a surveiller : PraeviSEO y voit le prochain gain le plus clair.";
+  const pagesAssistantImpact = leadStructuralPage
+    ? `En traitant cette page, vous pouvez renforcer plus vite la structure du site : ${leadStructuralPage.description.toLowerCase()}`
+    : "Une page mieux reliee, mieux enrichie ou mieux clarifiee aide Google a comprendre plus vite l'ensemble du site.";
 
   return (
     <div className="min-h-screen">
@@ -353,6 +370,15 @@ export default async function PagesCockpitPage() {
             </p>
           </div>
         </div>
+
+        <CockpitAssistantGuide
+          title="PraeviSEO vous explique quoi faire sur vos pages"
+          description="Cette vue ne montre pas seulement des pages : elle vous aide a comprendre ou agir d abord et ce que cela debloque."
+          whatText={pagesAssistantWhat}
+          whyText={pagesAssistantWhy}
+          nextText={pagesAssistantNext}
+          impactText={pagesAssistantImpact}
+        />
 
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid
