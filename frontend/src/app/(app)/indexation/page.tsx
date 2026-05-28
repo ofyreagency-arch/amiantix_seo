@@ -39,20 +39,20 @@ export default async function IndexationCockpitPage() {
     .slice(0, 8);
   const indexationNarrative =
     totalNonIndexedPages > 0
-      ? `PraeviSEO voit déjà ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} confirmée${totalIndexedPages > 1 ? "s" : ""} dans sa lecture Google, mais ${totalNonIndexedPages} reste${totalNonIndexedPages > 1 ? "nt" : ""} encore à surveiller ou à clarifier.`
-      : `PraeviSEO voit déjà ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} confirmée${totalIndexedPages > 1 ? "s" : ""} dans sa lecture Google, sans blocage fort pour le moment.`;
+      ? `PraeviSEO voit déjà ${totalIndexedPages} page${totalIndexedPages > 1 ? "s" : ""} bien lue${totalIndexedPages > 1 ? "s" : ""} par Google, mais ${totalNonIndexedPages} autre${totalNonIndexedPages > 1 ? "s" : ""} demande${totalNonIndexedPages > 1 ? "nt" : ""} encore une vérification ou un renfort.`
+      : `PraeviSEO voit déjà ${totalIndexedPages} page${totalIndexedPages > 1 ? "s" : ""} bien lue${totalIndexedPages > 1 ? "s" : ""} par Google, sans blocage fort pour le moment.`;
   const mostExposedSite = [...syncedSites].sort(
     (a, b) => b.summary.gsc_non_indexed_pages - a.summary.gsc_non_indexed_pages
   )[0];
   const indexationHighlights = [
     totalIndexedPages > 0
-      ? `PraeviSEO a déjà une base utile : ${totalIndexedPages} URL${totalIndexedPages > 1 ? "s" : ""} confirmée${totalIndexedPages > 1 ? "s" : ""} dans sa lecture Google.`
-      : "PraeviSEO attend encore la première base d’URLs clairement confirmées.",
+      ? `PraeviSEO a déjà une base utile : ${totalIndexedPages} page${totalIndexedPages > 1 ? "s" : ""} déjà bien lue${totalIndexedPages > 1 ? "s" : ""} par Google.`
+      : "PraeviSEO attend encore les premières pages clairement lues par Google.",
     totalNonIndexedPages > 0
-      ? `${totalNonIndexedPages} URL${totalNonIndexedPages > 1 ? "s" : ""} reste${totalNonIndexedPages > 1 ? "nt" : ""} à surveiller côté indexation.`
-      : "Aucune URL non indexée forte n’apparaît dans la dernière lecture.",
+      ? `${totalNonIndexedPages} page${totalNonIndexedPages > 1 ? "s" : ""} demande${totalNonIndexedPages > 1 ? "nt" : ""} encore une vérification côté Google.`
+      : "Aucune page fragile forte n’apparaît dans la dernière lecture.",
     mostExposedSite
-      ? `${mostExposedSite.name} concentre ${mostExposedSite.summary.gsc_non_indexed_pages} URL${mostExposedSite.summary.gsc_non_indexed_pages > 1 ? "s" : ""} encore à surveiller.`
+      ? `${mostExposedSite.name} concentre ${mostExposedSite.summary.gsc_non_indexed_pages} page${mostExposedSite.summary.gsc_non_indexed_pages > 1 ? "s" : ""} encore fragile${mostExposedSite.summary.gsc_non_indexed_pages > 1 ? "s" : ""}.`
       : "Le cockpit ne détecte pas encore de site particulièrement exposé.",
     totalObservedCrawlIssues > 0
       ? `${totalObservedCrawlIssues} issue(s) crawl observée(s) complètent aussi la lecture d’indexation de PraeviSEO.`
@@ -63,7 +63,7 @@ export default async function IndexationCockpitPage() {
     <div className="min-h-screen">
       <Topbar
         title="Indexation"
-        subtitle="La lecture Google des URLs suivies par PraeviSEO : confirmées, à surveiller, ou encore en attente de lecture exploitable."
+        subtitle="La lecture Google des pages suivies par PraeviSEO : bien lues, à vérifier, ou encore en attente de lecture exploitable."
       />
 
       <div className="p-6 space-y-6">
@@ -80,8 +80,8 @@ export default async function IndexationCockpitPage() {
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
           <h1 className="text-2xl font-bold tracking-tight text-text">Votre lecture Google des URLs relues par PraeviSEO</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            PraeviSEO rassemble déjà les URLs qu’il suit et inspecte dans Google Search Console pour montrer celles que
-            Google confirme, celles qui restent à surveiller, et les sites encore en attente de lecture exploitable.
+            PraeviSEO rassemble déjà les pages qu’il suit dans Google Search Console pour montrer celles que Google
+            comprend déjà bien, celles qui demandent encore une vérification, et les sites encore en attente de lecture exploitable.
           </p>
           {(freshestSyncAt || freshestDataAsOf) && (
             <p className="mt-3 text-xs text-text-subtle">
@@ -94,8 +94,8 @@ export default async function IndexationCockpitPage() {
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid
             items={[
-              { label: "URLs relues comme confirmées", value: totalIndexedPages, tone: "success" },
-              { label: "URLs encore à surveiller", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
+              { label: "Pages déjà bien lues", value: totalIndexedPages, tone: "success" },
+              { label: "Pages encore à vérifier", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
               { label: "Sites reliés à Google", value: connectedSites.length },
               { label: "Alertes d’indexation", value: indexationAlerts.length + pendingSites.length, tone: indexationAlerts.length + pendingSites.length > 0 ? "warning" : "secondary" },
               { label: "Issues crawl observées", value: totalObservedCrawlIssues, tone: totalObservedCrawlIssues > 0 ? "warning" : "secondary" },
@@ -126,7 +126,7 @@ export default async function IndexationCockpitPage() {
                   key: `${item.site_name}-${item.slug}-priority`,
                   title: item.label,
                   subtitle: item.site_name,
-                  badge: "À clarifier",
+                  badge: "À vérifier maintenant",
                   badgeTone: "warning" as const,
                   description: item.detail,
                 }))
@@ -153,7 +153,7 @@ export default async function IndexationCockpitPage() {
         <div id="indexees" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title={`${indexationScopeLabel} par site`}
-            description="La lecture actuelle des URLs que PraeviSEO relit déjà dans Google et que le cockpit confirme ou garde à surveiller."
+            description="La lecture actuelle des pages que PraeviSEO relit déjà dans Google et qu’il considère déjà comme bien lues ou encore fragiles."
             empty={syncedSites.length === 0}
             emptyMessage="Aucune indexation synchronisée pour le moment. Reliez d’abord Google pour ouvrir ce cockpit."
           >
@@ -162,7 +162,7 @@ export default async function IndexationCockpitPage() {
                 key={site.site_id}
                 title={site.name}
                 subtitle={site.gsc_property_url ?? site.site_id}
-                badge={`${site.summary.gsc_indexed_pages} confirmées / ${site.summary.gsc_non_indexed_pages} à surveiller`}
+                badge={`${site.summary.gsc_indexed_pages} bien lues / ${site.summary.gsc_non_indexed_pages} à vérifier`}
                 badgeTone="success"
                 description={`Dernière synchro GSC : ${site.gsc_last_sync_at ? formatDate(site.gsc_last_sync_at) : "récemment"}${site.gsc_data_as_of ? ` · données arrêtées au ${formatDate(site.gsc_data_as_of)}` : ""}.`}
               />
@@ -173,7 +173,7 @@ export default async function IndexationCockpitPage() {
             id="alertes"
             className="scroll-mt-24"
             title="Alertes simples"
-            description="Les sites où l’indexation reste à surveiller ou à finaliser côté lecture Google."
+            description="Les sites où certaines pages demandent encore une vérification ou un renfort côté Google."
             empty={indexationAlerts.length + pendingSites.length === 0}
             emptyMessage="Aucune alerte simple d’indexation pour le moment. Le cockpit reste déjà à jour."
           >
@@ -182,7 +182,7 @@ export default async function IndexationCockpitPage() {
                 key={`${item.site_name}-${item.slug}-alert`}
                 title={item.label}
                 subtitle={item.site_name}
-                badge="Google surveille"
+                badge="À vérifier avec Google"
                 badgeTone="warning"
                 description={item.detail}
               />
@@ -192,7 +192,7 @@ export default async function IndexationCockpitPage() {
                 key={site.site_id}
                 title={site.name}
                 subtitle={site.gsc_property_url ?? site.site_id}
-                badge="À surveiller"
+                badge="À vérifier"
                 badgeTone="warning"
                 description="PraeviSEO attend encore une lecture d’indexation exploitable sur ce site."
               />
@@ -238,7 +238,7 @@ export default async function IndexationCockpitPage() {
                   key={`${siteName}-${item.slug}-fragile`}
                   title={item.label}
                   subtitle={siteName}
-                  badge="À relier"
+                badge="À mieux relier"
                   badgeTone="warning"
                   description={`Page peu reliée ou fragile : autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`}
                 />

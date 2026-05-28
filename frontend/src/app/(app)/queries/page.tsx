@@ -111,7 +111,7 @@ export default async function QueriesCockpitPage() {
           ? `${item.site_name} · potentiel déjà lié à ${linkedPublication.title}`
           : `${item.site_name} · potentiel éditorial`;
       })(),
-      badge: "À pousser",
+      badge: "À renforcer",
       badgeTone: "warning" as const,
       description: `${item.impressions} impressions déjà visibles, position ${item.position.toFixed(1)} et marge de progression claire.`,
     })),
@@ -231,7 +231,7 @@ export default async function QueriesCockpitPage() {
                 key={`${item.site_name}-${item.query}-visible`}
                 title={item.query}
                 subtitle={item.site_name}
-                badge={visibleQueries.length > 0 ? "Déjà visible" : "À pousser"}
+                badge={visibleQueries.length > 0 ? "Déjà bien visible" : "À renforcer"}
                 badgeTone={visibleQueries.length > 0 ? "success" : "warning"}
                 description={`${item.impressions} impressions, ${item.clicks} clics, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
               />
@@ -296,7 +296,7 @@ export default async function QueriesCockpitPage() {
                   key={`${item.site_id}-${item.query}-linked-potential`}
                   title={item.query}
                   subtitle={`${item.site_name} · page cible ${linkedPublication?.title ?? "observée"}`}
-                  badge="À pousser"
+                  badge="Bonne page déjà trouvée"
                   badgeTone="warning"
                   description={`${item.impressions} impressions, position ${item.position.toFixed(1)}. PraeviSEO peut déjà lier cette requête à ${linkedPublication?.slug || "/"}.`}
                 />
@@ -308,7 +308,7 @@ export default async function QueriesCockpitPage() {
           <CockpitSignalListCard
             id="potentiel"
             title="Requêtes à potentiel"
-            description="Celles qui peuvent devenir un vrai levier SEO si on pousse la bonne page."
+            description="Celles qui peuvent devenir un vrai levier de visibilité si on renforce la bonne page."
             empty={potentialQueries.length === 0}
             emptyMessage="Aucune requête chaude à pousser pour le moment. PraeviSEO surveille déjà les prochains signaux."
           >
@@ -323,7 +323,7 @@ export default async function QueriesCockpitPage() {
                     ? `${item.site_name} · page observée ${linkedPublication.title}`
                     : item.site_name;
                 })()}
-                badge="À pousser"
+                badge="À renforcer"
                 badgeTone="warning"
                 description={(() => {
                   const linkedPublication = findLinkedPublication(item.query, item.site_id);

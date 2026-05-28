@@ -109,7 +109,7 @@ export default async function DashboardPage() {
       title: localizeRecommendationTitle(item.title),
       description: localizeRecommendationText(item.suggested_action ?? item.reasoning),
       tone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
-      badge: item.priority <= 30 ? "Action prioritaire" : "Plan moteur",
+      badge: item.priority <= 30 ? "À faire en premier" : "Action recommandée",
       siteLabel: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
     })),
     ...topOpportunities.map((item) => ({
@@ -320,10 +320,10 @@ export default async function DashboardPage() {
       ? `${optimizations.gsc_opportunities.summary.sustained_drop} page(s) perdent de la visibilite`
       : null,
     indexationAlerts.length > 0
-      ? `${indexationAlerts.length} alerte(s) d indexation restent a surveiller`
+      ? `${indexationAlerts.length} page(s) demandent encore une vérification côté Google`
       : null,
     totalObservedCrawlIssues > 0
-      ? `${totalObservedCrawlIssues} issue(s) crawl observée(s) restent à surveiller`
+      ? `${totalObservedCrawlIssues} problème(s) techniques observés demandent encore une vérification`
       : null,
   ].filter((item): item is string => item !== null);
   const cockpitMoments = [
@@ -352,7 +352,7 @@ export default async function DashboardPage() {
       tone: risingSitesCount > 0 ? "success" : "secondary",
     },
     {
-      label: "Alertes à surveiller",
+      label: "Points à vérifier",
       value: activeAlerts + slippingSitesCount,
       detail: "CTR faible, baisse durable ou recul d’impressions",
       tone: activeAlerts + slippingSitesCount > 0 ? "warning" : "secondary",
@@ -513,7 +513,7 @@ export default async function DashboardPage() {
               value: indexedPagesValue,
               icon: CheckCircle2,
               hint: dashboard.totals.indexedPagesSynced
-                ? "urls suivies que PraeviSEO a déjà vues confirmées dans Google"
+                ? "pages déjà bien relues par PraeviSEO dans Google"
                 : "lecture des urls Google encore en attente dans PraeviSEO",
             },
             {
@@ -557,7 +557,7 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Alertes simples</CardTitle>
-              <CardDescription>CTR faible ou visibilité qui glisse : les signaux à surveiller vite.</CardDescription>
+              <CardDescription>Les points qui méritent une vérification rapide pour éviter de perdre en visibilité.</CardDescription>
             </CardHeader>
             <CardContent className="text-3xl font-black text-text">{activeAlerts}</CardContent>
           </Card>
@@ -622,7 +622,7 @@ export default async function DashboardPage() {
                       </span>
                       <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
                       <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
-                      <span>{site.summary.gsc_non_indexed_pages} URL(s) à surveiller</span>
+                      <span>{site.summary.gsc_non_indexed_pages} page(s) à vérifier</span>
                       <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
                       <span>
                         {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
@@ -656,7 +656,7 @@ export default async function DashboardPage() {
             <CardContent className="space-y-4">
               {freePriorityFeed.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun blocage fort en ce moment. PraeviSEO continue de surveiller les signaux GSC utiles.
+                  Aucun point bloquant fort en ce moment. PraeviSEO continue de vérifier les prochains signaux utiles.
                 </div>
               ) : (
                 freePriorityFeed.map((item) => (
@@ -752,7 +752,7 @@ export default async function DashboardPage() {
                         </p>
                       </div>
                       <Badge variant={linkedPublication ? "secondary" : item.position <= 10 ? "warning" : "success"}>
-                        {linkedPublication ? "Page liée" : item.position <= 10 ? "Déjà visible" : "À pousser"}
+                        {linkedPublication ? "Bonne page déjà trouvée" : item.position <= 10 ? "Déjà bien visible" : "À renforcer"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
@@ -781,7 +781,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Indexation</CardTitle>
               <CardDescription>
-                Les URLs que PraeviSEO suit déjà dans Google et les sites où l’indexation reste à surveiller.
+                Les pages que PraeviSEO voit déjà dans Google et celles qui demandent encore une vérification.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -798,7 +798,7 @@ export default async function DashboardPage() {
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
                       <Badge variant="warning">
-                        Google surveille
+                        À vérifier avec Google
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.detail}</p>
@@ -939,7 +939,7 @@ export default async function DashboardPage() {
         <div id="activite" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <Card>
             <CardHeader>
-              <CardTitle>Signaux GSC à surveiller</CardTitle>
+              <CardTitle>Signaux GSC à vérifier</CardTitle>
               <CardDescription>
                 Les mouvements utiles déjà détectés par PraeviSEO à partir des données Google les plus récentes.
               </CardDescription>
@@ -947,7 +947,7 @@ export default async function DashboardPage() {
             <CardContent className="space-y-3">
               {insightSignals.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun signal fort à surveiller pour le moment. Le cockpit continue de lire Google au fil des prochains imports.
+                  Aucun signal fort à vérifier pour le moment. Le cockpit continue de relire Google au fil des prochains imports.
                 </div>
               ) : (
                 insightSignals.map((item) => (
@@ -977,7 +977,7 @@ export default async function DashboardPage() {
                     key: `action-${item.id}`,
                     title: item.title,
                     subtitle: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
-                    badge: item.priority <= 30 ? "À traiter d’abord" : "Plan moteur",
+                    badge: item.priority <= 30 ? "À faire en premier" : "Action recommandée",
                     badgeVariant: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
                     description: item.suggested_action ?? item.reasoning,
                   })),

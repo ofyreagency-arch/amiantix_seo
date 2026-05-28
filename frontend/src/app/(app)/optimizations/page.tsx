@@ -50,6 +50,27 @@ function difficultyLabel(difficulty: string): string {
   );
 }
 
+function opportunityPriorityLabel(priorityLabel: string): string {
+  return (
+    {
+      "Priorité haute": "À faire en premier",
+      "A surveiller": "À garder à l'oeil",
+      "À surveiller": "À garder à l'oeil",
+      "Gain rapide": "Gain rapide possible",
+    }[priorityLabel] ?? priorityLabel
+  );
+}
+
+function opportunityStateLabel(stateLabel: string): string {
+  return (
+    {
+      "Actionnable maintenant": "Prête à être traitée",
+      "Suggestion deja en attente": "Déjà prévue dans le plan",
+      "Suggestion déjà en attente": "Déjà prévue dans le plan",
+    }[stateLabel] ?? stateLabel
+  );
+}
+
 export default async function OptimizationsPage() {
   const optimizations = await getOptimizations();
   const opportunities = optimizations.gsc_opportunities.items;
@@ -242,10 +263,10 @@ export default async function OptimizationsPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant={leadOpportunity.priority_level === "high" ? "warning" : "secondary"}>
-                        {leadOpportunity.priority_label}
+                        {opportunityPriorityLabel(leadOpportunity.priority_label)}
                       </Badge>
                       <Badge variant={leadOpportunity.action_state === "ready" ? "success" : "secondary"}>
-                        {leadOpportunity.action_state_label}
+                        {opportunityStateLabel(leadOpportunity.action_state_label)}
                       </Badge>
                     </div>
                   </div>
@@ -327,7 +348,7 @@ export default async function OptimizationsPage() {
                         <p className="text-sm font-semibold text-text">{item.label}</p>
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{item.priority_label}</Badge>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{opportunityPriorityLabel(item.priority_label)}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
                     <p className="mt-2 text-sm text-text">
@@ -395,7 +416,7 @@ export default async function OptimizationsPage() {
                         <p className="text-sm font-semibold text-text">{item.query}</p>
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{item.priority_label}</Badge>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{opportunityPriorityLabel(item.priority_label)}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
                     <p className="mt-2 text-sm text-text">
@@ -510,12 +531,12 @@ export default async function OptimizationsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={item.priority_level === "high" ? "warning" : item.priority_level === "medium" ? "brand-subtle" : "secondary"}>
-                        {item.priority_label}
+                        {opportunityPriorityLabel(item.priority_label)}
                       </Badge>
                       <Badge variant={item.action_state === "ready" ? "success" : item.action_state === "pending" ? "warning" : "secondary"}>
-                        {item.action_state_label}
+                        {opportunityStateLabel(item.action_state_label)}
                       </Badge>
-                      {item.pending_suggestion ? <Badge variant="secondary">Suggestion deja ouverte</Badge> : null}
+                      {item.pending_suggestion ? <Badge variant="secondary">Déjà prévue</Badge> : null}
                       <Badge variant="secondary">{opportunityTypeLabel(item.type)}</Badge>
                     </div>
                   </div>

@@ -371,7 +371,7 @@ export default async function PublicationsPage() {
               key={`recommendation-${item.id}`}
               title={item.title}
               subtitle={`${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`}
-              badge={item.priority <= 30 ? "Action prioritaire" : "Reco moteur"}
+              badge={item.priority <= 30 ? "À faire en premier" : "Action recommandée"}
               badgeTone={item.priority <= 30 ? "warning" : "secondary"}
               description={item.suggested_action ?? item.reasoning}
             />
