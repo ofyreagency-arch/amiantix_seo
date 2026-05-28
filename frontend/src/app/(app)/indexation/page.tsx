@@ -55,15 +55,15 @@ export default async function IndexationCockpitPage() {
       ? `${mostExposedSite.name} concentre ${mostExposedSite.summary.gsc_non_indexed_pages} page${mostExposedSite.summary.gsc_non_indexed_pages > 1 ? "s" : ""} encore fragile${mostExposedSite.summary.gsc_non_indexed_pages > 1 ? "s" : ""}.`
       : "Le cockpit ne détecte pas encore de site particulièrement exposé.",
     totalObservedCrawlIssues > 0
-      ? `${totalObservedCrawlIssues} issue(s) crawl observée(s) complètent aussi la lecture d’indexation de PraeviSEO.`
-      : "Aucune issue crawl forte n’alourdit la lecture actuelle de l’indexation.",
+      ? `${totalObservedCrawlIssues} problème(s) technique(s) observé(s) aident aussi PraeviSEO à comprendre ce qui peut freiner vos pages.`
+      : "Aucun problème technique fort ne freine la lecture actuelle de l’indexation.",
   ];
 
   return (
     <div className="min-h-screen">
       <Topbar
         title="Indexation"
-        subtitle="La lecture Google des pages suivies par PraeviSEO : bien lues, à vérifier, ou encore en attente de lecture exploitable."
+        subtitle="Ce que Google lit déjà bien sur votre site, ce qui reste fragile, et ce qui demande encore une vérification."
       />
 
       <div className="p-6 space-y-6">
@@ -78,10 +78,10 @@ export default async function IndexationCockpitPage() {
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Votre lecture Google des URLs relues par PraeviSEO</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Ce que Google lit déjà bien sur votre site</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
             PraeviSEO rassemble déjà les pages qu’il suit dans Google Search Console pour montrer celles que Google
-            comprend déjà bien, celles qui demandent encore une vérification, et les sites encore en attente de lecture exploitable.
+            comprend déjà bien, celles qui demandent encore un renfort, et les sites encore en attente de lecture exploitable.
           </p>
           {(freshestSyncAt || freshestDataAsOf) && (
             <p className="mt-3 text-xs text-text-subtle">
@@ -105,7 +105,7 @@ export default async function IndexationCockpitPage() {
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-xl border border-border bg-surface p-5">
-            <p className="text-xs text-text-subtle">Lecture du moment</p>
+            <p className="text-xs text-text-subtle">Ce que cela veut dire</p>
             <p className="mt-3 text-lg font-semibold text-text">{indexationNarrative}</p>
             <p className="mt-2 text-sm text-text-muted">{indexationScopeHint}</p>
             <div className="mt-4 space-y-3 text-sm text-text-muted">
@@ -153,7 +153,7 @@ export default async function IndexationCockpitPage() {
         <div id="indexees" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title={`${indexationScopeLabel} par site`}
-            description="La lecture actuelle des pages que PraeviSEO relit déjà dans Google et qu’il considère déjà comme bien lues ou encore fragiles."
+            description="Les pages que PraeviSEO voit déjà bien comprises par Google et celles qui restent encore fragiles."
             empty={syncedSites.length === 0}
             emptyMessage="Aucune indexation synchronisée pour le moment. Reliez d’abord Google pour ouvrir ce cockpit."
           >
@@ -173,7 +173,7 @@ export default async function IndexationCockpitPage() {
             id="alertes"
             className="scroll-mt-24"
             title="Alertes simples"
-            description="Les sites où certaines pages demandent encore une vérification ou un renfort côté Google."
+            description="Les pages où PraeviSEO recommande encore une vérification ou un renfort avant de les considérer comme bien lues."
             empty={indexationAlerts.length + pendingSites.length === 0}
             emptyMessage="Aucune alerte simple d’indexation pour le moment. Le cockpit reste déjà à jour."
           >
@@ -194,7 +194,7 @@ export default async function IndexationCockpitPage() {
                 subtitle={site.gsc_property_url ?? site.site_id}
                 badge="À vérifier"
                 badgeTone="warning"
-                description="PraeviSEO attend encore une lecture d’indexation exploitable sur ce site."
+                description="PraeviSEO attend encore une lecture d’indexation assez claire sur ce site."
               />
             ))}
           </CockpitSignalListCard>
@@ -203,7 +203,7 @@ export default async function IndexationCockpitPage() {
         <div id="sante" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title="Santé site liée à l’indexation"
-            description="Les signaux structurels que PraeviSEO relie déjà à la lecture Google : pages faibles, orphelines et issues crawl."
+            description="Les points structurels que PraeviSEO relie déjà à vos difficultés de lecture Google : pages faibles, isolées ou techniquement fragiles."
             empty={observedHealthSites.length === 0}
             emptyMessage="Aucune faiblesse structurelle forte observée pour le moment autour de l’indexation."
           >
@@ -221,7 +221,7 @@ export default async function IndexationCockpitPage() {
 
           <CockpitSignalListCard
             title="URLs structurellement fragiles"
-            description="Les URLs que PraeviSEO surveille aussi côté structure avant même qu’elles deviennent un vrai problème Google."
+            description="Les pages que PraeviSEO voit déjà comme fragiles avant même qu’elles deviennent un vrai problème dans Google."
             empty={connectedSites.flatMap((site) => site.summary.observed_orphan_alerts).length === 0}
             emptyMessage="Aucune URL structurellement fragile à remonter pour le moment."
           >

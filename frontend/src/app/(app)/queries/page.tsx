@@ -121,7 +121,7 @@ export default async function QueriesCockpitPage() {
       ? `${risingQueries.length} requête${risingQueries.length > 1 ? "s" : ""} gagne${risingQueries.length > 1 ? "nt" : ""} déjà du terrain dans Google.`
       : potentialQueries.length > 0
         ? `${potentialQueries.length} requête${potentialQueries.length > 1 ? "s" : ""} montre${potentialQueries.length > 1 ? "nt" : ""} un potentiel éditorial à travailler.`
-        : "PraeviSEO surveille déjà les prochaines requêtes qui commenceront à porter votre visibilité.";
+        : "PraeviSEO attend déjà les prochaines recherches Google qui commenceront à apporter de la visibilité.";
   const linkedQueryStory =
     linkedQueryItems.length > 0
       ? `${linkedQueryItems.length} requête${linkedQueryItems.length > 1 ? "s" : ""} sont déjà reliée${linkedQueryItems.length > 1 ? "s" : ""} à une page observée par PraeviSEO.`
@@ -147,7 +147,7 @@ export default async function QueriesCockpitPage() {
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">La lecture Search Console intelligente de vos requêtes</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Ce que Google comprend déjà de votre site</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
             PraeviSEO montre déjà les requêtes qui portent votre visibilité, celles qui émergent, et celles qui
             méritent une meilleure réponse éditoriale.
@@ -159,7 +159,7 @@ export default async function QueriesCockpitPage() {
             </p>
           )}
           <p className="mt-3 max-w-3xl text-xs leading-6 text-text-subtle">
-            Cette vue raconte une lecture GSC sur une fenêtre récente de 28 jours. Sur un site à faible volume,
+            Cette vue résume une lecture GSC sur une fenêtre récente de 28 jours. Sur un site à faible volume,
             il est normal que certaines périodes restent calmes avant que Google fasse remonter de nouveaux signaux.
           </p>
         </div>
@@ -179,10 +179,10 @@ export default async function QueriesCockpitPage() {
 
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <CockpitSignalListCard
-            title="Lecture du moment"
-            description="Les requêtes que PraeviSEO considère déjà comme les plus parlantes pour comprendre votre présence Google."
+            title="Ce que PraeviSEO repère déjà"
+            description="Les recherches Google les plus utiles à comprendre ou à renforcer maintenant."
             empty={queryRadar.length === 0}
-            emptyMessage="Aucune requête suffisamment lisible pour le moment. PraeviSEO surveille déjà les prochains signaux."
+            emptyMessage="Aucune recherche encore assez lisible pour le moment. PraeviSEO attend déjà les prochains signaux utiles."
           >
             {queryRadar.map((item) => (
               <CockpitSignalItem
@@ -197,7 +197,7 @@ export default async function QueriesCockpitPage() {
           </CockpitSignalListCard>
 
           <div className="rounded-xl border border-border bg-surface p-5">
-            <p className="text-xs text-text-subtle">Ce que PraeviSEO comprend déjà</p>
+            <p className="text-xs text-text-subtle">Ce que cela veut dire</p>
             <p className="mt-3 text-lg font-semibold text-text">{queryStory}</p>
             <div className="mt-4 space-y-3 text-sm text-text-muted">
               <p>
@@ -207,8 +207,8 @@ export default async function QueriesCockpitPage() {
               </p>
               <p>
                 {newQueries.length > 0
-                  ? `${newQueries.length} nouvelle${newQueries.length > 1 ? "s" : ""} association${newQueries.length > 1 ? "s" : ""} de Google ouvre${newQueries.length > 1 ? "nt" : ""} de nouvelles pistes.`
-                  : "Le cockpit transformera automatiquement les prochaines nouvelles requêtes en recommandations lisibles."}
+                  ? `${newQueries.length} nouvelle${newQueries.length > 1 ? "s" : ""} association${newQueries.length > 1 ? "s" : ""} de Google ouvre${newQueries.length > 1 ? "nt" : ""} de nouvelles pistes à travailler.`
+                  : "Le cockpit transformera automatiquement les prochaines nouvelles recherches en recommandations lisibles."}
               </p>
               <p>{linkedQueryStory}</p>
             </div>
@@ -220,8 +220,8 @@ export default async function QueriesCockpitPage() {
             title={visibleQueries.length > 0 ? "Meilleures requêtes" : "Requêtes déjà prometteuses"}
             description={
               visibleQueries.length > 0
-                ? "Les requêtes où votre site est déjà vraiment compris par Google."
-                : "Même avec peu de volume, PraeviSEO garde ici les requêtes les plus prometteuses à pousser."
+                ? "Les recherches où votre site est déjà vraiment compris par Google."
+                : "Même avec peu de volume, PraeviSEO garde ici les recherches les plus prometteuses à renforcer."
             }
             empty={queryRadar.length === 0}
             emptyMessage="Aucune requête encore assez forte pour occuper la première zone. Le cockpit les affichera dès qu’elles gagneront vraiment du terrain."
@@ -308,9 +308,9 @@ export default async function QueriesCockpitPage() {
           <CockpitSignalListCard
             id="potentiel"
             title="Requêtes à potentiel"
-            description="Celles qui peuvent devenir un vrai levier de visibilité si on renforce la bonne page."
+            description="Celles qui peuvent devenir un vrai levier de visibilité si on améliore la bonne page."
             empty={potentialQueries.length === 0}
-            emptyMessage="Aucune requête chaude à pousser pour le moment. PraeviSEO surveille déjà les prochains signaux."
+            emptyMessage="Aucune recherche chaude à renforcer pour le moment. PraeviSEO attend déjà les prochains signaux utiles."
           >
             {potentialQueries.map((item) => (
               <CockpitSignalItem

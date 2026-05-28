@@ -186,7 +186,7 @@ export default async function ActivityCockpitPage() {
       ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) sur la dernière période suivie.`
       : totalDeltaImpressions < 0
         ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impression(s) sur la dernière période suivie.`
-        : "Le volume d’impressions reste stable sur la dernière lecture GSC.",
+        : "La visibilité reste stable sur la dernière lecture GSC.",
     totalDeltaClicks > 0
       ? `Les clics progressent aussi avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaClicks)} clic(s) sur la période.`
       : totalDeltaClicks < 0
@@ -199,8 +199,8 @@ export default async function ActivityCockpitPage() {
       ? `${actionPlanFeed.length} action(s) sont déjà prêtes à être traitées dans le cockpit.`
       : "Le moteur continue de préparer les prochaines actions utiles.",
     linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0
-      ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} signal(s) contenu complètent déjà la simple lecture GSC.`
-      : "Le bloc contenu s’enrichira dès que le moteur observe plus de matière sur les pages suivies.",
+      ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} piste(s) contenu complètent déjà la simple lecture GSC.`
+      : "Le bloc contenu s’enrichira dès que le moteur observera plus de matière sur les pages suivies.",
   ];
 
   const timelineFeed = [
@@ -264,7 +264,7 @@ export default async function ActivityCockpitPage() {
 
         return linkedPublication
           ? `${item.site_name} · page liée ${linkedPublication.title}`
-          : `${item.site_name} · lecture GSC`;
+          : `${item.site_name} · données Google`;
       })(),
       timestamp: 0,
     })),
@@ -274,7 +274,7 @@ export default async function ActivityCockpitPage() {
       detail: item.detail,
       badge: "Indexation",
       badgeVariant: "warning" as const,
-      meta: `${item.site_name} · signal Google`,
+      meta: `${item.site_name} · point à vérifier dans Google`,
       timestamp: 0,
     })),
     ...publicationSuggestionFeed.slice(0, 6),
@@ -429,7 +429,7 @@ export default async function ActivityCockpitPage() {
             id="requetes"
             className="scroll-mt-24"
             title="Requêtes qui bougent"
-            description="Les requêtes qui montent ou qui viennent juste d’apparaître dans la lecture Google."
+            description="Les recherches Google qui progressent ou qui commencent juste à apparaître."
             empty={queryMovementFeed.length === 0}
             emptyMessage="Aucun mouvement de requête fort pour le moment. Avec peu de volume GSC, plusieurs lectures peuvent rester calmes avant la prochaine progression."
           >
@@ -451,7 +451,7 @@ export default async function ActivityCockpitPage() {
 
           <CockpitSignalListCard
             title="Ce qui progresse vraiment"
-            description="La lecture la plus utile pour sentir les gains, les reculs et les prochaines ouvertures du cockpit."
+            description="Les points les plus utiles pour comprendre ce qui progresse, ce qui ralentit et quoi faire ensuite."
             empty={progressFeed.length === 0}
             emptyMessage="Le cockpit remplira cette zone dès que les prochaines variations deviendront lisibles."
           >

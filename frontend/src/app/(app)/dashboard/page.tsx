@@ -183,7 +183,7 @@ export default async function DashboardPage() {
       ? `La visibilité remonte avec ${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) supplémentaires sur la période.`
       : totalDeltaImpressions < 0
         ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impression(s) sur la période suivie.`
-        : "Le volume d’impressions reste stable sur la dernière lecture GSC.",
+        : "La visibilité reste stable sur la dernière lecture GSC.",
     linkedQueryWatchlist.length > 0
       ? `${linkedQueryWatchlist.length} requête(s) sont déjà reliée(s) à une page observée, ce qui clarifie où agir.`
       : "PraeviSEO attend encore le prochain lien net entre requête et page pour ouvrir une cible éditoriale plus claire.",
@@ -285,7 +285,7 @@ export default async function DashboardPage() {
       detail: `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`,
       badge: "Requête en hausse",
       badgeVariant: "success" as const,
-      meta: `${item.site_name} · lecture GSC`,
+      meta: `${item.site_name} · données Google`,
       timestamp: 0,
     })),
     ...indexationAlerts.map((item) => ({
@@ -294,7 +294,7 @@ export default async function DashboardPage() {
       detail: item.detail,
       badge: "Indexation",
       badgeVariant: "warning" as const,
-      meta: `${item.site_name} · signal Google`,
+      meta: `${item.site_name} · point à vérifier dans Google`,
       timestamp: 0,
     })),
   ]
@@ -348,7 +348,7 @@ export default async function DashboardPage() {
     {
       label: "Sites en hausse",
       value: risingSitesCount,
-      detail: "au moins un signal GSC progresse sur ces sites",
+      detail: "au moins un signe de progression remonte sur ces sites",
       tone: risingSitesCount > 0 ? "success" : "secondary",
     },
     {
@@ -360,7 +360,7 @@ export default async function DashboardPage() {
     {
       label: "Santé SEO moyenne",
       value: averageObservedHealth,
-      detail: healthTrackedSites.length > 0 ? "score observé sur les sites relus" : "aucune lecture santé encore disponible",
+      detail: healthTrackedSites.length > 0 ? "lecture globale de la santé des sites relus" : "aucune lecture santé encore disponible",
       tone: averageObservedHealth >= 70 ? "success" : averageObservedHealth > 0 ? "secondary" : "secondary",
     },
     {
@@ -408,7 +408,7 @@ export default async function DashboardPage() {
       <Topbar
         title="Vue d'ensemble SEO"
         subtitle="Votre cockpit client PraeviSEO : performances GSC, indexation Google et prochaines actions utiles."
-        lastSync={backendLive ? "lecture GSC actualisée" : "mode démonstration"}
+        lastSync={backendLive ? "données Google actualisées" : "mode démonstration"}
         actions={
           <Button href="/sites/new" size="sm">
             Connecter un site
@@ -514,14 +514,14 @@ export default async function DashboardPage() {
               icon: CheckCircle2,
               hint: dashboard.totals.indexedPagesSynced
                 ? "pages déjà bien relues par PraeviSEO dans Google"
-                : "lecture des urls Google encore en attente dans PraeviSEO",
+                : "lecture des pages Google encore en attente dans PraeviSEO",
             },
             {
               label: "Issues crawl",
               value: totalObservedCrawlIssues,
               icon: SearchCheck,
               hint: totalObservedCrawlIssues > 0
-                ? "problèmes structurels déjà observés lors des dernières lectures site"
+                ? "problèmes structurels déjà observés lors des dernières lectures du site"
                 : "aucune issue crawl forte observée pour le moment",
             },
           ].map((item) => {
@@ -581,7 +581,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Sites suivis</CardTitle>
               <CardDescription>
-                Vos sites, leur lecture SEO actuelle dans Google et les prochains gains visibles dans le cockpit.
+                Vos sites, ce que Google comprend déjà, et les prochains gains visibles dans le cockpit.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -617,8 +617,8 @@ export default async function DashboardPage() {
                       </span>
                       <span>
                         {site.summary.gsc_indexation_synced
-                          ? `${site.summary.gsc_indexed_pages} URL(s) confirmée(s) dans la lecture PraeviSEO`
-                          : "Lecture des URLs Google encore en attente"}
+                          ? `${site.summary.gsc_indexed_pages} page(s) déjà bien lue(s) dans Google`
+                          : "Lecture des pages Google encore en attente"}
                       </span>
                       <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
                       <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
@@ -1011,9 +1011,9 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Ce qui a progressé depuis la dernière lecture</CardTitle>
+              <CardTitle>Ce qui a bougé depuis votre dernière visite</CardTitle>
               <CardDescription>
-                Les signaux qui donnent une vraie sensation d’évolution entre deux lectures du cockpit.
+                Les points qui montrent clairement ce qui progresse, ce qui ralentit et ce qu’il faut ouvrir ensuite.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
