@@ -258,7 +258,7 @@ export default async function QueriesCockpitPage() {
                 subtitle={item.site_name}
                 badge={visibleQueries.length > 0 ? "Google vous voit déjà" : "À développer"}
                 badgeTone={visibleQueries.length > 0 ? "success" : "warning"}
-                description={`${item.impressions} impressions, ${item.clicks} clics, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                description={`${item.impressions} affichages dans Google, ${item.clicks} visites obtenues, et une presence autour de la position ${item.position.toFixed(1)}.`}
               />
             ))}
           </CockpitSignalListCard>
@@ -278,7 +278,7 @@ export default async function QueriesCockpitPage() {
                 subtitle={item.site_name}
                 badge={`+${item.delta_impressions} impressions`}
                 badgeTone="success"
-                description={`CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}, ${item.previous_impressions} impressions avant.`}
+                description={`Cette recherche ressort deja un peu dans Google et peut encore gagner en visibilite si la bonne page est renforcée.`}
               />
             ))}
           </CockpitSignalListCard>
@@ -296,12 +296,12 @@ export default async function QueriesCockpitPage() {
                 key={`${item.id}-${item.observed_content?.top_query_match ?? "linked-query"}`}
                 title={item.observed_content?.top_query_match ?? "Requête reliée"}
                 subtitle={`${item.site_id} · ${item.title}`}
-                badge={`${item.observed_content?.query_match_count ?? 0} liaison(s)`}
+                badge={`${item.observed_content?.query_match_count ?? 0} lien(s) déjà vus`}
                 badgeTone="secondary"
                 description={
                   item.gsc_metrics.impressions > 0
-                    ? `${item.gsc_metrics.impressions} impressions sur la page, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
-                    : `${item.observed_content?.snapshot_word_count ?? 0} mots observés, cluster ${item.observed_content?.cluster_label ?? item.cluster ?? "n/a"}.`
+                    ? `${item.gsc_metrics.impressions} affichages sur cette page et une presence autour de la position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                    : `${item.observed_content?.snapshot_word_count ?? 0} mots deja vus sur cette page, qui commence a repondre a cette recherche.`
                 }
               />
             ))}
@@ -354,8 +354,8 @@ export default async function QueriesCockpitPage() {
                   const linkedPublication = findLinkedPublication(item.query, item.site_id);
 
                   return linkedPublication
-                    ? `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}. Page liée : ${linkedPublication.slug || "/"}.`
-                    : `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`;
+                    ? `${item.impressions} affichages dans Google. La bonne page semble etre ${linkedPublication.slug || "/"}.`
+                    : `${item.impressions} affichages dans Google et un premier signal utile sur cette recherche.`;
                 })()}
               />
             ))}
@@ -386,8 +386,8 @@ export default async function QueriesCockpitPage() {
                   const linkedPublication = findLinkedPublication(item.query, item.site_id);
 
                   return linkedPublication
-                    ? `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}. Page observée : ${linkedPublication.slug || "/"}.`
-                    : `${item.impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`;
+                    ? `${item.impressions} affichages dans Google. PraeviSEO commence deja a relier cette recherche a ${linkedPublication.slug || "/"}.`
+                    : `${item.impressions} affichages dans Google et une piste a suivre si elle progresse.`;
                 })()}
               />
             ))}

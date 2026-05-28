@@ -45,8 +45,8 @@ export default async function PagesCockpitPage() {
       badge: "Pilier potentiel",
       badgeTone: "success" as const,
       description: item.cluster_label
-        ? `Cluster ${item.cluster_label}, autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}, ${item.internal_inlinks} lien(s) entrant(s).`
-        : `Autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}, ${item.internal_inlinks} lien(s) entrant(s).`,
+        ? `Cette page porte deja bien le sujet "${item.cluster_label}" et recoit ${item.internal_inlinks} lien(s) depuis le reste du site.`
+        : `Cette page a deja un role central possible et recoit ${item.internal_inlinks} lien(s) depuis le reste du site.`,
     })),
     ...observedLinkGapPages.map((item) => ({
       id: `${item.site_id}-${item.slug}-link-gap-priority`,
@@ -54,7 +54,7 @@ export default async function PagesCockpitPage() {
       site_name: item.site_name,
       badge: "Sous-maillée",
       badgeTone: "warning" as const,
-      description: `Autorité ${item.authority_score}, seulement ${item.internal_inlinks} lien(s) entrant(s), ${item.internal_outlinks} sortant(s).`,
+      description: `Cette page utile reste encore trop peu soutenue par le reste du site avec seulement ${item.internal_inlinks} lien(s) recus.`,
     })),
     ...observedOrphanAlerts.map((item) => ({
       id: `${item.site_id}-${item.slug}-orphan-priority`,
@@ -62,7 +62,7 @@ export default async function PagesCockpitPage() {
       site_name: item.site_name,
       badge: "Orpheline",
       badgeTone: "danger" as const,
-      description: `Score orphelin ${item.orphan_score}, autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`,
+      description: "Cette page est trop isolee dans le site et Google la comprend encore mal sans meilleur contexte autour d elle.",
     })),
     ...observedWeakPages.map((item) => ({
       id: `${item.site_id}-${item.slug}-weak-priority`,
@@ -72,8 +72,8 @@ export default async function PagesCockpitPage() {
       badgeTone: "secondary" as const,
       description:
         item.indexability_state !== "indexable"
-          ? `Page encore peu claire pour Google (${item.indexability_state}), ${item.latest_word_count} mots observés.`
-          : `${item.latest_word_count} mots observés, autorité ${item.authority_score}, maillage encore discret.`,
+          ? "Google ne comprend pas encore clairement cette page. Son contenu et ses liens meritent encore une verification."
+          : "Le contenu existe deja, mais cette page reste encore trop peu soutenue par le reste du site.",
     })),
   ]
     .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
@@ -92,7 +92,7 @@ export default async function PagesCockpitPage() {
       type: "observed_orphan",
       priority_label: "Sous-maillée",
       priority_level: "medium" as const,
-      reason: `Autorité ${item.authority_score}, score orphelin ${item.orphan_score}, ${item.internal_inlinks} lien(s) interne(s).`,
+      reason: "Cette page recoit encore trop peu de liens utiles depuis vos autres pages, donc elle reste isolee.",
     })),
     ...observedLinkGapPages.map((item) => ({
       site_id: item.site_id,
@@ -138,8 +138,8 @@ export default async function PagesCockpitPage() {
       quality_score: item.internal_outlinks,
       indexability_score: item.indexability_state === "indexable" ? 100 : 40,
       reason: item.cluster_label
-        ? `Cluster ${item.cluster_label}, autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}.`
-        : `Autorité ${item.authority_score}, potentiel pilier ${item.pillar_likelihood}.`,
+        ? `Cette page peut devenir la page principale autour du sujet "${item.cluster_label}".`
+        : "Cette page peut devenir un point d appui important sur votre site.",
     })),
     ...observedLinkGapPages.map((item) => ({
       id: `${item.site_id}-${item.slug}-link-gap`,
@@ -186,8 +186,8 @@ export default async function PagesCockpitPage() {
     seo_score: item.authority_score,
     reason:
       item.indexability_state !== "indexable"
-        ? `Google ne confirme pas encore clairement cette page (${item.indexability_state}).`
-        : `La page reste légère ou trop discrète (${item.latest_word_count} mots, autorité ${item.authority_score}).`,
+        ? "Google ne confirme pas encore clairement cette page."
+        : "La page existe deja, mais elle reste encore trop legere ou trop discrete pour peser davantage.",
   }));
   const refreshPages =
     observedRefreshPages.length > 0
@@ -255,7 +255,7 @@ export default async function PagesCockpitPage() {
             title: leadRisingPage.label,
             site_name: leadRisingPage.site_name,
             badge: "En hausse",
-            reason: `+${leadRisingPage.delta_impressions} impressions, CTR ${leadRisingPage.ctr.toFixed(1)} %, position ${leadRisingPage.position.toFixed(1)}.`,
+            reason: `La page gagne deja ${leadRisingPage.delta_impressions} impression(s) et commence a remonter dans Google.`,
             whyNow: "la page gagne déjà du terrain et mérite d’être consolidée pendant qu’elle monte",
           }
         : leadBestPage
@@ -263,7 +263,7 @@ export default async function PagesCockpitPage() {
               title: leadBestPage.label,
               site_name: leadBestPage.site_name,
               badge: `${leadBestPage.impressions} impressions`,
-              reason: `CTR ${leadBestPage.ctr.toFixed(1)} %, position ${leadBestPage.position.toFixed(1)}, ${leadBestPage.previous_impressions} impressions avant.`,
+              reason: "Cette page est deja visible dans Google et peut encore attirer plus de visites si on la renforce.",
               whyNow: "c’est déjà un appui visible qui peut encore être renforcé",
             }
           : null;
@@ -278,7 +278,7 @@ export default async function PagesCockpitPage() {
           description:
             observedPriorityPages[0]?.description ??
             (observedPillarPages[0]
-              ? `Cluster ${observedPillarPages[0].cluster_label ?? "n/a"}, autorité ${observedPillarPages[0].authority_score}, potentiel pilier ${observedPillarPages[0].pillar_likelihood}.`
+              ? `Cette page peut devenir la plus forte sur le sujet "${observedPillarPages[0].cluster_label ?? "principal"}".`
               : ""),
         }
       : null;
@@ -288,7 +288,7 @@ export default async function PagesCockpitPage() {
       ? `${risingPages.length} page${risingPages.length > 1 ? "s progressent" : " progresse"} deja dans Google.`
       : `${pagesToWatch.length} page${pagesToWatch.length > 1 ? "s restent" : " reste"} a surveiller meme si la periode reste calme.`;
   const pagesAssistantWhy = leadStructuralPage
-    ? `${leadStructuralPage.title} montre aussi un levier structurel : maillage, page trop isolee ou page pilier a renforcer.`
+    ? `${leadStructuralPage.title} montre aussi un levier structurel : une page à mieux relier, à renforcer, ou qui peut devenir très importante pour son sujet.`
     : observedWeakTotal > 0
       ? `${observedWeakTotal} page(s) meritent encore un refresh ou une consolidation, ce qui peut freiner votre progression.`
       : "Le principal enjeu est de renforcer les pages qui commencent deja a remonter dans Google.";
@@ -360,12 +360,12 @@ export default async function PagesCockpitPage() {
             </p>
             <p>
               {observedPagesTotal > 0
-                ? `${observedPagesTotal} URL${observedPagesTotal > 1 ? "s" : ""} observée${observedPagesTotal > 1 ? "s" : ""} permettent déjà de lire l’autorité, le maillage et les pages encore fragiles.`
+                ? `${observedPagesTotal} page${observedPagesTotal > 1 ? "s" : ""} deja relue${observedPagesTotal > 1 ? "s" : ""} permettent de voir quelles pages sont solides, discretes ou encore fragiles.`
                 : "PraeviSEO enrichira encore cette vue dès qu’il aura observé plus de pages directement sur le site."}
             </p>
             <p>
               {observedPriorityPages.length > 0
-                ? `${observedPriorityPages.length} page${observedPriorityPages.length > 1 ? "s" : ""} ont déjà une vraie priorité structurelle : pilier à pousser, maillage à ouvrir ou faiblesse à corriger.`
+                ? `${observedPriorityPages.length} page${observedPriorityPages.length > 1 ? "s demandent" : " demande"} deja une action claire : mieux les relier, les renforcer ou les clarifier.`
                 : "Aucune priorité structurelle forte n’apparaît encore : la lecture reste surtout portée par Google Search Console pour le moment."}
             </p>
           </div>
@@ -394,7 +394,7 @@ export default async function PagesCockpitPage() {
                 tone: observedLinkGapPages.length > 0 || observedOrphanTotal > 0 ? "warning" : "secondary",
               },
               {
-                label: "Pages orphelines",
+                label: "Pages trop isolees",
                 value: observedOrphanTotal > 0 ? observedOrphanTotal : `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
                 tone: observedOrphanTotal > 0 ? "danger" : totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
               },
@@ -453,9 +453,9 @@ export default async function PagesCockpitPage() {
                   Ce que ça débloque :{" "}
                   <span className="font-medium">
                     {leadStructuralPage.badge === "Pilier potentiel"
-                      ? "une page plus forte pour porter un cluster entier"
+                      ? "une page plus forte pour porter un sujet entier"
                       : leadStructuralPage.badge === "Sous-maillée"
-                        ? "un meilleur transfert d’autorité depuis le reste du site"
+                        ? "un meilleur soutien depuis le reste du site"
                         : leadStructuralPage.badge === "Orpheline"
                           ? "une page enfin reliée à la structure réelle du site"
                           : "une base plus saine avant les prochaines optimisations éditoriales"}
@@ -469,7 +469,7 @@ export default async function PagesCockpitPage() {
         <div id="priorites" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title="Priorités structurelles"
-            description="Les pages que PraeviSEO priorise déjà par structure réelle : piliers, sous-maillage, orphelines et faiblesses de fond."
+            description="Les pages que PraeviSEO priorise deja pour mieux organiser le site, renforcer les pages centrales et sortir les pages trop isolees."
             empty={observedPriorityPages.length === 0}
             emptyMessage="Aucune priorité structurelle forte pour le moment. Le cockpit reviendra ici dès que le moteur détecte un vrai besoin de fond."
           >
@@ -486,10 +486,10 @@ export default async function PagesCockpitPage() {
           </CockpitSignalListCard>
 
           <CockpitSignalListCard
-            title="Pages piliers et sous-maillées"
-            description="La lecture la plus produit utile : quelles pages peuvent porter un cluster, et lesquelles manquent encore de soutien interne."
+            title="Pages importantes et encore trop peu reliées"
+            description="Les pages qui peuvent devenir tres importantes, et celles qui manquent encore de soutien depuis le reste du site."
             empty={observedPillarPages.length + observedLinkGapPages.length === 0}
-            emptyMessage="Aucune page pilier ou sous-maillée forte pour le moment."
+            emptyMessage="Aucune page très importante ou encore trop peu reliée ne ressort fortement pour le moment."
           >
             {[...observedPillarPages.slice(0, 3), ...observedLinkGapPages.slice(0, 3)].map((item) => (
               <CockpitSignalItem
@@ -500,8 +500,8 @@ export default async function PagesCockpitPage() {
                 badgeTone={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "success" : "warning"}
                 description={
                   observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
-                    ? `Potentiel pilier ${item.pillar_likelihood}, autorité ${item.authority_score}, cluster ${item.cluster_label ?? "n/a"}.`
-                    : `Seulement ${item.internal_inlinks} lien(s) entrant(s) pour une page déjà utile, autorité ${item.authority_score}.`
+                    ? `Cette page peut devenir centrale sur son sujet. Solidité ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
+                    : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Solidité actuelle ${item.authority_score}.`
                 }
               />
             ))}
@@ -522,7 +522,7 @@ export default async function PagesCockpitPage() {
                 subtitle={item.site_name}
                 badge="En hausse"
                 badgeTone="success"
-                description={`+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                description={`+${item.delta_impressions} affichage(s) dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
               />
             ))}
           </CockpitSignalListCard>
@@ -542,7 +542,7 @@ export default async function PagesCockpitPage() {
                 subtitle={item.site_name}
                 badge="En baisse"
                 badgeTone="danger"
-                description={`${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                description={`${Math.abs(item.delta_impressions)} affichage(s) de moins dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
               />
             ))}
           </CockpitSignalListCard>
@@ -561,7 +561,7 @@ export default async function PagesCockpitPage() {
                 title={item.label}
                 subtitle={item.site_name}
                 badge={`${item.impressions} impressions`}
-                description={`CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}, ${item.previous_impressions} impressions avant.`}
+                description={`${item.previous_impressions} affichage(s) observés auparavant, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
               />
             ))}
           </CockpitSignalListCard>
@@ -587,7 +587,7 @@ export default async function PagesCockpitPage() {
                 badgeTone={item.seo_score ? ((item.seo_score ?? 0) >= 80 ? "success" : "secondary") : "warning"}
                 description={
                   item.seo_score
-                    ? `Topical ${item.topical_score ?? "n/a"}, qualité ${item.quality_score ?? "n/a"}, indexabilité ${item.indexability_score ?? "n/a"}.`
+                    ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
                     : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale."
                 }
               />
@@ -614,7 +614,7 @@ export default async function PagesCockpitPage() {
                   item.latest_suggestion?.summary ??
                   ("reason" in item && typeof item.reason === "string" && item.reason.length > 0
                     ? item.reason
-                    : `${item.gsc_metrics.impressions} impressions, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}, SEO score ${item.seo_score ?? "n/a"}.`
+                    : `${item.gsc_metrics.impressions} impression(s) montrent deja un signal utile dans Google. Cette page peut encore etre renforcee.`
                   )
                 }
               />

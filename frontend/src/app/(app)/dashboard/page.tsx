@@ -80,7 +80,7 @@ export default async function DashboardPage() {
       description: getClientRecommendationText(item.suggested_action ?? item.reasoning),
       tone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
       badge: getClientRecommendationBadge(item.priority),
-      siteLabel: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
+      siteLabel: item.site_id,
     })),
     ...topOpportunities.map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -225,8 +225,8 @@ export default async function DashboardPage() {
       title: site.name,
       detail:
         site.summary.observed_crawl_issues > 0
-          ? `${site.summary.observed_crawl_issues} issue(s) crawl observée(s), ${site.summary.observed_weak_pages} page(s) faible(s), ${site.summary.observed_orphan_pages} page(s) orpheline(s).`
-          : `${site.summary.observed_weak_pages} page(s) faible(s) et ${site.summary.observed_orphan_pages} page(s) orpheline(s) déjà observées.`,
+          ? `${site.summary.observed_crawl_issues} point(s) technique(s) repéré(s), ${site.summary.observed_weak_pages} page(s) encore fragile(s), ${site.summary.observed_orphan_pages} page(s) trop isolée(s).`
+          : `${site.summary.observed_weak_pages} page(s) encore fragile(s) et ${site.summary.observed_orphan_pages} page(s) trop isolée(s) déjà repérées.`,
       badge: "Santé SEO",
       badgeVariant: "secondary" as const,
       meta: site.summary.observed_snapshot_date ? `snapshot du ${formatDate(site.summary.observed_snapshot_date)}` : "observation récente",
@@ -273,7 +273,7 @@ export default async function DashboardPage() {
     ...risingQueryWatchlist.map((item) => ({
       id: `timeline-query-${item.site_name}-${item.query}`,
       title: item.query,
-      detail: `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`,
+      detail: `+${item.delta_impressions} affichage(s) dans Google, avec une présence qui s’améliore.`,
       badge: "Requête en hausse",
       badgeVariant: "success" as const,
       meta: `${item.site_name} · données Google`,
@@ -296,7 +296,7 @@ export default async function DashboardPage() {
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
       : null,
     optimizations.gsc_opportunities.summary.low_ctr > 0
-      ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) ont un CTR a relancer`
+      ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) attirent encore trop peu de clics`
       : null,
     optimizations.gsc_opportunities.summary.emerging_queries > 0
       ? `${optimizations.gsc_opportunities.summary.emerging_queries} requete(s) progressent rapidement`
@@ -345,7 +345,7 @@ export default async function DashboardPage() {
     {
       label: "Points à vérifier",
       value: activeAlerts + slippingSitesCount,
-      detail: "CTR faible, baisse durable ou recul d’impressions",
+      detail: "moins de clics, recul durable ou visibilité qui faiblit",
       tone: activeAlerts + slippingSitesCount > 0 ? "warning" : "secondary",
     },
     {
@@ -484,7 +484,7 @@ export default async function DashboardPage() {
               hint: "clics organiques remontés par GSC sur 28 jours",
             },
             {
-              label: "CTR moyen",
+              label: "Taux de clic moyen",
               value: new Intl.NumberFormat("fr-FR", {
                 style: "percent",
                 minimumFractionDigits: 1,
@@ -508,12 +508,12 @@ export default async function DashboardPage() {
                 : "lecture des pages Google encore en attente dans PraeviSEO",
             },
             {
-              label: "Issues crawl",
+              label: "Points techniques",
               value: totalObservedCrawlIssues,
               icon: SearchCheck,
               hint: totalObservedCrawlIssues > 0
                 ? "problèmes structurels déjà observés lors des dernières lectures du site"
-                : "aucune issue crawl forte observée pour le moment",
+                : "aucun point technique fort à surveiller pour le moment",
             },
           ].map((item) => {
             const Icon = item.icon;
@@ -613,7 +613,7 @@ export default async function DashboardPage() {
                           minimumFractionDigits: 1,
                           maximumFractionDigits: 1,
                         }).format(site.summary.gsc_ctr)}{" "}
-                        CTR
+                        Taux de clic
                       </span>
                       <span>
                         {site.summary.gsc_indexation_synced
@@ -756,7 +756,7 @@ export default async function DashboardPage() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
-                      {item.impressions} impressions, {item.clicks} clics, CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}.
+                      {item.impressions} affichage(s) dans Google, {item.clicks} clic(s), avec une présence moyenne autour de la {Math.round(item.position)}e place.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
                       <span className="rounded-full border border-border px-2.5 py-1">
@@ -764,7 +764,7 @@ export default async function DashboardPage() {
                       </span>
                       {linkedPublication?.observed_content?.cluster_label ? (
                         <span className="rounded-full border border-border px-2.5 py-1">
-                          Cluster {linkedPublication.observed_content.cluster_label}
+                          Sujet : {linkedPublication.observed_content.cluster_label}
                         </span>
                       ) : null}
                     </div>
@@ -820,7 +820,7 @@ export default async function DashboardPage() {
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Amiantix n’a pas encore de contenus suivis ici. Le cockpit free reste déjà utile grâce aux pages,
                   requêtes et opportunités GSC. Dès que PraeviSEO observe des contenus éditoriaux, ce bloc montrera
-                  les refresh, maillages et enrichissements à ouvrir.
+                  les contenus à reprendre, les pages à mieux relier et les enrichissements à ouvrir.
                 </div>
               ) : (
                 recentPublications.map((item) => (
@@ -836,7 +836,7 @@ export default async function DashboardPage() {
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
                       {item.latest_suggestion?.summary ??
-                        `${item.gsc_metrics.impressions} impressions, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`}
+                        `${item.gsc_metrics.impressions} affichage(s) dans Google et une présence moyenne autour de la ${item.gsc_metrics.position ? Math.round(item.gsc_metrics.position) : "?"}e place.`}
                     </p>
                   </div>
                 ))
@@ -850,7 +850,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Santé SEO observée</CardTitle>
               <CardDescription>
-                Le moteur relit aussi la structure réelle des sites : qualité moyenne, pages faibles, orphelines et issues crawl.
+                PraeviSEO relit aussi la structure réelle des sites : pages encore fragiles, pages trop isolées et points techniques à corriger.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -875,8 +875,8 @@ export default async function DashboardPage() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
-                      {site.summary.observed_weak_pages} page(s) faible(s), {site.summary.observed_orphan_pages} page(s) orpheline(s),
-                      {` ${site.summary.observed_crawl_issues}`} issue(s) crawl, autorité moyenne {site.summary.observed_avg_authority}.
+                      {site.summary.observed_weak_pages} page(s) encore fragile(s), {site.summary.observed_orphan_pages} page(s) trop isolée(s),
+                      {` ${site.summary.observed_crawl_issues}`} point(s) technique(s), niveau moyen de solidité du site {site.summary.observed_avg_authority}.
                     </p>
                   </div>
                 ))
@@ -888,14 +888,14 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Pages structurellement à renforcer</CardTitle>
               <CardDescription>
-                Les pages repérées par PraeviSEO comme piliers potentiels, sous-maillées ou encore trop faibles.
+                Les pages que PraeviSEO voit comme centrales, trop peu reliées au reste du site, ou encore trop fragiles.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {dashboard.sites.flatMap((site) => site.summary.observed_link_gap_pages).length === 0 &&
               dashboard.sites.flatMap((site) => site.summary.observed_orphan_alerts).length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune faiblesse structurelle forte pour le moment. Ce bloc se remplira dès qu’un maillage ou une page orpheline devient utile à traiter.
+                  Aucune faiblesse structurelle forte pour le moment. Ce bloc se remplira dès qu’une page trop isolée ou insuffisamment reliée devient utile à traiter.
                 </div>
               ) : (
                 [
@@ -903,8 +903,8 @@ export default async function DashboardPage() {
                     site.summary.observed_link_gap_pages.slice(0, 1).map((item) => ({
                       siteName: site.name,
                       label: item.label,
-                      detail: `${item.internal_inlinks} lien(s) entrant(s), autorité ${item.authority_score}, cluster ${item.cluster_label ?? "n/a"}.`,
-                      badge: "Maillage",
+                      detail: `${item.internal_inlinks} lien(s) déjà reçus, niveau de solidité ${item.authority_score}, sujet principal "${item.cluster_label ?? "général"}".`,
+                      badge: "À mieux relier",
                       variant: "warning" as const,
                     }))
                   ),
@@ -912,8 +912,8 @@ export default async function DashboardPage() {
                     site.summary.observed_orphan_alerts.slice(0, 1).map((item) => ({
                       siteName: site.name,
                       label: item.label,
-                      detail: `Page orpheline ou quasi orpheline, autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`,
-                      badge: "Orpheline",
+                      detail: `Cette page reste trop isolée pour être bien comprise. Niveau de solidité ${item.authority_score}, et Google la lit encore comme "${item.indexability_state}".`,
+                      badge: "Trop isolée",
                       variant: "secondary" as const,
                     }))
                   ),
@@ -976,7 +976,7 @@ export default async function DashboardPage() {
                   ...actionPlan.map((item) => ({
                     key: `action-${item.id}`,
                     title: item.title,
-                    subtitle: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
+                    subtitle: item.site_id,
                     badge: item.priority <= 30 ? "À faire en premier" : "Action recommandée",
                     badgeVariant: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
                     description: item.suggested_action ?? item.reasoning,

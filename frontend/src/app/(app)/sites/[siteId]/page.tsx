@@ -47,7 +47,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const sustainedDropCount = siteOpportunities.filter((item) => item.type === "sustained_drop").length;
   const siteSignals = [
     nearTop10Count > 0 ? `${nearTop10Count} page(s) approchent du top 10` : null,
-    lowCtrCount > 0 ? `${lowCtrCount} page(s) ont un CTR a relancer` : null,
+    lowCtrCount > 0 ? `${lowCtrCount} page(s) attirent encore trop peu de clics` : null,
     emergingQueryCount > 0 ? `${emergingQueryCount} requete(s) progressent vite` : null,
     sustainedDropCount > 0 ? `${sustainedDropCount} page(s) perdent de la visibilite` : null,
   ].filter((item): item is string => item !== null);
@@ -141,7 +141,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     ...risingQueries.map((item) => ({
       id: `site-query-${item.query}`,
       title: item.query,
-      detail: `+${item.delta_impressions} impressions sur la période récente, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`,
+      detail: `+${item.delta_impressions} affichage(s) récents dans Google, avec une présence qui progresse.`,
       badge: "Requête en hausse",
       badgeVariant: "success" as const,
       meta: "lecture GSC",
@@ -149,10 +149,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     ...linkedQueryWatchlist.map((item) => ({
       id: `site-linked-query-${item.query}`,
       title: item.query,
-      detail: `PraeviSEO relie déjà cette requête à ${item.linkedPublication?.title}. Position ${item.position.toFixed(1)}, ${item.impressions} impression(s).`,
+      detail: `PraeviSEO pense déjà que ${item.linkedPublication?.title} est la bonne page pour cette recherche. ${item.impressions} affichage(s) ont déjà été repérés.`,
       badge: "Page cible",
       badgeVariant: "secondary" as const,
-      meta: item.linkedPublication?.cluster ?? item.linkedPublication?.observed_content?.cluster_label ?? "requête reliée",
+      meta: item.linkedPublication?.observed_content?.cluster_label ?? "bonne page repérée",
     })),
     ...refreshContent.map((item) => ({
       id: `site-content-${item.id}`,
@@ -160,15 +160,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       detail: item.latest_suggestion?.summary ?? "Ce contenu mérite une relance.",
       badge: "Refresh",
       badgeVariant: "warning" as const,
-      meta: item.cluster ?? "contenu",
+      meta: "contenu à reprendre",
     })),
     ...linkingContent.map((item) => ({
       id: `site-linking-${item.id}`,
       title: item.title,
       detail: item.observed_content?.top_internal_link_target
-        ? `PraeviSEO suggère d’ouvrir du maillage vers ${item.observed_content.top_internal_link_target}.`
-        : `PraeviSEO détecte ${item.observed_content?.internal_link_suggestions_count ?? 0} piste(s) de maillage sur ce contenu.`,
-      badge: "Maillage",
+        ? `PraeviSEO suggère déjà de mieux relier cette page à ${item.observed_content.top_internal_link_target}.`
+        : `PraeviSEO voit ${item.observed_content?.internal_link_suggestions_count ?? 0} occasion(s) de mieux relier ce contenu au reste du site.`,
+      badge: "À mieux relier",
       badgeVariant: "secondary" as const,
       meta: item.observed_content?.cluster_label ?? "contenu observé",
     })),
@@ -177,8 +177,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       title: item.title,
       detail: item.observed_content?.top_cannibalization_target
         ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}.`
-        : `PraeviSEO garde ${item.observed_content?.overlap_count ?? 0} recouvrement(s) sous surveillance sur ce contenu.`,
-      badge: "Cannibalisation",
+        : `PraeviSEO garde ${item.observed_content?.overlap_count ?? 0} sujet(s) très proche(s) sous surveillance sur ce contenu.`,
+      badge: "Sujet à clarifier",
       badgeVariant: "warning" as const,
       meta: item.observed_content?.cluster_label ?? "contenu observé",
     })),
@@ -282,7 +282,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       value: enrichmentContent.length + linkingContent.length + cannibalContent.length,
       detail:
         enrichmentContent.length + linkingContent.length + cannibalContent.length > 0
-          ? "contenu, maillage ou recouvrements déjà visibles"
+          ? "contenu à enrichir, pages à mieux relier ou sujets trop proches déjà visibles"
           : "contenu encore calme pour le moment",
       tone: enrichmentContent.length + linkingContent.length + cannibalContent.length > 0 ? "secondary" : "secondary",
     },
@@ -376,7 +376,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             ["URLs relues comme confirmees", site.summary.gsc_indexed_pages],
             ["Clics GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)],
             ["Impressions GSC", new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)],
-            ["CTR GSC", new Intl.NumberFormat("fr-FR", {
+            ["Taux de clic GSC", new Intl.NumberFormat("fr-FR", {
               style: "percent",
               minimumFractionDigits: 1,
               maximumFractionDigits: 1,
@@ -476,7 +476,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     </div>
                     <p className="mt-2 text-sm text-text-muted leading-6">{item.reason}</p>
                     <p className="mt-3 text-xs text-text-subtle">
-                      {item.metrics.impressions} impressions, CTR {item.metrics.ctr} %, position {item.metrics.position}
+                      {item.metrics.impressions} affichage(s) dans Google, {item.metrics.clicks} clic(s), présence moyenne autour de la {Math.round(Number(item.metrics.position))}e place
                     </p>
                   </div>
                 ))
@@ -538,7 +538,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                       {item.delta_impressions} sur la fenêtre suivie.
                     </p>
                     <p className="mt-3 text-xs text-text-subtle">
-                      CTR {item.ctr.toFixed(1)} %, position {item.position.toFixed(1)}
+                      présence moyenne autour de la {Math.round(item.position)}e place
                     </p>
                   </div>
                 ))
@@ -584,15 +584,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                         </div>
                       </div>
                       <Badge variant={item.linkedPublication ? "secondary" : item.position <= 10 ? "warning" : "success"}>
-                        {item.linkedPublication ? "Page liée" : item.position <= 10 ? "Déjà visible" : "À pousser"}
+                        {item.linkedPublication ? "Bonne page trouvée" : item.position <= 10 ? "Google vous voit déjà" : "À développer"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted leading-6">
-                      {item.clicks} clic(s), CTR {item.ctr.toFixed(1)} %, position moyenne {item.position.toFixed(1)}.
+                      {item.clicks} clic(s) et une présence moyenne autour de la {Math.round(item.position)}e place.
                     </p>
                     {item.linkedPublication ? (
                       <p className="mt-3 text-xs text-text-subtle">
-                        Cible actuelle : {item.linkedPublication.slug || "/"}{item.linkedPublication.observed_content?.cluster_label ? ` · cluster ${item.linkedPublication.observed_content.cluster_label}` : ""}.
+                        Bonne page actuelle : {item.linkedPublication.slug || "/"}{item.linkedPublication.observed_content?.cluster_label ? ` · sujet ${item.linkedPublication.observed_content.cluster_label}` : ""}.
                       </p>
                     ) : null}
                   </div>
@@ -627,8 +627,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     </div>
                     <p className="mt-2 text-sm text-text-muted leading-6">
                       {item.previous_impressions === 0
-                        ? `Google commence à relier cette requête à votre site. Position moyenne ${item.position.toFixed(1)}.`
-                        : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                        ? `Google commence à relier cette recherche à votre site. Elle apparaît encore loin, mais le signal existe déjà.`
+                        : `+${item.delta_impressions} affichage(s) récents dans Google, avec une progression visible.`}
                     </p>
                   </div>
                 ))
@@ -656,10 +656,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-text">{item.title}</div>
-                        <div className="text-xs text-text-subtle">{item.observed_content?.cluster_label ?? item.cluster ?? "contenu observé"}</div>
+                        <div className="text-xs text-text-subtle">{item.observed_content?.cluster_label ?? "contenu observé"}</div>
                       </div>
                       <Badge variant="secondary">
-                        Autorité {item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}
+                        Solidité {item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted leading-6">
@@ -682,7 +682,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardContent className="space-y-3">
               {linkingContent.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun besoin de maillage fort pour le moment sur ce site.
+                  Aucune page ne demande encore de gros effort de liaison pour le moment.
                 </div>
               ) : (
                 linkingContent.map((item) => (
@@ -699,7 +699,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     <p className="mt-2 text-sm text-text-muted leading-6">
                       {item.observed_content?.top_internal_link_target
                         ? `PraeviSEO suggère déjà de relier cette page à ${item.observed_content.top_internal_link_target}.`
-                        : "PraeviSEO voit déjà des ouvertures de maillage sur cette page."}
+                        : "PraeviSEO voit déjà des occasions de mieux relier cette page au reste du site."}
                     </p>
                   </div>
                 ))
@@ -709,7 +709,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Cannibalisation à surveiller</CardTitle>
+              <CardTitle>Sujets à clarifier</CardTitle>
               <CardDescription>
                 Les sujets proches ou les recouvrements que PraeviSEO garde déjà sous contrôle.
               </CardDescription>
@@ -717,7 +717,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardContent className="space-y-3">
               {cannibalContent.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun risque de cannibalisation fort détecté pour le moment.
+                  Aucun sujet très proche à clarifier de toute urgence pour le moment.
                 </div>
               ) : (
                 cannibalContent.map((item) => (
@@ -725,10 +725,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-text">{item.title}</div>
-                        <div className="text-xs text-text-subtle">Overlap {item.observed_content?.overlap_score ?? 0} / 100</div>
+                        <div className="text-xs text-text-subtle">Recouvrement estimé : {item.observed_content?.overlap_score ?? 0} / 100</div>
                       </div>
                       <Badge variant="warning">
-                        {(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} signal(s)
+                        {(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} point(s) à clarifier
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted leading-6">
@@ -850,8 +850,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   ...siteActionPlan.map((item) => ({
                     id: `site-action-${item.id}`,
                     title: item.title,
-                    meta: `${site.name}${item.cluster ? ` · ${item.cluster}` : ""}`,
-                    badge: item.priority <= 30 ? "À traiter d’abord" : "Plan moteur",
+                    meta: site.name,
+                    badge: item.priority <= 30 ? "À faire en premier" : "Action recommandée",
                     badgeVariant: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
                     detail: item.suggested_action ?? item.reasoning,
                   })),

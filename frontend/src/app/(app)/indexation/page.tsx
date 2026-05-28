@@ -68,7 +68,7 @@ export default async function IndexationCockpitPage() {
         : "PraeviSEO attend encore plus de lecture Google pour confirmer clairement quelles pages sont solides.";
   const indexationAssistantWhy =
     totalObservedCrawlIssues > 0
-      ? `${totalObservedCrawlIssues} point(s) de structure ou de crawl peuvent encore freiner la lecture de certaines pages.`
+      ? `${totalObservedCrawlIssues} point(s) techniques ou de structure peuvent encore freiner la lecture de certaines pages.`
       : pendingSites.length > 0
         ? `Google n'a pas encore donne une lecture complete sur ${pendingSites.length} site(s), donc certaines pages restent en attente de confirmation.`
         : "Une page mal lue ou mal reliee peut rester invisible plus longtemps, meme si son contenu est bon.";
@@ -119,7 +119,7 @@ export default async function IndexationCockpitPage() {
               { label: "Pages encore à vérifier", value: totalNonIndexedPages, tone: totalNonIndexedPages > 0 ? "warning" : "secondary" },
               { label: "Sites reliés à Google", value: connectedSites.length },
               { label: "Alertes d’indexation", value: indexationAlerts.length + pendingSites.length, tone: indexationAlerts.length + pendingSites.length > 0 ? "warning" : "secondary" },
-              { label: "Issues crawl observées", value: totalObservedCrawlIssues, tone: totalObservedCrawlIssues > 0 ? "warning" : "secondary" },
+              { label: "Points techniques observés", value: totalObservedCrawlIssues, tone: totalObservedCrawlIssues > 0 ? "warning" : "secondary" },
             ]}
           />
         </div>
@@ -244,7 +244,7 @@ export default async function IndexationCockpitPage() {
                 subtitle={site.summary.observed_snapshot_date ? `snapshot du ${formatDate(site.summary.observed_snapshot_date)}` : "observation récente"}
                 badge={`Santé ${site.summary.observed_site_health_score || "n/a"}`}
                 badgeTone={site.summary.observed_site_health_score >= 70 ? "success" : "secondary"}
-                description={`${site.summary.observed_weak_pages} page(s) faible(s), ${site.summary.observed_orphan_pages} page(s) orpheline(s), ${site.summary.observed_crawl_issues} issue(s) crawl.`}
+                description={`${site.summary.observed_weak_pages} page(s) encore faible(s), ${site.summary.observed_orphan_pages} page(s) trop isolee(s), ${site.summary.observed_crawl_issues} point(s) technique(s) observe(s).`}
               />
             ))}
           </CockpitSignalListCard>
@@ -270,7 +270,7 @@ export default async function IndexationCockpitPage() {
                   subtitle={siteName}
                 badge="À mieux relier"
                   badgeTone="warning"
-                  description={`Page peu reliée ou fragile : autorité ${item.authority_score}, indexabilité ${item.indexability_state}.`}
+                  description="Cette page reste encore fragile ou trop peu reliee pour etre bien comprise par Google."
                 />
               ))}
           </CockpitSignalListCard>

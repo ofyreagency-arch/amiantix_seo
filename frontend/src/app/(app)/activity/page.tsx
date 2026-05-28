@@ -87,8 +87,8 @@ export default async function ActivityCockpitPage() {
       id: `content-linking-${item.id}`,
       title: item.title,
       detail: item.observed_content?.top_internal_link_target
-        ? `PraeviSEO voit ${item.observed_content.internal_link_suggestions_count} ouverture(s) de maillage, dont ${item.observed_content.top_internal_link_target}.`
-        : `PraeviSEO voit ${item.observed_content?.internal_link_suggestions_count ?? 0} ouverture(s) de maillage sur cette page.`,
+        ? `PraeviSEO voit ${item.observed_content.internal_link_suggestions_count} occasion(s) de mieux relier cette page, notamment depuis ${item.observed_content.top_internal_link_target}.`
+        : `PraeviSEO voit ${item.observed_content?.internal_link_suggestions_count ?? 0} occasion(s) de mieux relier cette page au reste du site.`,
       badge: "Maillage",
       badgeVariant: "warning" as const,
       meta: `${item.site_id} · contenu observé`,
@@ -104,8 +104,8 @@ export default async function ActivityCockpitPage() {
       id: `content-cannibalization-${item.id}`,
       title: item.title,
       detail: item.observed_content?.top_cannibalization_target
-        ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}. Overlap ${item.observed_content.overlap_score} / 100.`
-        : `PraeviSEO garde ${item.observed_content?.overlap_count ?? 0} recouvrement(s) sous surveillance sur ce contenu.`,
+        ? `Deux contenus parlent encore d un sujet tres proche, notamment face a ${item.observed_content.top_cannibalization_target}.`
+        : `PraeviSEO garde ${item.observed_content?.overlap_count ?? 0} sujet(s) trop proches sous surveillance sur ce contenu.`,
       badge: "Cannibalisation",
       badgeVariant: "warning" as const,
       meta: `${item.site_id} · contenu observé`,
@@ -130,7 +130,7 @@ export default async function ActivityCockpitPage() {
       id: `content-enrichment-${item.id}`,
       title: item.title,
       detail: item.latest_suggestion?.summary ??
-        `Contenu à enrichir : ${item.observed_content?.snapshot_word_count ?? 0} mots observés, ${item.observed_content?.query_match_count ?? 0} requête(s) déjà reliée(s).`,
+        `Contenu a enrichir : ${item.observed_content?.snapshot_word_count ?? 0} mots deja vus, avec ${item.observed_content?.query_match_count ?? 0} recherche(s) deja rapprochee(s) de cette page.`,
       badge: "Contenu à enrichir",
       badgeVariant: "secondary" as const,
       meta: `${item.site_id} · contenu observé`,
@@ -148,7 +148,7 @@ export default async function ActivityCockpitPage() {
     ...observedRecommendations.slice(0, 6).map((item) => ({
       id: `plan-${item.id}`,
       title: getClientRecommendationTitle(item.title),
-      subtitle: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
+      subtitle: `${item.site_id}${item.cluster ? ` · sujet ${item.cluster}` : ""}`,
       badge: getClientRecommendationBadge(item.priority),
       badgeTone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
       description: getClientRecommendationText(item.suggested_action ?? item.reasoning),
@@ -182,7 +182,7 @@ export default async function ActivityCockpitPage() {
       ? `${actionPlanFeed.length} action(s) sont déjà prêtes à être traitées dans le cockpit.`
       : "Le moteur continue de préparer les prochaines actions utiles.",
     linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0
-      ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} piste(s) contenu complètent déjà la simple lecture GSC.`
+      ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} piste(s) contenu completent deja ce que Google laisse voir.`
       : "Le bloc contenu s’enrichira dès que le moteur observera plus de matière sur les pages suivies.",
   ];
   const timelineFeed = [
@@ -429,7 +429,7 @@ export default async function ActivityCockpitPage() {
                 subtitle={item.site_name}
                 badge={item.trend === "down" ? "En baisse" : "En hausse"}
                 badgeTone={item.trend === "down" ? "danger" : "success"}
-                description={`${item.delta_impressions > 0 ? "+" : ""}${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`}
+                description={`${item.delta_impressions > 0 ? "+" : ""}${item.delta_impressions} affichage(s) et une meilleure presence dans Google.`}
               />
             ))}
           </CockpitSignalListCard>
@@ -452,7 +452,7 @@ export default async function ActivityCockpitPage() {
                 description={
                   item.trend === "new"
                     ? `${item.impressions} impressions, position ${item.position.toFixed(1)}.`
-                    : `+${item.delta_impressions} impressions, CTR ${item.ctr.toFixed(1)} %, position ${item.position.toFixed(1)}.`
+                    : `+${item.delta_impressions} affichage(s) et un signal plus fort dans Google.`
                 }
               />
             ))}
@@ -513,7 +513,7 @@ export default async function ActivityCockpitPage() {
             id="alertes"
             className="scroll-mt-24"
             title="Alertes simples"
-            description="CTR faible, recul durable ou baisse de visibilité : les signaux à traiter vite."
+            description="Les points qui peuvent freiner votre visibilité et qui méritent une vérification rapide."
             empty={alertFeed.length === 0}
             emptyMessage="Aucune alerte forte pour le moment. Le cockpit reste en veille active et rouvrira ce bloc dès qu’un signal devient utile."
           >
@@ -535,7 +535,7 @@ export default async function ActivityCockpitPage() {
             title="Maillage détecté"
             description="Les contenus où PraeviSEO voit déjà des liens internes utiles à ouvrir."
             empty={linkingFeed.length === 0}
-            emptyMessage="Aucun besoin de maillage fort pour le moment."
+            emptyMessage="Aucun besoin fort de mieux relier les pages pour le moment."
           >
             {linkingFeed.slice(0, 6).map((item) => (
               <CockpitSignalItem
