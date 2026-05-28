@@ -225,11 +225,11 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const nextActionLabel =
     site.next_action.kind === "connect_bridge"
       ? site.readiness.gsc_connected
-        ? "Activer l’automatisation premium"
+        ? "Découvrir l’automatisation"
         : "Connecter Search Console"
       : site.next_action.kind === "installation_requested"
-        ? "Automatisation premium en préparation"
-      : site.next_action.label;
+        ? "Automatisation en préparation"
+        : site.next_action.label;
   const nextActionDetail =
     site.next_action.kind === "connect_bridge"
       ? getPraeviseoClientDetail(site)
@@ -350,7 +350,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}>
-                {site.readiness.gsc_connected ? "Activer l’automatisation premium" : "Connecter Search Console"}
+                {site.readiness.gsc_connected ? "Découvrir l’automatisation" : "Connecter Search Console"}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>

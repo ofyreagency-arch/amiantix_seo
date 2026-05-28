@@ -1601,6 +1601,111 @@ export async function getSettings(): Promise<PraeviseoSettings> {
   }
 }
 
+export function getClientRecommendationTitle(title: string): string {
+  return title
+    .replace(/^Reconnect orphan page:/i, "Relier une page trop isolée :")
+    .replace(/^Strengthen weak page:/i, "Renforcer une page encore fragile :")
+    .replace(/^Resolve overlap:/i, "Clarifier deux pages trop proches :")
+    .replace(/^Refresh the /i, "Rafraîchir ")
+    .replace(/^Expand cluster:/i, "Développer le sujet :");
+}
+
+export function getClientRecommendationText(text: string): string {
+  return text
+    .replace(
+      /Add contextual internal links from stronger cluster or pillar pages\./gi,
+      "Ajoutez des liens internes depuis des pages plus fortes du site pour aider Google à mieux comprendre cette page."
+    )
+    .replace(
+      /Improve coverage depth, strengthen headings, and fix indexability or internal links\./gi,
+      "Ajoutez de la matière utile, améliorez les titres et corrigez ce qui bloque encore la compréhension ou le maillage."
+    )
+    .replace(
+      /Differentiate intent, merge if redundant, or strengthen one page as the canonical pillar\./gi,
+      "Évitez que deux pages se marchent dessus : différenciez-les mieux, fusionnez-les si besoin ou désignez une page principale."
+    )
+    .replace(
+      /The page already ranks but still lacks enough depth to convert the current visibility\./gi,
+      "La page apparaît déjà dans Google, mais elle manque encore de profondeur pour transformer cette visibilité en trafic utile."
+    )
+    .replace(
+      /The cluster already has relevant support pages that can push more authority to the main target\./gi,
+      "D’autres pages du site peuvent déjà aider cette page à devenir plus forte si elles la soutiennent mieux."
+    )
+    .replace(
+      /Google already hints at an uncovered angle that deserves a dedicated supporting page\./gi,
+      "Google laisse déjà voir un sujet utile qui mérite une page dédiée pour mieux couvrir le besoin."
+    );
+}
+
+export function getClientRecommendationBadge(priority: number): string {
+  return priority <= 30 ? "À faire en premier" : "Action recommandée";
+}
+
+export function getClientOpportunityPriorityLabel(priorityLabel: string): string {
+  return (
+    {
+      "Priorité haute": "À faire en premier",
+      "A surveiller": "À prévoir ensuite",
+      "À surveiller": "À prévoir ensuite",
+      "Gain rapide": "Peut rapporter vite",
+    }[priorityLabel] ?? priorityLabel
+  );
+}
+
+export function getClientOpportunityStateLabel(stateLabel: string): string {
+  return (
+    {
+      "Actionnable maintenant": "À faire maintenant",
+      "Suggestion deja en attente": "Déjà prévu",
+      "Suggestion déjà en attente": "Déjà prévu",
+    }[stateLabel] ?? stateLabel
+  );
+}
+
+export function getClientOpportunityWhy(type: string): string {
+  switch (type) {
+    case "low_ctr":
+      return "La page apparaît déjà dans Google, mais elle attire encore trop peu de clics.";
+    case "near_top_10":
+      return "La page est déjà proche d’un meilleur résultat et peut gagner plus vite avec un bon renfort.";
+    case "emerging_query":
+      return "Google commence à associer une nouvelle recherche à votre site.";
+    case "sustained_drop":
+      return "La page perd de la visibilité et mérite une vérification rapide.";
+    default:
+      return "PraeviSEO voit ici un levier utile à ouvrir.";
+  }
+}
+
+export function getClientQueryBadge(position: number, linkedPage = false): string {
+  if (linkedPage) {
+    return "Bonne page déjà trouvée";
+  }
+
+  if (position <= 10) {
+    return "Google vous voit déjà";
+  }
+
+  if (position <= 20) {
+    return "Peut vite progresser";
+  }
+
+  return "À développer";
+}
+
+export function getClientQueryWhy(impressions: number, position: number): string {
+  if (position <= 10) {
+    return "Google vous affiche déjà sur cette recherche. En renforçant la bonne page, vous pouvez récupérer plus de clics.";
+  }
+
+  if (impressions > 0) {
+    return "Google commence à repérer votre site sur cette recherche. La bonne page peut encore monter si vous l’enrichissez.";
+  }
+
+  return "Google teste encore cette recherche sur votre site. C’est une piste à suivre, mais pas encore une priorité forte.";
+}
+
 export async function updateProfile(input: { name: string; email: string }) {
   if (!backendConfigured()) {
     return {
@@ -2022,7 +2127,7 @@ export function isInstallationInProgress(status: string): boolean {
 
 export function getPraeviseoInstallLabel(site: Pick<PraeviseoSite, "publication_bridge_status">): string {
   if (site.publication_bridge_status === "requested") {
-    return "Automatisation premium en préparation";
+    return "Automatisation en préparation";
   }
 
   return site.publication_bridge_status === "connected"
@@ -2069,5 +2174,5 @@ export function getPraeviseoActivationLabel(
     return "Automatisation active";
   }
 
-  return site.readiness.gsc_connected ? "Activer l’automatisation premium" : "Connecter Search Console";
+  return site.readiness.gsc_connected ? "Découvrir l’automatisation" : "Connecter Search Console";
 }

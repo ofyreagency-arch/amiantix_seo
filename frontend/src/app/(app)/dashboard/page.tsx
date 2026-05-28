@@ -4,6 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  getClientOpportunityStateLabel,
+  getClientOpportunityWhy,
+  getClientQueryBadge,
+  getClientRecommendationBadge,
+  getClientRecommendationText,
+  getClientRecommendationTitle,
   getPraeviseoActivationLabel,
   getPraeviseoClientDetail,
   getPraeviseoClientStatus,
@@ -16,43 +22,6 @@ import {
 } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles, Waves } from "lucide-react";
-
-function localizeRecommendationTitle(title: string): string {
-  return title
-    .replace(/^Reconnect orphan page:/i, "Reconnecter une page orpheline :")
-    .replace(/^Strengthen weak page:/i, "Renforcer une page faible :")
-    .replace(/^Resolve overlap:/i, "Clarifier un recouvrement :")
-    .replace(/^Refresh the /i, "Rafraîchir ")
-    .replace(/^Expand cluster:/i, "Développer le cluster :");
-}
-
-function localizeRecommendationText(text: string): string {
-  return text
-    .replace(
-      /Add contextual internal links from stronger cluster or pillar pages\./gi,
-      "Ajoutez des liens internes contextuels depuis des pages plus fortes du cluster ou depuis une page pilier."
-    )
-    .replace(
-      /Improve coverage depth, strengthen headings, and fix indexability or internal links\./gi,
-      "Renforcez la profondeur du contenu, les intertitres et l’indexabilité ou le maillage interne."
-    )
-    .replace(
-      /Differentiate intent, merge if redundant, or strengthen one page as the canonical pillar\./gi,
-      "Différenciez mieux l’intention, fusionnez si deux pages font doublon ou renforcez une page pilier canonique."
-    )
-    .replace(
-      /The page already ranks but still lacks enough depth to convert the current visibility\./gi,
-      "La page se positionne déjà, mais elle manque encore de profondeur pour convertir sa visibilité actuelle."
-    )
-    .replace(
-      /The cluster already has relevant support pages that can push more authority to the main target\./gi,
-      "Le cluster a déjà des pages support utiles qui peuvent pousser davantage d’autorité vers la page cible."
-    )
-    .replace(
-      /Google already hints at an uncovered angle that deserves a dedicated supporting page\./gi,
-      "Google laisse déjà entrevoir un angle encore peu couvert qui mérite une page support dédiée."
-    );
-}
 
 export default async function DashboardPage() {
   const dashboard = await getDashboard();
@@ -106,18 +75,18 @@ export default async function DashboardPage() {
   const freePriorityFeed = [
     ...actionPlan.map((item) => ({
       id: `recommendation-${item.id}`,
-      title: localizeRecommendationTitle(item.title),
-      description: localizeRecommendationText(item.suggested_action ?? item.reasoning),
+      title: getClientRecommendationTitle(item.title),
+      description: getClientRecommendationText(item.suggested_action ?? item.reasoning),
       tone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
-      badge: item.priority <= 30 ? "À faire en premier" : "Action recommandée",
+      badge: getClientRecommendationBadge(item.priority),
       siteLabel: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
     })),
     ...topOpportunities.map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
       title: item.label,
-      description: `${item.reason} Action suggérée : ${item.action}.`,
+      description: `${getClientOpportunityWhy(item.type)} ${item.action}`,
       tone: item.priority_level === "high" ? ("warning" as const) : ("secondary" as const),
-      badge: item.priority_label,
+      badge: getClientOpportunityStateLabel(item.action_state_label),
       siteLabel: item.site_name,
     })),
   ].slice(0, 4);
@@ -389,7 +358,7 @@ export default async function DashboardPage() {
     }
 
     if (site.next_action.kind === "connect_bridge") {
-      return site.readiness.gsc_connected ? "Activer l’automatisation premium" : "Connecter Search Console";
+      return site.readiness.gsc_connected ? "Découvrir l’automatisation" : "Connecter Search Console";
     }
 
     if (site.next_action.kind === "installation_requested") {
@@ -752,7 +721,7 @@ export default async function DashboardPage() {
                         </p>
                       </div>
                       <Badge variant={linkedPublication ? "secondary" : item.position <= 10 ? "warning" : "success"}>
-                        {linkedPublication ? "Bonne page déjà trouvée" : item.position <= 10 ? "Déjà bien visible" : "À renforcer"}
+                        {getClientQueryBadge(item.position, Boolean(linkedPublication))}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
