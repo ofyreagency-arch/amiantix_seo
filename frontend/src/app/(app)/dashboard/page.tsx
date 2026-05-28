@@ -17,6 +17,43 @@ import {
 import { formatDate } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles, Waves } from "lucide-react";
 
+function localizeRecommendationTitle(title: string): string {
+  return title
+    .replace(/^Reconnect orphan page:/i, "Reconnecter une page orpheline :")
+    .replace(/^Strengthen weak page:/i, "Renforcer une page faible :")
+    .replace(/^Resolve overlap:/i, "Clarifier un recouvrement :")
+    .replace(/^Refresh the /i, "Rafraîchir ")
+    .replace(/^Expand cluster:/i, "Développer le cluster :");
+}
+
+function localizeRecommendationText(text: string): string {
+  return text
+    .replace(
+      /Add contextual internal links from stronger cluster or pillar pages\./gi,
+      "Ajoutez des liens internes contextuels depuis des pages plus fortes du cluster ou depuis une page pilier."
+    )
+    .replace(
+      /Improve coverage depth, strengthen headings, and fix indexability or internal links\./gi,
+      "Renforcez la profondeur du contenu, les intertitres et l’indexabilité ou le maillage interne."
+    )
+    .replace(
+      /Differentiate intent, merge if redundant, or strengthen one page as the canonical pillar\./gi,
+      "Différenciez mieux l’intention, fusionnez si deux pages font doublon ou renforcez une page pilier canonique."
+    )
+    .replace(
+      /The page already ranks but still lacks enough depth to convert the current visibility\./gi,
+      "La page se positionne déjà, mais elle manque encore de profondeur pour convertir sa visibilité actuelle."
+    )
+    .replace(
+      /The cluster already has relevant support pages that can push more authority to the main target\./gi,
+      "Le cluster a déjà des pages support utiles qui peuvent pousser davantage d’autorité vers la page cible."
+    )
+    .replace(
+      /Google already hints at an uncovered angle that deserves a dedicated supporting page\./gi,
+      "Google laisse déjà entrevoir un angle encore peu couvert qui mérite une page support dédiée."
+    );
+}
+
 export default async function DashboardPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
@@ -66,6 +103,24 @@ export default async function DashboardPage() {
   const recentOptimizations = optimizations.items.slice(0, 3);
   const topOpportunities = optimizations.gsc_opportunities.items.slice(0, 4);
   const actionPlan = optimizations.recommendations.items.slice(0, 4);
+  const freePriorityFeed = [
+    ...actionPlan.map((item) => ({
+      id: `recommendation-${item.id}`,
+      title: localizeRecommendationTitle(item.title),
+      description: localizeRecommendationText(item.suggested_action ?? item.reasoning),
+      tone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
+      badge: item.priority <= 30 ? "Action prioritaire" : "Plan moteur",
+      siteLabel: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
+    })),
+    ...topOpportunities.map((item) => ({
+      id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
+      title: item.label,
+      description: `${item.reason} Action suggérée : ${item.action}.`,
+      tone: item.priority_level === "high" ? ("warning" as const) : ("secondary" as const),
+      badge: item.priority_label,
+      siteLabel: item.site_name,
+    })),
+  ].slice(0, 4);
   const pageWatchlist = dashboard.sites
     .flatMap((site) => [
       ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
@@ -599,43 +654,21 @@ export default async function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {prioritySites.length === 0 ? (
+              {freePriorityFeed.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Aucun blocage fort en ce moment. PraeviSEO continue de surveiller les signaux GSC utiles.
                 </div>
               ) : (
-                prioritySites.map((site) => (
-                  <div key={site.site_id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                freePriorityFeed.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">{site.name}</div>
-                      <Badge variant={site.next_action.priority === "high" ? "warning" : "secondary"}>
-                        {site.next_action.priority === "high" ? "Priorité haute" : "À planifier"}
+                      <div className="text-sm font-semibold text-text">{item.title}</div>
+                      <Badge variant={item.tone}>
+                        {item.badge}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text">
-                      {site.next_action.kind === "connect_bridge"
-                        ? site.readiness.gsc_connected
-                          ? "Activer l automatisation premium"
-                          : "Connecter Google Search Console"
-                        : site.next_action.kind === "installation_requested"
-                          ? "Automatisation premium en preparation"
-                          : site.next_action.label}
-                    </p>
-                    <p className="mt-2 text-sm text-text-muted leading-6">
-                      {site.next_action.kind === "connect_bridge" ? getPraeviseoClientDetail(site) : site.next_action.detail}
-                    </p>
-                    {site.next_action.kind === "connect_bridge" || site.next_action.kind === "installation_requested" ? (
-                      <p className="mt-2 text-sm text-text-muted leading-6">
-                        {site.readiness.gsc_connected
-                          ? "Google est déjà branché. Cette étape sert seulement à laisser PraeviSEO agir directement sur votre site."
-                          : "Commencez par connecter Google Search Console pour débloquer les premières opportunités et priorités SEO."}
-                      </p>
-                    ) : null}
-                    <div className="mt-3">
-                      <Button href={priorityHref(site)} variant="secondary" size="sm">
-                        {priorityLabel(site)}
-                      </Button>
-                    </div>
+                    <p className="mt-1 text-xs text-text-subtle">{item.siteLabel}</p>
+                    <p className="mt-2 text-sm text-text-muted leading-6">{item.description}</p>
                   </div>
                 ))
               )}
@@ -785,8 +818,9 @@ export default async function DashboardPage() {
             <CardContent className="space-y-3">
               {recentPublications.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune publication récente pour le moment. Le free reste déjà utile grâce aux signaux GSC, même
-                  sans exécution sur le site.
+                  Amiantix n’a pas encore de contenus suivis ici. Le cockpit free reste déjà utile grâce aux pages,
+                  requêtes et opportunités GSC. Dès que PraeviSEO observe des contenus éditoriaux, ce bloc montrera
+                  les refresh, maillages et enrichissements à ouvrir.
                 </div>
               ) : (
                 recentPublications.map((item) => (

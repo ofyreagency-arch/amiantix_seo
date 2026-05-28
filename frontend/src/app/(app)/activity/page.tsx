@@ -5,6 +5,31 @@ import { Topbar } from "@/components/layout/topbar";
 import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
+function localizeRecommendationTitle(title: string): string {
+  return title
+    .replace(/^Reconnect orphan page:/i, "Reconnecter une page orpheline :")
+    .replace(/^Strengthen weak page:/i, "Renforcer une page faible :")
+    .replace(/^Resolve overlap:/i, "Clarifier un recouvrement :")
+    .replace(/^Refresh the /i, "Rafraîchir ")
+    .replace(/^Expand cluster:/i, "Développer le cluster :");
+}
+
+function localizeRecommendationText(text: string): string {
+  return text
+    .replace(
+      /Add contextual internal links from stronger cluster or pillar pages\./gi,
+      "Ajoutez des liens internes contextuels depuis des pages plus fortes du cluster ou depuis une page pilier."
+    )
+    .replace(
+      /Improve coverage depth, strengthen headings, and fix indexability or internal links\./gi,
+      "Renforcez la profondeur du contenu, les intertitres et l’indexabilité ou le maillage interne."
+    )
+    .replace(
+      /Differentiate intent, merge if redundant, or strengthen one page as the canonical pillar\./gi,
+      "Différenciez mieux l’intention, fusionnez si deux pages font doublon ou renforcez une page pilier canonique."
+    );
+}
+
 export default async function ActivityCockpitPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
@@ -139,11 +164,11 @@ export default async function ActivityCockpitPage() {
   const actionPlanFeed = [
     ...observedRecommendations.slice(0, 6).map((item) => ({
       id: `plan-${item.id}`,
-      title: item.title,
+      title: localizeRecommendationTitle(item.title),
       subtitle: `${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`,
       badge: item.priority <= 30 ? "À traiter d’abord" : "Plan moteur",
       badgeTone: item.priority <= 30 ? ("warning" as const) : ("secondary" as const),
-      description: item.suggested_action ?? item.reasoning,
+      description: localizeRecommendationText(item.suggested_action ?? item.reasoning),
     })),
     ...optimizations.gsc_opportunities.items.slice(0, 6).map((item) => ({
       id: `plan-opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -258,8 +283,8 @@ export default async function ActivityCockpitPage() {
     ...enrichmentFeed.slice(0, 6),
     ...observedRecommendations.slice(0, 6).map((item) => ({
       id: `observed-recommendation-${item.id}`,
-      title: item.title,
-      detail: item.suggested_action ?? item.reasoning,
+      title: localizeRecommendationTitle(item.title),
+      detail: localizeRecommendationText(item.suggested_action ?? item.reasoning),
       badge: item.priority <= 30 ? "Action prioritaire" : "Reco moteur",
       badgeVariant: item.priority <= 30 ? "warning" as const : "secondary" as const,
       meta: item.generated_at ? formatDate(item.generated_at) : `${item.site_id} · moteur observé`,
