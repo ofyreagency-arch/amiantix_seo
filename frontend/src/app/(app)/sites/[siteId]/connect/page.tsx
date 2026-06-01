@@ -14,7 +14,7 @@ import {
   isInstallationInProgress,
 } from "@/lib/praeviseo-api";
 import { submitRemoteInstallAction } from "./actions";
-import { Download, Monitor, ShieldCheck } from "lucide-react";
+import { Bot, Download, FileSearch, ImagePlus, Link2, Monitor, Rocket, ShieldCheck, Sparkles } from "lucide-react";
 
 interface SiteConnectPageProps {
   params: Promise<{ siteId: string }>;
@@ -35,6 +35,55 @@ const INSTALLERS = [
   },
 ];
 
+const PREMIUM_MODULES = [
+  {
+    title: "Installation et connexion",
+    description: "PraeviSEO s’installe sur le serveur, détecte votre environnement et active la connexion sécurisée au site.",
+    items: ["Installation sur votre serveur", "Connexion sécurisée", "Mises à jour", "Multi-sites"],
+  },
+  {
+    title: "Exécution SEO",
+    description: "Une fois actif, PraeviSEO peut lancer et rejouer les optimisations directement sur le site client.",
+    items: [
+      "Crawl automatique",
+      "Génération de pages SEO",
+      "Réécriture SEO",
+      "Maillage interne automatique",
+      "Images SEO",
+      "Publication automatique",
+      "Re-crawl",
+    ],
+  },
+  {
+    title: "Supervision continue",
+    description: "Le pack payant garde l’historique des actions, suit les retours Google et surveille les régressions.",
+    items: ["Monitoring continu", "Historique complet", "Suivi des actions", "Contrôle des régressions"],
+  },
+] as const;
+
+const EXECUTION_STEPS = [
+  {
+    icon: FileSearch,
+    title: "1. Crawl du site",
+    detail: "PraeviSEO relit le site, repère les pages existantes et valide où il peut agir sans risque.",
+  },
+  {
+    icon: Sparkles,
+    title: "2. Préparation des actions",
+    detail: "Le moteur prépare les pages à enrichir, les réécritures utiles et les liens internes à ouvrir.",
+  },
+  {
+    icon: Bot,
+    title: "3. Exécution automatique",
+    detail: "PraeviSEO publie, réécrit, relie les pages et relance les vérifications sans manipulation manuelle.",
+  },
+  {
+    icon: Monitor,
+    title: "4. Monitoring continu",
+    detail: "Après l’exécution, PraeviSEO suit le résultat, détecte les progrès et prépare la prochaine action utile.",
+  },
+] as const;
+
 export default async function SiteConnectPage({ params }: SiteConnectPageProps) {
   const { siteId } = await params;
   const site = await getSite(siteId);
@@ -51,7 +100,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
     <div className="min-h-screen">
       <Topbar
         title={`Automatisation premium · ${site.name}`}
-        subtitle="Le mode free fonctionne déjà avec Google Search Console. Cette page sert uniquement à activer la couche premium d'exécution."
+        subtitle="Le mode free vous explique déjà votre SEO. Cette page active la couche qui agit ensuite directement sur votre site."
       />
 
       <div className="p-6 space-y-6">
@@ -64,6 +113,10 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               <h1 className="text-2xl font-bold tracking-tight text-text">Activer l'automatisation premium sur votre site</h1>
               <p className="mt-2 text-sm text-text-muted max-w-2xl leading-7">
                 {installationDetail}
+              </p>
+              <p className="mt-3 text-sm text-text-muted max-w-2xl leading-7">
+                Une fois cette couche active, PraeviSEO peut installer, relire, réécrire, relier, publier et surveiller votre site
+                en continu, sans vous faire gérer la partie technique.
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 min-w-[280px]">
@@ -82,6 +135,25 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
           </div>
         </div>
 
+        <div className="grid gap-6 xl:grid-cols-3">
+          {PREMIUM_MODULES.map((module) => (
+            <Card key={module.title}>
+              <CardHeader>
+                <CardTitle>{module.title}</CardTitle>
+                <CardDescription>{module.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-text-muted">
+                {module.items.map((item) => (
+                  <div key={item} className="flex items-start gap-2">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--success))]" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         <RemoteInstallAssistant
           siteId={site.site_id}
           site={site}
@@ -89,12 +161,70 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
           initialState={{ status: "idle", message: "", values: {} }}
         />
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Ce que PraeviSEO fera juste après l’activation</CardTitle>
+            <CardDescription>
+              Le pack payant ne se contente pas de vous montrer des idées. Il enchaîne les vraies étapes d’exécution.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-4">
+            {EXECUTION_STEPS.map((step) => {
+              const Icon = step.icon;
+
+              return (
+                <div key={step.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-subtle">
+                    <Icon className="h-5 w-5 text-[hsl(var(--brand))]" />
+                  </div>
+                  <div className="mt-4 text-sm font-semibold text-text">{step.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{step.detail}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 xl:grid-cols-3">
+          {[
+            {
+              icon: Rocket,
+              title: "Ce que vous gagnez",
+              text: "Un site qui n’attend plus une action manuelle pour être relu, enrichi, relié puis publié.",
+            },
+            {
+              icon: Link2,
+              title: "Ce qui devient automatique",
+              text: "Maillage interne, réécritures utiles, republication, re-crawl et suivi continu peuvent s’enchaîner proprement.",
+            },
+            {
+              icon: ImagePlus,
+              title: "Ce qui s’ajoute ensuite",
+              text: "Images SEO, exécutions plus poussées et supervision multi-sites viennent s’appuyer sur cette même couche installée.",
+            },
+          ].map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <Card key={item.title}>
+                <CardContent className="pt-5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-subtle">
+                    <Icon className="h-5 w-5 text-[hsl(var(--brand))]" />
+                  </div>
+                  <div className="mt-4 text-base font-semibold text-text">{item.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.text}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
         <div className="rounded-2xl border border-border bg-surface px-6 py-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-base font-semibold text-text">Alternative avancée</div>
               <p className="mt-1 text-sm text-text-muted leading-6">
-                Si vous souhaitez activer la couche premium manuellement, vous pouvez utiliser les scripts officiels ci-dessous.
+                Si vous préférez déclencher l’activation manuellement, vous pouvez toujours utiliser les scripts officiels ci-dessous.
               </p>
             </div>
             <Badge variant="secondary">Méthode actuelle</Badge>

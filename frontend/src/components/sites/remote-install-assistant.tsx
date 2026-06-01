@@ -49,6 +49,13 @@ const ACCESS_OPTIONS: AccessOption[] = [
   { id: "api", label: "API hébergeur", hint: "Quand l’hébergeur propose une connexion native" },
 ];
 
+const ACTIVATION_RESULTS = [
+  "Le site peut être recrawlé automatiquement après chaque action importante.",
+  "Les réécritures SEO et les enrichissements utiles peuvent être poussés sans intervention manuelle lourde.",
+  "Le maillage interne et les futures publications peuvent être suivis depuis PraeviSEO.",
+  "Le monitoring continu garde l’historique des actions et des prochaines optimisations à ouvrir.",
+] as const;
+
 function categoryLabel(category: HostingOption["category"]) {
   return (
     {
@@ -304,6 +311,23 @@ export function RemoteInstallAssistant({
             ))}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>4. Ce qui devient actif ensuite</CardTitle>
+            <CardDescription>
+              Cette installation ouvre la partie payante qui agit ensuite directement sur le site client.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-text-muted">
+            {ACTIVATION_RESULTS.map((item) => (
+              <div key={item} className="flex items-start gap-2">
+                <HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--brand))]" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-6">
@@ -311,7 +335,8 @@ export function RemoteInstallAssistant({
           <CardHeader>
             <CardTitle>Assistant d’installation</CardTitle>
             <CardDescription>
-              Le client ne manipule ni terminal, ni Composer, ni fichiers serveur. PraeviSEO se charge de la couche technique.
+              Le client ne manipule ni terminal, ni Composer, ni fichiers serveur. PraeviSEO se charge de la couche technique
+              pour ouvrir ensuite l’exécution SEO continue.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
