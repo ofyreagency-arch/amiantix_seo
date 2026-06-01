@@ -108,6 +108,7 @@ return [
             ['command' => 'seo:detect-cannibalization', 'frequency' => 'dailyAt', 'argument' => '04:30', 'withoutOverlapping' => true],
             ['command' => 'seo:match-query-pages --force', 'frequency' => 'dailyAt', 'argument' => '04:40', 'withoutOverlapping' => true],
             ['command' => 'seo:queue-signal-suggestions', 'frequency' => 'dailyAt', 'argument' => '04:50', 'withoutOverlapping' => true],
+            ['command' => 'seo:premium-automation-loop', 'frequency' => 'everyThirtyMinutes', 'withoutOverlapping' => true],
         ],
     ],
 ];

@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\ObservedSite\SiteCrawlerService;
+use App\Runtime\PremiumAutomationLoopService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -23,7 +24,7 @@ class RunObservedSiteCrawlJob implements ShouldQueue
         $this->onQueue('observed-crawls');
     }
 
-    public function handle(SiteCrawlerService $service): void
+    public function handle(SiteCrawlerService $service, PremiumAutomationLoopService $premiumLoop): void
     {
         $crawl = SeoSiteCrawl::query()->find($this->crawlId);
 
@@ -48,6 +49,7 @@ class RunObservedSiteCrawlJob implements ShouldQueue
 
         try {
             $service->crawlQueued($site, $crawl);
+            $premiumLoop->runForSite($site->fresh(['googleConnection', 'latestObservedCrawl']));
         } catch (\Throwable $exception) {
             $crawl->forceFill([
                 'status' => 'failed',
