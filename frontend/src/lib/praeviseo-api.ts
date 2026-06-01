@@ -2241,6 +2241,68 @@ export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite
   return normaliseSite(payload.site);
 }
 
+export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === siteId);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return site;
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${siteId}/rewrite`,
+    {
+      method: "POST",
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
+export async function requestPremiumPublication(siteId: string): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === siteId);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      summary: {
+        ...site.summary,
+        pages_live: Math.max(site.summary.pages_live, 1),
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${siteId}/publish`,
+    {
+      method: "POST",
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
 export async function getRemoteInstallationStatus(siteId: string): Promise<PraeviseoSite | null> {
   if (!backendConfigured()) {
     return mockSites.find((site) => site.site_id === siteId) ?? null;

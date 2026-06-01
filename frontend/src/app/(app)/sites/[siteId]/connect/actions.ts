@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getSiteConnectPath, requestPremiumCrawl, requestRemoteInstallation } from "@/lib/praeviseo-api";
+import {
+  getSiteConnectPath,
+  requestPremiumCrawl,
+  requestPremiumPublication,
+  requestPremiumRewrite,
+  requestRemoteInstallation,
+} from "@/lib/praeviseo-api";
 
 export type RemoteInstallActionState = {
   status: "idle" | "success" | "error";
@@ -97,6 +103,18 @@ export async function submitRemoteInstallAction(
 
 export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
   await requestPremiumCrawl(siteId);
+  revalidatePath(getSiteConnectPath(siteId));
+  redirect(getSiteConnectPath(siteId));
+}
+
+export async function launchPremiumRewriteAction(siteId: string): Promise<void> {
+  await requestPremiumRewrite(siteId);
+  revalidatePath(getSiteConnectPath(siteId));
+  redirect(getSiteConnectPath(siteId));
+}
+
+export async function launchPremiumPublicationAction(siteId: string): Promise<void> {
+  await requestPremiumPublication(siteId);
   revalidatePath(getSiteConnectPath(siteId));
   redirect(getSiteConnectPath(siteId));
 }

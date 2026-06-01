@@ -14,7 +14,12 @@ import {
   getSite,
   isInstallationInProgress,
 } from "@/lib/praeviseo-api";
-import { launchPremiumCrawlAction, submitRemoteInstallAction } from "./actions";
+import {
+  launchPremiumCrawlAction,
+  launchPremiumPublicationAction,
+  launchPremiumRewriteAction,
+  submitRemoteInstallAction,
+} from "./actions";
 import { Bot, Download, FileSearch, ImagePlus, Link2, Monitor, Rocket, ShieldCheck, Sparkles } from "lucide-react";
 
 interface SiteConnectPageProps {
@@ -434,11 +439,23 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                   Voici les briques qui tourneront pour ce site dès que l’installation sera complètement active.
                 </CardDescription>
               </div>
-              <form action={launchPremiumCrawlAction.bind(null, site.site_id)}>
-                <Button type="submit" variant="secondary">
-                  Lancer un crawl premium
-                </Button>
-              </form>
+              <div className="flex flex-wrap gap-2">
+                <form action={launchPremiumCrawlAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">
+                    Lancer un crawl premium
+                  </Button>
+                </form>
+                <form action={launchPremiumRewriteAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">
+                    Préparer une réécriture
+                  </Button>
+                </form>
+                <form action={launchPremiumPublicationAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">
+                    Publier la meilleure page
+                  </Button>
+                </form>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="grid gap-4 xl:grid-cols-5">

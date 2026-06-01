@@ -26,6 +26,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 
 class ClientSitesController extends Controller
 {
@@ -251,6 +252,79 @@ class ClientSitesController extends Controller
         return response()->json([
             'site' => $this->serializeSite($site),
             'crawl' => $this->serializeObservedCrawl($crawl->fresh()),
+        ], 202);
+    }
+
+    public function startPremiumRewrite(Request $request, string $siteId, SeoRewriteService $rewrite): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $page = $this->resolveRewriteCandidatePage($siteId);
+
+        if (! $page) {
+            return response()->json([
+                'message' => 'Aucune page claire n est encore prête pour une réécriture premium sur ce site.',
+            ], 422);
+        }
+
+        $existingSuggestion = $page->suggestions()
+            ->where('status', 'pending')
+            ->latest('created_at')
+            ->first();
+
+        $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions']), 'enrich');
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+            'rewrite' => [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'title' => (string) $page->title,
+                'suggestion_id' => (int) ($suggestion->id ?? 0),
+                'already_pending' => $existingSuggestion !== null,
+            ],
+        ], 202);
+    }
+
+    public function startPremiumPublication(Request $request, string $siteId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $page = $this->resolvePublicationCandidatePage($siteId);
+
+        if (! $page) {
+            return response()->json([
+                'message' => 'Aucune page publiée côté moteur n est encore prête à être poussée en live.',
+            ], 422);
+        }
+
+        $page = app(SeoLivePublicationService::class)->publish($page, $site);
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+            'publication' => [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'title' => (string) $page->title,
+                'live_url' => (string) ($page->live_url ?? ''),
+                'published_live_at' => $page->published_live_at?->toIso8601String(),
+            ],
         ], 202);
     }
 
@@ -727,6 +801,44 @@ class ClientSitesController extends Controller
             'error' => isset($meta['error']) ? (string) $meta['error'] : null,
             'trigger' => isset($meta['trigger']) ? (string) $meta['trigger'] : null,
         ];
+    }
+
+    private function resolveRewriteCandidatePage(string $siteId): ?SeoPage
+    {
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->withCount([
+                'suggestions as pending_suggestions_count' => fn ($query) => $query->where('status', 'pending'),
+            ])
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+            ->orderByRaw('CASE WHEN observed_site_page_id IS NULL THEN 1 ELSE 0 END')
+            ->orderByDesc('seo_score')
+            ->orderByDesc('updated_at')
+            ->first();
+    }
+
+    private function resolvePublicationCandidatePage(string $siteId): ?SeoPage
+    {
+        $query = SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where(function ($builder): void {
+                $builder
+                    ->where('status', 'published')
+                    ->orWhereNotNull('published_at');
+            });
+
+        if (Schema::hasColumn('seo_pages', 'published_live')) {
+            $query->where(function ($builder): void {
+                $builder
+                    ->whereNull('published_live')
+                    ->orWhere('published_live', false);
+            });
+        }
+
+        return $query
+            ->orderByDesc('published_at')
+            ->orderByDesc('updated_at')
+            ->first();
     }
 
     /**
