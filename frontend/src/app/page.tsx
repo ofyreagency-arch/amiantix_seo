@@ -95,8 +95,8 @@ const PLANS = [
   },
   {
     name: "Installateur",
-    price: "89",
-    description: "Pour laisser PraeviSEO agir directement sur le site.",
+    price: "149",
+    description: "Pour activer l’installation PraeviSEO et l’automatisation directe sur le site.",
     features: [
       "Installation sur serveur",
       "Crawl automatique",
@@ -105,7 +105,7 @@ const PLANS = [
       "Monitoring continu",
       "Historique d’exécution",
     ],
-    cta: "Découvrir l’installateur",
+    cta: "Activer l’installateur",
     popular: true,
   },
   {
@@ -429,7 +429,7 @@ export default function LandingPage() {
               Simple, prévisible, sans surprise
             </h2>
             <p className="text-text-muted max-w-xl mx-auto">
-              Commencez gratuitement, puis activez seulement le niveau d’automatisation dont vous avez besoin.
+              Commencez gratuitement, puis activez le pack d’installation seulement quand vous voulez que PraeviSEO agisse directement sur le site.
             </p>
           </div>
 
@@ -457,6 +457,11 @@ export default function LandingPage() {
                     <span className="text-4xl font-bold text-text">{price}€</span>
                     <span className="text-sm text-text-subtle">/mois</span>
                   </div>
+                  {name === "Installateur" ? (
+                    <p className="mt-3 text-xs leading-6 text-text-subtle">
+                      Le pack d’installation active la couche premium : connexion serveur, exécution SEO et suivi continu.
+                    </p>
+                  ) : null}
                 </div>
 
                 <ul className="space-y-2.5 mb-6">
