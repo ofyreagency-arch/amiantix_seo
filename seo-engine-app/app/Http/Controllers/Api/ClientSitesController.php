@@ -226,28 +226,14 @@ class ClientSitesController extends Controller
             ->where('site_id', $siteId)
             ->firstOrFail();
 
-        $latestCrawl = $site->relationLoaded('latestObservedCrawl')
-            ? $site->getRelation('latestObservedCrawl')
-            : $site->latestObservedCrawl()->first();
+        $crawl = $this->scheduleObservedCrawlIfIdle($site, 'premium_client');
 
-        if ($latestCrawl && in_array((string) $latestCrawl->status, ['pending', 'running'], true)) {
+        if ($crawl && in_array((string) $crawl->status, ['pending', 'running'], true) && (int) $crawl->id === (int) optional($site->latestObservedCrawl)->id) {
             return response()->json([
                 'site' => $this->serializeSite($site),
-                'crawl' => $this->serializeObservedCrawl($latestCrawl),
+                'crawl' => $this->serializeObservedCrawl($crawl),
             ], 202);
         }
-
-        $crawl = SeoSiteCrawl::query()->create([
-            'site_id' => $site->site_id,
-            'base_url' => rtrim((string) $site->url, '/'),
-            'status' => 'pending',
-            'max_pages' => 80,
-            'meta_json' => [
-                'trigger' => 'premium_client',
-            ],
-        ]);
-
-        RunObservedSiteCrawlJob::dispatch($crawl->id);
 
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
@@ -316,6 +302,7 @@ class ClientSitesController extends Controller
         }
 
         $page = app(SeoLivePublicationService::class)->publish($page, $site);
+        $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
         return response()->json([
@@ -364,6 +351,7 @@ class ClientSitesController extends Controller
 
         $result = $workflow->apply($suggestion->fresh());
         $page->refresh();
+        $this->scheduleObservedCrawlIfIdle($site, 'after_linking');
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
         return response()->json([
@@ -853,6 +841,31 @@ class ClientSitesController extends Controller
             'error' => isset($meta['error']) ? (string) $meta['error'] : null,
             'trigger' => isset($meta['trigger']) ? (string) $meta['trigger'] : null,
         ];
+    }
+
+    private function scheduleObservedCrawlIfIdle(SeoSite $site, string $trigger): SeoSiteCrawl
+    {
+        $latestCrawl = $site->relationLoaded('latestObservedCrawl')
+            ? $site->getRelation('latestObservedCrawl')
+            : $site->latestObservedCrawl()->first();
+
+        if ($latestCrawl && in_array((string) $latestCrawl->status, ['pending', 'running'], true)) {
+            return $latestCrawl;
+        }
+
+        $crawl = SeoSiteCrawl::query()->create([
+            'site_id' => $site->site_id,
+            'base_url' => rtrim((string) $site->url, '/'),
+            'status' => 'pending',
+            'max_pages' => 80,
+            'meta_json' => [
+                'trigger' => $trigger,
+            ],
+        ]);
+
+        RunObservedSiteCrawlJob::dispatch($crawl->id);
+
+        return $crawl;
     }
 
     private function resolveRewriteCandidatePage(string $siteId): ?SeoPage

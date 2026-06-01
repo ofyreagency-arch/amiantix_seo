@@ -190,13 +190,25 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
       detail: site.next_action.detail,
     },
   ] as const;
+  const crawlTriggerLabel =
+    site.crawl?.trigger === "after_publication"
+      ? "Relecture relancée après publication"
+      : site.crawl?.trigger === "after_linking"
+        ? "Relecture relancée après maillage"
+        : "Crawl premium demandé";
+  const crawlTriggerDetail =
+    site.crawl?.trigger === "after_publication"
+      ? "PraeviSEO relit le site après une publication pour vérifier le résultat visible."
+      : site.crawl?.trigger === "after_linking"
+        ? "PraeviSEO relit le site après un renfort de liens internes pour contrôler la nouvelle structure."
+        : "PraeviSEO a enregistré une nouvelle lecture complète du site pour préparer les prochaines actions.";
   const executionHistory = [
     ...(site.crawl?.requested_at
       ? [
           {
             at: site.crawl.requested_at,
-            label: "Crawl premium demandé",
-            detail: "PraeviSEO a enregistré une nouvelle lecture complète du site pour préparer les prochaines actions.",
+            label: crawlTriggerLabel,
+            detail: crawlTriggerDetail,
             tone: "secondary" as const,
           },
         ]
