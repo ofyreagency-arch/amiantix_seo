@@ -7,6 +7,7 @@ namespace App\RemoteInstallation\Connectors;
 use App\RemoteInstallation\Exceptions\RemoteInstallationException;
 use App\RemoteInstallation\RemoteCommand;
 use App\RemoteInstallation\RemoteCommandResult;
+use Illuminate\Support\Facades\Log;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
 use phpseclib3\Net\SSH2;
@@ -33,6 +34,10 @@ class SshRemoteConnector implements RemoteConnector
         $secret = (string) ($this->credentials['secret'] ?? '');
 
         if ($host === '' || $username === '' || $secret === '') {
+            $this->logDiagnostic('missing_credentials', $host, $port, $username, [
+                'secret_present' => $secret !== '',
+            ]);
+
             throw RemoteInstallationException::authentication(
                 'Hôte SSH, utilisateur ou mot de passe / clé privée manquant.'
             );
@@ -41,6 +46,12 @@ class SshRemoteConnector implements RemoteConnector
         try {
             $this->ssh = new SSH2($host, $port, 20);
         } catch (Throwable $exception) {
+            $this->logDiagnostic('ssh_transport_connect_failed', $host, $port, $username, [
+                'original_exception_class' => $exception::class,
+                'original_exception_message' => $exception->getMessage(),
+                'original_exception_trace' => $exception->getTraceAsString(),
+            ]);
+
             throw RemoteInstallationException::connectivity(
                 $this->connectivityMessage('SSH', $host, $port, $exception)
             );
@@ -49,6 +60,12 @@ class SshRemoteConnector implements RemoteConnector
         try {
             $this->sftp = new SFTP($host, $port, 20);
         } catch (Throwable $exception) {
+            $this->logDiagnostic('sftp_transport_connect_failed', $host, $port, $username, [
+                'original_exception_class' => $exception::class,
+                'original_exception_message' => $exception->getMessage(),
+                'original_exception_trace' => $exception->getTraceAsString(),
+            ]);
+
             throw RemoteInstallationException::connectivity(
                 $this->connectivityMessage('SFTP', $host, $port, $exception)
             );
@@ -59,12 +76,24 @@ class SshRemoteConnector implements RemoteConnector
         try {
             $authSecret = $usesPrivateKey ? PublicKeyLoader::load($secret) : $secret;
         } catch (Throwable $exception) {
+            $this->logDiagnostic('ssh_private_key_invalid', $host, $port, $username, [
+                'uses_private_key' => $usesPrivateKey,
+                'original_exception_class' => $exception::class,
+                'original_exception_message' => $exception->getMessage(),
+                'original_exception_trace' => $exception->getTraceAsString(),
+            ]);
+
             throw RemoteInstallationException::authentication(
                 'La clé privée SSH fournie est invalide ou incomplète. '.$this->detailSuffix($exception->getMessage())
             );
         }
 
         if (! $this->ssh->login($username, $authSecret)) {
+            $this->logDiagnostic('ssh_login_failed', $host, $port, $username, [
+                'uses_private_key' => $usesPrivateKey,
+                'ssh_errors' => $this->transportErrors($this->ssh),
+            ]);
+
             throw RemoteInstallationException::authentication(
                 $this->authenticationMessage(
                     protocol: 'SSH',
@@ -78,6 +107,11 @@ class SshRemoteConnector implements RemoteConnector
         }
 
         if (! $this->sftp->login($username, $authSecret)) {
+            $this->logDiagnostic('sftp_login_failed', $host, $port, $username, [
+                'uses_private_key' => $usesPrivateKey,
+                'sftp_errors' => $this->transportErrors($this->sftp),
+            ]);
+
             throw RemoteInstallationException::authentication(
                 $this->authenticationMessage(
                     protocol: 'SFTP',
@@ -209,5 +243,19 @@ class SshRemoteConnector implements RemoteConnector
         $detail = trim($detail);
 
         return $detail === '' ? '' : 'Détail: '.$detail;
+    }
+
+    /**
+     * @param array<string,mixed> $context
+     */
+    private function logDiagnostic(string $stage, string $host, int $port, string $username, array $context = []): void
+    {
+        Log::error('Remote installation SSH diagnostic', array_merge([
+            'stage' => $stage,
+            'target_host' => $host,
+            'target_port' => $port,
+            'ssh_username' => $username,
+            'equivalent_test_command' => sprintf('ssh -p %d %s@%s', $port, $username !== '' ? $username : '<missing-user>', $host !== '' ? $host : '<missing-host>'),
+        ], $context));
     }
 }
