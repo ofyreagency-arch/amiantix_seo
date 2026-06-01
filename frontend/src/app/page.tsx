@@ -82,6 +82,7 @@ const PLANS = [
   {
     name: "Free",
     price: "0",
+    priceSuffix: "/mois",
     description: "Pour comprendre enfin son SEO sans rien installer.",
     features: [
       "Connexion Google Search Console",
@@ -96,6 +97,7 @@ const PLANS = [
   {
     name: "Installateur",
     price: "149",
+    priceSuffix: "activation",
     description: "Pour activer l’installation PraeviSEO et l’automatisation directe sur le site.",
     features: [
       "Installation sur serveur",
@@ -111,6 +113,7 @@ const PLANS = [
   {
     name: "Multi-sites",
     price: "249",
+    priceSuffix: "/mois",
     description: "Pour les agences et portefeuilles de sites.",
     features: [
       "Plusieurs sites suivis",
@@ -122,6 +125,34 @@ const PLANS = [
     ],
     cta: "Parler de votre parc",
     popular: false,
+  },
+];
+
+const COMPARISON_ROWS = [
+  {
+    label: "Comprendre ce que Google voit",
+    free: "Oui, dès la connexion Search Console.",
+    installer: "Oui, avec en plus la relecture du site après chaque action.",
+  },
+  {
+    label: "Voir quoi faire ensuite",
+    free: "Oui, avec des priorités expliquées simplement.",
+    installer: "Oui, et PraeviSEO peut lancer ces actions pour vous.",
+  },
+  {
+    label: "Modifier le site automatiquement",
+    free: "Non, le Free guide mais n'écrit pas sur le site.",
+    installer: "Oui, via réécriture, maillage, images et publication.",
+  },
+  {
+    label: "Relire le site après optimisation",
+    free: "Non, la lecture reste centrée sur Google Search Console.",
+    installer: "Oui, avec crawl et re-crawl après action.",
+  },
+  {
+    label: "Suivi continu des actions",
+    free: "Lecture SEO et priorités dans le cockpit.",
+    installer: "Historique, statuts, erreurs et monitoring continu.",
   },
 ];
 
@@ -335,6 +366,54 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── FREE VS INSTALLER ───────────────────────────────────────────────── */} 
+      <section className="py-28 px-5">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4">Free vs Installateur</Badge>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+              D'abord comprendre.{" "}
+              <span className="text-gradient-brand">Ensuite laisser PraeviSEO agir.</span>
+            </h2>
+            <p className="text-text-muted max-w-2xl mx-auto">
+              Le Free sert à voir clair. L'Installateur sert à faire le travail sur le site.
+              Cette différence doit être évidente pour le client dès la première lecture.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-surface overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr] border-b border-border bg-surface-2">
+              <div className="p-5 text-sm font-semibold text-text">Ce que PraeviSEO fait</div>
+              <div className="p-5 border-t md:border-t-0 md:border-l border-border">
+                <p className="text-sm font-semibold text-text">Free</p>
+                <p className="mt-1 text-xs text-text-subtle">Comprendre son SEO sans rien installer</p>
+              </div>
+              <div className="p-5 border-t md:border-t-0 md:border-l border-border bg-brand-muted/40">
+                <p className="text-sm font-semibold text-text">Installateur</p>
+                <p className="mt-1 text-xs text-text-subtle">Activer l'exécution automatique sur le site</p>
+              </div>
+            </div>
+
+            {COMPARISON_ROWS.map(({ label, free, installer }) => (
+              <div
+                key={label}
+                className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr] border-b border-border last:border-b-0"
+              >
+                <div className="p-5">
+                  <p className="text-sm font-medium text-text">{label}</p>
+                </div>
+                <div className="p-5 border-t md:border-t-0 md:border-l border-border">
+                  <p className="text-sm text-text-muted leading-relaxed">{free}</p>
+                </div>
+                <div className="p-5 border-t md:border-t-0 md:border-l border-border bg-brand-muted/20">
+                  <p className="text-sm text-text-muted leading-relaxed">{installer}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── FEATURES ──────────────────────────────────────────────────────────── */}
       <section className="py-28 px-5 bg-surface/30" id="features">
         <div className="max-w-6xl mx-auto">
@@ -434,7 +513,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {PLANS.map(({ name, price, description, features, cta, popular }) => (
+            {PLANS.map(({ name, price, priceSuffix, description, features, cta, popular }) => (
               <div
                 key={name}
                 className={`relative rounded-xl border p-6 transition-all duration-300 ${
@@ -455,11 +534,12 @@ export default function LandingPage() {
                   <p className="text-xs text-text-subtle mb-4">{description}</p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-bold text-text">{price}€</span>
-                    <span className="text-sm text-text-subtle">/mois</span>
+                    <span className="text-sm text-text-subtle">{priceSuffix}</span>
                   </div>
                   {name === "Installateur" ? (
                     <p className="mt-3 text-xs leading-6 text-text-subtle">
-                      Le pack d’installation active la couche premium : connexion serveur, exécution SEO et suivi continu.
+                      Paiement d'activation pour installer PraeviSEO sur le site et lancer la couche premium :
+                      crawl, réécriture, maillage, images, publication et suivi continu.
                     </p>
                   ) : null}
                 </div>
