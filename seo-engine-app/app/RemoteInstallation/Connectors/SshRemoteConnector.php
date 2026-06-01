@@ -33,24 +33,61 @@ class SshRemoteConnector implements RemoteConnector
         $secret = (string) ($this->credentials['secret'] ?? '');
 
         if ($host === '' || $username === '' || $secret === '') {
-            throw RemoteInstallationException::authentication();
+            throw RemoteInstallationException::authentication(
+                'Hôte SSH, utilisateur ou mot de passe / clé privée manquant.'
+            );
         }
 
         try {
             $this->ssh = new SSH2($host, $port, 20);
-            $this->sftp = new SFTP($host, $port, 20);
-        } catch (Throwable) {
-            throw RemoteInstallationException::connectivity('Serveur SSH inaccessible.');
+        } catch (Throwable $exception) {
+            throw RemoteInstallationException::connectivity(
+                $this->connectivityMessage('SSH', $host, $port, $exception)
+            );
         }
 
-        $authSecret = str_contains($secret, 'BEGIN') ? PublicKeyLoader::load($secret) : $secret;
+        try {
+            $this->sftp = new SFTP($host, $port, 20);
+        } catch (Throwable $exception) {
+            throw RemoteInstallationException::connectivity(
+                $this->connectivityMessage('SFTP', $host, $port, $exception)
+            );
+        }
+
+        $usesPrivateKey = str_contains($secret, 'BEGIN');
+
+        try {
+            $authSecret = $usesPrivateKey ? PublicKeyLoader::load($secret) : $secret;
+        } catch (Throwable $exception) {
+            throw RemoteInstallationException::authentication(
+                'La clé privée SSH fournie est invalide ou incomplète. '.$this->detailSuffix($exception->getMessage())
+            );
+        }
 
         if (! $this->ssh->login($username, $authSecret)) {
-            throw RemoteInstallationException::authentication('Impossible de se connecter en SSH avec les identifiants fournis.');
+            throw RemoteInstallationException::authentication(
+                $this->authenticationMessage(
+                    protocol: 'SSH',
+                    host: $host,
+                    port: $port,
+                    username: $username,
+                    usesPrivateKey: $usesPrivateKey,
+                    errors: $this->transportErrors($this->ssh),
+                )
+            );
         }
 
         if (! $this->sftp->login($username, $authSecret)) {
-            throw RemoteInstallationException::authentication('Connexion SFTP refusée avec les identifiants fournis.');
+            throw RemoteInstallationException::authentication(
+                $this->authenticationMessage(
+                    protocol: 'SFTP',
+                    host: $host,
+                    port: $port,
+                    username: $username,
+                    usesPrivateKey: $usesPrivateKey,
+                    errors: $this->transportErrors($this->sftp),
+                )
+            );
         }
     }
 
@@ -98,5 +135,79 @@ class SshRemoteConnector implements RemoteConnector
         $this->sftp?->disconnect();
         $this->ssh = null;
         $this->sftp = null;
+    }
+
+    private function connectivityMessage(string $protocol, string $host, int $port, Throwable $exception): string
+    {
+        return sprintf(
+            'Connexion %s impossible vers %s:%d. Vérifiez l hôte, le port et que le serveur accepte les connexions %s.%s',
+            $protocol,
+            $host,
+            $port,
+            $protocol,
+            $this->detailSuffix($exception->getMessage()),
+        );
+    }
+
+    /**
+     * @param array<int,string> $errors
+     */
+    private function authenticationMessage(
+        string $protocol,
+        string $host,
+        int $port,
+        string $username,
+        bool $usesPrivateKey,
+        array $errors = [],
+    ): string {
+        $credentialLabel = $usesPrivateKey ? 'La clé privée SSH' : 'Le mot de passe SSH';
+        $baseMessage = $protocol === 'SSH'
+            ? sprintf('%s a été refusé pour %s@%s:%d.', $credentialLabel, $username, $host, $port)
+            : sprintf('Le serveur a refusé la connexion SFTP pour %s@%s:%d.', $username, $host, $port);
+
+        $detail = $this->detailSuffix($this->normalizeErrors($errors));
+
+        if ($detail !== '') {
+            return $baseMessage.' '.$detail;
+        }
+
+        return $protocol === 'SSH'
+            ? $baseMessage.' Vérifiez le mot de passe, la clé privée, ou les règles PermitRootLogin / PasswordAuthentication du serveur.'
+            : $baseMessage.' SSH répond, mais le sous-système SFTP ou son authentification a été refusé.';
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function transportErrors(object $transport): array
+    {
+        if (! method_exists($transport, 'getErrors')) {
+            return [];
+        }
+
+        $errors = $transport->getErrors();
+
+        if (! is_array($errors)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $error): string => trim((string) $error), $errors)));
+    }
+
+    /**
+     * @param array<int,string> $errors
+     */
+    private function normalizeErrors(array $errors): string
+    {
+        $messages = array_values(array_unique(array_filter(array_map(static fn (string $error): string => trim($error), $errors))));
+
+        return implode(' | ', $messages);
+    }
+
+    private function detailSuffix(string $detail): string
+    {
+        $detail = trim($detail);
+
+        return $detail === '' ? '' : 'Détail: '.$detail;
     }
 }

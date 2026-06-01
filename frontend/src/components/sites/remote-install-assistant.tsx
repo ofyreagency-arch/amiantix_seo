@@ -137,6 +137,7 @@ export function RemoteInstallAssistant({
     isInstallationInProgress(liveInstallation.status) ||
     site.publication_bridge_status === "requested" ||
     state.status === "success";
+  const installationFailed = liveInstallation.status === "failed";
 
   const valueFor = (field: string) => state.values[field] ?? "";
 
@@ -444,13 +445,24 @@ export function RemoteInstallAssistant({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {installationRequested ? (
+              {installationRequested && !installationFailed ? (
                 <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-4 text-sm text-text">
                   <div className="font-semibold">Installation distante déjà en préparation</div>
                   <p className="mt-2 leading-6 text-text-muted">
                     {state.message ||
                       liveInstallation.logs.at(-1)?.message ||
                       "Vos accès sont bien enregistrés. PraeviSEO prépare maintenant automatiquement l’activation distante du site."}
+                  </p>
+                </div>
+              ) : null}
+
+              {installationFailed ? (
+                <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
+                  <div className="font-semibold text-text">Installation distante à corriger</div>
+                  <p className="mt-2 leading-6">
+                    {liveInstallation.error_message ||
+                      liveInstallation.logs.at(-1)?.message ||
+                      "PraeviSEO a bien enregistré vos accès, mais l’installation a échoué. Corrigez les champs ci-dessous puis relancez."}
                   </p>
                 </div>
               ) : null}

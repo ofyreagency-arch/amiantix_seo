@@ -69,11 +69,15 @@ class RemoteInstallationService
             $installation->markProgress(RemoteInstallation::STATUS_FAILED, 'failed', 100, $exception->getMessage());
             throw $exception;
         } catch (Throwable $exception) {
+            $detail = trim($exception->getMessage());
+
             $installation->markProgress(
                 RemoteInstallation::STATUS_FAILED,
                 'failed',
                 100,
-                'PraeviSEO n a pas pu terminer l installation distante pour le moment.'
+                $detail !== ''
+                    ? 'PraeviSEO n a pas pu terminer l installation distante pour le moment. Détail: '.$detail
+                    : 'PraeviSEO n a pas pu terminer l installation distante pour le moment.'
             );
 
             throw $exception;

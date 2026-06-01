@@ -29,17 +29,38 @@ class SftpRemoteConnector implements RemoteConnector
         $password = (string) ($this->credentials['password'] ?? '');
 
         if ($host === '' || $username === '' || $password === '') {
-            throw RemoteInstallationException::authentication();
+            throw RemoteInstallationException::authentication(
+                'Hôte SFTP, utilisateur ou mot de passe manquant.'
+            );
         }
 
         try {
             $this->sftp = new SFTP($host, $port, 20);
-        } catch (Throwable) {
-            throw RemoteInstallationException::connectivity('Serveur SFTP inaccessible.');
+        } catch (Throwable $exception) {
+            throw RemoteInstallationException::connectivity(
+                sprintf(
+                    'Connexion SFTP impossible vers %s:%d. Vérifiez l hôte, le port et que le serveur accepte les connexions SFTP.%s',
+                    $host,
+                    $port,
+                    ($detail = trim($exception->getMessage())) !== '' ? ' Détail: '.$detail : ''
+                )
+            );
         }
 
         if (! $this->sftp->login($username, $password)) {
-            throw RemoteInstallationException::authentication('Impossible de se connecter en SFTP avec les identifiants fournis.');
+            $errors = method_exists($this->sftp, 'getErrors') && is_array($this->sftp->getErrors())
+                ? implode(' | ', array_filter(array_map(static fn (mixed $error): string => trim((string) $error), $this->sftp->getErrors())))
+                : '';
+
+            throw RemoteInstallationException::authentication(
+                sprintf(
+                    'Le serveur a refusé la connexion SFTP pour %s@%s:%d.%s',
+                    $username,
+                    $host,
+                    $port,
+                    $errors !== '' ? ' Détail: '.$errors : ' Vérifiez le mot de passe et la disponibilité du sous-système SFTP.'
+                )
+            );
         }
     }
 
