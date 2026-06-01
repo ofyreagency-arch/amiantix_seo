@@ -260,7 +260,13 @@ class ClientSitesController extends Controller
             $page = $this->resolveRewriteCandidatePage($siteId);
 
             if (! $page) {
-                $this->markActionState($site, 'rewrite', 'failed', 'Aucune page utile n est encore assez claire pour une réécriture.');
+                $this->markActionState(
+                    $site,
+                    'rewrite',
+                    'failed',
+                    'Aucune page utile n est encore assez claire pour une réécriture.',
+                    'PraeviSEO n a pas encore trouvé de page avec assez de matière et de priorité pour préparer une amélioration fiable.'
+                );
 
                 return response()->json([
                     'message' => 'Aucune page claire n est encore prête pour une réécriture premium sur ce site.',
@@ -294,7 +300,13 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
-            $this->markActionState($site, 'rewrite', 'failed', 'La préparation de réécriture a échoué pour le moment.');
+            $this->markActionState(
+                $site,
+                'rewrite',
+                'failed',
+                'La préparation de réécriture a échoué pour le moment.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu préparer la réécriture à cause d un blocage technique ou d une page encore incomplète.')
+            );
             $this->appendExecutionHistory($site, 'Réécriture interrompue', $e->getMessage(), 'danger', 'rewrite_failed');
 
             return response()->json([
@@ -319,7 +331,13 @@ class ClientSitesController extends Controller
             $page = $this->resolvePublicationCandidatePage($siteId);
 
             if (! $page) {
-                $this->markActionState($site, 'publication', 'failed', 'Aucune page moteur n est encore prête pour une publication live.');
+                $this->markActionState(
+                    $site,
+                    'publication',
+                    'failed',
+                    'Aucune page moteur n est encore prête pour une publication live.',
+                    'PraeviSEO n a pas encore de page suffisamment prête côté moteur pour l envoyer sur le site public.'
+                );
 
                 return response()->json([
                     'message' => 'Aucune page publiée côté moteur n est encore prête à être poussée en live.',
@@ -349,7 +367,13 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
-            $this->markActionState($site, 'publication', 'failed', 'La publication live a échoué pour le moment.');
+            $this->markActionState(
+                $site,
+                'publication',
+                'failed',
+                'La publication live a échoué pour le moment.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu envoyer la page vers le site live. La connexion de publication doit être vérifiée.')
+            );
             $this->appendExecutionHistory($site, 'Publication interrompue', $e->getMessage(), 'danger', 'publication_failed');
 
             return response()->json([
@@ -378,7 +402,13 @@ class ClientSitesController extends Controller
             ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId);
 
             if (! $page) {
-                $this->markActionState($site, 'linking', 'failed', 'Aucune page n est encore assez claire pour un renfort de liens internes.');
+                $this->markActionState(
+                    $site,
+                    'linking',
+                    'failed',
+                    'Aucune page n est encore assez claire pour un renfort de liens internes.',
+                    'PraeviSEO n a pas encore trouvé de page prioritaire avec assez de contexte pour ouvrir des liens internes utiles.'
+                );
 
                 return response()->json([
                     'message' => 'Aucune page claire n est encore prête pour un renfort de liens internes sur ce site.',
@@ -389,7 +419,13 @@ class ClientSitesController extends Controller
             $internalLinks = $this->extractSuggestionInternalLinks($suggestion);
 
             if ($internalLinks === []) {
-                $this->markActionState($site, 'linking', 'failed', 'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles.');
+                $this->markActionState(
+                    $site,
+                    'linking',
+                    'failed',
+                    'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles.',
+                    'Le site a encore besoin de plus de pages bien reliées ou de suggestions plus nettes avant un maillage automatique fiable.'
+                );
 
                 return response()->json([
                     'message' => 'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles à appliquer automatiquement sur cette page.',
@@ -422,7 +458,13 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
-            $this->markActionState($site, 'linking', 'failed', 'Le renfort de maillage a échoué pour le moment.');
+            $this->markActionState(
+                $site,
+                'linking',
+                'failed',
+                'Le renfort de maillage a échoué pour le moment.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu appliquer le maillage automatiquement. Une vérification du contenu cible ou du workflow est nécessaire.')
+            );
             $this->appendExecutionHistory($site, 'Maillage interrompu', $e->getMessage(), 'danger', 'linking_failed');
 
             return response()->json([
@@ -1024,11 +1066,11 @@ class ClientSitesController extends Controller
 
     /**
      * @return array{
-     *   crawl:array{state:string,label:string,detail:string,updated_at:?string},
-     *   rewrite:array{state:string,label:string,detail:string,updated_at:?string},
-     *   linking:array{state:string,label:string,detail:string,updated_at:?string},
-     *   publication:array{state:string,label:string,detail:string,updated_at:?string},
-     *   monitoring:array{state:string,label:string,detail:string,updated_at:?string}
+     *   crawl:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
+     *   rewrite:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
+     *   linking:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
+     *   publication:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
+     *   monitoring:array{state:string,label:string,detail:string,updated_at:?string,error:?string}
      * }
      */
     private function actionStatuses(SeoSite $site, ?SeoSiteCrawl $crawl): array
@@ -1052,6 +1094,9 @@ class ClientSitesController extends Controller
                 'updated_at' => $crawl?->completed_at?->toIso8601String()
                     ?? $crawl?->started_at?->toIso8601String()
                     ?? $crawl?->created_at?->toIso8601String(),
+                'error' => $crawl?->status === 'failed'
+                    ? ($crawl->meta_json['error'] ?? 'La relecture premium a rencontré un blocage.')
+                    : null,
             ],
             'rewrite' => $this->normalizeActionStatus($stored['rewrite'] ?? null),
             'linking' => $this->normalizeActionStatus($stored['linking'] ?? null),
@@ -1062,7 +1107,7 @@ class ClientSitesController extends Controller
 
     /**
      * @param mixed $raw
-     * @return array{state:string,label:string,detail:string,updated_at:?string}
+     * @return array{state:string,label:string,detail:string,updated_at:?string,error:?string}
      */
     private function normalizeActionStatus(mixed $raw): array
     {
@@ -1078,6 +1123,7 @@ class ClientSitesController extends Controller
             'label' => $this->actionStateLabel($state),
             'detail' => (string) ($payload['detail'] ?? ''),
             'updated_at' => isset($payload['updated_at']) ? (string) $payload['updated_at'] : null,
+            'error' => isset($payload['error']) && filled($payload['error']) ? (string) $payload['error'] : null,
         ];
     }
 
@@ -1092,7 +1138,7 @@ class ClientSitesController extends Controller
         };
     }
 
-    private function markActionState(SeoSite $site, string $action, string $state, string $detail): void
+    private function markActionState(SeoSite $site, string $action, string $state, string $detail, ?string $error = null): void
     {
         $settings = $site->settings_json ?? [];
         $automation = is_array($settings['automation'] ?? null) ? $settings['automation'] : [];
@@ -1102,6 +1148,7 @@ class ClientSitesController extends Controller
             'state' => $state,
             'detail' => $detail,
             'updated_at' => now()->toIso8601String(),
+            'error' => $state === 'failed' ? $error : null,
         ];
 
         $automation['actions'] = $actions;
@@ -1111,7 +1158,7 @@ class ClientSitesController extends Controller
     }
 
     /**
-     * @return array{state:string,label:string,detail:string,updated_at:?string}
+     * @return array{state:string,label:string,detail:string,updated_at:?string,error:?string}
      */
     private function monitoringActionStatus(SeoSite $site, ?SeoSiteCrawl $crawl): array
     {
@@ -1127,6 +1174,7 @@ class ClientSitesController extends Controller
                 'label' => $this->actionStateLabel('idle'),
                 'detail' => 'PraeviSEO attend encore la connexion au site et la lecture Google avant de surveiller automatiquement chaque action.',
                 'updated_at' => null,
+                'error' => null,
             ];
         }
 
@@ -1136,6 +1184,7 @@ class ClientSitesController extends Controller
                 'label' => $this->actionStateLabel('idle'),
                 'detail' => 'La surveillance continue se mettra vraiment en place dès que PraeviSEO pourra agir directement sur le site.',
                 'updated_at' => $connection?->last_sync_at?->toIso8601String(),
+                'error' => null,
             ];
         }
 
@@ -1145,6 +1194,7 @@ class ClientSitesController extends Controller
                 'label' => $this->actionStateLabel('idle'),
                 'detail' => 'PraeviSEO peut déjà agir sur le site, mais la lecture continue sera plus précise une fois Google relié.',
                 'updated_at' => null,
+                'error' => null,
             ];
         }
 
@@ -1156,6 +1206,9 @@ class ClientSitesController extends Controller
                 'updated_at' => $crawl->completed_at?->toIso8601String()
                     ?? $crawl->started_at?->toIso8601String()
                     ?? $crawl->created_at?->toIso8601String(),
+                'error' => isset($crawl->meta_json['error']) && filled($crawl->meta_json['error'])
+                    ? (string) $crawl->meta_json['error']
+                    : 'La dernière relecture automatique n a pas pu aller au bout.',
             ];
         }
 
@@ -1166,6 +1219,7 @@ class ClientSitesController extends Controller
                 'detail' => 'PraeviSEO relit actuellement le site pour contrôler les dernières actions et préparer la prochaine priorité utile.',
                 'updated_at' => $crawl->started_at?->toIso8601String()
                     ?? $crawl->created_at?->toIso8601String(),
+                'error' => null,
             ];
         }
 
@@ -1179,6 +1233,7 @@ class ClientSitesController extends Controller
                 ),
                 'updated_at' => $connection?->last_sync_at?->toIso8601String()
                     ?? $crawl?->completed_at?->toIso8601String(),
+                'error' => null,
             ];
         }
 
@@ -1188,7 +1243,15 @@ class ClientSitesController extends Controller
             'detail' => 'PraeviSEO a tout ce qu il faut pour surveiller le site en continu. La prochaine lecture automatique complètera ce suivi.',
             'updated_at' => $connection?->last_validated_at?->toIso8601String()
                 ?? $connection?->last_sync_at?->toIso8601String(),
+            'error' => null,
         ];
+    }
+
+    private function premiumActionErrorMessage(Throwable $e, string $fallback): string
+    {
+        $message = trim($e->getMessage());
+
+        return $message !== '' ? $message : $fallback;
     }
 
     private function crawlStatusDetail(?SeoSiteCrawl $crawl): string

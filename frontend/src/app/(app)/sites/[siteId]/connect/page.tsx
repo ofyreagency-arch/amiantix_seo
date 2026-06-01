@@ -193,6 +193,23 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             kind: "empty",
           },
         ];
+  const executionIssues = Object.entries(site.action_statuses)
+    .filter(([, status]) => status.state === "failed" && status.error)
+    .map(([key, status]) => ({
+      key,
+      title:
+        key === "crawl"
+          ? "Crawl à vérifier"
+          : key === "rewrite"
+            ? "Réécriture à vérifier"
+            : key === "linking"
+              ? "Maillage à vérifier"
+              : key === "publication"
+                ? "Publication à vérifier"
+                : "Monitoring à vérifier",
+      detail: status.error as string,
+      updatedAt: status.updated_at,
+    }));
   const starterPlan = [
     leadRisingPage
       ? {
@@ -439,6 +456,28 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             </CardContent>
           </Card>
         </div>
+
+        {executionIssues.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Points à vérifier</CardTitle>
+              <CardDescription>
+                Quand une action premium bloque, PraeviSEO explique ici ce qui coince avant de relancer la suite.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 xl:grid-cols-2">
+              {executionIssues.map((issue) => (
+                <div key={issue.key} className="rounded-2xl border border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.06)] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{issue.title}</div>
+                    <Badge variant="danger">{issue.updatedAt ? issue.updatedAt.slice(0, 10) : "À revoir"}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{issue.detail}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-3">
           {[

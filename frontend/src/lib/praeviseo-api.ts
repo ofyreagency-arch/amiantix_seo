@@ -74,11 +74,11 @@ export type PraeviseoSite = {
     kind: string;
   }>;
   action_statuses: {
-    crawl: { state: string; label: string; detail: string; updated_at: string | null };
-    rewrite: { state: string; label: string; detail: string; updated_at: string | null };
-    linking: { state: string; label: string; detail: string; updated_at: string | null };
-    publication: { state: string; label: string; detail: string; updated_at: string | null };
-    monitoring: { state: string; label: string; detail: string; updated_at: string | null };
+    crawl: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
+    rewrite: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
+    linking: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
+    publication: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
+    monitoring: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
   };
   created_at: string;
   summary: {
@@ -582,30 +582,35 @@ const mockSites: PraeviseoSite[] = [
         label: "Terminé",
         detail: "La dernière relecture a parcouru 19 pages et remonté 3 points à surveiller.",
         updated_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+        error: null,
       },
       rewrite: {
         state: "completed",
         label: "Terminé",
         detail: "Une amélioration est prête pour la page \"Faq\".",
         updated_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+        error: null,
       },
       linking: {
         state: "completed",
         label: "Terminé",
         detail: "2 liens internes utiles ont déjà été ajoutés sur la meilleure page ciblée.",
         updated_at: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
+        error: null,
       },
       publication: {
         state: "completed",
         label: "Terminé",
         detail: "La meilleure page a déjà été envoyée vers le site live.",
         updated_at: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
+        error: null,
       },
       monitoring: {
         state: "completed",
         label: "Surveillance active",
         detail: "PraeviSEO suit déjà les retours du site et de Google après les dernières actions utiles.",
         updated_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+        error: null,
       },
     },
     created_at: new Date().toISOString(),
@@ -876,11 +881,11 @@ const mockSites: PraeviseoSite[] = [
     },
     execution_history: [],
     action_statuses: {
-      crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null },
-      rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
-      linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
-      publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
-      monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+      crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null, error: null },
+      rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+      linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+      publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+      monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
     },
     created_at: new Date().toISOString(),
     summary: {
@@ -1447,6 +1452,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.updated_at
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.updated_at)
           : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.error)
+          : null,
       },
       rewrite: {
         state: String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.state ?? "idle"),
@@ -1454,6 +1462,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.detail ?? ""),
         updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.updated_at
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.error)
           : null,
       },
       linking: {
@@ -1463,6 +1474,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.updated_at
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.updated_at)
           : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.error)
+          : null,
       },
       publication: {
         state: String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.state ?? "idle"),
@@ -1471,6 +1485,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.updated_at
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.updated_at)
           : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.error)
+          : null,
       },
       monitoring: {
         state: String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.state ?? "idle"),
@@ -1478,6 +1495,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.detail ?? ""),
         updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.updated_at
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.error)
           : null,
       },
     },
@@ -2066,11 +2086,11 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       },
       execution_history: [],
       action_statuses: {
-        crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null },
-        rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
-        linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
-        publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
-        monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+        crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null, error: null },
+        rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+        linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+        publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+        monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       },
       created_at: new Date().toISOString(),
       summary: {
