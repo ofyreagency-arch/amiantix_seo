@@ -113,6 +113,11 @@ export default async function DashboardPage() {
     }))
     .filter((item) => !!item.linkedPublication)
     .slice(0, 6);
+  const lowDashboardQuerySignal =
+    queryWatchlist.length <= 2 &&
+    risingQueryWatchlist.length === 0 &&
+    newQueryWatchlist.length === 0 &&
+    linkedQueryWatchlist.length === 0;
   const dashboardQuerySignals = [
     ...linkedQueryWatchlist,
     ...queryWatchlist
@@ -413,7 +418,7 @@ export default async function DashboardPage() {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
-            { label: "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length + linkedQueryWatchlist.length, tone: "success" },
+            { label: lowDashboardQuerySignal ? "Veille Google" : "Google comprend", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length + linkedQueryWatchlist.length, tone: "success" },
             { label: "Santé SEO", href: "#sante", count: healthWatchlist.length, tone: "secondary" },
             { label: "Indexation", href: "#indexation", count: indexationAlerts.length || indexedPagesValue, tone: "secondary" },
             { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
@@ -727,9 +732,11 @@ export default async function DashboardPage() {
 
           <Card id="requetes" className="scroll-mt-24">
             <CardHeader>
-              <CardTitle>Requêtes Google</CardTitle>
+              <CardTitle>{lowDashboardQuerySignal ? "Veille Google légère" : "Ce que Google commence à comprendre"}</CardTitle>
               <CardDescription>
-                Les requêtes qui progressent, émergent ou que PraeviSEO sait déjà rattacher à une page observée.
+                {lowDashboardQuerySignal
+                  ? "Google commence seulement à associer quelques recherches à votre site. Ce bloc reste volontairement simple tant que le signal n’est pas plus fort."
+                  : "Les recherches qui progressent, émergent ou que PraeviSEO sait déjà rattacher à une page observée."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -737,6 +744,26 @@ export default async function DashboardPage() {
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
                   Aucune requête émergente forte pour l’instant. Le cockpit affichera ici les prochaines requêtes à
                   potentiel dès qu’elles montent dans GSC.
+                </div>
+              ) : lowDashboardQuerySignal ? (
+                <div className="space-y-3">
+                  {queryWatchlist.slice(0, 2).map((item) => (
+                    <div key={`${item.site_name}-${item.query}-light`} className="rounded-xl border border-border bg-surface-2 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text">{item.query}</p>
+                          <p className="text-xs text-text-subtle">{item.site_name}</p>
+                        </div>
+                        <Badge variant="warning">À surveiller plus tard</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted">
+                        {item.impressions} affichage(s) repérés dans Google. Le signal existe, mais il reste encore trop léger pour devenir une vraie priorité.
+                      </p>
+                    </div>
+                  ))}
+                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    Pour l’instant, les pages, les opportunités et l’indexation restent les leviers les plus utiles à traiter. PraeviSEO vous dira ici quand une recherche devient vraiment intéressante.
+                  </div>
                 </div>
               ) : (
                 dashboardQuerySignals.map((item) => {

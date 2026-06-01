@@ -64,6 +64,7 @@ export default async function ActivityCockpitPage() {
     }))
     .filter((item) => !!item.linkedPublication)
     .slice(0, 6);
+  const lowActivityQuerySignal = queryMovementFeed.length <= 2 && linkedQueryFeed.length === 0;
   const indexationFeed = dashboard.sites.flatMap((site) =>
     site.summary.indexation_alerts.map((item) => ({
       ...item,
@@ -366,7 +367,7 @@ export default async function ActivityCockpitPage() {
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: timelineFeed.length, tone: "default" },
             { label: "Mouvements", href: "#mouvements", count: movementFeed.length, tone: "success" },
-            { label: "Requêtes", href: "#requetes", count: queryMovementFeed.length, tone: "success" },
+            { label: lowActivityQuerySignal ? "Veille Google" : "Requêtes", href: "#requetes", count: queryMovementFeed.length, tone: "success" },
             { label: "Plan d’action", href: "#plan-action", count: actionPlanFeed.length, tone: "warning" },
             { label: "Alertes", href: "#alertes", count: alertFeed.length, tone: "warning" },
             { label: "Contenu", href: "#contenu", count: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length, tone: "secondary" },
@@ -406,8 +407,8 @@ export default async function ActivityCockpitPage() {
             items={[
               { label: "Événements récents", value: timelineFeed.length },
               { label: "Mouvements de pages", value: movementFeed.length, tone: "success" },
-              { label: "Requêtes en mouvement", value: queryMovementFeed.length, tone: "success" },
-              { label: "Requêtes déjà reliées", value: linkedQueryFeed.length, tone: "secondary" },
+              { label: lowActivityQuerySignal ? "Veille Google" : "Requêtes en mouvement", value: queryMovementFeed.length, tone: "success" },
+              { label: "Bonne page déjà trouvée", value: linkedQueryFeed.length, tone: "secondary" },
               { label: "Alertes actives", value: alertFeed.length, tone: alertFeed.length > 0 ? "warning" : "secondary" },
               { label: "Actions recommandées", value: optimizations.recommendations.summary.total, tone: optimizations.recommendations.summary.total > 0 ? "warning" : "secondary" },
               { label: "Signaux contenu", value: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length, tone: linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0 ? "secondary" : "secondary" },
@@ -437,17 +438,19 @@ export default async function ActivityCockpitPage() {
           <CockpitSignalListCard
             id="requetes"
             className="scroll-mt-24"
-            title="Requêtes qui bougent"
-            description="Les recherches Google qui progressent ou qui commencent juste à apparaître."
+            title={lowActivityQuerySignal ? "Ce que Google commence seulement à tester" : "Requêtes qui bougent"}
+            description={lowActivityQuerySignal
+              ? "Le signal reste encore léger. PraeviSEO garde ici une veille simple jusqu’à ce qu’une recherche devienne vraiment utile."
+              : "Les recherches Google qui progressent ou qui commencent juste à apparaître."}
             empty={queryMovementFeed.length === 0}
             emptyMessage="Aucun mouvement de requête fort pour le moment. Avec peu de volume GSC, plusieurs lectures peuvent rester calmes avant la prochaine progression."
           >
-            {queryMovementFeed.slice(0, 8).map((item) => (
+            {queryMovementFeed.slice(0, lowActivityQuerySignal ? 3 : 8).map((item) => (
               <CockpitSignalItem
                 key={`${item.site_name}-${item.query}-${item.trend}`}
                 title={item.query}
                 subtitle={item.site_name}
-                badge={item.trend === "new" ? "Nouvelle requête" : "En hausse"}
+                badge={lowActivityQuerySignal ? "À revoir plus tard" : item.trend === "new" ? "Nouvelle requête" : "En hausse"}
                 badgeTone="success"
                 description={
                   item.trend === "new"
