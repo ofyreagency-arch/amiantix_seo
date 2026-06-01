@@ -11,6 +11,7 @@ import {
   getInstallerUrl,
   getPraeviseoInstallDetail,
   getPraeviseoInstallLabel,
+  getSettings,
   getSite,
   isInstallationInProgress,
 } from "@/lib/praeviseo-api";
@@ -96,17 +97,23 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   const { siteId } = await params;
   const site = await getSite(siteId);
   const publications = await getPublications();
+  const settings = await getSettings();
 
   if (!site) {
     notFound();
   }
 
+  const totalConnectedSites = settings.sites.filter(
+    (item) => item.publication_bridge_status === "connected" || item.gsc_connection_status === "connected" || item.gsc_connection_status === "configured"
+  ).length;
   const sitePublications = publications.items.filter((item) => item.site_id === site.site_id);
   const leadRisingPage = site.summary.top_rising_pages[0] ?? null;
   const leadRefresh = sitePublications.find((item) => item.latest_suggestion || item.observed_content) ?? null;
   const leadIndexationAlert = site.summary.indexation_alerts[0] ?? null;
   const livePublishedCount = sitePublications.filter((item) => item.published_live).length;
   const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
+  const updatesActive = site.readiness.bridge_connected && site.action_statuses.monitoring.state === "completed";
+  const updatesReady = site.readiness.bridge_connected || site.publication_target.engine_actionable;
   const executionCenter = [
     {
       title: "Crawl automatique",
@@ -184,6 +191,23 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
       title: "Publication live",
       status: site.publication_target.engine_actionable ? "Prête" : "À terminer",
       detail: site.publication_target.detail,
+    },
+    {
+      title: "Mises à jour enrichies",
+      status: updatesActive ? "Actives" : updatesReady ? "Prêtes" : "À préparer",
+      detail: updatesActive
+        ? "PraeviSEO peut déjà republier, améliorer puis recontrôler vos prochaines versions sans repartir de zéro."
+        : updatesReady
+          ? "Le site est presque prêt pour des mises à jour enrichies automatiques dès la prochaine action utile."
+          : "Les mises à jour enrichies s’ouvriront dès que la connexion premium et la publication live seront totalement prêtes.",
+    },
+    {
+      title: "Extension multi-sites",
+      status: totalConnectedSites > 1 ? `${totalConnectedSites} sites actifs` : "Prête à étendre",
+      detail:
+        totalConnectedSites > 1
+          ? `PraeviSEO peut déjà répliquer cette même couche premium sur ${totalConnectedSites} sites suivis dans votre espace.`
+          : "Une fois ce premier site stable, la même installation pourra être étendue aux prochains sites sans repartir du début.",
     },
     {
       title: "Prochaine action",
@@ -496,12 +520,12 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
           </Card>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-3">
-          {[
+        <div className="grid gap-6 xl:grid-cols-4">
+          {[ 
             {
               icon: Rocket,
-              title: "Ce que vous gagnez",
-              text: "Un site qui n’attend plus une action manuelle pour être relu, enrichi, relié puis publié.",
+                title: "Ce que vous gagnez",
+                text: "Un site qui n’attend plus une action manuelle pour être relu, enrichi, relié puis publié.",
             },
             {
               icon: Link2,
@@ -512,6 +536,11 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               icon: ImagePlus,
               title: "Images et extension",
               text: "Les images SEO, l’extension à plusieurs sites et les mises à jour enrichies s’appuient ensuite sur cette même couche déjà installée.",
+            },
+            {
+              icon: ShieldCheck,
+              title: "Mises à jour en continu",
+              text: "PraeviSEO ne se limite plus à une publication unique : il peut reprendre, corriger et renvoyer les prochaines versions utiles.",
             },
           ].map((item) => {
             const Icon = item.icon;
