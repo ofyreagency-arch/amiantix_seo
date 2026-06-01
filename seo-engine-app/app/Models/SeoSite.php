@@ -51,6 +51,16 @@ class SeoSite extends Model
         return $this->hasOne(RemoteInstallation::class, 'site_id', 'site_id')->latestOfMany();
     }
 
+    public function crawls(): HasMany
+    {
+        return $this->hasMany(SeoSiteCrawl::class, 'site_id', 'site_id');
+    }
+
+    public function latestObservedCrawl(): HasOne
+    {
+        return $this->hasOne(SeoSiteCrawl::class, 'site_id', 'site_id')->latestOfMany('created_at');
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'user_seo_sites')

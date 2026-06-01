@@ -1,6 +1,8 @@
 "use server";
 
-import { requestRemoteInstallation } from "@/lib/praeviseo-api";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { getSiteConnectPath, requestPremiumCrawl, requestRemoteInstallation } from "@/lib/praeviseo-api";
 
 export type RemoteInstallActionState = {
   status: "idle" | "success" | "error";
@@ -91,4 +93,10 @@ export async function submitRemoteInstallAction(
       values,
     };
   }
+}
+
+export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
+  await requestPremiumCrawl(siteId);
+  revalidatePath(getSiteConnectPath(siteId));
+  redirect(getSiteConnectPath(siteId));
 }

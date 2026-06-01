@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunObservedSiteCrawlJob;
 use App\Jobs\RunRemoteInstallationJob;
 use App\Models\RemoteInstallation;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawlIssue;
+use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
 use App\Models\SeoSiteSnapshot;
@@ -33,7 +35,7 @@ class ClientSitesController extends Controller
         $user = $request->user();
 
         $sites = $user->seoSites()
-            ->with(['googleConnection', 'latestRemoteInstallation'])
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->select([
                 'seo_sites.id',
                 'seo_sites.site_id',
@@ -63,7 +65,7 @@ class ClientSitesController extends Controller
         $user = $request->user();
 
         $site = $user->seoSites()
-            ->with(['googleConnection', 'latestRemoteInstallation'])
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
 
@@ -114,6 +116,7 @@ class ClientSitesController extends Controller
         $user->seoSites()->attach($site->id, ['role' => 'owner']);
 
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
+        $site->loadMissing('latestObservedCrawl');
 
         return response()->json([
             'site' => $this->serializeSite($site),
@@ -169,7 +172,7 @@ class ClientSitesController extends Controller
 
         /** @var SeoSite $site */
         $site = $user->seoSites()
-            ->with(['googleConnection', 'latestRemoteInstallation'])
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
 
@@ -202,10 +205,53 @@ class ClientSitesController extends Controller
         ]);
 
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation']);
+        $site->loadMissing('latestObservedCrawl');
 
         return response()->json([
             'site' => $this->serializeSite($site),
         ]);
+    }
+
+    public function startObservedCrawl(Request $request, string $siteId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $latestCrawl = $site->relationLoaded('latestObservedCrawl')
+            ? $site->getRelation('latestObservedCrawl')
+            : $site->latestObservedCrawl()->first();
+
+        if ($latestCrawl && in_array((string) $latestCrawl->status, ['pending', 'running'], true)) {
+            return response()->json([
+                'site' => $this->serializeSite($site),
+                'crawl' => $this->serializeObservedCrawl($latestCrawl),
+            ], 202);
+        }
+
+        $crawl = SeoSiteCrawl::query()->create([
+            'site_id' => $site->site_id,
+            'base_url' => rtrim((string) $site->url, '/'),
+            'status' => 'pending',
+            'max_pages' => 80,
+            'meta_json' => [
+                'trigger' => 'premium_client',
+            ],
+        ]);
+
+        RunObservedSiteCrawlJob::dispatch($crawl->id);
+
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+            'crawl' => $this->serializeObservedCrawl($crawl->fresh()),
+        ], 202);
     }
 
     public function requestInstallation(Request $request, string $siteId): JsonResponse
@@ -285,13 +331,14 @@ class ClientSitesController extends Controller
 
         /** @var SeoSite $site */
         $site = $user->seoSites()
-            ->with(['googleConnection', 'latestRemoteInstallation'])
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
 
         return response()->json([
             'site' => $this->serializeSite($site),
             'installation' => $this->serializeInstallation($site->latestRemoteInstallation),
+            'crawl' => $this->serializeObservedCrawl($site->latestObservedCrawl),
         ]);
     }
 
@@ -534,6 +581,9 @@ class ClientSitesController extends Controller
         $installation = $site->relationLoaded('latestRemoteInstallation')
             ? $site->getRelation('latestRemoteInstallation')
             : $site->latestRemoteInstallation()->first();
+        $crawl = $site->relationLoaded('latestObservedCrawl')
+            ? $site->getRelation('latestObservedCrawl')
+            : $site->latestObservedCrawl()->first();
 
         $pagesPublished = (clone $pageQuery)->where('status', 'published')->count();
         $pagesLive = $hasPublishedLiveColumn
@@ -566,6 +616,7 @@ class ClientSitesController extends Controller
             'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
             'gsc_data_as_of' => $this->resolvedGscDataAsOf($site),
             'installation' => $this->serializeInstallation($installation),
+            'crawl' => $this->serializeObservedCrawl($crawl),
             'publication_target' => $this->publicationTargetStatus($site),
             'created_at' => $site->created_at,
             'summary' => [
@@ -648,6 +699,33 @@ class ClientSitesController extends Controller
             'engine_actionable' => (bool) ($target['engine_actionable'] ?? false),
             'manual_required' => (bool) ($target['manual_required'] ?? true),
             'target' => isset($target['target']) ? (string) $target['target'] : null,
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function serializeObservedCrawl(?SeoSiteCrawl $crawl): ?array
+    {
+        if (! $crawl) {
+            return null;
+        }
+
+        $meta = is_array($crawl->meta_json) ? $crawl->meta_json : [];
+
+        return [
+            'id' => (int) $crawl->id,
+            'status' => (string) $crawl->status,
+            'base_url' => (string) $crawl->base_url,
+            'max_pages' => (int) $crawl->max_pages,
+            'discovered_url_count' => (int) $crawl->discovered_url_count,
+            'crawled_url_count' => (int) $crawl->crawled_url_count,
+            'started_at' => $crawl->started_at?->toIso8601String(),
+            'completed_at' => $crawl->completed_at?->toIso8601String(),
+            'requested_at' => $crawl->created_at?->toIso8601String(),
+            'issues_count' => (int) ($meta['issues_count'] ?? 0),
+            'error' => isset($meta['error']) ? (string) $meta['error'] : null,
+            'trigger' => isset($meta['trigger']) ? (string) $meta['trigger'] : null,
         ];
     }
 

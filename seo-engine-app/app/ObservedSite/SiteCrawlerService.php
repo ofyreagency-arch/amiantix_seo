@@ -30,18 +30,30 @@ class SiteCrawlerService
 
     public function crawl(SeoSite $site, int $maxPages = 80): array
     {
+        $crawl = SeoSiteCrawl::query()->create([
+            'site_id' => $site->site_id,
+            'base_url' => rtrim($this->normalizeUrl($site->url), '/'),
+            'status' => 'pending',
+            'max_pages' => $maxPages,
+        ]);
+
+        return $this->crawlQueued($site, $crawl);
+    }
+
+    public function crawlQueued(SeoSite $site, SeoSiteCrawl $crawl): array
+    {
         $this->visited = [];
         $this->knownSitemaps = [];
 
         $baseUrl = rtrim($this->normalizeUrl($site->url), '/');
+        $maxPages = max(1, (int) ($crawl->max_pages ?? 80));
 
-        $crawl = SeoSiteCrawl::query()->create([
-            'site_id' => $site->site_id,
+        $crawl->forceFill([
             'base_url' => $baseUrl,
             'status' => 'running',
-            'max_pages' => $maxPages,
-            'started_at' => now(),
-        ]);
+            'started_at' => $crawl->started_at ?? now(),
+            'completed_at' => null,
+        ])->save();
 
         SeoCrawlPage::query()->where('site_id', $site->site_id)->delete();
 

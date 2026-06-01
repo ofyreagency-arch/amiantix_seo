@@ -43,6 +43,20 @@ export type PraeviseoSite = {
       message: string;
     }>;
   };
+  crawl: {
+    id: number;
+    status: string;
+    base_url: string;
+    max_pages: number;
+    discovered_url_count: number;
+    crawled_url_count: number;
+    started_at: string | null;
+    completed_at: string | null;
+    requested_at: string | null;
+    issues_count: number;
+    error: string | null;
+    trigger: string | null;
+  } | null;
   publication_target: {
     mode: string;
     label: string;
@@ -509,6 +523,20 @@ const mockSites: PraeviseoSite[] = [
       detected_composer: "Composer 2",
       logs: [],
     },
+    crawl: {
+      id: 101,
+      status: "completed",
+      base_url: "https://amiantix.com",
+      max_pages: 80,
+      discovered_url_count: 19,
+      crawled_url_count: 19,
+      started_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      completed_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      requested_at: new Date(Date.now() - 1000 * 60 * 19).toISOString(),
+      issues_count: 3,
+      error: null,
+      trigger: "premium_client",
+    },
     publication_target: {
       mode: "symfony_bridge",
       label: "Bridge Symfony",
@@ -774,6 +802,7 @@ const mockSites: PraeviseoSite[] = [
       detected_composer: null,
       logs: [],
     },
+    crawl: null,
     publication_target: {
       mode: "laravel_bridge",
       label: "Bridge Laravel",
@@ -1285,6 +1314,32 @@ function normaliseSite(raw: unknown): PraeviseoSite {
           }))
         : [],
     },
+    crawl: site.crawl
+      ? {
+          id: Number((site.crawl as Record<string, unknown>).id ?? 0),
+          status: String((site.crawl as Record<string, unknown>).status ?? "pending"),
+          base_url: String((site.crawl as Record<string, unknown>).base_url ?? ""),
+          max_pages: Number((site.crawl as Record<string, unknown>).max_pages ?? 0),
+          discovered_url_count: Number((site.crawl as Record<string, unknown>).discovered_url_count ?? 0),
+          crawled_url_count: Number((site.crawl as Record<string, unknown>).crawled_url_count ?? 0),
+          started_at: (site.crawl as Record<string, unknown>).started_at
+            ? String((site.crawl as Record<string, unknown>).started_at)
+            : null,
+          completed_at: (site.crawl as Record<string, unknown>).completed_at
+            ? String((site.crawl as Record<string, unknown>).completed_at)
+            : null,
+          requested_at: (site.crawl as Record<string, unknown>).requested_at
+            ? String((site.crawl as Record<string, unknown>).requested_at)
+            : null,
+          issues_count: Number((site.crawl as Record<string, unknown>).issues_count ?? 0),
+          error: (site.crawl as Record<string, unknown>).error
+            ? String((site.crawl as Record<string, unknown>).error)
+            : null,
+          trigger: (site.crawl as Record<string, unknown>).trigger
+            ? String((site.crawl as Record<string, unknown>).trigger)
+            : null,
+        }
+      : null,
     publication_target: {
       mode: String((site.publication_target as Record<string, unknown> | undefined)?.mode ?? "runtime"),
       label: String((site.publication_target as Record<string, unknown> | undefined)?.label ?? "Publication live"),
@@ -1871,6 +1926,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         detected_composer: null,
         logs: [],
       },
+      crawl: null,
       publication_target: {
         mode: input.publication_mode,
         label:
@@ -2070,6 +2126,20 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
         detected_composer: null,
         logs: [],
       },
+      crawl: {
+        id: Date.now(),
+        status: "pending",
+        base_url: site.url,
+        max_pages: 80,
+        discovered_url_count: 0,
+        crawled_url_count: 0,
+        started_at: null,
+        completed_at: null,
+        requested_at: new Date().toISOString(),
+        issues_count: 0,
+        error: null,
+        trigger: "premium_client",
+      },
       publication_target: {
         ...site.publication_target,
         state: "warning",
@@ -2120,6 +2190,50 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
         api_account_name: input.api_account_name,
         api_notes: input.api_notes,
       }),
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
+export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === siteId);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      crawl: {
+        id: Date.now(),
+        status: "pending",
+        base_url: site.url,
+        max_pages: 80,
+        discovered_url_count: 0,
+        crawled_url_count: 0,
+        started_at: null,
+        completed_at: null,
+        requested_at: new Date().toISOString(),
+        issues_count: 0,
+        error: null,
+        trigger: "premium_client",
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${siteId}/crawl`,
+    {
+      method: "POST",
     },
     token
   );

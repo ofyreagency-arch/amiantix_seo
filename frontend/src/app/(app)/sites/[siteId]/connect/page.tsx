@@ -14,7 +14,7 @@ import {
   getSite,
   isInstallationInProgress,
 } from "@/lib/praeviseo-api";
-import { submitRemoteInstallAction } from "./actions";
+import { launchPremiumCrawlAction, submitRemoteInstallAction } from "./actions";
 import { Bot, Download, FileSearch, ImagePlus, Link2, Monitor, Rocket, ShieldCheck, Sparkles } from "lucide-react";
 
 interface SiteConnectPageProps {
@@ -103,11 +103,26 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   const executionCenter = [
     {
       title: "Crawl automatique",
-      status: monitoredContentCount > 0 ? "Déjà prêt" : "À ouvrir",
+      status:
+        site.crawl?.status === "running"
+          ? "En cours"
+          : site.crawl?.status === "pending"
+            ? "Planifié"
+            : site.crawl?.status === "completed"
+              ? "Terminé"
+              : monitoredContentCount > 0
+                ? "Déjà prêt"
+                : "À ouvrir",
       detail:
-        monitoredContentCount > 0
-          ? `${monitoredContentCount} page(s) sont déjà relues par PraeviSEO. Le pack payant pourra relancer automatiquement ce crawl.`
-          : "Le premier crawl premium relira le site pour préparer les prochaines actions automatiques.",
+        site.crawl?.status === "running"
+          ? `PraeviSEO relit actuellement le site. ${site.crawl.crawled_url_count} page(s) ont déjà été parcourue(s) sur ${site.crawl.max_pages} maximum.`
+          : site.crawl?.status === "pending"
+            ? "Le prochain crawl premium a été demandé. PraeviSEO va relire le site pour préparer les prochaines actions automatiques."
+            : site.crawl?.status === "completed"
+              ? `Le dernier crawl premium a relu ${site.crawl.crawled_url_count} page(s) et remonté ${site.crawl.issues_count} point(s) à surveiller.`
+              : monitoredContentCount > 0
+                ? `${monitoredContentCount} page(s) sont déjà relues par PraeviSEO. Le pack payant pourra relancer automatiquement ce crawl.`
+                : "Le premier crawl premium relira le site pour préparer les prochaines actions automatiques.",
     },
     {
       title: "Réécriture SEO",
@@ -170,6 +185,46 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
     },
   ] as const;
   const executionHistory = [
+    ...(site.crawl?.requested_at
+      ? [
+          {
+            at: site.crawl.requested_at,
+            label: "Crawl premium demandé",
+            detail: "PraeviSEO a enregistré une nouvelle lecture complète du site pour préparer les prochaines actions.",
+            tone: "secondary" as const,
+          },
+        ]
+      : []),
+    ...(site.crawl?.started_at
+      ? [
+          {
+            at: site.crawl.started_at,
+            label: "Crawl premium lancé",
+            detail: `PraeviSEO relit le site avec un plafond de ${site.crawl.max_pages} page(s).`,
+            tone: "default" as const,
+          },
+        ]
+      : []),
+    ...(site.crawl?.completed_at
+      ? [
+          {
+            at: site.crawl.completed_at,
+            label: "Crawl premium terminé",
+            detail: `${site.crawl.crawled_url_count} page(s) relue(s), ${site.crawl.issues_count} point(s) à surveiller remonté(s).`,
+            tone: "default" as const,
+          },
+        ]
+      : []),
+    ...(site.crawl?.error
+      ? [
+          {
+            at: site.crawl.completed_at ?? site.crawl.requested_at ?? new Date().toISOString(),
+            label: "Crawl premium interrompu",
+            detail: site.crawl.error,
+            tone: "danger" as const,
+          },
+        ]
+      : []),
     ...(site.installation.requested_at
       ? [
           {
@@ -372,10 +427,19 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
 
         <Card>
           <CardHeader>
-            <CardTitle>Centre d’exécution premium</CardTitle>
-            <CardDescription>
-              Voici les briques qui tourneront pour ce site dès que l’installation sera complètement active.
-            </CardDescription>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Centre d’exécution premium</CardTitle>
+                <CardDescription>
+                  Voici les briques qui tourneront pour ce site dès que l’installation sera complètement active.
+                </CardDescription>
+              </div>
+              <form action={launchPremiumCrawlAction.bind(null, site.site_id)}>
+                <Button type="submit" variant="secondary">
+                  Lancer un crawl premium
+                </Button>
+              </form>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4 xl:grid-cols-5">
             {executionCenter.map((item) => (
