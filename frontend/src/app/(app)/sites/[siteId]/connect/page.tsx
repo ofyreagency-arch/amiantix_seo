@@ -109,51 +109,41 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   const executionCenter = [
     {
       title: "Crawl automatique",
-      status:
-        site.crawl?.status === "running"
-          ? "En cours"
-          : site.crawl?.status === "pending"
-            ? "Planifié"
-            : site.crawl?.status === "completed"
-              ? "Terminé"
-              : monitoredContentCount > 0
-                ? "Déjà prêt"
-                : "À ouvrir",
+      status: site.action_statuses.crawl.label,
       detail:
-        site.crawl?.status === "running"
-          ? `PraeviSEO relit actuellement le site. ${site.crawl.crawled_url_count} page(s) ont déjà été parcourue(s) sur ${site.crawl.max_pages} maximum.`
-          : site.crawl?.status === "pending"
-            ? "Le prochain crawl premium a été demandé. PraeviSEO va relire le site pour préparer les prochaines actions automatiques."
-            : site.crawl?.status === "completed"
-              ? `Le dernier crawl premium a relu ${site.crawl.crawled_url_count} page(s) et remonté ${site.crawl.issues_count} point(s) à surveiller.`
-              : monitoredContentCount > 0
-                ? `${monitoredContentCount} page(s) sont déjà relues par PraeviSEO. Le pack payant pourra relancer automatiquement ce crawl.`
-                : "Le premier crawl premium relira le site pour préparer les prochaines actions automatiques.",
+        site.action_statuses.crawl.detail ||
+        (monitoredContentCount > 0
+          ? `${monitoredContentCount} page(s) sont déjà relues par PraeviSEO. Le pack payant pourra relancer automatiquement ce crawl.`
+          : "Le premier crawl premium relira le site pour préparer les prochaines actions automatiques."),
     },
     {
       title: "Réécriture SEO",
-      status: leadRefresh ? "Déjà ciblée" : "À préparer",
-      detail: leadRefresh
-        ? "PraeviSEO a déjà repéré un contenu à retravailler. L’automatisation pourra reprendre cette amélioration sans attente manuelle."
-        : "La couche payante préparera les premières réécritures dès qu’un contenu utile sera détecté.",
+      status: site.action_statuses.rewrite.label,
+      detail:
+        site.action_statuses.rewrite.detail ||
+        (leadRefresh
+          ? "PraeviSEO a déjà repéré un contenu à retravailler. L’automatisation pourra reprendre cette amélioration sans attente manuelle."
+          : "La couche payante préparera les premières réécritures dès qu’un contenu utile sera détecté."),
     },
     {
       title: "Maillage interne",
-      status: site.summary.observed_link_gap_pages.length > 0 ? "Déjà repéré" : "À ouvrir",
+      status: site.action_statuses.linking.label,
       detail:
-        site.summary.observed_link_gap_pages.length > 0
+        site.action_statuses.linking.detail ||
+        (site.summary.observed_link_gap_pages.length > 0
           ? "Le site contient déjà des pages à mieux relier. Le pack payant pourra ouvrir ces liens automatiquement."
-          : "Le maillage interne sera préparé dès que PraeviSEO aura assez de pages à relier proprement.",
+          : "Le maillage interne sera préparé dès que PraeviSEO aura assez de pages à relier proprement."),
     },
     {
       title: "Publication automatique",
-      status: livePublishedCount > 0 ? "Déjà active" : site.publication_bridge_status === "connected" ? "Prête à démarrer" : "En attente d’activation",
+      status: site.action_statuses.publication.label,
       detail:
-        livePublishedCount > 0
+        site.action_statuses.publication.detail ||
+        (livePublishedCount > 0
           ? `${livePublishedCount} contenu(s) sont déjà visibles. La couche payante pourra republier et mettre à jour ce qui doit bouger.`
           : site.publication_bridge_status === "connected"
             ? "Le site est prêt à recevoir les premières publications et mises à jour automatiques."
-            : "La publication démarrera juste après l’activation complète de la connexion premium.",
+            : "La publication démarrera juste après l’activation complète de la connexion premium."),
     },
     {
       title: "Monitoring continu",

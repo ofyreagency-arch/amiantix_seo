@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
+use Throwable;
 
 class ClientSitesController extends Controller
 {
@@ -254,39 +255,52 @@ class ClientSitesController extends Controller
             ->where('site_id', $siteId)
             ->firstOrFail();
 
-        $page = $this->resolveRewriteCandidatePage($siteId);
+        try {
+            $this->markActionState($site, 'rewrite', 'running', 'PraeviSEO prépare la prochaine amélioration de contenu.');
+            $page = $this->resolveRewriteCandidatePage($siteId);
 
-        if (! $page) {
+            if (! $page) {
+                $this->markActionState($site, 'rewrite', 'failed', 'Aucune page utile n est encore assez claire pour une réécriture.');
+
+                return response()->json([
+                    'message' => 'Aucune page claire n est encore prête pour une réécriture premium sur ce site.',
+                ], 422);
+            }
+
+            $existingSuggestion = $page->suggestions()
+                ->where('status', 'pending')
+                ->latest('created_at')
+                ->first();
+
+            $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions']), 'enrich');
+            $this->appendExecutionHistory(
+                $site,
+                'Réécriture préparée',
+                sprintf('PraeviSEO a préparé une amélioration pour la page "%s".', (string) $page->title),
+                'default',
+                'rewrite_prepared',
+            );
+            $this->markActionState($site, 'rewrite', 'completed', sprintf('Une amélioration est prête pour "%s".', (string) $page->title));
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
             return response()->json([
-                'message' => 'Aucune page claire n est encore prête pour une réécriture premium sur ce site.',
-            ], 422);
+                'site' => $this->serializeSite($site),
+                'rewrite' => [
+                    'page_id' => (int) $page->id,
+                    'slug' => (string) $page->slug,
+                    'title' => (string) $page->title,
+                    'suggestion_id' => (int) ($suggestion->id ?? 0),
+                    'already_pending' => $existingSuggestion !== null,
+                ],
+            ], 202);
+        } catch (Throwable $e) {
+            $this->markActionState($site, 'rewrite', 'failed', 'La préparation de réécriture a échoué pour le moment.');
+            $this->appendExecutionHistory($site, 'Réécriture interrompue', $e->getMessage(), 'danger', 'rewrite_failed');
+
+            return response()->json([
+                'message' => 'PraeviSEO n a pas pu préparer la réécriture pour le moment.',
+            ], 500);
         }
-
-        $existingSuggestion = $page->suggestions()
-            ->where('status', 'pending')
-            ->latest('created_at')
-            ->first();
-
-        $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions']), 'enrich');
-        $this->appendExecutionHistory(
-            $site,
-            'Réécriture préparée',
-            sprintf('PraeviSEO a préparé une amélioration pour la page "%s".', (string) $page->title),
-            'default',
-            'rewrite_prepared',
-        );
-        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
-
-        return response()->json([
-            'site' => $this->serializeSite($site),
-            'rewrite' => [
-                'page_id' => (int) $page->id,
-                'slug' => (string) $page->slug,
-                'title' => (string) $page->title,
-                'suggestion_id' => (int) ($suggestion->id ?? 0),
-                'already_pending' => $existingSuggestion !== null,
-            ],
-        ], 202);
     }
 
     public function startPremiumPublication(Request $request, string $siteId): JsonResponse
@@ -300,35 +314,48 @@ class ClientSitesController extends Controller
             ->where('site_id', $siteId)
             ->firstOrFail();
 
-        $page = $this->resolvePublicationCandidatePage($siteId);
+        try {
+            $this->markActionState($site, 'publication', 'running', 'PraeviSEO prépare l envoi de la meilleure page vers le site.');
+            $page = $this->resolvePublicationCandidatePage($siteId);
 
-        if (! $page) {
+            if (! $page) {
+                $this->markActionState($site, 'publication', 'failed', 'Aucune page moteur n est encore prête pour une publication live.');
+
+                return response()->json([
+                    'message' => 'Aucune page publiée côté moteur n est encore prête à être poussée en live.',
+                ], 422);
+            }
+
+            $page = app(SeoLivePublicationService::class)->publish($page, $site);
+            $this->appendExecutionHistory(
+                $site,
+                'Publication envoyée',
+                sprintf('PraeviSEO a poussé la page "%s" vers le site live.', (string) $page->title),
+                'default',
+                'publication_sent',
+            );
+            $this->markActionState($site, 'publication', 'completed', sprintf('La page "%s" a été envoyée vers le site live.', (string) $page->title));
+            $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
             return response()->json([
-                'message' => 'Aucune page publiée côté moteur n est encore prête à être poussée en live.',
-            ], 422);
+                'site' => $this->serializeSite($site),
+                'publication' => [
+                    'page_id' => (int) $page->id,
+                    'slug' => (string) $page->slug,
+                    'title' => (string) $page->title,
+                    'live_url' => (string) ($page->live_url ?? ''),
+                    'published_live_at' => $page->published_live_at?->toIso8601String(),
+                ],
+            ], 202);
+        } catch (Throwable $e) {
+            $this->markActionState($site, 'publication', 'failed', 'La publication live a échoué pour le moment.');
+            $this->appendExecutionHistory($site, 'Publication interrompue', $e->getMessage(), 'danger', 'publication_failed');
+
+            return response()->json([
+                'message' => 'PraeviSEO n a pas pu publier cette page pour le moment.',
+            ], 500);
         }
-
-        $page = app(SeoLivePublicationService::class)->publish($page, $site);
-        $this->appendExecutionHistory(
-            $site,
-            'Publication envoyée',
-            sprintf('PraeviSEO a poussé la page "%s" vers le site live.', (string) $page->title),
-            'default',
-            'publication_sent',
-        );
-        $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
-        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
-
-        return response()->json([
-            'site' => $this->serializeSite($site),
-            'publication' => [
-                'page_id' => (int) $page->id,
-                'slug' => (string) $page->slug,
-                'title' => (string) $page->title,
-                'live_url' => (string) ($page->live_url ?? ''),
-                'published_live_at' => $page->published_live_at?->toIso8601String(),
-            ],
-        ], 202);
     }
 
     public function startPremiumInternalLinking(
@@ -346,47 +373,62 @@ class ClientSitesController extends Controller
             ->where('site_id', $siteId)
             ->firstOrFail();
 
-        ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId);
+        try {
+            $this->markActionState($site, 'linking', 'running', 'PraeviSEO prépare le renfort de liens internes.');
+            ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId);
 
-        if (! $page) {
+            if (! $page) {
+                $this->markActionState($site, 'linking', 'failed', 'Aucune page n est encore assez claire pour un renfort de liens internes.');
+
+                return response()->json([
+                    'message' => 'Aucune page claire n est encore prête pour un renfort de liens internes sur ce site.',
+                ], 422);
+            }
+
+            $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions', 'observedPage']), 'add-internal-links-only');
+            $internalLinks = $this->extractSuggestionInternalLinks($suggestion);
+
+            if ($internalLinks === []) {
+                $this->markActionState($site, 'linking', 'failed', 'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles.');
+
+                return response()->json([
+                    'message' => 'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles à appliquer automatiquement sur cette page.',
+                ], 422);
+            }
+
+            $result = $workflow->apply($suggestion->fresh());
+            $this->appendExecutionHistory(
+                $site,
+                'Maillage renforcé',
+                sprintf('PraeviSEO a ajouté %d lien(s) interne(s) utiles sur "%s".', count($internalLinks), (string) $page->title),
+                'default',
+                'linking_applied',
+            );
+            $this->markActionState($site, 'linking', 'completed', sprintf('%d lien(s) interne(s) utile(s) ont été ajoutés sur "%s".', count($internalLinks), (string) $page->title));
+            $page->refresh();
+            $this->scheduleObservedCrawlIfIdle($site, 'after_linking');
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
             return response()->json([
-                'message' => 'Aucune page claire n est encore prête pour un renfort de liens internes sur ce site.',
-            ], 422);
-        }
+                'site' => $this->serializeSite($site),
+                'linking' => [
+                    'page_id' => (int) $page->id,
+                    'slug' => (string) $page->slug,
+                    'title' => (string) $page->title,
+                    'suggestion_id' => (int) $suggestion->id,
+                    'links_applied' => count($internalLinks),
+                    'updated_fields' => $result['updated_fields'],
+                    'already_pending' => $existingSuggestion !== null,
+                ],
+            ], 202);
+        } catch (Throwable $e) {
+            $this->markActionState($site, 'linking', 'failed', 'Le renfort de maillage a échoué pour le moment.');
+            $this->appendExecutionHistory($site, 'Maillage interrompu', $e->getMessage(), 'danger', 'linking_failed');
 
-        $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions', 'observedPage']), 'add-internal-links-only');
-        $internalLinks = $this->extractSuggestionInternalLinks($suggestion);
-
-        if ($internalLinks === []) {
             return response()->json([
-                'message' => 'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles à appliquer automatiquement sur cette page.',
-            ], 422);
+                'message' => 'PraeviSEO n a pas pu renforcer le maillage pour le moment.',
+            ], 500);
         }
-
-        $result = $workflow->apply($suggestion->fresh());
-        $this->appendExecutionHistory(
-            $site,
-            'Maillage renforcé',
-            sprintf('PraeviSEO a ajouté %d lien(s) interne(s) utiles sur "%s".', count($internalLinks), (string) $page->title),
-            'default',
-            'linking_applied',
-        );
-        $page->refresh();
-        $this->scheduleObservedCrawlIfIdle($site, 'after_linking');
-        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
-
-        return response()->json([
-            'site' => $this->serializeSite($site),
-            'linking' => [
-                'page_id' => (int) $page->id,
-                'slug' => (string) $page->slug,
-                'title' => (string) $page->title,
-                'suggestion_id' => (int) $suggestion->id,
-                'links_applied' => count($internalLinks),
-                'updated_fields' => $result['updated_fields'],
-                'already_pending' => $existingSuggestion !== null,
-            ],
-        ], 202);
     }
 
     public function requestInstallation(Request $request, string $siteId): JsonResponse
@@ -761,6 +803,7 @@ class ClientSitesController extends Controller
             'crawl' => $this->serializeObservedCrawl($crawl),
             'publication_target' => $this->publicationTargetStatus($site),
             'execution_history' => $this->executionHistory($site),
+            'action_statuses' => $this->actionStatuses($site, $crawl),
             'created_at' => $site->created_at,
             'summary' => [
                 'pages_total' => (clone $pageQuery)->count(),
@@ -976,6 +1019,117 @@ class ClientSitesController extends Controller
             'after_publication' => 'PraeviSEO relit le site après une publication pour vérifier le résultat visible.',
             'after_linking' => 'PraeviSEO relit le site après un renfort de liens internes pour contrôler la nouvelle structure.',
             default => 'PraeviSEO a lancé une nouvelle lecture complète du site pour préparer ou contrôler les prochaines actions.',
+        };
+    }
+
+    /**
+     * @return array{
+     *   crawl:array{state:string,label:string,detail:string,updated_at:?string},
+     *   rewrite:array{state:string,label:string,detail:string,updated_at:?string},
+     *   linking:array{state:string,label:string,detail:string,updated_at:?string},
+     *   publication:array{state:string,label:string,detail:string,updated_at:?string}
+     * }
+     */
+    private function actionStatuses(SeoSite $site, ?SeoSiteCrawl $crawl): array
+    {
+        $stored = data_get($site->settings_json, 'automation.actions', []);
+        $stored = is_array($stored) ? $stored : [];
+
+        $crawlState = match ((string) ($crawl?->status ?? '')) {
+            'running' => 'running',
+            'pending' => 'pending',
+            'completed' => 'completed',
+            'failed' => 'failed',
+            default => 'idle',
+        };
+
+        return [
+            'crawl' => [
+                'state' => $crawlState,
+                'label' => $this->actionStateLabel($crawlState),
+                'detail' => $this->crawlStatusDetail($crawl),
+                'updated_at' => $crawl?->completed_at?->toIso8601String()
+                    ?? $crawl?->started_at?->toIso8601String()
+                    ?? $crawl?->created_at?->toIso8601String(),
+            ],
+            'rewrite' => $this->normalizeActionStatus($stored['rewrite'] ?? null),
+            'linking' => $this->normalizeActionStatus($stored['linking'] ?? null),
+            'publication' => $this->normalizeActionStatus($stored['publication'] ?? null),
+        ];
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array{state:string,label:string,detail:string,updated_at:?string}
+     */
+    private function normalizeActionStatus(mixed $raw): array
+    {
+        $payload = is_array($raw) ? $raw : [];
+        $state = (string) ($payload['state'] ?? 'idle');
+
+        if (! in_array($state, ['idle', 'pending', 'running', 'completed', 'failed'], true)) {
+            $state = 'idle';
+        }
+
+        return [
+            'state' => $state,
+            'label' => $this->actionStateLabel($state),
+            'detail' => (string) ($payload['detail'] ?? ''),
+            'updated_at' => isset($payload['updated_at']) ? (string) $payload['updated_at'] : null,
+        ];
+    }
+
+    private function actionStateLabel(string $state): string
+    {
+        return match ($state) {
+            'pending' => 'Planifié',
+            'running' => 'En cours',
+            'completed' => 'Terminé',
+            'failed' => 'À vérifier',
+            default => 'À ouvrir',
+        };
+    }
+
+    private function markActionState(SeoSite $site, string $action, string $state, string $detail): void
+    {
+        $settings = $site->settings_json ?? [];
+        $automation = is_array($settings['automation'] ?? null) ? $settings['automation'] : [];
+        $actions = is_array($automation['actions'] ?? null) ? $automation['actions'] : [];
+
+        $actions[$action] = [
+            'state' => $state,
+            'detail' => $detail,
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        $automation['actions'] = $actions;
+        $settings['automation'] = $automation;
+        $site->forceFill(['settings_json' => $settings])->save();
+        $site->refresh();
+    }
+
+    private function crawlStatusDetail(?SeoSiteCrawl $crawl): string
+    {
+        if (! $crawl) {
+            return 'Aucune relecture premium n a encore été lancée sur ce site.';
+        }
+
+        return match ((string) $crawl->status) {
+            'running' => sprintf(
+                'PraeviSEO relit actuellement %d page(s) sur %d maximum.',
+                (int) $crawl->crawled_url_count,
+                (int) $crawl->max_pages
+            ),
+            'pending' => 'Une nouvelle relecture premium a été demandée et va démarrer automatiquement.',
+            'completed' => sprintf(
+                'La dernière relecture a parcouru %d page(s) et remonté %d point(s) à surveiller.',
+                (int) $crawl->crawled_url_count,
+                (int) ((is_array($crawl->meta_json) ? ($crawl->meta_json['issues_count'] ?? 0) : 0))
+            ),
+            'failed' => isset(($crawl->meta_json ?? [])['error'])
+                ? (string) (($crawl->meta_json ?? [])['error'])
+                : 'La dernière relecture premium a échoué pour le moment.',
+            default => 'PraeviSEO peut relancer une lecture complète du site à tout moment.',
         };
     }
 

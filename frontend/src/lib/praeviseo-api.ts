@@ -73,6 +73,12 @@ export type PraeviseoSite = {
     tone: "default" | "secondary" | "danger";
     kind: string;
   }>;
+  action_statuses: {
+    crawl: { state: string; label: string; detail: string; updated_at: string | null };
+    rewrite: { state: string; label: string; detail: string; updated_at: string | null };
+    linking: { state: string; label: string; detail: string; updated_at: string | null };
+    publication: { state: string; label: string; detail: string; updated_at: string | null };
+  };
   created_at: string;
   summary: {
     pages_total: number;
@@ -569,6 +575,32 @@ const mockSites: PraeviseoSite[] = [
         kind: "premium_client",
       },
     ],
+    action_statuses: {
+      crawl: {
+        state: "completed",
+        label: "Terminé",
+        detail: "La dernière relecture a parcouru 19 pages et remonté 3 points à surveiller.",
+        updated_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      },
+      rewrite: {
+        state: "completed",
+        label: "Terminé",
+        detail: "Une amélioration est prête pour la page \"Faq\".",
+        updated_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+      },
+      linking: {
+        state: "completed",
+        label: "Terminé",
+        detail: "2 liens internes utiles ont déjà été ajoutés sur la meilleure page ciblée.",
+        updated_at: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
+      },
+      publication: {
+        state: "completed",
+        label: "Terminé",
+        detail: "La meilleure page a déjà été envoyée vers le site live.",
+        updated_at: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
+      },
+    },
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 8,
@@ -836,6 +868,12 @@ const mockSites: PraeviseoSite[] = [
       target: null,
     },
     execution_history: [],
+    action_statuses: {
+      crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null },
+      rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+      linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+      publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+    },
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 0,
@@ -1393,6 +1431,40 @@ function normaliseSite(raw: unknown): PraeviseoSite {
           kind: String((entry as Record<string, unknown>).kind ?? "event"),
         }))
       : [],
+    action_statuses: {
+      crawl: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+      },
+      rewrite: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.rewrite as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+      },
+      linking: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+      },
+      publication: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+      },
+    },
     created_at: String(site.created_at ?? new Date().toISOString()),
     summary: {
       pages_total: Number(summary.pages_total ?? 0),
@@ -1977,6 +2049,12 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         target: null,
       },
       execution_history: [],
+      action_statuses: {
+        crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null },
+        rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+        linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+        publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+      },
       created_at: new Date().toISOString(),
       summary: {
         pages_total: 0,
