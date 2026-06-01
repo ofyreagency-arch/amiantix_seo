@@ -190,111 +190,18 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
       detail: site.next_action.detail,
     },
   ] as const;
-  const crawlTriggerLabel =
-    site.crawl?.trigger === "after_publication"
-      ? "Relecture relancée après publication"
-      : site.crawl?.trigger === "after_linking"
-        ? "Relecture relancée après maillage"
-        : "Crawl premium demandé";
-  const crawlTriggerDetail =
-    site.crawl?.trigger === "after_publication"
-      ? "PraeviSEO relit le site après une publication pour vérifier le résultat visible."
-      : site.crawl?.trigger === "after_linking"
-        ? "PraeviSEO relit le site après un renfort de liens internes pour contrôler la nouvelle structure."
-        : "PraeviSEO a enregistré une nouvelle lecture complète du site pour préparer les prochaines actions.";
-  const executionHistory = [
-    ...(site.crawl?.requested_at
-      ? [
+  const executionHistory =
+    site.execution_history.length > 0
+      ? site.execution_history
+      : [
           {
-            at: site.crawl.requested_at,
-            label: crawlTriggerLabel,
-            detail: crawlTriggerDetail,
+            at: new Date().toISOString(),
+            label: "Historique en préparation",
+            detail: "PraeviSEO affichera ici les prochaines actions dès qu’une première exécution premium sera réellement lancée.",
             tone: "secondary" as const,
+            kind: "empty",
           },
-        ]
-      : []),
-    ...(site.crawl?.started_at
-      ? [
-          {
-            at: site.crawl.started_at,
-            label: "Crawl premium lancé",
-            detail: `PraeviSEO relit le site avec un plafond de ${site.crawl.max_pages} page(s).`,
-            tone: "default" as const,
-          },
-        ]
-      : []),
-    ...(site.crawl?.completed_at
-      ? [
-          {
-            at: site.crawl.completed_at,
-            label: "Crawl premium terminé",
-            detail: `${site.crawl.crawled_url_count} page(s) relue(s), ${site.crawl.issues_count} point(s) à surveiller remonté(s).`,
-            tone: "default" as const,
-          },
-        ]
-      : []),
-    ...(site.crawl?.error
-      ? [
-          {
-            at: site.crawl.completed_at ?? site.crawl.requested_at ?? new Date().toISOString(),
-            label: "Crawl premium interrompu",
-            detail: site.crawl.error,
-            tone: "danger" as const,
-          },
-        ]
-      : []),
-    ...(site.installation.requested_at
-      ? [
-          {
-            at: site.installation.requested_at,
-            label: "Demande d’activation enregistrée",
-            detail: "Les accès premium ont été transmis à PraeviSEO pour préparer l’installation distante.",
-            tone: "secondary" as const,
-          },
-        ]
-      : []),
-    ...(site.installation.started_at
-      ? [
-          {
-            at: site.installation.started_at,
-            label: "Installation commencée",
-            detail: "PraeviSEO a commencé à se connecter au site et à détecter l’environnement.",
-            tone: "default" as const,
-          },
-        ]
-      : []),
-    ...site.installation.logs.slice(-6).reverse().map((log) => ({
-      at: log.at,
-      label: log.message,
-      detail: log.step ? `Étape : ${log.step}.` : "PraeviSEO continue l’activation premium sur le site.",
-      tone:
-        log.level === "error"
-          ? ("danger" as const)
-          : log.level === "success"
-          ? ("default" as const)
-          : ("secondary" as const),
-    })),
-    ...(site.installation.completed_at
-      ? [
-          {
-            at: site.installation.completed_at,
-            label: "Automatisation activée",
-            detail: "PraeviSEO est prêt à exécuter ses actions automatiques et à suivre leur résultat.",
-            tone: "default" as const,
-          },
-        ]
-      : []),
-    ...(site.installation.failed_at
-      ? [
-          {
-            at: site.installation.failed_at,
-            label: "Installation interrompue",
-            detail: site.installation.error_message ?? "PraeviSEO n’a pas pu terminer l’installation pour le moment.",
-            tone: "danger" as const,
-          },
-        ]
-      : []),
-  ];
+        ];
   const starterPlan = [
     leadRisingPage
       ? {

@@ -268,6 +268,13 @@ class ClientSitesController extends Controller
             ->first();
 
         $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions']), 'enrich');
+        $this->appendExecutionHistory(
+            $site,
+            'Réécriture préparée',
+            sprintf('PraeviSEO a préparé une amélioration pour la page "%s".', (string) $page->title),
+            'default',
+            'rewrite_prepared',
+        );
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
         return response()->json([
@@ -302,6 +309,13 @@ class ClientSitesController extends Controller
         }
 
         $page = app(SeoLivePublicationService::class)->publish($page, $site);
+        $this->appendExecutionHistory(
+            $site,
+            'Publication envoyée',
+            sprintf('PraeviSEO a poussé la page "%s" vers le site live.', (string) $page->title),
+            'default',
+            'publication_sent',
+        );
         $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
@@ -350,6 +364,13 @@ class ClientSitesController extends Controller
         }
 
         $result = $workflow->apply($suggestion->fresh());
+        $this->appendExecutionHistory(
+            $site,
+            'Maillage renforcé',
+            sprintf('PraeviSEO a ajouté %d lien(s) interne(s) utiles sur "%s".', count($internalLinks), (string) $page->title),
+            'default',
+            'linking_applied',
+        );
         $page->refresh();
         $this->scheduleObservedCrawlIfIdle($site, 'after_linking');
         $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
@@ -427,6 +448,13 @@ class ClientSitesController extends Controller
         $publication['bridge_status'] = 'requested';
         $settings['publication'] = $publication;
         $site->forceFill(['settings_json' => $settings])->save();
+        $this->appendExecutionHistory(
+            $site,
+            'Installation premium demandée',
+            'PraeviSEO a bien enregistré vos accès et prépare maintenant l activation distante du site.',
+            'secondary',
+            'installation_requested',
+        );
 
         RunRemoteInstallationJob::dispatch($installation->id);
 
@@ -732,6 +760,7 @@ class ClientSitesController extends Controller
             'installation' => $this->serializeInstallation($installation),
             'crawl' => $this->serializeObservedCrawl($crawl),
             'publication_target' => $this->publicationTargetStatus($site),
+            'execution_history' => $this->executionHistory($site),
             'created_at' => $site->created_at,
             'summary' => [
                 'pages_total' => (clone $pageQuery)->count(),
@@ -864,8 +893,90 @@ class ClientSitesController extends Controller
         ]);
 
         RunObservedSiteCrawlJob::dispatch($crawl->id);
+        $this->appendExecutionHistory(
+            $site,
+            $this->executionHistoryLabelForTrigger($trigger),
+            $this->executionHistoryDetailForTrigger($trigger),
+            'secondary',
+            $trigger,
+        );
 
         return $crawl;
+    }
+
+    /**
+     * @return array<int,array{at:string,label:string,detail:string,tone:string,kind:string}>
+     */
+    private function executionHistory(SeoSite $site): array
+    {
+        $history = data_get($site->settings_json, 'automation.history', []);
+
+        if (! is_array($history)) {
+            return [];
+        }
+
+        return collect($history)
+            ->filter(fn (mixed $entry): bool => is_array($entry) && filled($entry['label'] ?? null))
+            ->map(fn (array $entry): array => [
+                'at' => (string) ($entry['at'] ?? now()->toIso8601String()),
+                'label' => (string) ($entry['label'] ?? ''),
+                'detail' => (string) ($entry['detail'] ?? ''),
+                'tone' => in_array((string) ($entry['tone'] ?? ''), ['default', 'secondary', 'danger'], true)
+                    ? (string) $entry['tone']
+                    : 'secondary',
+                'kind' => (string) ($entry['kind'] ?? 'event'),
+            ])
+            ->sortByDesc('at')
+            ->values()
+            ->all();
+    }
+
+    private function appendExecutionHistory(
+        SeoSite $site,
+        string $label,
+        string $detail,
+        string $tone = 'secondary',
+        string $kind = 'event',
+    ): void {
+        $settings = $site->settings_json ?? [];
+        $automation = is_array($settings['automation'] ?? null) ? $settings['automation'] : [];
+        $history = is_array($automation['history'] ?? null) ? $automation['history'] : [];
+
+        $history[] = [
+            'at' => now()->toIso8601String(),
+            'label' => $label,
+            'detail' => $detail,
+            'tone' => in_array($tone, ['default', 'secondary', 'danger'], true) ? $tone : 'secondary',
+            'kind' => $kind,
+        ];
+
+        $automation['history'] = collect($history)
+            ->sortByDesc('at')
+            ->take(40)
+            ->values()
+            ->all();
+
+        $settings['automation'] = $automation;
+        $site->forceFill(['settings_json' => $settings])->save();
+        $site->refresh();
+    }
+
+    private function executionHistoryLabelForTrigger(string $trigger): string
+    {
+        return match ($trigger) {
+            'after_publication' => 'Relecture relancée après publication',
+            'after_linking' => 'Relecture relancée après maillage',
+            default => 'Crawl premium demandé',
+        };
+    }
+
+    private function executionHistoryDetailForTrigger(string $trigger): string
+    {
+        return match ($trigger) {
+            'after_publication' => 'PraeviSEO relit le site après une publication pour vérifier le résultat visible.',
+            'after_linking' => 'PraeviSEO relit le site après un renfort de liens internes pour contrôler la nouvelle structure.',
+            default => 'PraeviSEO a lancé une nouvelle lecture complète du site pour préparer ou contrôler les prochaines actions.',
+        };
     }
 
     private function resolveRewriteCandidatePage(string $siteId): ?SeoPage

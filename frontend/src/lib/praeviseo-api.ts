@@ -66,6 +66,13 @@ export type PraeviseoSite = {
     manual_required: boolean;
     target: string | null;
   };
+  execution_history: Array<{
+    at: string;
+    label: string;
+    detail: string;
+    tone: "default" | "secondary" | "danger";
+    kind: string;
+  }>;
   created_at: string;
   summary: {
     pages_total: number;
@@ -546,6 +553,22 @@ const mockSites: PraeviseoSite[] = [
       manual_required: false,
       target: "https://amiantix.com/_praeviseo/publish",
     },
+    execution_history: [
+      {
+        at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+        label: "Installation premium demandée",
+        detail: "PraeviSEO a bien enregistré les accès et prépare maintenant l’activation distante du site.",
+        tone: "secondary",
+        kind: "installation_requested",
+      },
+      {
+        at: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+        label: "Crawl premium demandé",
+        detail: "PraeviSEO a lancé une lecture complète du site pour préparer les prochaines actions.",
+        tone: "secondary",
+        kind: "premium_client",
+      },
+    ],
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 8,
@@ -812,6 +835,7 @@ const mockSites: PraeviseoSite[] = [
       manual_required: true,
       target: null,
     },
+    execution_history: [],
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 0,
@@ -1358,6 +1382,17 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         ? String((site.publication_target as Record<string, unknown> | undefined)?.target)
         : null,
     },
+    execution_history: Array.isArray(site.execution_history)
+      ? site.execution_history.map((entry) => ({
+          at: String((entry as Record<string, unknown>).at ?? new Date().toISOString()),
+          label: String((entry as Record<string, unknown>).label ?? ""),
+          detail: String((entry as Record<string, unknown>).detail ?? ""),
+          tone: (["default", "secondary", "danger"].includes(String((entry as Record<string, unknown>).tone ?? "secondary"))
+            ? String((entry as Record<string, unknown>).tone ?? "secondary")
+            : "secondary") as "default" | "secondary" | "danger",
+          kind: String((entry as Record<string, unknown>).kind ?? "event"),
+        }))
+      : [],
     created_at: String(site.created_at ?? new Date().toISOString()),
     summary: {
       pages_total: Number(summary.pages_total ?? 0),
@@ -1941,6 +1976,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         manual_required: true,
         target: null,
       },
+      execution_history: [],
       created_at: new Date().toISOString(),
       summary: {
         pages_total: 0,
