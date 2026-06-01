@@ -76,11 +76,8 @@
     },
     "repositories": [
         {
-            "type": "path",
-            "url": "..",
-            "options": {
-                "symlink": true
-            }
+            "type": "vcs",
+            "url": "https://github.com/ofyreagency-arch/amiantix_seo.git"
         }
     ],
     "config": {

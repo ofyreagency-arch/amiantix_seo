@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3be9dbd7e0bdd37f4709f527cd5252e3",
+    "content-hash": "c4df7b2b03f82a5155a01d6235d3da7c",
     "packages": [
         {
             "name": "brick/math",
@@ -2540,10 +2540,16 @@
         {
             "name": "ofyre/seo-engine",
             "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ofyreagency-arch/amiantix_seo.git",
+                "reference": "69f01dd1b0e7af5ee368ea0f97c5dfcd4ad8262c"
+            },
             "dist": {
-                "type": "path",
-                "url": "..",
-                "reference": "7974e29e845c79e79e4bb3d9c0c0d086b73b5958"
+                "type": "zip",
+                "url": "https://api.github.com/repos/ofyreagency-arch/amiantix_seo/zipball/69f01dd1b0e7af5ee368ea0f97c5dfcd4ad8262c",
+                "reference": "69f01dd1b0e7af5ee368ea0f97c5dfcd4ad8262c",
+                "shasum": ""
             },
             "require": {
                 "illuminate/console": "^11.0|^12.0|^13.0",
@@ -2553,6 +2559,7 @@
                 "illuminate/view": "^11.0|^12.0|^13.0",
                 "php": "^8.2"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2571,10 +2578,11 @@
                 "proprietary"
             ],
             "description": "Reusable AI SEO engine package for Laravel applications.",
-            "transport-options": {
-                "symlink": false,
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/ofyreagency-arch/amiantix_seo/tree/main",
+                "issues": "https://github.com/ofyreagency-arch/amiantix_seo/issues"
+            },
+            "time": "2026-06-01T20:47:43+00:00"
         },
         {
             "name": "paragonie/constant_time_encoding",
