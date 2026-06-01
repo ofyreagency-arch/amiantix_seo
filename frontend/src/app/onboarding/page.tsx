@@ -27,7 +27,7 @@ export default async function OnboardingPage() {
             {
               icon: SearchCheck,
               title: "2. Connecter Search Console",
-              text: "Reliez la propriété Google pour alimenter impressions, clics, CTR, indexation et tendances.",
+              text: "Reliez la propriété Google pour alimenter affichages, visites, pages bien lues par Google et premières tendances utiles.",
             },
             {
               icon: Sparkles,
@@ -59,8 +59,8 @@ export default async function OnboardingPage() {
                 Le free PraeviSEO est déjà un vrai cockpit SEO, sans installation technique.
               </div>
               <p className="mt-2 text-sm text-text-muted">
-                Connectez d’abord votre site et Google Search Console. L’automatisation premium pourra venir plus
-                tard si vous voulez laisser PraeviSEO agir directement sur le site.
+                Connectez d’abord votre site et Google Search Console. PraeviSEO commencera déjà à expliquer votre SEO
+                et à vous guider sur les prochaines actions utiles.
               </p>
             </div>
             <Button href="/sites/new">

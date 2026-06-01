@@ -123,8 +123,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       ? `${linkedQueryWatchlist.length} requête(s) sont déjà reliée(s) à une page observée, ce qui clarifie où agir.`
       : "PraeviSEO attend encore le prochain lien net entre requête et page pour ouvrir une cible éditoriale encore plus claire.",
     siteActionPlan.length > 0
-      ? `${siteActionPlan.length} action(s) moteur sont déjà prêtes à être traitées sur ce site.`
-      : "Le moteur continue de préparer les prochaines actions utiles sur ce site.",
+      ? `${siteActionPlan.length} action(s) sont déjà prêtes à être traitées sur ce site.`
+      : "PraeviSEO continue de préparer les prochaines actions utiles sur ce site.",
     refreshContent.length > 0
       ? `${refreshContent.length} contenu(s) méritent déjà un refresh ou une relance.`
       : "Aucun contenu chaud à relancer pour le moment sur ce site.",
@@ -274,7 +274,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     {
       label: "Requêtes déjà reliées",
       value: linkedQueryWatchlist.length,
-      detail: linkedQueryWatchlist.length > 0 ? "page cible déjà connue" : "le moteur cherche encore la meilleure cible",
+      detail: linkedQueryWatchlist.length > 0 ? "bonne page déjà trouvée" : "PraeviSEO cherche encore la meilleure page à relier",
       tone: linkedQueryWatchlist.length > 0 ? "secondary" : "secondary",
     },
     {
@@ -819,7 +819,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                   site.readiness.gsc_connected ? "Google Search Console déjà relié" : "Google Search Console à relier",
                   "Performances, indexation et opportunités déjà analysées",
                   "Le free reste utile sans aucune installation",
-                  "La couche premium sert ensuite uniquement à exécuter des actions avancées",
+                  "Une couche d’automatisation pourra venir plus tard si vous voulez aller plus loin",
                   "Le cockpit revient déjà avec des priorités, tendances et recommandations lisibles",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-muted">
@@ -837,13 +837,13 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardHeader>
               <CardTitle>Quoi traiter d’abord</CardTitle>
               <CardDescription>
-                Le meilleur plan d’action disponible maintenant sur ce site, entre recommandations moteur, requêtes et contenus.
+                Le meilleur plan d’action disponible maintenant sur ce site, entre recommandations, recherches et contenus.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {siteActionPlan.length === 0 && siteOpportunities.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune action prioritaire forte pour le moment. Le moteur enrichira ce bloc dès que la prochaine action utile devient claire.
+                  Aucune action prioritaire forte pour le moment. PraeviSEO enrichira ce bloc dès que la prochaine action utile devient claire.
                 </div>
               ) : (
                 [

@@ -150,7 +150,8 @@ export default async function SiteSearchConsolePage({
                         <div>
                           <div className="text-sm font-semibold text-text">{property}</div>
                           <div className="mt-1 text-xs text-text-subtle">
-                            PraeviSEO utilisera ensuite cette propriété pour récupérer clics, impressions, CTR et requêtes.
+                            PraeviSEO utilisera ensuite cette propriété pour récupérer vos affichages, vos visites et
+                            les recherches que Google commence à associer à votre site.
                           </div>
                         </div>
                       </label>
@@ -194,8 +195,8 @@ export default async function SiteSearchConsolePage({
                 },
                 {
                   icon: CheckCircle2,
-                  title: "Statut premium",
-                  text: "Le dashboard remonte ensuite simplement : connecté, synchronisation active, dernière synchro.",
+                  title: "Lecture active",
+                  text: "Le dashboard indiquera ensuite simplement si la connexion est active, quand la dernière synchro a tourné et quelles données sont déjà lisibles.",
                 },
               ].map((item) => {
                 const Icon = item.icon;

@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/utils";
 function opportunityTypeLabel(type: string): string {
   return (
     {
-      low_ctr: "CTR faible",
+      low_ctr: "Peu de clics",
       near_top_10: "Proche du top 10",
       emerging_query: "Requête émergente",
       sustained_drop: "Baisse durable",
@@ -27,7 +27,7 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
     return `${new Intl.NumberFormat("fr-FR").format(impressions)} impressions recentes, ${new Intl.NumberFormat("fr-FR").format(previousImpressions)} avant, position ${position.toFixed(1)}`;
   }
 
-  return `${new Intl.NumberFormat("fr-FR").format(impressions)} impressions, CTR ${ctr.toFixed(1)} %, position ${position.toFixed(1)}`;
+  return `${new Intl.NumberFormat("fr-FR").format(impressions)} affichage(s) dans Google, avec une présence moyenne autour de la ${Math.round(position)}e place`;
 }
 
 function impactLabel(impact: string): string {
@@ -86,7 +86,7 @@ export default async function OptimizationsPage() {
       ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
       : null,
     optimizations.gsc_opportunities.summary.low_ctr > 0
-      ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) ont un CTR à relancer`
+      ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) attirent encore trop peu de clics`
       : null,
     optimizations.gsc_opportunities.summary.emerging_queries > 0
       ? `${optimizations.gsc_opportunities.summary.emerging_queries} requête(s) progressent rapidement`
@@ -115,12 +115,12 @@ export default async function OptimizationsPage() {
       tone: optimizations.gsc_opportunities.summary.near_top_10 > 0 ? "success" : "secondary",
     },
     {
-      label: "CTR à relancer",
+      label: "Clics à améliorer",
       value: optimizations.gsc_opportunities.summary.low_ctr,
       detail:
         optimizations.gsc_opportunities.summary.low_ctr > 0
           ? "des pages sont vues mais sous-cliquées"
-          : "aucun CTR faible net pour le moment",
+          : "aucune page nettement sous-cliquée pour le moment",
       tone: optimizations.gsc_opportunities.summary.low_ctr > 0 ? "warning" : "secondary",
     },
     {
@@ -128,7 +128,7 @@ export default async function OptimizationsPage() {
       value: optimizations.recommendations.summary.total,
       detail:
         optimizations.recommendations.summary.total > 0
-          ? "le moteur a déjà des actions concrètes à recommander"
+          ? "PraeviSEO a déjà des actions concrètes à recommander"
           : "aucune action observée forte pour le moment",
       tone: optimizations.recommendations.summary.total > 0 ? "warning" : "secondary",
     },
@@ -156,9 +156,9 @@ export default async function OptimizationsPage() {
       id: `recommendation-${item.id}`,
       title: item.title,
       detail: item.suggested_action ?? item.reasoning,
-      badge: item.priority <= 30 ? "Action prioritaire" : "Reco moteur",
+      badge: item.priority <= 30 ? "À faire en premier" : "Action recommandée",
       badgeVariant: item.priority <= 30 ? "warning" : "secondary",
-      meta: item.generated_at ? formatDate(item.generated_at) : `${item.site_id} · moteur observé`,
+      meta: item.generated_at ? formatDate(item.generated_at) : `${item.site_id} · recommandation observée`,
       timestamp: item.generated_at ? new Date(item.generated_at).getTime() : 0,
     })),
   ]
@@ -191,8 +191,8 @@ export default async function OptimizationsPage() {
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
           <h1 className="text-2xl font-bold tracking-tight text-text">Vos meilleures opportunités SEO, sans installer quoi que ce soit</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            PraeviSEO lit déjà Google Search Console pour repérer les pages proches du top 10, les CTR faibles,
-            les baisses de visibilité et les requêtes qui méritent une réponse plus forte.
+            PraeviSEO lit déjà Google Search Console pour repérer les pages proches d’un gain rapide, les pages qui
+            attirent encore trop peu de clics, les baisses de visibilité et les recherches qui méritent une meilleure réponse.
           </p>
         </div>
 
@@ -215,7 +215,7 @@ export default async function OptimizationsPage() {
             ["Actionnables maintenant", optimizations.gsc_opportunities.summary.ready],
             ["Priorité haute", optimizations.gsc_opportunities.summary.high_priority],
             ["Proches du top 10", optimizations.gsc_opportunities.summary.near_top_10],
-            ["CTR à relancer", optimizations.gsc_opportunities.summary.low_ctr],
+            ["Clics à améliorer", optimizations.gsc_opportunities.summary.low_ctr],
           ].map(([label, value]) => (
             <Card key={label}>
               <CardHeader className="pb-2">
@@ -290,7 +290,7 @@ export default async function OptimizationsPage() {
             <CardHeader>
               <CardTitle>Gain attendu et effort</CardTitle>
               <CardDescription>
-                La meilleure action moteur deja preparee pour faire progresser le SEO.
+                La meilleure action déjà prête pour faire progresser votre visibilité.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -301,7 +301,7 @@ export default async function OptimizationsPage() {
                       <p className="text-sm font-semibold text-text">{leadRecommendation.title}</p>
                       <p className="text-xs text-text-subtle">
                         {leadRecommendation.site_id}
-                        {leadRecommendation.cluster ? ` · cluster ${leadRecommendation.cluster}` : ""}
+                        {leadRecommendation.cluster ? ` · sujet ${leadRecommendation.cluster}` : ""}
                       </p>
                     </div>
                     <Badge variant={leadRecommendation.priority <= 30 ? "warning" : "secondary"}>
@@ -315,12 +315,12 @@ export default async function OptimizationsPage() {
                   <p className="text-sm text-text-muted">{leadRecommendation.reasoning}</p>
                   <p className="text-sm text-text">
                     Action a ouvrir :{" "}
-                    <span className="font-medium">{leadRecommendation.suggested_action ?? "a preciser dans le moteur"}</span>
+                    <span className="font-medium">{leadRecommendation.suggested_action ?? "a préciser bientôt"}</span>
                   </p>
                 </>
               ) : (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun plan moteur assez fort pour l’instant. Ce bloc se remplira des qu’une action a bon ratio impact / effort remonte.
+                  Aucune action assez forte pour l’instant. Ce bloc se remplira dès qu’une action au bon ratio impact / effort remonte.
                 </div>
               )}
             </CardContent>
@@ -466,13 +466,13 @@ export default async function OptimizationsPage() {
           <CardHeader>
             <CardTitle>Plan d’action recommandé par PraeviSEO</CardTitle>
             <CardDescription>
-              Les actions observées les plus utiles déjà prêtes dans le moteur pour aider le client à améliorer son SEO.
+              Les actions déjà prêtes les plus utiles pour aider le client à améliorer sa visibilité.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {actionPlan.length === 0 ? (
               <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                Aucun plan d’action observé fort pour le moment. Le moteur enrichira ce bloc dès que de nouvelles recommandations deviennent utiles.
+                Aucun plan d’action fort pour le moment. PraeviSEO enrichira ce bloc dès que de nouvelles recommandations deviennent utiles.
               </div>
             ) : (
               actionPlan.map((item) => (
@@ -482,7 +482,7 @@ export default async function OptimizationsPage() {
                       <p className="text-sm font-semibold text-text">{item.title}</p>
                       <p className="text-xs text-text-subtle">
                         {item.site_id}
-                        {item.cluster ? ` · cluster ${item.cluster}` : ""}
+                        {item.cluster ? ` · sujet ${item.cluster}` : ""}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -495,10 +495,10 @@ export default async function OptimizationsPage() {
                   </div>
                   <p className="text-sm text-text-muted">{item.reasoning}</p>
                   <p className="text-sm text-text">
-                    Action suggérée : <span className="font-medium">{item.suggested_action ?? "à préciser dans le moteur"}</span>
+                    Action suggérée : <span className="font-medium">{item.suggested_action ?? "à préciser bientôt"}</span>
                   </p>
                   <p className="text-xs text-text-subtle">
-                    Pourquoi maintenant : {item.estimated_impact === "high" ? "le moteur voit un gain significatif a court terme" : "le moteur voit un levier utile a ouvrir dans le bon ordre"}.
+                    Pourquoi maintenant : {item.estimated_impact === "high" ? "PraeviSEO voit un gain significatif à court terme" : "PraeviSEO voit un levier utile à ouvrir dans le bon ordre"}.
                   </p>
                 </div>
               ))
