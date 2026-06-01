@@ -143,6 +143,87 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
           : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles.",
     },
   ] as const;
+  const executionReadiness = [
+    {
+      title: "Connexion au site",
+      status: site.readiness.bridge_connected ? "Active" : "À terminer",
+      detail: site.readiness.bridge_connected
+        ? "PraeviSEO est déjà relié au site pour exécuter des actions avancées."
+        : "La connexion premium doit encore être finalisée avant les vraies actions automatiques.",
+    },
+    {
+      title: "Lecture Google",
+      status: site.readiness.gsc_connected ? "Active" : "À connecter",
+      detail: site.readiness.gsc_connected
+        ? "Google Search Console alimente déjà les signaux qui guideront l’exécution automatique."
+        : "PraeviSEO aura besoin de Search Console pour prioriser les actions les plus rentables.",
+    },
+    {
+      title: "Contenus publiés",
+      status: site.readiness.has_live_pages ? "Déjà visibles" : "À publier",
+      detail: site.readiness.has_live_pages
+        ? "Le site possède déjà des contenus visibles que PraeviSEO peut mettre à jour ou renforcer."
+        : "La couche payante pourra aussi servir à pousser les premières vraies publications visibles.",
+    },
+    {
+      title: "Prochaine action",
+      status: "Prête",
+      detail: site.next_action.detail,
+    },
+  ] as const;
+  const executionHistory = [
+    ...(site.installation.requested_at
+      ? [
+          {
+            at: site.installation.requested_at,
+            label: "Demande d’activation enregistrée",
+            detail: "Les accès premium ont été transmis à PraeviSEO pour préparer l’installation distante.",
+            tone: "secondary" as const,
+          },
+        ]
+      : []),
+    ...(site.installation.started_at
+      ? [
+          {
+            at: site.installation.started_at,
+            label: "Installation commencée",
+            detail: "PraeviSEO a commencé à se connecter au site et à détecter l’environnement.",
+            tone: "default" as const,
+          },
+        ]
+      : []),
+    ...site.installation.logs.slice(-6).reverse().map((log) => ({
+      at: log.at,
+      label: log.message,
+      detail: log.step ? `Étape : ${log.step}.` : "PraeviSEO continue l’activation premium sur le site.",
+      tone:
+        log.level === "error"
+          ? ("danger" as const)
+          : log.level === "success"
+          ? ("default" as const)
+          : ("secondary" as const),
+    })),
+    ...(site.installation.completed_at
+      ? [
+          {
+            at: site.installation.completed_at,
+            label: "Automatisation activée",
+            detail: "PraeviSEO est prêt à exécuter ses actions automatiques et à suivre leur résultat.",
+            tone: "default" as const,
+          },
+        ]
+      : []),
+    ...(site.installation.failed_at
+      ? [
+          {
+            at: site.installation.failed_at,
+            label: "Installation interrompue",
+            detail: site.installation.error_message ?? "PraeviSEO n’a pas pu terminer l’installation pour le moment.",
+            tone: "danger" as const,
+          },
+        ]
+      : []),
+  ];
   const starterPlan = [
     leadRisingPage
       ? {
@@ -310,6 +391,54 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             ))}
           </CardContent>
         </Card>
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Où en est l’automatisation</CardTitle>
+              <CardDescription>
+                Cette lecture vous montre ce qui est déjà prêt et ce qui reste à ouvrir avant que PraeviSEO agisse en continu.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {executionReadiness.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{item.title}</div>
+                    <Badge variant="secondary">{item.status}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Historique d’exécution</CardTitle>
+              <CardDescription>
+                Vous pouvez suivre ici ce que PraeviSEO a déjà lancé, confirmé ou relancé sur le site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {executionHistory.length > 0 ? (
+                executionHistory.map((entry, index) => (
+                  <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{entry.label}</div>
+                      <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  L’historique d’exécution apparaîtra ici dès que PraeviSEO aura lancé les premières étapes premium sur le site.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="grid gap-6 xl:grid-cols-3">
           {[
