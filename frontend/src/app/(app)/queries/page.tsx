@@ -143,6 +143,7 @@ export default async function QueriesCockpitPage() {
     lowQueryVolume
       ? "Dès que Google donnera un signal plus fort, PraeviSEO vous dira quelle recherche devient vraiment intéressante à travailler."
       : "Quand une recherche devient plus claire, PraeviSEO peut ensuite vous aider à renforcer la bonne page et gagner plus de visibilité.";
+  const compactQueries = topQueries.slice(0, 3);
 
   return (
     <div className="min-h-screen">
@@ -153,14 +154,21 @@ export default async function QueriesCockpitPage() {
 
       <div className="p-6 space-y-6">
         <CockpitSectionNav
-          items={[
-            { label: "Vue d’ensemble", href: "#vue-ensemble", count: topQueries.length, tone: "default" },
-            { label: "Déjà repérées", href: "#meilleures", count: visibleQueries.length, tone: "success" },
-            { label: "En progression", href: "#hausse", count: risingQueries.length, tone: "success" },
-            { label: "À développer", href: "#potentiel", count: potentialQueries.length, tone: "warning" },
-            { label: "Bonne page trouvée", href: "#liees", count: linkedQueryItems.length, tone: "secondary" },
-            { label: "Nouvelles pistes", href: "#emergentes", count: emergingQueries.length, tone: "secondary" },
-          ]}
+          items={
+            lowQueryVolume
+              ? [
+                  { label: "Vue d’ensemble", href: "#vue-ensemble", count: topQueries.length, tone: "default" as const },
+                  { label: "Premières pistes", href: "#premieres-pistes", count: compactQueries.length, tone: "warning" as const },
+                ]
+              : [
+                  { label: "Vue d’ensemble", href: "#vue-ensemble", count: topQueries.length, tone: "default" as const },
+                  { label: "Déjà repérées", href: "#meilleures", count: visibleQueries.length, tone: "success" as const },
+                  { label: "En progression", href: "#hausse", count: risingQueries.length, tone: "success" as const },
+                  { label: "À développer", href: "#potentiel", count: potentialQueries.length, tone: "warning" as const },
+                  { label: "Bonne page trouvée", href: "#liees", count: linkedQueryItems.length, tone: "secondary" as const },
+                  { label: "Nouvelles pistes", href: "#emergentes", count: emergingQueries.length, tone: "secondary" as const },
+                ]
+          }
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
@@ -191,14 +199,22 @@ export default async function QueriesCockpitPage() {
 
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid
-            items={[
-              { label: "Recherches repérées", value: topQueries.length },
-              { label: "Déjà bien comprises", value: visibleQueries.length, tone: "success" },
-              { label: "En progression", value: risingQueries.length, tone: "success" },
-              { label: "À développer", value: potentialQueries.length, tone: "warning" },
-              { label: "Bonne page trouvée", value: linkedQueryItems.length, tone: "secondary" },
-              { label: "Nouvelles pistes", value: newQueries.length, tone: "secondary" },
-            ]}
+            items={
+              lowQueryVolume
+                ? [
+                    { label: "Recherches repérées", value: topQueries.length },
+                    { label: "À développer", value: potentialQueries.length, tone: "warning" as const },
+                    { label: "Bonne page trouvée", value: linkedQueryItems.length, tone: "secondary" as const },
+                  ]
+                : [
+                    { label: "Recherches repérées", value: topQueries.length },
+                    { label: "Déjà bien comprises", value: visibleQueries.length, tone: "success" as const },
+                    { label: "En progression", value: risingQueries.length, tone: "success" as const },
+                    { label: "À développer", value: potentialQueries.length, tone: "warning" as const },
+                    { label: "Bonne page trouvée", value: linkedQueryItems.length, tone: "secondary" as const },
+                    { label: "Nouvelles pistes", value: newQueries.length, tone: "secondary" as const },
+                  ]
+            }
           />
         </div>
 
@@ -240,6 +256,39 @@ export default async function QueriesCockpitPage() {
           </div>
         </div>
 
+        {lowQueryVolume ? (
+          <div id="premieres-pistes" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+            <CockpitSignalListCard
+              title="Premières recherches repérées"
+              description="Google commence seulement à associer quelques recherches à votre site. PraeviSEO garde ici les premières pistes qui pourront devenir utiles."
+              empty={compactQueries.length === 0}
+              emptyMessage="Google n’a pas encore donné de recherche assez claire pour ouvrir une vraie analyse dédiée. PraeviSEO vous préviendra dès qu’un signal devient utile."
+            >
+              {compactQueries.map((item) => (
+                <CockpitSignalItem
+                  key={`${item.site_name}-${item.query}-compact`}
+                  title={item.query}
+                  subtitle={item.site_name}
+                  badge="À suivre plus tard"
+                  badgeTone="warning"
+                  description={`${item.impressions} affichage(s) repérés dans Google. Le signal existe, mais il reste encore trop léger pour en faire une vraie priorité.`}
+                />
+              ))}
+            </CockpitSignalListCard>
+
+            <CockpitSignalListCard
+              title="Ce que cela veut dire"
+              description="Avec peu de volume, cette vue sert surtout de radar."
+              empty={false}
+              emptyMessage=""
+            >
+              <div className="rounded-xl border border-border p-4 text-sm text-text-muted leading-6">
+                PraeviSEO voit déjà quelques recherches liées à votre site, mais pas encore assez de matière pour en faire une grande analyse séparée.
+                Pour l’instant, vos pages, vos opportunités et votre indexation restent les leviers les plus utiles à traiter.
+              </div>
+            </CockpitSignalListCard>
+          </div>
+        ) : (
         <div id="meilleures" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title={visibleQueries.length > 0 ? "Recherches déjà bien repérées" : "Premières recherches à développer"}
@@ -283,6 +332,7 @@ export default async function QueriesCockpitPage() {
             ))}
           </CockpitSignalListCard>
         </div>
+        )}
 
         <div id="liees" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard

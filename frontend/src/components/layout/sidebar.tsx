@@ -36,7 +36,7 @@ const NAV_ITEMS: Array<{
       { label: "Vue d'ensemble", href: "/dashboard", icon: LayoutDashboard },
       { label: "Opportunités", href: "/optimizations", icon: Sparkles },
       { label: "Pages", href: "/pages", icon: FileText },
-      { label: "Requêtes Google", href: "/queries", icon: LineChart },
+      { label: "Google comprend", href: "/queries", icon: LineChart },
       { label: "Blogs", href: "/publications", icon: Send },
       { label: "Indexation", href: "/indexation", icon: Database },
       { label: "Activité SEO", href: "/activity", icon: Activity },
