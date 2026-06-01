@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   getSiteConnectPath,
   requestPremiumCrawl,
+  requestPremiumImages,
   requestPremiumLinking,
   requestPremiumPublication,
   requestPremiumRewrite,
@@ -116,6 +117,12 @@ export async function launchPremiumRewriteAction(siteId: string): Promise<void> 
 
 export async function launchPremiumLinkingAction(siteId: string): Promise<void> {
   await requestPremiumLinking(siteId);
+  revalidatePath(getSiteConnectPath(siteId));
+  redirect(getSiteConnectPath(siteId));
+}
+
+export async function launchPremiumImageAction(siteId: string): Promise<void> {
+  await requestPremiumImages(siteId);
   revalidatePath(getSiteConnectPath(siteId));
   redirect(getSiteConnectPath(siteId));
 }

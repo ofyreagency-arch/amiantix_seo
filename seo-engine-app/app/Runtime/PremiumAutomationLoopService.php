@@ -10,6 +10,7 @@ use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSuggestion;
+use App\Services\Media\SeoPageImageGenerator;
 use App\Services\Publication\SeoLivePublicationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,7 @@ class PremiumAutomationLoopService
     public function __construct(
         private readonly SeoRewriteService $rewrite,
         private readonly SeoSuggestionWorkflowService $workflow,
+        private readonly SeoPageImageGenerator $images,
         private readonly SeoLivePublicationService $livePublication,
     ) {}
 
@@ -57,6 +59,13 @@ class PremiumAutomationLoopService
 
         $stored = data_get($site->settings_json, 'automation.actions', []);
         $stored = is_array($stored) ? $stored : [];
+
+        if ($this->shouldRunAction($stored['images'] ?? null, $latestCrawl)) {
+            $images = $this->attemptImageGeneration($site);
+            if ($images !== null) {
+                return $images;
+            }
+        }
 
         if ($this->shouldRunAction($stored['publication'] ?? null, $latestCrawl)) {
             $publication = $this->attemptPublication($site);
@@ -257,6 +266,46 @@ class PremiumAutomationLoopService
         }
     }
 
+    /**
+     * @return array{executed:bool,action:string,reason:string}|null
+     */
+    private function attemptImageGeneration(SeoSite $site): ?array
+    {
+        $page = $this->resolveImageCandidatePage($site->site_id);
+
+        if (! $page) {
+            return null;
+        }
+
+        try {
+            $this->markActionState($site, 'images', 'running', 'PraeviSEO relance automatiquement une image SEO.');
+            $page = $this->images->generate($page);
+            $page = $this->images->approve($page);
+
+            $this->appendExecutionHistory(
+                $site,
+                'Boucle premium : image générée',
+                sprintf('PraeviSEO a généré puis approuvé une image pour "%s".', (string) $page->title),
+                'default',
+                'auto_image_generated',
+            );
+            $this->markActionState($site, 'images', 'completed', sprintf('Une image SEO est prête pour "%s".', (string) $page->title));
+
+            return ['executed' => true, 'action' => 'images', 'reason' => 'image_generated'];
+        } catch (Throwable $e) {
+            $this->markActionState(
+                $site,
+                'images',
+                'failed',
+                'La boucle premium n a pas pu générer l image prévue.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu produire automatiquement l image SEO prévue.')
+            );
+            $this->appendExecutionHistory($site, 'Boucle premium : image interrompue', $e->getMessage(), 'danger', 'auto_image_failed');
+
+            return ['executed' => false, 'action' => 'images', 'reason' => 'image_failed'];
+        }
+    }
+
     private function resolveRewriteCandidatePage(string $siteId): ?SeoPage
     {
         return SeoPage::query()
@@ -291,6 +340,24 @@ class PremiumAutomationLoopService
 
         return $query
             ->orderByDesc('published_at')
+            ->orderByDesc('updated_at')
+            ->first();
+    }
+
+    private function resolveImageCandidatePage(string $siteId): ?SeoPage
+    {
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('image_path')
+                    ->orWhere('image_path', '')
+                    ->orWhereNull('image_status')
+                    ->orWhere('image_status', '!=', 'approved');
+            })
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+            ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
+            ->orderByDesc('seo_score')
             ->orderByDesc('updated_at')
             ->first();
     }

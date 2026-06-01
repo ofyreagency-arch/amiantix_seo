@@ -77,6 +77,7 @@ export type PraeviseoSite = {
     crawl: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     rewrite: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     linking: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
+    images: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     publication: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     monitoring: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
   };
@@ -598,6 +599,13 @@ const mockSites: PraeviseoSite[] = [
         updated_at: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
         error: null,
       },
+      images: {
+        state: "completed",
+        label: "Terminé",
+        detail: "Une image SEO est déjà prête pour la meilleure page à publier.",
+        updated_at: new Date(Date.now() - 1000 * 60 * 7).toISOString(),
+        error: null,
+      },
       publication: {
         state: "completed",
         label: "Terminé",
@@ -884,6 +892,7 @@ const mockSites: PraeviseoSite[] = [
       crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null, error: null },
       rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+      images: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
     },
@@ -1476,6 +1485,17 @@ function normaliseSite(raw: unknown): PraeviseoSite {
           : null,
         error: ((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.error
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.linking as Record<string, unknown> | undefined)?.error)
+          : null,
+      },
+      images: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.images as Record<string, unknown> | undefined)?.error)
           : null,
       },
       publication: {
@@ -2089,6 +2109,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null, error: null },
         rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
         linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
+        images: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
         publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
         monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       },
@@ -2445,6 +2466,56 @@ export async function requestPremiumLinking(siteId: string): Promise<PraeviseoSi
 
   const payload = await appFetch<SiteResponse>(
     `/api/client/sites/${siteId}/linking`,
+    {
+      method: "POST",
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
+export async function requestPremiumImages(siteId: string): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === siteId);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      action_statuses: {
+        ...site.action_statuses,
+        images: {
+          state: "completed",
+          label: "Terminé",
+          detail: "Une image SEO est prête pour la page la plus utile à renforcer.",
+          updated_at: new Date().toISOString(),
+          error: null,
+        },
+      },
+      execution_history: [
+        {
+          at: new Date().toISOString(),
+          label: "Image SEO générée",
+          detail: "PraeviSEO a préparé une image SEO pour la meilleure page actuellement ciblée.",
+          tone: "default" as const,
+          kind: "image_generated",
+        },
+        ...site.execution_history,
+      ].slice(0, 40),
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${siteId}/images`,
     {
       method: "POST",
     },

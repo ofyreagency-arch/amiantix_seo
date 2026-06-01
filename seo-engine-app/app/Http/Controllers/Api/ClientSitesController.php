@@ -18,6 +18,7 @@ use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
 use App\Models\SeoSiteSnapshot;
 use App\Models\SeoSuggestion;
+use App\Services\Media\SeoPageImageGenerator;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -469,6 +470,76 @@ class ClientSitesController extends Controller
 
             return response()->json([
                 'message' => 'PraeviSEO n a pas pu renforcer le maillage pour le moment.',
+            ], 500);
+        }
+    }
+
+    public function startPremiumImageGeneration(
+        Request $request,
+        string $siteId,
+        SeoPageImageGenerator $images,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        try {
+            $this->markActionState($site, 'images', 'running', 'PraeviSEO prépare une image SEO utile pour la meilleure page.');
+            $page = $this->resolveImageCandidatePage($siteId);
+
+            if (! $page) {
+                $this->markActionState(
+                    $site,
+                    'images',
+                    'failed',
+                    'Aucune page n a encore besoin d image prioritaire.',
+                    'PraeviSEO n a pas encore trouvé de page assez prioritaire sans image approuvée.'
+                );
+
+                return response()->json([
+                    'message' => 'Aucune page claire n est encore prête pour une image SEO automatique sur ce site.',
+                ], 422);
+            }
+
+            $page = $images->generate($page);
+            $page = $images->approve($page);
+            $this->appendExecutionHistory(
+                $site,
+                'Image SEO générée',
+                sprintf('PraeviSEO a généré puis approuvé une image pour "%s".', (string) $page->title),
+                'default',
+                'image_generated',
+            );
+            $this->markActionState($site, 'images', 'completed', sprintf('Une image SEO est prête pour "%s".', (string) $page->title));
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+            return response()->json([
+                'site' => $this->serializeSite($site),
+                'image' => [
+                    'page_id' => (int) $page->id,
+                    'slug' => (string) $page->slug,
+                    'title' => (string) $page->title,
+                    'image_path' => (string) ($page->image_path ?? ''),
+                    'image_status' => (string) ($page->image_status ?? ''),
+                ],
+            ], 202);
+        } catch (Throwable $e) {
+            $this->markActionState(
+                $site,
+                'images',
+                'failed',
+                'La génération d image a échoué pour le moment.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu générer automatiquement l image prévue.')
+            );
+            $this->appendExecutionHistory($site, 'Image SEO interrompue', $e->getMessage(), 'danger', 'image_failed');
+
+            return response()->json([
+                'message' => 'PraeviSEO n a pas pu générer l image SEO pour le moment.',
             ], 500);
         }
     }
@@ -1069,6 +1140,7 @@ class ClientSitesController extends Controller
      *   crawl:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   rewrite:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   linking:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
+     *   images:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   publication:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   monitoring:array{state:string,label:string,detail:string,updated_at:?string,error:?string}
      * }
@@ -1100,6 +1172,7 @@ class ClientSitesController extends Controller
             ],
             'rewrite' => $this->normalizeActionStatus($stored['rewrite'] ?? null),
             'linking' => $this->normalizeActionStatus($stored['linking'] ?? null),
+            'images' => $this->normalizeActionStatus($stored['images'] ?? null),
             'publication' => $this->normalizeActionStatus($stored['publication'] ?? null),
             'monitoring' => $this->monitoringActionStatus($site, $crawl),
         ];
@@ -1313,6 +1386,24 @@ class ClientSitesController extends Controller
 
         return $query
             ->orderByDesc('published_at')
+            ->orderByDesc('updated_at')
+            ->first();
+    }
+
+    private function resolveImageCandidatePage(string $siteId): ?SeoPage
+    {
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('image_path')
+                    ->orWhere('image_path', '')
+                    ->orWhereNull('image_status')
+                    ->orWhere('image_status', '!=', 'approved');
+            })
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+            ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
+            ->orderByDesc('seo_score')
             ->orderByDesc('updated_at')
             ->first();
     }

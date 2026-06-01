@@ -16,6 +16,7 @@ import {
 } from "@/lib/praeviseo-api";
 import {
   launchPremiumCrawlAction,
+  launchPremiumImageAction,
   launchPremiumLinkingAction,
   launchPremiumPublicationAction,
   launchPremiumRewriteAction,
@@ -146,6 +147,15 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             : "La publication démarrera juste après l’activation complète de la connexion premium."),
     },
     {
+      title: "Images SEO",
+      status: site.action_statuses.images.label,
+      detail:
+        site.action_statuses.images.detail ||
+        (leadRisingPage
+          ? "PraeviSEO peut déjà préparer une image claire pour la page qui a le plus de potentiel visible."
+          : "Les premières images SEO seront préparées dès qu’une page assez utile et stable sera priorisée."),
+    },
+    {
       title: "Monitoring continu",
       status: site.action_statuses.monitoring.label,
       detail:
@@ -204,9 +214,11 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             ? "Réécriture à vérifier"
             : key === "linking"
               ? "Maillage à vérifier"
-              : key === "publication"
-                ? "Publication à vérifier"
-                : "Monitoring à vérifier",
+              : key === "images"
+                ? "Image SEO à vérifier"
+                : key === "publication"
+                  ? "Publication à vérifier"
+                  : "Monitoring à vérifier",
       detail: status.error as string,
       updatedAt: status.updated_at,
     }));
@@ -383,6 +395,11 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                     Renforcer le maillage
                   </Button>
                 </form>
+                <form action={launchPremiumImageAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">
+                    Générer l’image SEO
+                  </Button>
+                </form>
                 <form action={launchPremiumPublicationAction.bind(null, site.site_id)}>
                   <Button type="submit" variant="secondary">
                     Publier la meilleure page
@@ -391,7 +408,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               </div>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-5">
+          <CardContent className="grid gap-4 xl:grid-cols-6">
             {executionCenter.map((item) => (
               <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
@@ -493,8 +510,8 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             },
             {
               icon: ImagePlus,
-              title: "Ce qui s’ajoute ensuite",
-              text: "Images SEO, exécutions plus poussées et supervision multi-sites viennent s’appuyer sur cette même couche installée.",
+              title: "Images et extension",
+              text: "Les images SEO, l’extension à plusieurs sites et les mises à jour enrichies s’appuient ensuite sur cette même couche déjà installée.",
             },
           ].map((item) => {
             const Icon = item.icon;

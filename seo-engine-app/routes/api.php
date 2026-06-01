@@ -35,6 +35,8 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
         ->middleware('throttle:6,1');
     Route::post('/sites/{siteId}/linking', [ClientSitesController::class, 'startPremiumInternalLinking'])
         ->middleware('throttle:6,1');
+    Route::post('/sites/{siteId}/images', [ClientSitesController::class, 'startPremiumImageGeneration'])
+        ->middleware('throttle:6,1');
     Route::post('/sites/{siteId}/publish', [ClientSitesController::class, 'startPremiumPublication'])
         ->middleware('throttle:6,1');
     Route::patch('/sites/{siteId}/gsc', [ClientSitesController::class, 'updateGsc']);
