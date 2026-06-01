@@ -20,34 +20,34 @@ import {
 // ─── Feature items ────────────────────────────────────────────────────────────
 const FEATURES = [
   {
-    icon: Plug,
-    title: "Connexion universelle",
+    icon: Brain,
+    title: "Assistant SEO compréhensible",
     description:
-      "Bridge PHP natif pour Laravel, Symfony et WordPress. Intégration en 2 minutes, sans modifier votre code.",
+      "PraeviSEO traduit déjà Google Search Console en priorités simples : ce qui bouge, ce qui bloque et quoi faire maintenant.",
     color: "text-brand",
     bg: "bg-brand-subtle",
   },
   {
-    icon: Brain,
-    title: "Analyse IA continue",
+    icon: BarChart3,
+    title: "Lecture GSC utile dès le Free",
     description:
-      "Notre IA détecte les opportunités de mots-clés, analyse les gaps sémantiques et priorise les optimisations.",
+      "Sans installation, le Free montre déjà les pages visibles, les recherches utiles et les premières actions à ouvrir.",
     color: "text-[hsl(280_84%_70%)]",
     bg: "bg-[hsl(280_84%_67%)/0.1]",
   },
   {
-    icon: BarChart3,
-    title: "Monitoring GSC natif",
+    icon: Plug,
+    title: "Installateur premium",
     description:
-      "Importez vos données Google Search Console et suivez l'évolution de vos positions en temps réel.",
+      "Une fois activé, PraeviSEO s’installe sur votre serveur et peut agir directement sur le site.",
     color: "text-[hsl(142_71%_55%)]",
     bg: "bg-success-subtle",
   },
   {
     icon: Zap,
-    title: "Publication automatique",
+    title: "Automatisation complète",
     description:
-      "Validez une fois, publiez toujours. Les optimisations sont déployées automatiquement sur votre site.",
+      "Crawl, réécriture, maillage, images, publication, re-crawl et monitoring continu dans une seule boucle.",
     color: "text-[hsl(38_92%_60%)]",
     bg: "bg-warning-subtle",
   },
@@ -58,69 +58,69 @@ const STEPS = [
   {
     step: "01",
     title: "Connectez votre site",
-    description: "Entrez votre domaine. Nous détectons automatiquement votre CMS.",
+    description: "Ajoutez votre domaine et ouvrez votre cockpit PraeviSEO.",
   },
   {
     step: "02",
-    title: "Installez le bridge",
-    description: "Une commande unique. Votre site est connecté et sécurisé.",
+    title: "Reliez Search Console",
+    description: "Le Free commence immédiatement à lire vos signaux Google utiles.",
   },
   {
     step: "03",
-    title: "Liez la Search Console",
-    description: "Authentifiez Google Search Console en un clic OAuth.",
+    title: "Lisez vos priorités",
+    description: "PraeviSEO vous explique ce qui progresse, ce qui bloque et quoi traiter d’abord.",
   },
   {
     step: "04",
-    title: "L'IA prend le relais",
-    description: "Détection, optimisation, publication. 24h/24, 7j/7.",
+    title: "Activez l’installateur",
+    description: "Le premium s’installe sur le site et exécute les actions à votre place.",
   },
 ];
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 const PLANS = [
   {
-    name: "Starter",
-    price: "29",
-    description: "Pour les indépendants et petits sites.",
+    name: "Free",
+    price: "0",
+    description: "Pour comprendre enfin son SEO sans rien installer.",
     features: [
-      "1 site connecté",
-      "Monitoring GSC",
-      "Optimisations IA (50/mois)",
-      "Publication manuelle",
-      "Support email",
+      "Connexion Google Search Console",
+      "Cockpit SEO lisible",
+      "Pages, recherches, indexation, activité",
+      "Priorités expliquées simplement",
+      "Aucune installation serveur",
     ],
-    cta: "Démarrer gratuitement",
+    cta: "Commencer gratuitement",
     popular: false,
   },
   {
-    name: "Pro",
+    name: "Installateur",
     price: "89",
-    description: "Pour les agences et sites à fort trafic.",
+    description: "Pour laisser PraeviSEO agir directement sur le site.",
     features: [
-      "5 sites connectés",
-      "Monitoring GSC avancé",
-      "Optimisations IA illimitées",
+      "Installation sur serveur",
+      "Crawl automatique",
+      "Réécriture, maillage, images",
       "Publication automatique",
-      "Tableau de bord analytique",
-      "Support prioritaire",
+      "Monitoring continu",
+      "Historique d’exécution",
     ],
-    cta: "Essayer Pro",
+    cta: "Découvrir l’installateur",
     popular: true,
   },
   {
-    name: "Agency",
+    name: "Multi-sites",
     price: "249",
-    description: "Pour les grandes agences SEO.",
+    description: "Pour les agences et portefeuilles de sites.",
     features: [
-      "Sites illimités",
-      "Tout Pro inclus",
-      "White-label dashboard",
-      "API REST complète",
-      "CSM dédié",
-      "SLA 99.9%",
+      "Plusieurs sites suivis",
+      "Même automatisation sur chaque site",
+      "Pilotage centralisé",
+      "Priorités inter-sites",
+      "Historique plus large",
+      "Accompagnement renforcé",
     ],
-    cta: "Contacter l'équipe",
+    cta: "Parler de votre parc",
     popular: false,
   },
 ];
@@ -129,23 +129,23 @@ const PLANS = [
 const TESTIMONIALS = [
   {
     quote:
-      "PraeviSEO a multiplié notre trafic organique par 3 en 4 mois. Le bridge Laravel s'installe en 2 minutes, c'est bluffant.",
-    author: "Marie D.",
-    role: "CTO · SaaS B2B",
+      "Le Free nous a enfin permis de comprendre ce que Google voyait déjà. On a arrêté de regarder des chiffres sans savoir quoi faire.",
+    author: "Claire D.",
+    role: "Dirigeante · PME B2B",
     rating: 5,
   },
   {
     quote:
-      "Enfin un outil SEO qui comprend les développeurs. Plus besoin de jongler entre 10 plugins et Google Search Console.",
+      "Le premium change tout : PraeviSEO ne se contente plus de conseiller, il relit, améliore et republie nos pages.",
     author: "Thomas L.",
-    role: "Développeur Full-stack",
+    role: "Responsable produit · SaaS",
     rating: 5,
   },
   {
     quote:
-      "Nos clients voient les résultats en quelques semaines. PraeviSEO est devenu indispensable dans notre stack agence.",
+      "On peut maintenant déployer la même logique sur plusieurs sites sans repartir de zéro. C’est enfin un vrai copilote exploitable.",
     author: "Sophie M.",
-    role: "Directrice · Agence SEO",
+    role: "Directrice · Agence",
     rating: 5,
   },
 ];
@@ -175,18 +175,19 @@ export default function LandingPage() {
             <ChevronRight className="w-3 h-3" />
           </div>
 
-          {/* Headline */}
-          <h1 className="text-5xl md:text-[72px] font-bold tracking-tighter leading-[1.05] mb-6 animate-fade-up">
-            Votre SEO en{" "}
-            <span className="text-gradient-brand">pilote automatique</span>
-          </h1>
+            {/* Headline */}
+            <h1 className="text-5xl md:text-[72px] font-bold tracking-tighter leading-[1.05] mb-6 animate-fade-up">
+              Comprenez votre SEO.
+              <br />
+              <span className="text-gradient-brand">Puis laissez PraeviSEO agir.</span>
+            </h1>
 
           {/* Subline */}
-          <p className="text-xl text-text-muted max-w-2xl mx-auto leading-relaxed mb-10 animate-fade-up animation-delay-100">
-            Connectez votre site, liez Google Search Console, et laissez notre IA
-            détecter les opportunités, rédiger les optimisations et les publier
-            automatiquement. Zéro friction.
-          </p>
+            <p className="text-xl text-text-muted max-w-2xl mx-auto leading-relaxed mb-10 animate-fade-up animation-delay-100">
+              Le Free traduit déjà Google Search Console en plan d’action compréhensible.
+              L’installateur premium ajoute ensuite le crawl, la réécriture, le maillage,
+              les images et la publication automatique sur votre site.
+            </p>
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8 animate-fade-up animation-delay-200">
@@ -201,11 +202,11 @@ export default function LandingPage() {
 
           {/* Trust signals */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-text-subtle animate-fade-up animation-delay-300">
-            {[
-              "Sans carte bancaire",
-              "Connexion en 2 minutes",
-              "Annulez quand vous voulez",
-            ].map((t) => (
+              {[
+                "Free sans installation",
+                "Google Search Console en premier",
+                "Premium activable ensuite",
+              ].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-success" />
                 {t}
@@ -261,8 +262,8 @@ export default function LandingPage() {
                   {[
                     { label: "Site connecté", ok: true },
                     { label: "GSC active", ok: true },
-                    { label: "Monitoring actif", ok: true },
-                    { label: "Auto-publish ON", ok: true },
+                    { label: "Assistant SEO actif", ok: true },
+                    { label: "Automatisation prête", ok: true },
                   ].map((s) => (
                     <div
                       key={s.label}
@@ -340,12 +341,12 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4">Fonctionnalités</Badge>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Tout ce dont vous avez besoin,{" "}
-              <span className="text-gradient-brand">rien de plus</span>
+              Deux niveaux clairs,{" "}
+              <span className="text-gradient-brand">rien de confus</span>
             </h2>
             <p className="text-text-muted max-w-xl mx-auto">
-              PraeviSEO cache la complexité technique derrière une interface
-              simple et des résultats mesurables.
+              D’abord comprendre ce que Google voit déjà. Ensuite activer la couche
+              qui agit réellement sur le site.
             </p>
           </div>
 
@@ -428,7 +429,7 @@ export default function LandingPage() {
               Simple, prévisible, sans surprise
             </h2>
             <p className="text-text-muted max-w-xl mx-auto">
-              14 jours d'essai gratuit sur tous les plans. Aucune carte requise.
+              Commencez gratuitement, puis activez seulement le niveau d’automatisation dont vous avez besoin.
             </p>
           </div>
 
@@ -489,15 +490,15 @@ export default function LandingPage() {
 
             <div className="relative">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Prêt à dominer votre niche ?
+                Prêt à passer du constat à l’action ?
               </h2>
               <p className="text-text-muted mb-8 max-w-lg mx-auto">
-                Connectez votre premier site en 2 minutes. Aucune carte bancaire
-                requise, annulation à tout moment.
+                Ouvrez d’abord votre cockpit Free. Activez ensuite l’installateur si vous
+                voulez que PraeviSEO travaille directement sur votre site.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Button href="/signup" size="lg" className="group w-full sm:w-auto">
-                  Connecter mon site gratuitement
+                  Ouvrir mon cockpit Free
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </Button>
                 <Button href="/login" variant="secondary" size="lg" className="w-full sm:w-auto">
