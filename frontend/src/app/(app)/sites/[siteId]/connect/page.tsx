@@ -7,6 +7,7 @@ import { RemoteInstallAssistant } from "@/components/sites/remote-install-assist
 import {
   formatPraeviseoStatus,
   formatSitePlatform,
+  getPublications,
   getInstallerUrl,
   getPraeviseoInstallDetail,
   getPraeviseoInstallLabel,
@@ -87,10 +88,43 @@ const EXECUTION_STEPS = [
 export default async function SiteConnectPage({ params }: SiteConnectPageProps) {
   const { siteId } = await params;
   const site = await getSite(siteId);
+  const publications = await getPublications();
 
   if (!site) {
     notFound();
   }
+
+  const sitePublications = publications.items.filter((item) => item.site_id === site.site_id);
+  const leadRisingPage = site.summary.top_rising_pages[0] ?? null;
+  const leadRefresh = sitePublications.find((item) => item.latest_suggestion || item.observed_content) ?? null;
+  const leadIndexationAlert = site.summary.indexation_alerts[0] ?? null;
+  const starterPlan = [
+    leadRisingPage
+      ? {
+          title: "Page déjà proche d’un gain visible",
+          detail: `${leadRisingPage.label} commence déjà à gagner du terrain dans Google et peut être renforcée automatiquement.`,
+          impact: "Une page déjà visible peut progresser plus vite si PraeviSEO la relit, l’enrichit puis relance sa publication.",
+        }
+      : null,
+    leadRefresh
+      ? {
+          title: "Contenu à enrichir ensuite",
+          detail:
+            leadRefresh.latest_suggestion?.summary ??
+            "PraeviSEO pourra reprendre ce contenu, l’enrichir puis le republier si vous activez l’automatisation.",
+          impact:
+            leadRefresh.latest_suggestion?.impact_expected ??
+            "Un contenu plus clair, plus solide et plus facile à faire progresser dans Google.",
+        }
+      : null,
+    leadIndexationAlert
+      ? {
+          title: "Page à sécuriser",
+          detail: `${leadIndexationAlert.label} reste encore fragile dans la lecture Google actuelle.`,
+          impact: "L’automatisation pourra corriger, republier puis relancer une vérification propre derrière.",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ title: string; detail: string; impact: string }>;
 
   const installationLabel = getPraeviseoInstallLabel(site);
   const installationDetail = getPraeviseoInstallDetail(site);
@@ -182,6 +216,33 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Votre plan de démarrage premium</CardTitle>
+            <CardDescription>
+              Voici les premières actions que PraeviSEO pourra prendre en charge automatiquement sur ce site une fois l’installation active.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-3">
+            {starterPlan.length > 0 ? (
+              starterPlan.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-sm font-semibold text-text">{item.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                  <div className="mt-3 rounded-xl border border-brand/20 bg-brand-muted px-3 py-3 text-sm text-text">
+                    <span className="font-semibold">Ce que cela peut apporter :</span> {item.impact}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="xl:col-span-3 rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                PraeviSEO préparera d’abord un crawl, un repérage des pages utiles et une première séquence d’actions automatiques
+                dès que l’installation premium sera active sur ce site.
+              </div>
+            )}
           </CardContent>
         </Card>
 
