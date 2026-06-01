@@ -29,6 +29,7 @@ function difficultyLabel(difficulty: string): string {
 export default async function PublicationsPage() {
   const publications = await getPublications();
   const optimizations = await getOptimizations();
+  const hasRealContent = publications.items.length > 0;
   const observedItems = publications.items.filter((item) => !!item.observed_content);
   const visibleItems = publications.items.filter((item) => item.published_live);
   const draftItems = publications.items.filter((item) => !item.published_live);
@@ -100,31 +101,41 @@ export default async function PublicationsPage() {
     <div className="min-h-screen">
       <Topbar
         title="Blogs"
-        subtitle="Les contenus suivis par PraeviSEO pour détecter les articles à pousser, à refresh ou à surveiller."
+        subtitle={
+          hasRealContent
+            ? "Les contenus suivis par PraeviSEO pour détecter les articles à développer, à relancer ou à surveiller."
+            : "Cet espace s’activera dès que PraeviSEO repère de vrais contenus éditoriaux sur votre site."
+        }
       />
       <div className="p-6 space-y-6">
         <CockpitSectionNav
-            items={[
-              { label: "Vue d’ensemble", href: "#vue-ensemble", count: publications.items.length, tone: "default" },
-              { label: "Articles à suivre", href: "#prepares", count: publications.items.length, tone: "secondary" },
-              { label: "En hausse", href: "#visibles", count: visibleItems.length, tone: "success" },
-              { label: "Contenu à enrichir", href: "#potentiel", count: enrichmentItems.length, tone: "secondary" },
-              { label: "Maillage", href: "#maillage", count: linkingItems.length, tone: "warning" },
-              { label: "Clusters", href: "#clusters", count: clusterItems.length, tone: "secondary" },
-              { label: "Cannibalisation", href: "#cannibalisation", count: cannibalizationItems.length, tone: "warning" },
-              { label: "Plan contenu", href: "#plan-contenu", count: recommendationItems.length, tone: "warning" },
-              { label: "À refresh", href: "#activite", count: refreshItems.length, tone: "warning" },
-            ]}
+          items={[
+            { label: "Vue d’ensemble", href: "#vue-ensemble", count: publications.items.length, tone: "default" },
+            ...(hasRealContent
+              ? [
+                  { label: "Articles à suivre", href: "#prepares", count: publications.items.length, tone: "secondary" as const },
+                  { label: "En hausse", href: "#visibles", count: visibleItems.length, tone: "success" as const },
+                  { label: "Contenu à enrichir", href: "#potentiel", count: enrichmentItems.length, tone: "secondary" as const },
+                  { label: "Pages à mieux relier", href: "#maillage", count: linkingItems.length, tone: "warning" as const },
+                  { label: "Sujets", href: "#clusters", count: clusterItems.length, tone: "secondary" as const },
+                  { label: "Sujets à clarifier", href: "#cannibalisation", count: cannibalizationItems.length, tone: "warning" as const },
+                  { label: "Plan contenu", href: "#plan-contenu", count: recommendationItems.length, tone: "warning" as const },
+                  { label: "À relancer", href: "#activite", count: refreshItems.length, tone: "warning" as const },
+                ]
+              : [
+                  { label: "Quand il y aura du contenu", href: "#prepares", count: 0, tone: "secondary" as const },
+                ]),
+          ]}
         />
 
         <div id="vue-ensemble" className="scroll-mt-24">
           <CockpitMetricGrid
             columnsClassName="grid gap-4 md:grid-cols-3"
             items={[
-              { label: "Articles suivis", value: publications.items.length },
-              { label: "Articles visibles", value: publications.stats.live_published, tone: "success" },
-              { label: "Maillages à ouvrir", value: linkingItems.length, tone: linkingItems.length > 0 ? "warning" : "secondary" },
-              { label: "Articles à relancer", value: refreshItems.length, tone: refreshItems.length > 0 ? "warning" : "secondary" },
+              { label: "Contenus suivis", value: publications.items.length },
+              { label: "Contenus déjà visibles", value: publications.stats.live_published, tone: "success" },
+              { label: "Pages à mieux relier", value: linkingItems.length, tone: linkingItems.length > 0 ? "warning" : "secondary" },
+              { label: "Contenus à relancer", value: refreshItems.length, tone: refreshItems.length > 0 ? "warning" : "secondary" },
             ]}
           />
         </div>
@@ -212,18 +223,18 @@ export default async function PublicationsPage() {
             title="Articles à suivre"
             description="Les contenus que PraeviSEO garde dans le radar SEO, qu’ils soient déjà visibles ou encore à pousser."
             empty={publications.items.length === 0}
-            emptyMessage="Aucun article suivi pour le moment. Ce bloc se remplira dès les prochains contenus observés."
+            emptyMessage="PraeviSEO n’a pas encore repéré de vrais contenus éditoriaux sur ce site. Dès qu’un blog, un guide ou des pages de contenu seront observés, ce cockpit se remplira automatiquement."
           >
             {publications.items.map((item) => (
               <CockpitSignalItem
                 key={`draft-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={item.published_live ? "déjà visible" : "à pousser"}
+                badge={item.published_live ? "déjà visible" : "à développer"}
                 badgeTone={item.published_live ? "success" : "secondary"}
                 description={
                     item.published_live
-                      ? `${item.gsc_metrics.impressions} impressions, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                      ? `${item.gsc_metrics.impressions} affichage(s) dans Google, avec une présence moyenne autour de la ${item.gsc_metrics.position ? Math.round(item.gsc_metrics.position) : "?"}e place.`
                       : item.latest_suggestion?.summary ??
                         (item.observed_content?.snapshot_word_count
                           ? `${item.observed_content.snapshot_word_count} mots observés, ${item.observed_content.internal_inlinks} lien${item.observed_content.internal_inlinks > 1 ? "s" : ""} entrant${item.observed_content.internal_inlinks > 1 ? "s" : ""}.`
@@ -239,18 +250,18 @@ export default async function PublicationsPage() {
             title="Articles en hausse"
             description="Les contenus déjà visibles qui donnent au free une vraie lecture de mouvement et de potentiel."
             empty={visibleItems.length === 0}
-            emptyMessage="Aucun article encore visible. Ce bloc s’animera dès les premiers contenus détectés sur le site."
+            emptyMessage="Aucun contenu éditorial visible pour le moment. Ce bloc s’animera dès que PraeviSEO verra de vraies pages de contenu sur le site."
           >
             {risingItems.map((item) => (
               <CockpitSignalItem
                 key={`live-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge="à renforcer"
+                badge="à développer"
                 badgeTone="success"
                 description={
                   item.gsc_metrics.impressions > 0
-                    ? `${item.gsc_metrics.impressions} impressions, ${item.gsc_metrics.clicks} clics, CTR ${item.gsc_metrics.ctr.toFixed(1)} %, position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                    ? `${item.gsc_metrics.impressions} affichage(s) dans Google et ${item.gsc_metrics.clicks} clic(s) déjà obtenus.`
                     : item.seo_score
                       ? `SEO score ${item.seo_score}. PraeviSEO peut aider à prolonger sa traction organique.`
                       : "Le contenu est déjà visible et reste une base exploitable pour le cockpit SEO."
@@ -267,18 +278,18 @@ export default async function PublicationsPage() {
             title="Contenu à enrichir"
             description="Les contenus qui ont déjà de la matière ou un vrai signal SEO, mais qui méritent encore plus de profondeur."
             empty={enrichmentItems.length === 0}
-            emptyMessage="Aucun contenu à enrichir fortement pour le moment."
+            emptyMessage="Aucun contenu à enrichir fortement pour le moment. Quand PraeviSEO repérera des contenus plus denses, ils apparaîtront ici."
           >
             {enrichmentItems.map((item) => (
               <CockpitSignalItem
                 key={`potential-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={`Autorité ${item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}`}
+                badge={`Solidité ${item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}`}
                 badgeTone={(item.observed_content?.authority_score ?? item.seo_score ?? 0) >= 60 ? "success" : "secondary"}
                 description={
                   item.latest_suggestion?.summary ??
-                  `Cluster ${item.observed_content?.cluster_label ?? item.cluster ?? "n/a"}, ${item.observed_content?.snapshot_word_count ?? "n/a"} mots observés, ${item.observed_content?.query_match_count ?? 0} requête(s) déjà reliée(s).`
+                  `Sujet "${item.observed_content?.cluster_label ?? item.cluster ?? "principal"}", ${item.observed_content?.snapshot_word_count ?? "n/a"} mots observés, ${item.observed_content?.query_match_count ?? 0} recherche(s) déjà reliée(s).`
                 }
               />
             ))}
@@ -287,17 +298,17 @@ export default async function PublicationsPage() {
           <CockpitSignalListCard
             id="maillage"
             className="scroll-mt-24"
-            title="Maillage à renforcer"
-            description="Les contenus où PraeviSEO voit déjà des liens internes utiles à ouvrir pour mieux pousser la page."
+            title="Pages à mieux relier"
+            description="Les contenus où PraeviSEO voit déjà des liens utiles à ajouter depuis le reste du site."
             empty={linkingItems.length === 0}
-            emptyMessage="Aucun besoin de maillage fort pour le moment."
+            emptyMessage="Aucune page de contenu ne demande encore de gros effort de liaison pour le moment."
           >
             {linkingItems.map((item) => (
               <CockpitSignalItem
                 key={`linking-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={`${item.observed_content?.internal_link_suggestions_count ?? 0} piste(s)`}
+                badge={`${item.observed_content?.internal_link_suggestions_count ?? 0} idée(s)`}
                 badgeTone="warning"
               description={
                 item.observed_content?.top_internal_link_target
@@ -313,10 +324,10 @@ export default async function PublicationsPage() {
           <CockpitSignalListCard
             id="clusters"
             className="scroll-mt-24"
-            title="Clusters et sujets"
-            description="Les sujets que PraeviSEO commence déjà à structurer, avec les pages qui peuvent devenir des piliers."
+            title="Sujets et familles de contenus"
+            description="Les sujets que PraeviSEO commence déjà à regrouper, avec les pages qui peuvent devenir centrales."
             empty={clusterItems.length === 0}
-            emptyMessage="Aucun cluster contenu visible pour le moment."
+            emptyMessage="Aucune famille de contenus claire n’est encore visible pour le moment."
           >
             {clusterItems.map((item) => (
               <CockpitSignalItem
@@ -327,7 +338,7 @@ export default async function PublicationsPage() {
                 badgeTone="secondary"
                 description={
                   item.latest_suggestion?.summary ??
-                  `Cluster ${item.observed_content?.cluster_label ?? item.cluster}, potentiel pilier ${item.observed_content?.pillar_likelihood ?? 0}, ${item.observed_content?.snapshot_word_count ?? 0} mots observés.`
+                  `Sujet "${item.observed_content?.cluster_label ?? item.cluster}", page potentiellement centrale, ${item.observed_content?.snapshot_word_count ?? 0} mots observés.`
                 }
               />
             ))}
@@ -336,21 +347,21 @@ export default async function PublicationsPage() {
           <CockpitSignalListCard
             id="cannibalisation"
             className="scroll-mt-24"
-            title="Cannibalisation à surveiller"
-            description="Les contenus où PraeviSEO détecte déjà des recouvrements, des sujets proches ou des collisions à clarifier."
+            title="Sujets à clarifier"
+            description="Les contenus où PraeviSEO détecte déjà des sujets trop proches ou des doublons à mieux différencier."
             empty={cannibalizationItems.length === 0}
-            emptyMessage="Aucun risque de cannibalisation fort détecté pour le moment."
+            emptyMessage="Aucun sujet trop proche à clarifier de toute urgence pour le moment."
           >
             {cannibalizationItems.map((item) => (
               <CockpitSignalItem
                 key={`cannibalization-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={`${(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} signal(s)`}
+                badge={`${(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} point(s)`}
                 badgeTone="warning"
                 description={
                   item.observed_content?.top_cannibalization_target
-                    ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}. Overlap ${item.observed_content.overlap_score} / 100.`
+                    ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}. Recouvrement estimé ${item.observed_content.overlap_score} / 100.`
                     : `PraeviSEO voit ${item.observed_content?.overlap_count ?? 0} zone(s) de recouvrement à garder sous surveillance.`
                 }
               />
@@ -362,15 +373,15 @@ export default async function PublicationsPage() {
           id="plan-contenu"
           className="scroll-mt-24"
           title="Plan contenu recommandé"
-          description="Les recommandations du moteur déjà prêtes pour améliorer les contenus, les clusters ou le maillage."
+          description="Les recommandations déjà prêtes pour améliorer vos contenus, mieux relier vos pages ou clarifier vos sujets."
           empty={recommendationItems.length === 0}
-          emptyMessage="Aucune recommandation contenu forte pour le moment. Le moteur enrichira ce bloc dès qu’un plan d’action devient utile."
+          emptyMessage="Aucune action contenu forte pour le moment. Le moteur enrichira ce bloc dès qu’un plan utile remonte."
         >
           {recommendationItems.map((item) => (
             <CockpitSignalItem
               key={`recommendation-${item.id}`}
               title={item.title}
-              subtitle={`${item.site_id}${item.cluster ? ` · ${item.cluster}` : ""}`}
+              subtitle={item.site_id}
               badge={item.priority <= 30 ? "À faire en premier" : "Action recommandée"}
               badgeTone={item.priority <= 30 ? "warning" : "secondary"}
               description={item.suggested_action ?? item.reasoning}
@@ -381,10 +392,10 @@ export default async function PublicationsPage() {
         <CockpitSignalListCard
           id="activite"
           className="scroll-mt-24"
-          title="Articles à refresh"
+          title="Contenus à relancer"
           description="Les contenus qui méritent une relance, une meilleure visibilité ou une optimisation future."
           empty={refreshItems.length === 0}
-          emptyMessage="Aucun article à refresh pour le moment."
+          emptyMessage="Aucun contenu à relancer pour le moment."
         >
           {refreshItems.map((item) => (
             <div key={item.id} className="rounded-xl border border-border p-4 space-y-3">

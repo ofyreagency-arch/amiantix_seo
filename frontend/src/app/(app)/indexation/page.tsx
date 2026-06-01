@@ -91,9 +91,9 @@ export default async function IndexationCockpitPage() {
         <CockpitSectionNav
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: totalIndexedPages, tone: "default" },
-            { label: "URLs relues", href: "#indexees", count: syncedSites.length, tone: "success" },
-            { label: "Alertes", href: "#alertes", count: indexationAlerts.length + pendingSites.length, tone: "warning" },
-            { label: "Santé site", href: "#sante", count: observedHealthSites.length, tone: "secondary" },
+            { label: "Pages déjà bien lues", href: "#indexees", count: syncedSites.length, tone: "success" },
+            { label: "À vérifier", href: "#alertes", count: indexationAlerts.length + pendingSites.length, tone: "warning" },
+            { label: "Solidité du site", href: "#sante", count: observedHealthSites.length, tone: "secondary" },
             { label: "État Google", href: "#google", count: connectedSites.length, tone: "secondary" },
           ]}
         />
@@ -146,8 +146,8 @@ export default async function IndexationCockpitPage() {
           </div>
 
           <CockpitSignalListCard
-            title="Priorités Google"
-            description="Les points d’indexation les plus concrets à garder sous les yeux."
+            title="Ce que Google demande encore de vérifier"
+            description="Les pages qui restent les plus utiles à surveiller ou à clarifier."
             empty={indexationAlerts.length === 0 && pendingSites.length === 0}
             emptyMessage="Aucune priorité forte d’indexation pour le moment. Le cockpit surveille déjà les prochains changements Google."
           >
@@ -183,7 +183,7 @@ export default async function IndexationCockpitPage() {
         <div id="indexees" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
             title={`${indexationScopeLabel} par site`}
-            description="Les pages que PraeviSEO voit déjà bien comprises par Google et celles qui restent encore fragiles."
+            description="Les pages que PraeviSEO voit déjà bien comprises par Google, et celles qui restent encore fragiles."
             empty={syncedSites.length === 0}
             emptyMessage="Aucune indexation synchronisée pour le moment. Reliez d’abord Google pour ouvrir ce cockpit."
           >
@@ -202,7 +202,7 @@ export default async function IndexationCockpitPage() {
           <CockpitSignalListCard
             id="alertes"
             className="scroll-mt-24"
-            title="Alertes simples"
+            title="Pages encore fragiles"
             description="Les pages où PraeviSEO recommande encore une vérification ou un renfort avant de les considérer comme bien lues."
             empty={indexationAlerts.length + pendingSites.length === 0}
             emptyMessage="Aucune alerte simple d’indexation pour le moment. Le cockpit reste déjà à jour."
@@ -232,8 +232,8 @@ export default async function IndexationCockpitPage() {
 
         <div id="sante" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <CockpitSignalListCard
-            title="Santé site liée à l’indexation"
-            description="Les points structurels que PraeviSEO relie déjà à vos difficultés de lecture Google : pages faibles, isolées ou techniquement fragiles."
+            title="Solidité du site liée à la lecture Google"
+            description="Les points de structure que PraeviSEO relie déjà à vos difficultés de lecture par Google : pages fragiles, isolées ou techniquement faibles."
             empty={observedHealthSites.length === 0}
             emptyMessage="Aucune faiblesse structurelle forte observée pour le moment autour de l’indexation."
           >
@@ -250,7 +250,7 @@ export default async function IndexationCockpitPage() {
           </CockpitSignalListCard>
 
           <CockpitSignalListCard
-            title="URLs structurellement fragiles"
+            title="Pages encore trop fragiles"
             description="Les pages que PraeviSEO voit déjà comme fragiles avant même qu’elles deviennent un vrai problème dans Google."
             empty={connectedSites.flatMap((site) => site.summary.observed_orphan_alerts).length === 0}
             emptyMessage="Aucune URL structurellement fragile à remonter pour le moment."
