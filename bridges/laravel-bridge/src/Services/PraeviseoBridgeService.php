@@ -72,6 +72,7 @@ final class PraeviseoBridgeService
             'updated' => true,
             'slug' => $page->slug,
             'live_url' => $page->live_url ?: $liveUrl,
+            'sitemap_url' => rtrim((string) config('app.url'), '/').'/'.$prefix.'-sitemap.xml',
         ];
     }
 

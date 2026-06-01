@@ -6,6 +6,7 @@ namespace App\Services\Publication;
 
 use App\Models\SeoPage;
 use App\Models\SeoSite;
+use App\Models\SeoSiteSitemap;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +15,10 @@ use RuntimeException;
 
 class SeoLivePublicationService
 {
+    public function __construct(
+        private readonly PublishedPageObservationService $publishedObservation,
+    ) {}
+
     public function publish(SeoPage $page, SeoSite $site): SeoPage
     {
         return match ($site->resolvedPublicationMode()) {
@@ -112,7 +117,11 @@ class SeoLivePublicationService
             'live_url' => $this->liveUrlFor($page, $site),
         ])->save();
 
-        return $page->refresh();
+        return $this->finalizeSuccessfulPublication(
+            $site,
+            $page->refresh(),
+            $this->defaultSitemapUrl($site)
+        );
     }
 
     private function publishViaWebhook(SeoPage $page, SeoSite $site, bool $signed = false): SeoPage
@@ -149,10 +158,13 @@ class SeoLivePublicationService
                 throw new RuntimeException('La publication CMS/API a échoué : HTTP '.$response->status().($preview !== '' ? ' — '.mb_substr($preview, 0, 180) : ''));
             }
 
-            $payload = $response->json();
-            $liveUrl = is_array($payload)
-                ? (string) (Arr::get($payload, 'live_url') ?: Arr::get($payload, 'url') ?: $this->liveUrlFor($page, $site))
+            $responsePayload = $response->json();
+            $liveUrl = is_array($responsePayload)
+                ? (string) (Arr::get($responsePayload, 'live_url') ?: Arr::get($responsePayload, 'url') ?: $this->liveUrlFor($page, $site))
                 : $this->liveUrlFor($page, $site);
+            $sitemapUrl = is_array($responsePayload)
+                ? trim((string) (Arr::get($responsePayload, 'sitemap_url') ?: ''))
+                : '';
 
             $page->forceFill([
                 'published_live' => true,
@@ -166,10 +178,15 @@ class SeoLivePublicationService
                 'last_push_status' => 'ok',
                 'last_push_target' => $endpoint,
                 'last_live_url' => $liveUrl,
+                'last_sitemap_url' => $sitemapUrl !== '' ? $sitemapUrl : $this->defaultSitemapUrl($site),
                 'last_error' => null,
             ]);
 
-            return $page->refresh();
+            return $this->finalizeSuccessfulPublication(
+                $site,
+                $page->refresh(),
+                $sitemapUrl !== '' ? $sitemapUrl : $this->defaultSitemapUrl($site)
+            );
         } catch (\Throwable $exception) {
             $this->rememberPublicationEvent($site, [
                 'mode' => $site->resolvedPublicationMode(),
@@ -283,6 +300,70 @@ class SeoLivePublicationService
         $settings = $site->settings_json ?? [];
         $settings['publication'] = array_merge($settings['publication'] ?? [], $publicationSettings);
         $site->forceFill(['settings_json' => $settings])->save();
+    }
+
+    private function finalizeSuccessfulPublication(SeoSite $site, SeoPage $page, ?string $sitemapUrl): SeoPage
+    {
+        if (trim((string) ($page->canonical_url ?? '')) === '') {
+            $page->forceFill(['canonical_url' => (string) ($page->live_url ?? '')])->save();
+            $page = $page->refresh();
+        }
+
+        $this->rememberSitemapUrl($site, $page, $sitemapUrl);
+        $this->publishedObservation->followLivePublication($site, $page);
+
+        return $page->refresh();
+    }
+
+    private function defaultSitemapUrl(SeoSite $site): ?string
+    {
+        $baseUrl = rtrim((string) $site->url, '/');
+
+        if ($baseUrl === '') {
+            return null;
+        }
+
+        return match ($site->resolvedPublicationMode()) {
+            'laravel_bridge', 'symfony_bridge' => $site->publicationPathPrefix()
+                ? $baseUrl.'/'.trim((string) $site->publicationPathPrefix(), '/').'-sitemap.xml'
+                : $baseUrl.'/sitemap.xml',
+            'wordpress_bridge' => $baseUrl.'/sitemap_index.xml',
+            default => $baseUrl.'/sitemap.xml',
+        };
+    }
+
+    private function rememberSitemapUrl(SeoSite $site, SeoPage $page, ?string $sitemapUrl): void
+    {
+        $sitemapUrl = trim((string) $sitemapUrl);
+
+        if ($sitemapUrl === '') {
+            return;
+        }
+
+        SeoSiteSitemap::query()->updateOrCreate(
+            [
+                'site_id' => $site->site_id,
+                'url_hash' => sha1($sitemapUrl),
+            ],
+            [
+                'site_crawl_id' => null,
+                'url' => $sitemapUrl,
+                'sitemap_type' => 'published_pages',
+                'parent_url' => null,
+                'lastmod_at' => now(),
+                'discovered_at' => now(),
+                'meta_json' => [
+                    'source' => 'premium_publication',
+                    'publication_mode' => $site->resolvedPublicationMode(),
+                    'last_live_url' => (string) ($page->live_url ?? ''),
+                ],
+            ]
+        );
+
+        $this->rememberPublicationEvent($site, [
+            'last_sitemap_url' => $sitemapUrl,
+            'last_sitemap_refresh_at' => now()->toIso8601String(),
+        ]);
     }
 
     /**

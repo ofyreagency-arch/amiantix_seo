@@ -40,6 +40,125 @@ class SiteCrawlerService
         return $this->crawlQueued($site, $crawl);
     }
 
+    public function observeUrl(SeoSite $site, string $url): ?SeoSitePage
+    {
+        $normalizedUrl = $this->normalizeUrl($url);
+
+        if ($normalizedUrl === '') {
+            return null;
+        }
+
+        $baseUrl = rtrim($this->normalizeUrl($site->url), '/');
+        $crawl = SeoSiteCrawl::query()->create([
+            'site_id' => $site->site_id,
+            'base_url' => $baseUrl,
+            'status' => 'running',
+            'max_pages' => 1,
+            'started_at' => now(),
+            'meta_json' => [
+                'trigger' => 'observe_live_url',
+                'observed_url' => $normalizedUrl,
+            ],
+        ]);
+
+        try {
+            $response = Http::timeout(10)
+                ->withHeaders(['User-Agent' => 'SEOEngine/2.0 (+https://seo.amiantix.com)'])
+                ->get($normalizedUrl);
+        } catch (\Throwable $exception) {
+            $this->recordIssue($site->site_id, $crawl->id, null, 'fetch_failed', 'warning', $normalizedUrl, $exception->getMessage());
+            $crawl->forceFill([
+                'status' => 'failed',
+                'completed_at' => now(),
+                'meta_json' => array_merge((array) ($crawl->meta_json ?? []), [
+                    'error' => $exception->getMessage(),
+                ]),
+            ])->save();
+
+            return null;
+        }
+
+        $statusCode = $response->status();
+        $contentType = strtolower((string) $response->header('content-type', ''));
+
+        if ($statusCode >= 400) {
+            $sitePage = $this->upsertObservedPage($site->site_id, $crawl->id, $normalizedUrl, [
+                'title' => null,
+                'meta_description' => null,
+                'canonical_url' => null,
+                'h1' => [],
+                'word_count' => 0,
+                'status_code' => $statusCode,
+                'is_indexable' => false,
+            ]);
+
+            $this->recordIssue($site->site_id, $crawl->id, $sitePage->id, 'http_error', 'warning', $normalizedUrl, 'HTTP '.$statusCode);
+            $this->finalizeCrawl($site->site_id, $crawl->id, [], 1);
+
+            return $sitePage->fresh();
+        }
+
+        if (! str_contains($contentType, 'text/html')) {
+            $this->recordIssue($site->site_id, $crawl->id, null, 'non_html_resource', 'info', $normalizedUrl, 'Content-Type '.$contentType);
+            $crawl->forceFill([
+                'status' => 'completed',
+                'crawled_url_count' => 0,
+                'discovered_url_count' => 0,
+                'completed_at' => now(),
+                'meta_json' => array_merge((array) ($crawl->meta_json ?? []), [
+                    'content_type' => $contentType,
+                ]),
+            ])->save();
+
+            return null;
+        }
+
+        $data = $this->parsePage($response->body(), $normalizedUrl, $baseUrl);
+        $sitePage = $this->upsertObservedPage($site->site_id, $crawl->id, $normalizedUrl, [
+            'title' => $data['title'],
+            'meta_description' => $data['meta_description'],
+            'canonical_url' => $data['canonical_url'],
+            'h1' => $data['h1'],
+            'word_count' => $data['word_count'],
+            'status_code' => $statusCode,
+            'is_indexable' => $data['is_indexable'],
+        ]);
+
+        $snapshot = SeoSitePageSnapshot::query()->create([
+            'site_id' => $site->site_id,
+            'site_crawl_id' => $crawl->id,
+            'site_page_id' => $sitePage->id,
+            'url' => $normalizedUrl,
+            'title' => $data['title'],
+            'meta_description' => $data['meta_description'],
+            'canonical_url' => $data['canonical_url'],
+            'h1_json' => $data['h1'],
+            'h2_json' => $data['h2'],
+            'h3_json' => $data['h3'],
+            'content_text' => $data['content_text'],
+            'content_html' => $data['content_html'],
+            'robots_meta' => $data['robots_meta'],
+            'status_code' => $statusCode,
+            'is_indexable' => $data['is_indexable'],
+            'word_count' => $data['word_count'],
+            'internal_links_count' => $data['internal_links_count'],
+            'outlinks_count' => $data['outlinks_count'],
+            'schema_count' => count($data['schemas']),
+            'content_hash' => sha1($data['content_text']),
+            'observed_at' => now(),
+        ]);
+
+        $sitePage->forceFill(['last_snapshot_id' => $snapshot->id])->save();
+
+        $this->persistSchemas($site->site_id, $crawl->id, $sitePage->id, $normalizedUrl, $data['schemas']);
+        $this->persistLinks($site->site_id, $crawl->id, $sitePage->id, $normalizedUrl, $data['links'], $baseUrl);
+        $this->persistLegacyResult($site, $normalizedUrl, $this->depthFromUrl($normalizedUrl), $statusCode, $data);
+        $this->detectPageIssues($site->site_id, $crawl->id, $sitePage->id, $normalizedUrl, $data, $statusCode);
+        $this->finalizeCrawl($site->site_id, $crawl->id, [], 1);
+
+        return $sitePage->fresh();
+    }
+
     public function crawlQueued(SeoSite $site, SeoSiteCrawl $crawl): array
     {
         $this->visited = [];
