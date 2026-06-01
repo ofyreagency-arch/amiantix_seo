@@ -78,6 +78,7 @@ export type PraeviseoSite = {
     rewrite: { state: string; label: string; detail: string; updated_at: string | null };
     linking: { state: string; label: string; detail: string; updated_at: string | null };
     publication: { state: string; label: string; detail: string; updated_at: string | null };
+    monitoring: { state: string; label: string; detail: string; updated_at: string | null };
   };
   created_at: string;
   summary: {
@@ -600,6 +601,12 @@ const mockSites: PraeviseoSite[] = [
         detail: "La meilleure page a déjà été envoyée vers le site live.",
         updated_at: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
       },
+      monitoring: {
+        state: "completed",
+        label: "Surveillance active",
+        detail: "PraeviSEO suit déjà les retours du site et de Google après les dernières actions utiles.",
+        updated_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+      },
     },
     created_at: new Date().toISOString(),
     summary: {
@@ -873,6 +880,7 @@ const mockSites: PraeviseoSite[] = [
       rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
       linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
       publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+      monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
     },
     created_at: new Date().toISOString(),
     summary: {
@@ -1462,6 +1470,14 @@ function normaliseSite(raw: unknown): PraeviseoSite {
         detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.detail ?? ""),
         updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.updated_at
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.publication as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+      },
+      monitoring: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.monitoring as Record<string, unknown> | undefined)?.updated_at)
           : null,
       },
     },
@@ -2054,6 +2070,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
         linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
         publication: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
+        monitoring: { state: "idle", label: "À ouvrir", detail: "", updated_at: null },
       },
       created_at: new Date().toISOString(),
       summary: {

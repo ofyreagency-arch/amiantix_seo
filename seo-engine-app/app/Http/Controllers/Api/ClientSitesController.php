@@ -1027,7 +1027,8 @@ class ClientSitesController extends Controller
      *   crawl:array{state:string,label:string,detail:string,updated_at:?string},
      *   rewrite:array{state:string,label:string,detail:string,updated_at:?string},
      *   linking:array{state:string,label:string,detail:string,updated_at:?string},
-     *   publication:array{state:string,label:string,detail:string,updated_at:?string}
+     *   publication:array{state:string,label:string,detail:string,updated_at:?string},
+     *   monitoring:array{state:string,label:string,detail:string,updated_at:?string}
      * }
      */
     private function actionStatuses(SeoSite $site, ?SeoSiteCrawl $crawl): array
@@ -1055,6 +1056,7 @@ class ClientSitesController extends Controller
             'rewrite' => $this->normalizeActionStatus($stored['rewrite'] ?? null),
             'linking' => $this->normalizeActionStatus($stored['linking'] ?? null),
             'publication' => $this->normalizeActionStatus($stored['publication'] ?? null),
+            'monitoring' => $this->monitoringActionStatus($site, $crawl),
         ];
     }
 
@@ -1106,6 +1108,87 @@ class ClientSitesController extends Controller
         $settings['automation'] = $automation;
         $site->forceFill(['settings_json' => $settings])->save();
         $site->refresh();
+    }
+
+    /**
+     * @return array{state:string,label:string,detail:string,updated_at:?string}
+     */
+    private function monitoringActionStatus(SeoSite $site, ?SeoSiteCrawl $crawl): array
+    {
+        $bridgeConnected = $site->publicationBridgeStatus() === 'connected';
+        $connection = $site->resolvedGoogleConnection();
+        $gscStatus = (string) ($connection?->connection_status ?? '');
+        $gscConnected = in_array($gscStatus, ['connected', 'configured', 'connected_empty'], true);
+        $dataAsOf = $this->resolvedGscDataAsOf($site);
+
+        if (! $bridgeConnected && ! $gscConnected) {
+            return [
+                'state' => 'idle',
+                'label' => $this->actionStateLabel('idle'),
+                'detail' => 'PraeviSEO attend encore la connexion au site et la lecture Google avant de surveiller automatiquement chaque action.',
+                'updated_at' => null,
+            ];
+        }
+
+        if (! $bridgeConnected) {
+            return [
+                'state' => 'idle',
+                'label' => $this->actionStateLabel('idle'),
+                'detail' => 'La surveillance continue se mettra vraiment en place dès que PraeviSEO pourra agir directement sur le site.',
+                'updated_at' => $connection?->last_sync_at?->toIso8601String(),
+            ];
+        }
+
+        if (! $gscConnected) {
+            return [
+                'state' => 'idle',
+                'label' => $this->actionStateLabel('idle'),
+                'detail' => 'PraeviSEO peut déjà agir sur le site, mais la lecture continue sera plus précise une fois Google relié.',
+                'updated_at' => null,
+            ];
+        }
+
+        if ($crawl && (string) $crawl->status === 'failed') {
+            return [
+                'state' => 'failed',
+                'label' => $this->actionStateLabel('failed'),
+                'detail' => 'La dernière relecture automatique a besoin d une vérification avant que la surveillance continue reprenne normalement.',
+                'updated_at' => $crawl->completed_at?->toIso8601String()
+                    ?? $crawl->started_at?->toIso8601String()
+                    ?? $crawl->created_at?->toIso8601String(),
+            ];
+        }
+
+        if ($crawl && in_array((string) $crawl->status, ['pending', 'running'], true)) {
+            return [
+                'state' => 'running',
+                'label' => $this->actionStateLabel('running'),
+                'detail' => 'PraeviSEO relit actuellement le site pour contrôler les dernières actions et préparer la prochaine priorité utile.',
+                'updated_at' => $crawl->started_at?->toIso8601String()
+                    ?? $crawl->created_at?->toIso8601String(),
+            ];
+        }
+
+        if ($dataAsOf !== null) {
+            return [
+                'state' => 'completed',
+                'label' => 'Surveillance active',
+                'detail' => sprintf(
+                    'PraeviSEO suit déjà les retours du site et de Google. Les dernières données utiles remontent actuellement jusqu au %s.',
+                    $dataAsOf
+                ),
+                'updated_at' => $connection?->last_sync_at?->toIso8601String()
+                    ?? $crawl?->completed_at?->toIso8601String(),
+            ];
+        }
+
+        return [
+            'state' => 'pending',
+            'label' => $this->actionStateLabel('pending'),
+            'detail' => 'PraeviSEO a tout ce qu il faut pour surveiller le site en continu. La prochaine lecture automatique complètera ce suivi.',
+            'updated_at' => $connection?->last_validated_at?->toIso8601String()
+                ?? $connection?->last_sync_at?->toIso8601String(),
+        ];
     }
 
     private function crawlStatusDetail(?SeoSiteCrawl $crawl): string

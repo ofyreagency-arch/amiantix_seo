@@ -147,11 +147,12 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
     },
     {
       title: "Monitoring continu",
-      status: site.summary.observed_site_health_score > 0 ? "Déjà en lecture" : "À lancer",
+      status: site.action_statuses.monitoring.label,
       detail:
-        site.summary.observed_site_health_score > 0
+        site.action_statuses.monitoring.detail ||
+        (site.summary.observed_site_health_score > 0
           ? "PraeviSEO suit déjà la santé du site. Le pack payant ajoutera l’historique des actions et les relances automatiques."
-          : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles.",
+          : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles."),
     },
   ] as const;
   const executionReadiness = [
