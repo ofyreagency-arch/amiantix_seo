@@ -15,6 +15,7 @@ use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
 use App\Models\SeoSiteSnapshot;
 use App\Models\SeoSuggestion;
+use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -565,6 +566,7 @@ class ClientSitesController extends Controller
             'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
             'gsc_data_as_of' => $this->resolvedGscDataAsOf($site),
             'installation' => $this->serializeInstallation($installation),
+            'publication_target' => $this->publicationTargetStatus($site),
             'created_at' => $site->created_at,
             'summary' => [
                 'pages_total' => (clone $pageQuery)->count(),
@@ -626,6 +628,26 @@ class ClientSitesController extends Controller
                 pagesLive: $pagesLive,
                 pendingSuggestions: $pendingSuggestions,
             ),
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function publicationTargetStatus(SeoSite $site): array
+    {
+        /** @var SeoLivePublicationService $service */
+        $service = app(SeoLivePublicationService::class);
+        $target = $service->targetStatusForSite($site);
+
+        return [
+            'mode' => (string) ($target['mode'] ?? 'runtime'),
+            'label' => (string) ($target['label'] ?? 'Publication live'),
+            'state' => (string) ($target['state'] ?? 'warning'),
+            'detail' => (string) ($target['detail'] ?? 'La publication réelle n est pas encore entièrement prête.'),
+            'engine_actionable' => (bool) ($target['engine_actionable'] ?? false),
+            'manual_required' => (bool) ($target['manual_required'] ?? true),
+            'target' => isset($target['target']) ? (string) $target['target'] : null,
         ];
     }
 

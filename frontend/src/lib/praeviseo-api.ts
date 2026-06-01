@@ -43,6 +43,15 @@ export type PraeviseoSite = {
       message: string;
     }>;
   };
+  publication_target: {
+    mode: string;
+    label: string;
+    state: string;
+    detail: string;
+    engine_actionable: boolean;
+    manual_required: boolean;
+    target: string | null;
+  };
   created_at: string;
   summary: {
     pages_total: number;
@@ -500,6 +509,15 @@ const mockSites: PraeviseoSite[] = [
       detected_composer: "Composer 2",
       logs: [],
     },
+    publication_target: {
+      mode: "symfony_bridge",
+      label: "Bridge Symfony",
+      state: "ok",
+      detail: "Le site est déjà prêt à recevoir des publications et des mises à jour automatiques via le bridge installé.",
+      engine_actionable: true,
+      manual_required: false,
+      target: "https://amiantix.com/_praeviseo/publish",
+    },
     created_at: new Date().toISOString(),
     summary: {
       pages_total: 8,
@@ -755,6 +773,15 @@ const mockSites: PraeviseoSite[] = [
       detected_php_version: null,
       detected_composer: null,
       logs: [],
+    },
+    publication_target: {
+      mode: "laravel_bridge",
+      label: "Bridge Laravel",
+      state: "critical",
+      detail: "La publication automatique n est pas encore prête. Il faudra encore relier le site au bridge pour publier en direct.",
+      engine_actionable: false,
+      manual_required: true,
+      target: null,
     },
     created_at: new Date().toISOString(),
     summary: {
@@ -1257,6 +1284,24 @@ function normaliseSite(raw: unknown): PraeviseoSite {
             message: String((entry as Record<string, unknown>)?.message ?? ""),
           }))
         : [],
+    },
+    publication_target: {
+      mode: String((site.publication_target as Record<string, unknown> | undefined)?.mode ?? "runtime"),
+      label: String((site.publication_target as Record<string, unknown> | undefined)?.label ?? "Publication live"),
+      state: String((site.publication_target as Record<string, unknown> | undefined)?.state ?? "warning"),
+      detail: String(
+        (site.publication_target as Record<string, unknown> | undefined)?.detail ??
+          "La publication réelle n est pas encore entièrement prête."
+      ),
+      engine_actionable: Boolean(
+        (site.publication_target as Record<string, unknown> | undefined)?.engine_actionable ?? false
+      ),
+      manual_required: Boolean(
+        (site.publication_target as Record<string, unknown> | undefined)?.manual_required ?? true
+      ),
+      target: (site.publication_target as Record<string, unknown> | undefined)?.target
+        ? String((site.publication_target as Record<string, unknown> | undefined)?.target)
+        : null,
     },
     created_at: String(site.created_at ?? new Date().toISOString()),
     summary: {
@@ -1826,6 +1871,20 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         detected_composer: null,
         logs: [],
       },
+      publication_target: {
+        mode: input.publication_mode,
+        label:
+          input.publication_mode === "symfony_bridge"
+            ? "Bridge Symfony"
+            : input.publication_mode === "laravel_bridge"
+              ? "Bridge Laravel"
+              : "Plugin WordPress",
+        state: "critical",
+        detail: "La publication automatique n est pas encore prête. PraeviSEO devra encore être relié au site pour publier en direct.",
+        engine_actionable: false,
+        manual_required: true,
+        target: null,
+      },
       created_at: new Date().toISOString(),
       summary: {
         pages_total: 0,
@@ -2010,6 +2069,13 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
         detected_php_version: null,
         detected_composer: null,
         logs: [],
+      },
+      publication_target: {
+        ...site.publication_target,
+        state: "warning",
+        detail: "PraeviSEO prépare la connexion qui permettra ensuite de publier et mettre à jour le site en direct.",
+        engine_actionable: false,
+        manual_required: true,
       },
       next_action: {
         kind: "installation_requested",

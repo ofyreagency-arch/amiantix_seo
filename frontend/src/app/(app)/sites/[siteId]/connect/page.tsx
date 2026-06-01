@@ -159,11 +159,9 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
         : "PraeviSEO aura besoin de Search Console pour prioriser les actions les plus rentables.",
     },
     {
-      title: "Contenus publiés",
-      status: site.readiness.has_live_pages ? "Déjà visibles" : "À publier",
-      detail: site.readiness.has_live_pages
-        ? "Le site possède déjà des contenus visibles que PraeviSEO peut mettre à jour ou renforcer."
-        : "La couche payante pourra aussi servir à pousser les premières vraies publications visibles.",
+      title: "Publication live",
+      status: site.publication_target.engine_actionable ? "Prête" : "À terminer",
+      detail: site.publication_target.detail,
     },
     {
       title: "Prochaine action",
@@ -408,6 +406,11 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                     <Badge variant="secondary">{item.status}</Badge>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                  {item.title === "Publication live" && site.publication_target.target ? (
+                    <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3 text-sm text-text">
+                      <span className="font-semibold">Point de publication :</span> {site.publication_target.target}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </CardContent>
