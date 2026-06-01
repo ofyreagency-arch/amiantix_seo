@@ -16,6 +16,7 @@ import {
 } from "@/lib/praeviseo-api";
 import {
   launchPremiumCrawlAction,
+  launchPremiumLinkingAction,
   launchPremiumPublicationAction,
   launchPremiumRewriteAction,
   submitRemoteInstallAction,
@@ -448,6 +449,11 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                 <form action={launchPremiumRewriteAction.bind(null, site.site_id)}>
                   <Button type="submit" variant="secondary">
                     Préparer une réécriture
+                  </Button>
+                </form>
+                <form action={launchPremiumLinkingAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">
+                    Renforcer le maillage
                   </Button>
                 </form>
                 <form action={launchPremiumPublicationAction.bind(null, site.site_id)}>

@@ -2269,6 +2269,40 @@ export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSi
   return normaliseSite(payload.site);
 }
 
+export async function requestPremiumLinking(siteId: string): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === siteId);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      summary: {
+        ...site.summary,
+        observed_link_gap_pages: site.summary.observed_link_gap_pages.slice(1),
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${siteId}/linking`,
+    {
+      method: "POST",
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
 export async function requestPremiumPublication(siteId: string): Promise<PraeviseoSite> {
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);

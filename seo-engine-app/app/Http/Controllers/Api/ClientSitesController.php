@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\ActionLayer\SeoSuggestionWorkflowService;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunObservedSiteCrawlJob;
 use App\Jobs\RunRemoteInstallationJob;
@@ -20,6 +21,7 @@ use App\Models\SeoSuggestion;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -324,6 +326,56 @@ class ClientSitesController extends Controller
                 'title' => (string) $page->title,
                 'live_url' => (string) ($page->live_url ?? ''),
                 'published_live_at' => $page->published_live_at?->toIso8601String(),
+            ],
+        ], 202);
+    }
+
+    public function startPremiumInternalLinking(
+        Request $request,
+        string $siteId,
+        SeoRewriteService $rewrite,
+        SeoSuggestionWorkflowService $workflow,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId);
+
+        if (! $page) {
+            return response()->json([
+                'message' => 'Aucune page claire n est encore prête pour un renfort de liens internes sur ce site.',
+            ], 422);
+        }
+
+        $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions', 'observedPage']), 'add-internal-links-only');
+        $internalLinks = $this->extractSuggestionInternalLinks($suggestion);
+
+        if ($internalLinks === []) {
+            return response()->json([
+                'message' => 'PraeviSEO n a pas encore trouvé de liens internes suffisamment utiles à appliquer automatiquement sur cette page.',
+            ], 422);
+        }
+
+        $result = $workflow->apply($suggestion->fresh());
+        $page->refresh();
+        $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+        return response()->json([
+            'site' => $this->serializeSite($site),
+            'linking' => [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'title' => (string) $page->title,
+                'suggestion_id' => (int) $suggestion->id,
+                'links_applied' => count($internalLinks),
+                'updated_fields' => $result['updated_fields'],
+                'already_pending' => $existingSuggestion !== null,
             ],
         ], 202);
     }
@@ -839,6 +891,64 @@ class ClientSitesController extends Controller
             ->orderByDesc('published_at')
             ->orderByDesc('updated_at')
             ->first();
+    }
+
+    /**
+     * @return array{page:?SeoPage,suggestion:?SeoSuggestion}
+     */
+    private function resolveInternalLinkingCandidate(string $siteId): array
+    {
+        /** @var SeoSuggestion|null $pendingSuggestion */
+        $pendingSuggestion = SeoSuggestion::query()
+            ->with('page')
+            ->where('status', 'pending')
+            ->whereHas('page', fn (Builder $query) => $query->where('site_id', $siteId))
+            ->latest('created_at')
+            ->get()
+            ->first(fn (SeoSuggestion $suggestion): bool => $this->extractSuggestionInternalLinks($suggestion) !== []);
+
+        if ($pendingSuggestion && $pendingSuggestion->page) {
+            return [
+                'page' => $pendingSuggestion->page,
+                'suggestion' => $pendingSuggestion,
+            ];
+        }
+
+        $page = SeoPage::query()
+            ->select('seo_pages.*')
+            ->leftJoin('seo_site_pages', 'seo_site_pages.id', '=', 'seo_pages.observed_site_page_id')
+            ->where('seo_pages.site_id', $siteId)
+            ->whereNotNull('seo_pages.observed_site_page_id')
+            ->with('observedPage')
+            ->orderByRaw('CASE WHEN seo_pages.status = ? THEN 0 ELSE 1 END', ['published'])
+            ->orderByRaw('COALESCE(seo_site_pages.internal_inlinks, 9999) ASC')
+            ->orderByRaw('COALESCE(seo_site_pages.orphan_score, 0) DESC')
+            ->orderByDesc('seo_pages.seo_score')
+            ->orderByDesc('seo_pages.updated_at')
+            ->first();
+
+        return [
+            'page' => $page,
+            'suggestion' => null,
+        ];
+    }
+
+    /**
+     * @return array<int,array{label:string,url:string,reason:mixed}>
+     */
+    private function extractSuggestionInternalLinks(SeoSuggestion $suggestion): array
+    {
+        $payload = is_array($suggestion->suggestions_json) ? $suggestion->suggestions_json : [];
+
+        return collect($payload['internal_links'] ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item) && filled($item['url'] ?? null))
+            ->map(fn (array $item): array => [
+                'label' => (string) ($item['label'] ?? $item['text'] ?? $item['url']),
+                'url' => (string) ($item['url'] ?? ''),
+                'reason' => $item['reason'] ?? null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
