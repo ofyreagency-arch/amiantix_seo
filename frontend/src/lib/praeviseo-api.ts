@@ -75,6 +75,7 @@ export type PraeviseoSite = {
   }>;
   action_statuses: {
     crawl: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
+    generation: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     rewrite: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     linking: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
     images: { state: string; label: string; detail: string; updated_at: string | null; error: string | null };
@@ -585,6 +586,13 @@ const mockSites: PraeviseoSite[] = [
         updated_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
         error: null,
       },
+      generation: {
+        state: "completed",
+        label: "Terminé",
+        detail: "Un nouvel article a déjà été préparé à partir d'une recherche Google utile pour le site.",
+        updated_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+        error: null,
+      },
       rewrite: {
         state: "completed",
         label: "Terminé",
@@ -890,6 +898,7 @@ const mockSites: PraeviseoSite[] = [
     execution_history: [],
     action_statuses: {
       crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null, error: null },
+      generation: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
       images: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
@@ -1463,6 +1472,17 @@ function normaliseSite(raw: unknown): PraeviseoSite {
           : null,
         error: ((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.error
           ? String(((site.action_statuses as Record<string, unknown> | undefined)?.crawl as Record<string, unknown> | undefined)?.error)
+          : null,
+      },
+      generation: {
+        state: String(((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.state ?? "idle"),
+        label: String(((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.label ?? "À ouvrir"),
+        detail: String(((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.detail ?? ""),
+        updated_at: ((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.updated_at
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.updated_at)
+          : null,
+        error: ((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.error
+          ? String(((site.action_statuses as Record<string, unknown> | undefined)?.generation as Record<string, unknown> | undefined)?.error)
           : null,
       },
       rewrite: {
@@ -2107,6 +2127,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       execution_history: [],
       action_statuses: {
         crawl: { state: "idle", label: "À ouvrir", detail: "Aucune relecture premium n a encore été lancée sur ce site.", updated_at: null, error: null },
+        generation: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
         rewrite: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
         linking: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
         images: { state: "idle", label: "À ouvrir", detail: "", updated_at: null, error: null },
@@ -2432,6 +2453,56 @@ export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSi
 
   const payload = await appFetch<SiteResponse>(
     `/api/client/sites/${siteId}/rewrite`,
+    {
+      method: "POST",
+    },
+    token
+  );
+
+  return normaliseSite(payload.site);
+}
+
+export async function requestPremiumGeneration(siteId: string): Promise<PraeviseoSite> {
+  if (!backendConfigured()) {
+    const site = mockSites.find((entry) => entry.site_id === siteId);
+
+    if (!site) {
+      throw new Error("Site introuvable.");
+    }
+
+    return {
+      ...site,
+      action_statuses: {
+        ...site.action_statuses,
+        generation: {
+          state: "completed",
+          label: "Terminé",
+          detail: "Un nouvel article est prêt dans le moteur et peut maintenant être enrichi puis publié.",
+          updated_at: new Date().toISOString(),
+          error: null,
+        },
+      },
+      execution_history: [
+        {
+          at: new Date().toISOString(),
+          label: "Nouvel article généré",
+          detail: "PraeviSEO a créé un nouvel article à partir d'une recherche Google déjà repérée sur le site.",
+          tone: "default" as const,
+          kind: "article_generated",
+        },
+        ...site.execution_history,
+      ].slice(0, 40),
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<SiteResponse>(
+    `/api/client/sites/${siteId}/generate`,
     {
       method: "POST",
     },

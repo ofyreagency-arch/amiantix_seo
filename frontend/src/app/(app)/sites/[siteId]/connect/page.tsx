@@ -17,6 +17,7 @@ import {
 } from "@/lib/praeviseo-api";
 import {
   launchPremiumCrawlAction,
+  launchPremiumGenerationAction,
   launchPremiumImageAction,
   launchPremiumLinkingAction,
   launchPremiumPublicationAction,
@@ -115,6 +116,15 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   const updatesActive = site.readiness.bridge_connected && site.action_statuses.monitoring.state === "completed";
   const updatesReady = site.readiness.bridge_connected || site.publication_target.engine_actionable;
   const executionCenter = [
+    {
+      title: "Nouvel article",
+      status: site.action_statuses.generation.label,
+      detail:
+        site.action_statuses.generation.detail ||
+        (site.summary.new_queries.length > 0
+          ? "PraeviSEO a déjà repéré de nouvelles recherches Google qui peuvent devenir de vrais articles sur le site."
+          : "Dès qu'une nouvelle recherche utile se confirme, PraeviSEO pourra ouvrir un nouvel article automatiquement."),
+    },
     {
       title: "Crawl automatique",
       status: site.action_statuses.crawl.label,
@@ -234,6 +244,8 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
       title:
         key === "crawl"
           ? "Crawl à vérifier"
+          : key === "generation"
+            ? "Nouvel article à vérifier"
           : key === "rewrite"
             ? "Réécriture à vérifier"
             : key === "linking"
@@ -409,6 +421,11 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                     Lancer un crawl premium
                   </Button>
                 </form>
+                <form action={launchPremiumGenerationAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">
+                    Créer un nouvel article
+                  </Button>
+                </form>
                 <form action={launchPremiumRewriteAction.bind(null, site.site_id)}>
                   <Button type="submit" variant="secondary">
                     Préparer une réécriture
@@ -432,7 +449,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
               </div>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-6">
+          <CardContent className="grid gap-4 xl:grid-cols-7">
             {executionCenter.map((item) => (
               <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">

@@ -21,6 +21,7 @@ use App\Models\SeoSuggestion;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
+use App\Runtime\SeoEngineContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 use Throwable;
 
@@ -243,6 +245,91 @@ class ClientSitesController extends Controller
             'site' => $this->serializeSite($site),
             'crawl' => $this->serializeObservedCrawl($crawl->fresh()),
         ], 202);
+    }
+
+    public function startPremiumArticleGeneration(
+        Request $request,
+        string $siteId,
+        SeoGeneratePageRunner $runner,
+        SeoEngineContext $context,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        try {
+            $this->markActionState($site, 'generation', 'running', 'PraeviSEO prépare un nouveau sujet éditorial à publier sur le site.');
+            $keyword = $this->resolveGenerationCandidateKeyword($site);
+
+            if ($keyword === null) {
+                $this->markActionState(
+                    $site,
+                    'generation',
+                    'failed',
+                    'Aucun nouveau sujet assez clair n est encore prêt à devenir un article.',
+                    'PraeviSEO n a pas encore trouvé de recherche Google assez utile et distincte pour ouvrir un nouvel article fiable.'
+                );
+
+                return response()->json([
+                    'message' => 'Aucun nouveau sujet assez clair n est encore prêt à devenir un article sur ce site.',
+                ], 422);
+            }
+
+            $context->loadFromSite($site);
+            $result = $runner->run($keyword, 'published', false);
+            $page = $result['page'] instanceof SeoPage
+                ? $result['page']->fresh()
+                : SeoPage::query()->where('site_id', $site->site_id)->find((int) ($result['page']->id ?? 0));
+
+            if (! $page instanceof SeoPage) {
+                throw new \RuntimeException('PraeviSEO a généré une page, mais n a pas pu la rattacher correctement au site.');
+            }
+
+            $this->appendExecutionHistory(
+                $site,
+                'Nouvel article généré',
+                sprintf('PraeviSEO a créé "%s" à partir du sujet "%s".', (string) $page->title, $keyword),
+                'default',
+                'article_generated',
+            );
+            $this->markActionState(
+                $site,
+                'generation',
+                'completed',
+                sprintf('Un nouvel article "%s" est prêt dans le moteur et peut maintenant être enrichi, illustré puis publié.', (string) $page->title)
+            );
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+            return response()->json([
+                'site' => $this->serializeSite($site),
+                'generation' => [
+                    'page_id' => (int) $page->id,
+                    'slug' => (string) $page->slug,
+                    'title' => (string) $page->title,
+                    'keyword' => $keyword,
+                    'status' => (string) $page->status,
+                    'warning' => $result['warning'] ?? null,
+                ],
+            ], 202);
+        } catch (Throwable $e) {
+            $this->markActionState(
+                $site,
+                'generation',
+                'failed',
+                'La génération du nouvel article a échoué pour le moment.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu créer automatiquement le nouvel article prévu.')
+            );
+            $this->appendExecutionHistory($site, 'Génération interrompue', $e->getMessage(), 'danger', 'generation_failed');
+
+            return response()->json([
+                'message' => 'PraeviSEO n a pas pu générer le nouvel article pour le moment.',
+            ], 500);
+        }
     }
 
     public function startPremiumRewrite(Request $request, string $siteId, SeoRewriteService $rewrite): JsonResponse
@@ -1138,6 +1225,7 @@ class ClientSitesController extends Controller
     /**
      * @return array{
      *   crawl:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
+     *   generation:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   rewrite:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   linking:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
      *   images:array{state:string,label:string,detail:string,updated_at:?string,error:?string},
@@ -1170,6 +1258,7 @@ class ClientSitesController extends Controller
                     ? ($crawl->meta_json['error'] ?? 'La relecture premium a rencontré un blocage.')
                     : null,
             ],
+            'generation' => $this->normalizeActionStatus($stored['generation'] ?? null),
             'rewrite' => $this->normalizeActionStatus($stored['rewrite'] ?? null),
             'linking' => $this->normalizeActionStatus($stored['linking'] ?? null),
             'images' => $this->normalizeActionStatus($stored['images'] ?? null),
@@ -1364,6 +1453,55 @@ class ClientSitesController extends Controller
             ->orderByDesc('seo_score')
             ->orderByDesc('updated_at')
             ->first();
+    }
+
+    private function resolveGenerationCandidateKeyword(SeoSite $site): ?string
+    {
+        $snapshot = $this->searchConsoleSnapshot($site->site_id);
+        $existingTokens = SeoPage::query()
+            ->where('site_id', $site->site_id)
+            ->get(['keyword', 'slug', 'title'])
+            ->flatMap(function (SeoPage $page): array {
+                return array_filter([
+                    mb_strtolower(trim((string) $page->keyword)),
+                    mb_strtolower(trim((string) $page->slug)),
+                    mb_strtolower(trim((string) $page->title)),
+                ]);
+            })
+            ->values();
+
+        $candidates = collect([
+            ...($snapshot['new_queries'] ?? []),
+            ...($snapshot['top_queries'] ?? []),
+            ...($snapshot['top_rising_queries'] ?? []),
+        ])
+            ->filter(fn (mixed $item): bool => is_array($item) && filled($item['query'] ?? null))
+            ->map(fn (array $item): array => [
+                'query' => trim((string) ($item['query'] ?? '')),
+                'impressions' => (int) ($item['impressions'] ?? 0),
+                'position' => (float) ($item['position'] ?? 0),
+            ])
+            ->filter(fn (array $item): bool => $item['query'] !== '' && $item['impressions'] > 0)
+            ->sortByDesc(fn (array $item): int => ($item['impressions'] * 100) - (int) round($item['position'] * 5))
+            ->values();
+
+        foreach ($candidates as $candidate) {
+            $query = mb_strtolower(trim((string) $candidate['query']));
+
+            if ($query === '' || mb_strlen($query) < 4) {
+                continue;
+            }
+
+            $alreadyCovered = $existingTokens->contains(function (string $token) use ($query): bool {
+                return $token === $query || str_contains($token, $query) || str_contains($query, $token);
+            });
+
+            if (! $alreadyCovered) {
+                return (string) $candidate['query'];
+            }
+        }
+
+        return null;
     }
 
     private function resolvePublicationCandidatePage(string $siteId): ?SeoPage

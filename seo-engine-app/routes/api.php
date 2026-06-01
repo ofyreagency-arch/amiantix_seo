@@ -31,6 +31,8 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
     Route::get('/sites/{siteId}/installation-status', [ClientSitesController::class, 'installationStatus']);
     Route::post('/sites/{siteId}/crawl', [ClientSitesController::class, 'startObservedCrawl'])
         ->middleware('throttle:6,1');
+    Route::post('/sites/{siteId}/generate', [ClientSitesController::class, 'startPremiumArticleGeneration'])
+        ->middleware('throttle:6,1');
     Route::post('/sites/{siteId}/rewrite', [ClientSitesController::class, 'startPremiumRewrite'])
         ->middleware('throttle:6,1');
     Route::post('/sites/{siteId}/linking', [ClientSitesController::class, 'startPremiumInternalLinking'])

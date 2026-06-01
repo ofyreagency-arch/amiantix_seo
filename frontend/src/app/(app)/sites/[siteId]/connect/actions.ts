@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   getSiteConnectPath,
   requestPremiumCrawl,
+  requestPremiumGeneration,
   requestPremiumImages,
   requestPremiumLinking,
   requestPremiumPublication,
@@ -105,6 +106,12 @@ export async function submitRemoteInstallAction(
 
 export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
   await requestPremiumCrawl(siteId);
+  revalidatePath(getSiteConnectPath(siteId));
+  redirect(getSiteConnectPath(siteId));
+}
+
+export async function launchPremiumGenerationAction(siteId: string): Promise<void> {
+  await requestPremiumGeneration(siteId);
   revalidatePath(getSiteConnectPath(siteId));
   redirect(getSiteConnectPath(siteId));
 }

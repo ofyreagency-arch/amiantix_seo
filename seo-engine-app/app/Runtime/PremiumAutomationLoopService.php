@@ -7,20 +7,26 @@ namespace App\Runtime;
 use App\ActionLayer\SeoSuggestionWorkflowService;
 use App\Jobs\RunObservedSiteCrawlJob;
 use App\Models\SeoPage;
+use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSuggestion;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Services\Publication\SeoLivePublicationService;
+use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use App\Runtime\SeoEngineContext;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
 use Throwable;
 
 class PremiumAutomationLoopService
 {
     public function __construct(
+        private readonly SeoEngineContext $context,
+        private readonly SeoGeneratePageRunner $generator,
         private readonly SeoRewriteService $rewrite,
         private readonly SeoSuggestionWorkflowService $workflow,
         private readonly SeoPageImageGenerator $images,
@@ -60,6 +66,13 @@ class PremiumAutomationLoopService
         $stored = data_get($site->settings_json, 'automation.actions', []);
         $stored = is_array($stored) ? $stored : [];
 
+        if ($this->shouldRunAction($stored['generation'] ?? null, $latestCrawl)) {
+            $generation = $this->attemptArticleGeneration($site);
+            if ($generation !== null) {
+                return $generation;
+            }
+        }
+
         if ($this->shouldRunAction($stored['images'] ?? null, $latestCrawl)) {
             $images = $this->attemptImageGeneration($site);
             if ($images !== null) {
@@ -89,6 +102,58 @@ class PremiumAutomationLoopService
         }
 
         return ['executed' => false, 'action' => null, 'reason' => 'no_actionable_step'];
+    }
+
+    /**
+     * @return array{executed:bool,action:string,reason:string}|null
+     */
+    private function attemptArticleGeneration(SeoSite $site): ?array
+    {
+        $keyword = $this->resolveGenerationCandidateKeyword($site);
+
+        if ($keyword === null) {
+            return null;
+        }
+
+        try {
+            $this->markActionState($site, 'generation', 'running', 'PraeviSEO relance automatiquement la création d un nouvel article.');
+            $this->context->loadFromSite($site);
+            $result = $this->generator->run($keyword, 'published', false);
+            $page = $result['page'] instanceof SeoPage
+                ? $result['page']->fresh()
+                : SeoPage::query()->where('site_id', $site->site_id)->find((int) ($result['page']->id ?? 0));
+
+            if (! $page instanceof SeoPage) {
+                throw new \RuntimeException('PraeviSEO a généré un nouvel article, mais n a pas pu le rattacher correctement au site.');
+            }
+
+            $this->appendExecutionHistory(
+                $site,
+                'Boucle premium : nouvel article généré',
+                sprintf('PraeviSEO a créé "%s" à partir du sujet "%s".', (string) $page->title, $keyword),
+                'default',
+                'auto_article_generated',
+            );
+            $this->markActionState(
+                $site,
+                'generation',
+                'completed',
+                sprintf('Un nouvel article "%s" est prêt pour la suite de la boucle premium.', (string) $page->title)
+            );
+
+            return ['executed' => true, 'action' => 'generation', 'reason' => 'article_generated'];
+        } catch (Throwable $e) {
+            $this->markActionState(
+                $site,
+                'generation',
+                'failed',
+                'La boucle premium n a pas pu créer le nouvel article prévu.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu générer automatiquement le nouvel article prévu.')
+            );
+            $this->appendExecutionHistory($site, 'Boucle premium : génération interrompue', $e->getMessage(), 'danger', 'auto_generation_failed');
+
+            return ['executed' => false, 'action' => 'generation', 'reason' => 'generation_failed'];
+        }
     }
 
     private function gscConnected(SeoSite $site): bool
@@ -318,6 +383,89 @@ class PremiumAutomationLoopService
             ->orderByDesc('seo_score')
             ->orderByDesc('updated_at')
             ->first();
+    }
+
+    private function resolveGenerationCandidateKeyword(SeoSite $site): ?string
+    {
+        $existingTokens = SeoPage::query()
+            ->where('site_id', $site->site_id)
+            ->get(['keyword', 'slug', 'title'])
+            ->flatMap(function (SeoPage $page): array {
+                return array_filter([
+                    mb_strtolower(trim((string) $page->keyword)),
+                    mb_strtolower(trim((string) $page->slug)),
+                    mb_strtolower(trim((string) $page->title)),
+                ]);
+            })
+            ->values();
+
+        $rows = SeoSearchConsoleMetric::query()
+            ->where('site_id', $site->site_id)
+            ->whereNotNull('query')
+            ->where('window_days', 28)
+            ->orderByDesc('metric_date')
+            ->orderByDesc('id')
+            ->get(['metric_date', 'query', 'clicks', 'impressions', 'position']);
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $latestDate = optional($rows->first()?->metric_date)?->toDateString();
+        if (! $latestDate) {
+            return null;
+        }
+
+        $currentRows = $rows->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() === $latestDate);
+        $previousRows = $rows->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() !== $latestDate);
+
+        $previousByQuery = $previousRows
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower(trim((string) $metric->query)))
+            ->map(fn (Collection $items): int => (int) round($items->sum('impressions')));
+
+        $candidates = $currentRows
+            ->groupBy(fn (SeoSearchConsoleMetric $metric): string => trim((string) $metric->query))
+            ->map(function (Collection $items, string $query) use ($previousByQuery): array {
+                $impressions = (int) round($items->sum('impressions'));
+                $position = $impressions > 0
+                    ? $items->reduce(
+                        fn (float $carry, SeoSearchConsoleMetric $metric): float => $carry + (((float) $metric->position) * ((float) $metric->impressions)),
+                        0.0
+                    ) / $impressions
+                    : 0.0;
+
+                return [
+                    'query' => $query,
+                    'impressions' => $impressions,
+                    'previous_impressions' => (int) ($previousByQuery->get(mb_strtolower($query)) ?? 0),
+                    'position' => round($position, 1),
+                ];
+            })
+            ->filter(fn (array $item): bool => trim($item['query']) !== '' && $item['impressions'] > 0)
+            ->sortByDesc(function (array $item): int {
+                $newQueryBonus = $item['previous_impressions'] === 0 ? 300 : 0;
+
+                return $newQueryBonus + ((int) $item['impressions'] * 100) - (int) round(((float) $item['position']) * 5);
+            })
+            ->values();
+
+        foreach ($candidates as $candidate) {
+            $query = mb_strtolower(trim((string) $candidate['query']));
+
+            if ($query === '' || mb_strlen($query) < 4) {
+                continue;
+            }
+
+            $alreadyCovered = $existingTokens->contains(function (string $token) use ($query): bool {
+                return $token === $query || str_contains($token, $query) || str_contains($query, $token);
+            });
+
+            if (! $alreadyCovered) {
+                return (string) $candidate['query'];
+            }
+        }
+
+        return null;
     }
 
     private function resolvePublicationCandidatePage(string $siteId): ?SeoPage
