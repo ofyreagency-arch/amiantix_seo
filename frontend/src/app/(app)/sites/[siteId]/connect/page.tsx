@@ -98,6 +98,51 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   const leadRisingPage = site.summary.top_rising_pages[0] ?? null;
   const leadRefresh = sitePublications.find((item) => item.latest_suggestion || item.observed_content) ?? null;
   const leadIndexationAlert = site.summary.indexation_alerts[0] ?? null;
+  const livePublishedCount = sitePublications.filter((item) => item.published_live).length;
+  const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
+  const executionCenter = [
+    {
+      title: "Crawl automatique",
+      status: monitoredContentCount > 0 ? "Déjà prêt" : "À ouvrir",
+      detail:
+        monitoredContentCount > 0
+          ? `${monitoredContentCount} page(s) sont déjà relues par PraeviSEO. Le pack payant pourra relancer automatiquement ce crawl.`
+          : "Le premier crawl premium relira le site pour préparer les prochaines actions automatiques.",
+    },
+    {
+      title: "Réécriture SEO",
+      status: leadRefresh ? "Déjà ciblée" : "À préparer",
+      detail: leadRefresh
+        ? "PraeviSEO a déjà repéré un contenu à retravailler. L’automatisation pourra reprendre cette amélioration sans attente manuelle."
+        : "La couche payante préparera les premières réécritures dès qu’un contenu utile sera détecté.",
+    },
+    {
+      title: "Maillage interne",
+      status: site.summary.observed_link_gap_pages.length > 0 ? "Déjà repéré" : "À ouvrir",
+      detail:
+        site.summary.observed_link_gap_pages.length > 0
+          ? "Le site contient déjà des pages à mieux relier. Le pack payant pourra ouvrir ces liens automatiquement."
+          : "Le maillage interne sera préparé dès que PraeviSEO aura assez de pages à relier proprement.",
+    },
+    {
+      title: "Publication automatique",
+      status: livePublishedCount > 0 ? "Déjà active" : site.publication_bridge_status === "connected" ? "Prête à démarrer" : "En attente d’activation",
+      detail:
+        livePublishedCount > 0
+          ? `${livePublishedCount} contenu(s) sont déjà visibles. La couche payante pourra republier et mettre à jour ce qui doit bouger.`
+          : site.publication_bridge_status === "connected"
+            ? "Le site est prêt à recevoir les premières publications et mises à jour automatiques."
+            : "La publication démarrera juste après l’activation complète de la connexion premium.",
+    },
+    {
+      title: "Monitoring continu",
+      status: site.summary.observed_site_health_score > 0 ? "Déjà en lecture" : "À lancer",
+      detail:
+        site.summary.observed_site_health_score > 0
+          ? "PraeviSEO suit déjà la santé du site. Le pack payant ajoutera l’historique des actions et les relances automatiques."
+          : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles.",
+    },
+  ] as const;
   const starterPlan = [
     leadRisingPage
       ? {
@@ -243,6 +288,26 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                 dès que l’installation premium sera active sur ce site.
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Centre d’exécution premium</CardTitle>
+            <CardDescription>
+              Voici les briques qui tourneront pour ce site dès que l’installation sera complètement active.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-5">
+            {executionCenter.map((item) => (
+              <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-text">{item.title}</div>
+                  <Badge variant="secondary">{item.status}</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-text-muted">{item.detail}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
