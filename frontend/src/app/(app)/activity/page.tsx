@@ -165,6 +165,8 @@ export default async function ActivityCockpitPage() {
   ].slice(0, 8);
   const totalDeltaImpressions = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_impressions, 0);
   const totalDeltaClicks = dashboard.sites.reduce((sum, site) => sum + site.summary.gsc_delta_clicks, 0);
+  const totalHealthDelta = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_health_delta, 0);
+  const contentGrowthItems = observedContentFeed.filter((item) => (item.observed_content?.snapshot_word_delta ?? 0) > 0);
   const progressFeed = [
     totalDeltaImpressions > 0
       ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) sur la dernière période suivie.`
@@ -182,6 +184,12 @@ export default async function ActivityCockpitPage() {
     actionPlanFeed.length > 0
       ? `${actionPlanFeed.length} action(s) sont déjà prêtes à être traitées dans le cockpit.`
       : "Le moteur continue de préparer les prochaines actions utiles.",
+    totalHealthDelta > 0
+      ? `La solidité globale observée gagne déjà +${totalHealthDelta} point(s) sur les dernières lectures.`
+      : "La solidité globale reste stable sur les dernières lectures observées.",
+    contentGrowthItems.length > 0
+      ? `${contentGrowthItems.length} contenu(s) ont déjà été enrichis depuis la lecture précédente.`
+      : "Aucun enrichissement net de contenu n’a encore été observé entre les deux dernières lectures.",
     linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length > 0
       ? `${linkingFeed.length + cannibalizationFeed.length + enrichmentFeed.length} piste(s) contenu completent deja ce que Google laisse voir.`
       : "Le bloc contenu s’enrichira dès que le moteur observera plus de matière sur les pages suivies.",
@@ -225,9 +233,13 @@ export default async function ActivityCockpitPage() {
     ...publications.items.slice(0, 6).map((item) => ({
       id: `publication-${item.id}`,
       title: item.title,
-      detail: item.published_live
-        ? "Le contenu est déjà visible sur le site."
-        : "Le contenu reste prêt côté PraeviSEO.",
+      detail: item.observed_content?.snapshot_word_delta
+        ? item.observed_content.snapshot_word_delta > 0
+          ? `Le contenu a gagné ${item.observed_content.snapshot_word_delta} mot(s) depuis la lecture précédente.`
+          : "Le contenu reste stable entre les deux dernières lectures observées."
+        : item.published_live
+          ? "Le contenu est déjà visible sur le site."
+          : "Le contenu reste prêt côté PraeviSEO.",
       badge: item.published_live ? "Visible" : "Préparé",
       badgeVariant: item.published_live ? "success" : "secondary",
       meta: item.published_at ? formatDate(item.published_at) : "Récemment",

@@ -528,6 +528,8 @@ class ClientSitesController extends Controller
         $gscSnapshot = $this->searchConsoleSnapshot($site->site_id);
         $observedSnapshot = $this->observedSiteSnapshot($site->site_id);
         $observedHealth = $this->observedSiteHealthSnapshot($site->site_id);
+        $observedHealthHistory = $this->observedSiteHealthHistory($site->site_id);
+        $observedHealthDelta = $this->observedSiteHealthDelta($observedHealthHistory);
         $installation = $site->relationLoaded('latestRemoteInstallation')
             ? $site->getRelation('latestRemoteInstallation')
             : $site->latestRemoteInstallation()->first();
@@ -585,6 +587,8 @@ class ClientSitesController extends Controller
                 'observed_avg_quality_score' => $observedHealth['avg_quality_score'],
                 'observed_avg_topical_score' => $observedHealth['avg_topical_score'],
                 'observed_crawl_issues' => $observedHealth['crawl_issues'],
+                'observed_health_history' => $observedHealthHistory,
+                'observed_health_delta' => $observedHealthDelta,
                 'gsc_impressions' => $gscSnapshot['impressions'],
                 'gsc_clicks' => $gscSnapshot['clicks'],
                 'gsc_ctr' => $gscSnapshot['ctr'],
@@ -768,6 +772,51 @@ class ClientSitesController extends Controller
             'avg_topical_score' => $snapshot ? (int) round((float) $snapshot->avg_topical_score) : 0,
             'crawl_issues' => SeoSiteCrawlIssue::query()->where('site_id', $siteId)->count(),
         ];
+    }
+
+    /**
+     * @return array<int,array{
+     *     snapshot_date:string,
+     *     health_score:int,
+     *     avg_seo_score:int,
+     *     avg_quality_score:int,
+     *     page_count:int
+     * }>
+     */
+    private function observedSiteHealthHistory(string $siteId, int $days = 14): array
+    {
+        return SeoSiteSnapshot::query()
+            ->where('site_id', $siteId)
+            ->where('snapshot_date', '>=', now()->subDays($days)->toDateString())
+            ->orderBy('snapshot_date')
+            ->get(['snapshot_date', 'health_score', 'avg_seo_score', 'avg_quality_score', 'page_count'])
+            ->map(fn (SeoSiteSnapshot $snapshot): array => [
+                'snapshot_date' => (string) $snapshot->snapshot_date,
+                'health_score' => (int) $snapshot->health_score,
+                'avg_seo_score' => (int) $snapshot->avg_seo_score,
+                'avg_quality_score' => (int) $snapshot->avg_quality_score,
+                'page_count' => (int) $snapshot->page_count,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int,array{health_score:int}>  $history
+     */
+    private function observedSiteHealthDelta(array $history): int
+    {
+        if (count($history) < 2) {
+            return 0;
+        }
+
+        $latestIndex = array_key_last($history);
+
+        if ($latestIndex === null || $latestIndex === 0) {
+            return 0;
+        }
+
+        return (int) ($history[$latestIndex]['health_score'] ?? 0) - (int) ($history[$latestIndex - 1]['health_score'] ?? 0);
     }
 
     /**

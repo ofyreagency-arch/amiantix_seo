@@ -139,6 +139,8 @@ export default async function DashboardPage() {
     .slice(0, 4);
   const totalObservedCrawlIssues = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_crawl_issues, 0);
   const healthTrackedSites = dashboard.sites.filter((site) => site.summary.observed_site_health_score > 0);
+  const progressingHealthSites = healthTrackedSites.filter((site) => site.summary.observed_health_delta > 0);
+  const totalHealthDelta = healthTrackedSites.reduce((sum, site) => sum + site.summary.observed_health_delta, 0);
   const averageObservedHealth =
     healthTrackedSites.length > 0
       ? Math.round(
@@ -164,7 +166,9 @@ export default async function DashboardPage() {
       : "Ouvrez d’abord la priorité en haut du cockpit : c’est là que PraeviSEO voit le meilleur gain concret à court terme.";
   const dashboardAssistantImpact =
     averageObservedHealth > 0
-      ? `Votre site présente aujourd’hui une santé SEO observée de ${averageObservedHealth}/100. En traitant les priorités du moment, vous aidez Google à mieux comprendre et mieux faire remonter votre site.`
+      ? totalHealthDelta > 0
+        ? `La solidité observée de vos sites gagne déjà ${totalHealthDelta > 0 ? `+${totalHealthDelta}` : totalHealthDelta} point(s) sur les dernières lectures. En traitant les priorités du moment, vous aidez Google à mieux comprendre et mieux faire remonter votre site.`
+        : `Votre site présente aujourd’hui une santé SEO observée de ${averageObservedHealth}/100. En traitant les priorités du moment, vous aidez Google à mieux comprendre et mieux faire remonter votre site.`
       : "Chaque action bien traitée aide PraeviSEO à repérer ensuite plus clairement ce qui progresse réellement dans Google.";
   const healthWatchlist = dashboard.sites
     .filter(
@@ -189,6 +193,9 @@ export default async function DashboardPage() {
     contentRefreshFeed.length > 0
       ? `${contentRefreshFeed.length} contenu(s) méritent déjà un refresh ou un enrichissement.`
       : "Aucun refresh chaud n’est remonté pour le moment sur les contenus suivis.",
+    progressingHealthSites.length > 0
+      ? `${progressingHealthSites.length} site(s) gagnent déjà en solidité sur les dernières lectures observées.`
+      : "La solidité globale du site reste stable sur les dernières lectures observées.",
   ];
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
@@ -903,7 +910,12 @@ export default async function DashboardPage() {
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
                       {site.summary.observed_weak_pages} page(s) encore fragile(s), {site.summary.observed_orphan_pages} page(s) trop isolée(s),
-                      {` ${site.summary.observed_crawl_issues}`} point(s) technique(s), niveau moyen de solidité du site {site.summary.observed_avg_authority}.
+                      {` ${site.summary.observed_crawl_issues}`} point(s) technique(s), niveau moyen de solidité du site {site.summary.observed_avg_authority}
+                      {site.summary.observed_health_delta > 0
+                        ? ` et une progression de +${site.summary.observed_health_delta} point(s) depuis la lecture précédente.`
+                        : site.summary.observed_health_delta < 0
+                          ? ` et un recul de ${site.summary.observed_health_delta} point(s) depuis la lecture précédente.`
+                          : "."}
                     </p>
                   </div>
                 ))

@@ -26,6 +26,14 @@ function difficultyLabel(difficulty: string): string {
   );
 }
 
+function contentProgressLabel(wordDelta: number | null | undefined): string {
+  if (!wordDelta) {
+    return "Contenu encore stable";
+  }
+
+  return wordDelta > 0 ? `+${wordDelta} mots depuis la dernière lecture` : "Contenu encore stable";
+}
+
 export default async function PublicationsPage() {
   const publications = await getPublications();
   const optimizations = await getOptimizations();
@@ -178,6 +186,13 @@ export default async function PublicationsPage() {
                   <span>Position : {leadContent.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
                   <span>Maillage : {leadContent.observed_content ? `${leadContent.observed_content.internal_inlinks} entrant(s)` : "n/a"}</span>
                 </div>
+                {leadContent.observed_content ? (
+                  <p className="text-sm text-text-muted">
+                    {leadContent.observed_content.snapshot_word_delta > 0
+                      ? `PraeviSEO voit déjà un enrichissement de +${leadContent.observed_content.snapshot_word_delta} mots depuis la lecture précédente.`
+                      : "PraeviSEO n’a pas encore vu de vrai changement de contenu entre les deux dernières lectures."}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </CockpitSignalListCard>
@@ -289,7 +304,7 @@ export default async function PublicationsPage() {
                 badgeTone={(item.observed_content?.authority_score ?? item.seo_score ?? 0) >= 60 ? "success" : "secondary"}
                 description={
                   item.latest_suggestion?.summary ??
-                  `Sujet "${item.observed_content?.cluster_label ?? item.cluster ?? "principal"}", ${item.observed_content?.snapshot_word_count ?? "n/a"} mots observés, ${item.observed_content?.query_match_count ?? 0} recherche(s) déjà reliée(s).`
+                  `Sujet "${item.observed_content?.cluster_label ?? item.cluster ?? "principal"}", ${item.observed_content?.snapshot_word_count ?? "n/a"} mots observés, ${item.observed_content?.query_match_count ?? 0} recherche(s) déjà reliée(s). ${contentProgressLabel(item.observed_content?.snapshot_word_delta)}.`
                 }
               />
             ))}
@@ -338,7 +353,7 @@ export default async function PublicationsPage() {
                 badgeTone="secondary"
                 description={
                   item.latest_suggestion?.summary ??
-                  `Sujet "${item.observed_content?.cluster_label ?? item.cluster}", page potentiellement centrale, ${item.observed_content?.snapshot_word_count ?? 0} mots observés.`
+                  `Sujet "${item.observed_content?.cluster_label ?? item.cluster}", page potentiellement centrale, ${item.observed_content?.snapshot_word_count ?? 0} mots observés. ${contentProgressLabel(item.observed_content?.snapshot_word_delta)}.`
                 }
               />
             ))}
@@ -443,6 +458,7 @@ export default async function PublicationsPage() {
                 <div className="grid gap-2 md:grid-cols-4 text-xs text-text-subtle">
                   <span>Autorité : {item.observed_content.authority_score}</span>
                   <span>Mots observés : {item.observed_content.snapshot_word_count}</span>
+                  <span>Évolution : {contentProgressLabel(item.observed_content.snapshot_word_delta)}</span>
                   <span>Cannibalisation : {item.observed_content.cannibalization_count}</span>
                   <span>Requêtes reliées : {item.observed_content.query_match_count}</span>
                 </div>

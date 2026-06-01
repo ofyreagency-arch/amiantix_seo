@@ -216,13 +216,13 @@ class ClientWorkspaceController extends Controller
             ->get()
             ->groupBy('site_id');
         $observedPageIds = $pages->pluck('observed_site_page_id')->filter()->values();
-        $latestObservedSnapshots = SeoSitePageSnapshot::query()
+        $observedSnapshots = SeoSitePageSnapshot::query()
             ->whereIn('site_page_id', $observedPageIds)
             ->orderByDesc('observed_at')
             ->orderByDesc('id')
             ->get()
             ->groupBy('site_page_id')
-            ->map(fn ($rows) => $rows->first());
+            ->map(fn ($rows) => $rows->take(2)->values());
         $semanticLinks = SeoSemanticLink::query()
             ->whereIn('site_id', $siteIds)
             ->where(function ($query) use ($observedPageIds): void {
@@ -264,7 +264,7 @@ class ClientWorkspaceController extends Controller
                 ),
                 'observed_content' => $this->serializeObservedPublicationContext(
                     $page,
-                    $latestObservedSnapshots,
+                    $observedSnapshots,
                     $semanticLinks
                 ),
                 'latest_suggestion' => $this->serializePublicationSuggestion($latestSuggestions->get($page->id)),
@@ -416,7 +416,7 @@ class ClientWorkspaceController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, SeoSitePageSnapshot>  $snapshots
+     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, SeoSitePageSnapshot>>  $snapshots
      * @param  \Illuminate\Support\Collection<int, SeoSemanticLink>  $semanticLinks
      * @return array<string,mixed>|null
      */
@@ -431,7 +431,13 @@ class ClientWorkspaceController extends Controller
             return null;
         }
 
-        $snapshot = $snapshots->get($observedPage->id);
+        /** @var \Illuminate\Support\Collection<int, SeoSitePageSnapshot> $snapshotSeries */
+        $snapshotSeries = $snapshots->get($observedPage->id, collect());
+        $snapshot = $snapshotSeries->first();
+        $previousSnapshot = $snapshotSeries->skip(1)->first();
+        $currentWordCount = $snapshot ? (int) $snapshot->word_count : (int) $observedPage->latest_word_count;
+        $previousWordCount = $previousSnapshot?->word_count !== null ? (int) $previousSnapshot->word_count : null;
+        $wordDelta = $previousWordCount !== null ? $currentWordCount - $previousWordCount : 0;
         $pageLinks = $semanticLinks->filter(function (SeoSemanticLink $link) use ($observedPage): bool {
             return (int) $link->source_id === (int) $observedPage->id
                 || (int) $link->target_id === (int) $observedPage->id;
@@ -462,9 +468,12 @@ class ClientWorkspaceController extends Controller
             'indexability_state' => (string) $observedPage->indexability_state,
             'internal_inlinks' => (int) $observedPage->internal_inlinks,
             'internal_outlinks' => (int) $observedPage->internal_outlinks,
-            'snapshot_word_count' => $snapshot ? (int) $snapshot->word_count : (int) $observedPage->latest_word_count,
+            'snapshot_word_count' => $currentWordCount,
             'snapshot_observed_at' => $snapshot?->observed_at,
             'snapshot_title' => $snapshot?->title ?: $observedPage->title,
+            'snapshot_previous_word_count' => $previousWordCount,
+            'snapshot_previous_observed_at' => $previousSnapshot?->observed_at,
+            'snapshot_word_delta' => $wordDelta,
             'internal_link_suggestions_count' => $internalLinkSuggestions->count(),
             'cannibalization_count' => $cannibalizationLinks->count(),
             'query_match_count' => $queryMatches->count(),

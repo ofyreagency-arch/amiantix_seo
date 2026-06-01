@@ -61,6 +61,14 @@ export type PraeviseoSite = {
     observed_avg_quality_score: number;
     observed_avg_topical_score: number;
     observed_crawl_issues: number;
+    observed_health_history: Array<{
+      snapshot_date: string;
+      health_score: number;
+      avg_seo_score: number;
+      avg_quality_score: number;
+      page_count: number;
+    }>;
+    observed_health_delta: number;
     observed_pillar_pages: Array<{
       label: string;
       slug: string;
@@ -350,6 +358,9 @@ export type PraeviseoPublication = {
     snapshot_word_count: number;
     snapshot_observed_at: string | null;
     snapshot_title: string | null;
+    snapshot_previous_word_count: number | null;
+    snapshot_previous_observed_at: string | null;
+    snapshot_word_delta: number;
     internal_link_suggestions_count: number;
     cannibalization_count: number;
     query_match_count: number;
@@ -507,6 +518,23 @@ const mockSites: PraeviseoSite[] = [
       observed_avg_quality_score: 68,
       observed_avg_topical_score: 73,
       observed_crawl_issues: 3,
+      observed_health_history: [
+        {
+          snapshot_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString().slice(0, 10),
+          health_score: 70,
+          avg_seo_score: 68,
+          avg_quality_score: 66,
+          page_count: 18,
+        },
+        {
+          snapshot_date: new Date().toISOString().slice(0, 10),
+          health_score: 74,
+          avg_seo_score: 71,
+          avg_quality_score: 68,
+          page_count: 19,
+        },
+      ],
+      observed_health_delta: 4,
       observed_pillar_pages: [
         {
           label: "Faq",
@@ -746,6 +774,8 @@ const mockSites: PraeviseoSite[] = [
       observed_avg_quality_score: 0,
       observed_avg_topical_score: 0,
       observed_crawl_issues: 0,
+      observed_health_history: [],
+      observed_health_delta: 0,
       observed_pillar_pages: [],
       observed_link_gap_pages: [],
       observed_orphan_alerts: [],
@@ -994,6 +1024,9 @@ const mockPublications: PraeviseoPublications = {
           snapshot_word_count: 1240,
           snapshot_observed_at: new Date().toISOString(),
           snapshot_title: "Diagnostic amiante en copropriete",
+          snapshot_previous_word_count: 980,
+          snapshot_previous_observed_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+          snapshot_word_delta: 260,
           internal_link_suggestions_count: 2,
           cannibalization_count: 1,
           query_match_count: 2,
@@ -1044,6 +1077,9 @@ const mockPublications: PraeviseoPublications = {
           snapshot_word_count: 640,
           snapshot_observed_at: new Date().toISOString(),
           snapshot_title: "Guide estimation locale",
+          snapshot_previous_word_count: 590,
+          snapshot_previous_observed_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+          snapshot_word_delta: 50,
           internal_link_suggestions_count: 1,
           cannibalization_count: 0,
           query_match_count: 1,
@@ -1240,6 +1276,16 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       observed_avg_quality_score: Number(summary.observed_avg_quality_score ?? 0),
       observed_avg_topical_score: Number(summary.observed_avg_topical_score ?? 0),
       observed_crawl_issues: Number(summary.observed_crawl_issues ?? 0),
+      observed_health_history: Array.isArray(summary.observed_health_history)
+        ? summary.observed_health_history.map((entry) => ({
+            snapshot_date: String((entry as Record<string, unknown>).snapshot_date ?? ""),
+            health_score: Number((entry as Record<string, unknown>).health_score ?? 0),
+            avg_seo_score: Number((entry as Record<string, unknown>).avg_seo_score ?? 0),
+            avg_quality_score: Number((entry as Record<string, unknown>).avg_quality_score ?? 0),
+            page_count: Number((entry as Record<string, unknown>).page_count ?? 0),
+          }))
+        : [],
+      observed_health_delta: Number(summary.observed_health_delta ?? 0),
       observed_pillar_pages: Array.isArray(summary.observed_pillar_pages)
         ? summary.observed_pillar_pages.map((entry) => ({
             label: String((entry as Record<string, unknown>).label ?? ""),
@@ -1798,6 +1844,8 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         observed_avg_quality_score: 0,
         observed_avg_topical_score: 0,
         observed_crawl_issues: 0,
+        observed_health_history: [],
+        observed_health_delta: 0,
         observed_pillar_pages: [],
         observed_link_gap_pages: [],
         observed_orphan_alerts: [],
