@@ -380,7 +380,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
           siteId={site.site_id}
           site={site}
           submitAction={submitRemoteInstallAction.bind(null, site.site_id)}
-          initialState={{ status: "idle", phase: "idle", message: "", values: {}, report: site.installation.readiness_report }}
+          initialState={{ status: "idle", phase: "idle", message: "", values: {}, report: site.installation_doctor.last_report }}
         />
 
         <Card>

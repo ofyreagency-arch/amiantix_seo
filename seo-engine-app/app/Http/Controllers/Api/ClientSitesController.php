@@ -651,6 +651,7 @@ class ClientSitesController extends Controller
         $this->validateInstallationAccess($data);
 
         $precheck = app(InstallationPrecheckService::class)->run($data);
+        $this->persistInstallationDoctorState($site, $data, $precheck->toArray(), $precheck->isReady() ? 'ready' : 'blocked');
 
         if (! $precheck->isReady()) {
             return response()->json([
@@ -684,6 +685,7 @@ class ClientSitesController extends Controller
         $publication['bridge_status'] = 'requested';
         $settings['publication'] = $publication;
         $site->forceFill(['settings_json' => $settings])->save();
+        $this->persistInstallationDoctorState($site, $data, $precheck->toArray(), 'installation_started');
         $this->appendExecutionHistory(
             $site,
             'Installation premium demandée',
@@ -707,7 +709,8 @@ class ClientSitesController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $user->seoSites()
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
             ->where('site_id', $siteId)
             ->firstOrFail();
 
@@ -716,6 +719,7 @@ class ClientSitesController extends Controller
         $this->validateInstallationAccess($data);
 
         $report = app(InstallationPrecheckService::class)->run($data);
+        $this->persistInstallationDoctorState($site, $data, $report->toArray(), $report->isReady() ? 'ready' : 'blocked');
 
         return response()->json([
             'report' => $report->toArray(),
@@ -1041,6 +1045,7 @@ class ClientSitesController extends Controller
             'gsc_account_email' => $site->resolvedGoogleConnection()?->google_account_email,
             'gsc_last_sync_at' => $site->resolvedGoogleConnection()?->last_sync_at,
             'gsc_data_as_of' => $this->resolvedGscDataAsOf($site),
+            'installation_doctor' => $this->serializeInstallationDoctor($site),
             'installation' => $this->serializeInstallation($installation),
             'crawl' => $this->serializeObservedCrawl($crawl),
             'publication_target' => $this->publicationTargetStatus($site),
@@ -2355,6 +2360,79 @@ class ClientSitesController extends Controller
             'label' => 'Laisser tourner le monitoring',
             'detail' => 'Le site est branché. PraeviSEO surveille maintenant les signaux et rouvrira des actions si besoin.',
             'priority' => 'low',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $inputs
+     * @param array<string,mixed> $report
+     */
+    private function persistInstallationDoctorState(SeoSite $site, array $inputs, array $report, string $status): void
+    {
+        $settings = $site->settings_json ?? [];
+        $settings['installation_doctor'] = [
+            'status' => $status,
+            'last_run_at' => now()->toIso8601String(),
+            'last_inputs' => $this->sanitizeInstallationDoctorInputs($inputs),
+            'last_report' => $report,
+        ];
+
+        $site->forceFill(['settings_json' => $settings])->save();
+        $site->refresh();
+    }
+
+    /**
+     * @param array<string,mixed> $inputs
+     * @return array<string,string|null>
+     */
+    private function sanitizeInstallationDoctorInputs(array $inputs): array
+    {
+        $keys = [
+            'hosting_provider',
+            'access_method',
+            'framework_hint',
+            'ssh_host',
+            'ssh_port',
+            'ssh_username',
+            'ssh_project_path',
+            'sftp_host',
+            'sftp_port',
+            'sftp_username',
+            'sftp_project_path',
+        ];
+
+        $sanitized = [];
+
+        foreach ($keys as $key) {
+            $value = $inputs[$key] ?? null;
+            $sanitized[$key] = $value === null ? null : trim((string) $value);
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * @return array{
+     *   status:string,
+     *   last_run_at:?string,
+     *   last_inputs:array<string,string|null>,
+     *   last_report:?array<string,mixed>
+     * }
+     */
+    private function serializeInstallationDoctor(SeoSite $site): array
+    {
+        $doctor = data_get($site->settings_json, 'installation_doctor', []);
+        $doctor = is_array($doctor) ? $doctor : [];
+        $inputs = is_array($doctor['last_inputs'] ?? null) ? $doctor['last_inputs'] : [];
+        $report = is_array($doctor['last_report'] ?? null) ? $doctor['last_report'] : null;
+
+        return [
+            'status' => (string) ($doctor['status'] ?? 'idle'),
+            'last_run_at' => isset($doctor['last_run_at']) ? (string) $doctor['last_run_at'] : null,
+            'last_inputs' => collect($inputs)
+                ->map(fn (mixed $value): ?string => $value === null ? null : (string) $value)
+                ->all(),
+            'last_report' => $report,
         ];
     }
 

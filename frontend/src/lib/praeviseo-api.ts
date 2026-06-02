@@ -22,6 +22,12 @@ export type PraeviseoSite = {
   gsc_account_email: string | null;
   gsc_last_sync_at: string | null;
   gsc_data_as_of: string | null;
+  installation_doctor: {
+    status: string;
+    last_run_at: string | null;
+    last_inputs: Record<string, string | null>;
+    last_report: InstallationReadinessReport | null;
+  };
   installation: {
     status: string;
     current_step: string | null;
@@ -553,6 +559,19 @@ const mockSites: PraeviseoSite[] = [
     gsc_account_email: "service-account@project.iam.gserviceaccount.com",
     gsc_last_sync_at: new Date().toISOString(),
     gsc_data_as_of: new Date().toISOString().slice(0, 10),
+    installation_doctor: {
+      status: "ready",
+      last_run_at: new Date().toISOString(),
+      last_inputs: {
+        hosting_provider: "vps_linux",
+        access_method: "ssh",
+        ssh_host: "127.0.0.1",
+        ssh_port: "22",
+        ssh_username: "root",
+        ssh_project_path: "/var/www/amiantix",
+      },
+      last_report: null,
+    },
     installation: {
       status: "connected",
       current_step: "completed",
@@ -900,6 +919,12 @@ const mockSites: PraeviseoSite[] = [
     gsc_account_email: null,
     gsc_last_sync_at: null,
     gsc_data_as_of: null,
+    installation_doctor: {
+      status: "idle",
+      last_run_at: null,
+      last_inputs: {},
+      last_report: null,
+    },
     installation: {
       status: "not_started",
       current_step: null,
@@ -1394,6 +1419,24 @@ function normaliseSite(raw: unknown): PraeviseoSite {
     gsc_account_email: site.gsc_account_email ? String(site.gsc_account_email) : null,
     gsc_last_sync_at: site.gsc_last_sync_at ? String(site.gsc_last_sync_at) : null,
     gsc_data_as_of: site.gsc_data_as_of ? String(site.gsc_data_as_of) : null,
+    installation_doctor: {
+      status: String((site.installation_doctor as Record<string, unknown> | undefined)?.status ?? "idle"),
+      last_run_at: (site.installation_doctor as Record<string, unknown> | undefined)?.last_run_at
+        ? String((site.installation_doctor as Record<string, unknown> | undefined)?.last_run_at)
+        : null,
+      last_inputs:
+        typeof (site.installation_doctor as Record<string, unknown> | undefined)?.last_inputs === "object" &&
+        (site.installation_doctor as Record<string, unknown> | undefined)?.last_inputs !== null
+          ? Object.fromEntries(
+              Object.entries((site.installation_doctor as Record<string, unknown>).last_inputs as Record<string, unknown>).map(
+                ([key, value]) => [key, value == null ? null : String(value)]
+              )
+            )
+          : {},
+      last_report: normaliseInstallationReadinessReport(
+        (site.installation_doctor as Record<string, unknown> | undefined)?.last_report
+      ),
+    },
     installation: {
       status: String((site.installation as Record<string, unknown> | undefined)?.status ?? "not_started"),
       current_step: (site.installation as Record<string, unknown> | undefined)?.current_step
@@ -2181,6 +2224,12 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
       gsc_account_email: null,
       gsc_last_sync_at: null,
       gsc_data_as_of: null,
+      installation_doctor: {
+        status: "idle",
+        last_run_at: null,
+        last_inputs: {},
+        last_report: null,
+      },
       installation: {
         status: "not_started",
         current_step: null,
@@ -2392,6 +2441,15 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
     return {
       ...site,
       publication_bridge_status: "requested",
+      installation_doctor: {
+        ...(site.installation_doctor ?? {
+          status: "idle",
+          last_run_at: null,
+          last_inputs: {},
+          last_report: null,
+        }),
+        status: "installation_started",
+      },
       installation: {
         status: "pending",
         current_step: "pending",

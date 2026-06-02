@@ -99,6 +99,7 @@ class ClientSiteInstallationRequestTest extends TestCase
         self::assertSame('deploy', data_get($installation->encrypted_credentials, 'username'));
         self::assertSame('ssh.amiantix.com', data_get($installation->encrypted_credentials, 'host'));
         self::assertSame('super-secret-key', data_get($installation->encrypted_credentials, 'secret'));
+        self::assertSame('installation_started', data_get($site->fresh()->settings_json, 'installation_doctor.status'));
 
         Queue::assertPushed(RunRemoteInstallationJob::class, function (RunRemoteInstallationJob $job) use ($installation): bool {
             return $job->installationId === $installation?->id;
@@ -160,6 +161,10 @@ class ClientSiteInstallationRequestTest extends TestCase
         $response->assertJsonPath('report.score', 85);
         $response->assertJsonPath('report.blockers.0.label', 'APP_URL absente');
         $response->assertJsonPath('report.validated.0.label', 'SSH valide');
+
+        $site->refresh();
+        self::assertSame('blocked', data_get($site->settings_json, 'installation_doctor.status'));
+        self::assertSame(85, data_get($site->settings_json, 'installation_doctor.last_report.score'));
     }
 
     public function test_installation_request_stops_when_precheck_has_blockers(): void

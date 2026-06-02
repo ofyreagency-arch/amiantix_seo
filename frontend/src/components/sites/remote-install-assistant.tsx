@@ -25,7 +25,7 @@ type AccessOption = {
 
 type RemoteInstallAssistantProps = {
   siteId: string;
-  site: Pick<PraeviseoSite, "installation" | "publication_bridge_status">;
+  site: Pick<PraeviseoSite, "installation" | "installation_doctor" | "publication_bridge_status">;
   submitAction: (
     state: RemoteInstallActionState,
     formData: FormData
@@ -117,12 +117,19 @@ export function RemoteInstallAssistant({
   const [state, formAction, isPending] = useActionState(submitAction, initialState);
   const accessStepRef = useRef<HTMLDivElement | null>(null);
   const [liveInstallation, setLiveInstallation] = useState(site.installation);
-  const [hostingId, setHostingId] = useState<string>(site.installation.hosting_provider ?? "vps_linux");
-  const [accessId, setAccessId] = useState<AccessOption["id"]>(
-    (site.installation.access_method as AccessOption["id"] | null) ?? "ssh"
+  const [hostingId, setHostingId] = useState<string>(
+    site.installation_doctor.last_inputs.hosting_provider ?? site.installation.hosting_provider ?? "vps_linux"
   );
-  const [showAccessStep, setShowAccessStep] = useState<boolean>(isInstallationInProgress(site.installation.status));
-  const [latestReport, setLatestReport] = useState<InstallationReadinessReport | null>(site.installation.readiness_report);
+  const [accessId, setAccessId] = useState<AccessOption["id"]>(
+    (site.installation_doctor.last_inputs.access_method as AccessOption["id"] | null) ??
+      (site.installation.access_method as AccessOption["id"] | null) ??
+      "ssh"
+  );
+  const [showAccessStep, setShowAccessStep] = useState<boolean>(
+    site.installation_doctor.last_report !== null ||
+      Object.keys(site.installation_doctor.last_inputs).length > 0
+  );
+  const [latestReport, setLatestReport] = useState<InstallationReadinessReport | null>(site.installation_doctor.last_report);
 
   const selectedHosting = useMemo(
     () => HOSTING_OPTIONS.find((option) => option.id === hostingId) ?? HOSTING_OPTIONS[0],
@@ -135,14 +142,16 @@ export function RemoteInstallAssistant({
   );
 
   const installationRequested =
-    ["connecting", "detecting_environment", "installing", "configuring", "activating", "completed"].includes(liveInstallation.status) ||
+    (site.installation_doctor.status === "installation_started" &&
+      ["pending", "connecting", "detecting_environment", "installing", "configuring", "activating", "completed", "failed"].includes(
+        liveInstallation.status
+      )) ||
     (state.phase === "install" && state.status === "success");
-  const installationFailed = liveInstallation.status === "failed";
+  const installationFailed = installationRequested && liveInstallation.status === "failed";
   const accessesSaved =
-    liveInstallation.status === "pending" ||
+    Object.keys(site.installation_doctor.last_inputs).length > 0 ||
     state.phase !== "idle" ||
-    installationRequested ||
-    installationFailed;
+    latestReport !== null;
   const progressInstallation = installationFailed
     ? {
         ...liveInstallation,
@@ -151,7 +160,7 @@ export function RemoteInstallAssistant({
         progress: 0,
       }
     : liveInstallation;
-  const report = state.report ?? latestReport;
+  const report = state.report ?? latestReport ?? site.installation_doctor.last_report;
   const reportReady = report?.status === "ready";
   const hasBlockers = (report?.blockers?.length ?? 0) > 0;
   const diagnosticCompleted = state.phase === "diagnostic" && report !== null;
@@ -160,8 +169,8 @@ export function RemoteInstallAssistant({
 
   useEffect(() => {
     setLiveInstallation(site.installation);
-    setLatestReport(site.installation.readiness_report);
-  }, [site.installation]);
+    setLatestReport(site.installation_doctor.last_report);
+  }, [site.installation, site.installation_doctor.last_report]);
 
   useEffect(() => {
     if (state.values.hosting_provider) {
@@ -186,7 +195,7 @@ export function RemoteInstallAssistant({
   }, [state]);
 
   useEffect(() => {
-    if (!isInstallationInProgress(liveInstallation.status)) {
+    if (!installationRequested) {
       return;
     }
 
@@ -223,7 +232,7 @@ export function RemoteInstallAssistant({
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [liveInstallation.status, siteId]);
+  }, [installationRequested, liveInstallation.status, siteId]);
 
   const beginInstall = () => {
     setShowAccessStep(true);
@@ -613,14 +622,29 @@ export function RemoteInstallAssistant({
 
                 {selectedAccess.id === "ssh" ? (
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Input name="ssh_host" label="Hôte SSH" placeholder="ssh.votre-hebergeur.com" defaultValue={valueFor("ssh_host")} />
-                    <Input name="ssh_port" label="Port" placeholder="22" defaultValue={valueFor("ssh_port")} />
-                    <Input name="ssh_username" label="Utilisateur" placeholder="deploy ou root" defaultValue={valueFor("ssh_username")} />
+                    <Input
+                      name="ssh_host"
+                      label="Hôte SSH"
+                      placeholder="ssh.votre-hebergeur.com"
+                      defaultValue={valueFor("ssh_host") || site.installation_doctor.last_inputs.ssh_host || ""}
+                    />
+                    <Input
+                      name="ssh_port"
+                      label="Port"
+                      placeholder="22"
+                      defaultValue={valueFor("ssh_port") || site.installation_doctor.last_inputs.ssh_port || ""}
+                    />
+                    <Input
+                      name="ssh_username"
+                      label="Utilisateur"
+                      placeholder="deploy ou root"
+                      defaultValue={valueFor("ssh_username") || site.installation_doctor.last_inputs.ssh_username || ""}
+                    />
                     <Input
                       name="ssh_project_path"
                       label="Chemin du projet"
                       placeholder="/var/www/mon-site"
-                      defaultValue={valueFor("ssh_project_path")}
+                      defaultValue={valueFor("ssh_project_path") || site.installation_doctor.last_inputs.ssh_project_path || ""}
                     />
                     <Input
                       name="ssh_secret"
@@ -640,9 +664,24 @@ export function RemoteInstallAssistant({
 
                 {selectedAccess.id === "sftp" ? (
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Input name="sftp_host" label="Hôte SFTP / FTP" placeholder="ftp.votre-hebergeur.com" defaultValue={valueFor("sftp_host")} />
-                    <Input name="sftp_port" label="Port" placeholder="21 ou 22" defaultValue={valueFor("sftp_port")} />
-                    <Input name="sftp_username" label="Utilisateur" placeholder="Identifiant FTP" defaultValue={valueFor("sftp_username")} />
+                    <Input
+                      name="sftp_host"
+                      label="Hôte SFTP / FTP"
+                      placeholder="ftp.votre-hebergeur.com"
+                      defaultValue={valueFor("sftp_host") || site.installation_doctor.last_inputs.sftp_host || ""}
+                    />
+                    <Input
+                      name="sftp_port"
+                      label="Port"
+                      placeholder="21 ou 22"
+                      defaultValue={valueFor("sftp_port") || site.installation_doctor.last_inputs.sftp_port || ""}
+                    />
+                    <Input
+                      name="sftp_username"
+                      label="Utilisateur"
+                      placeholder="Identifiant FTP"
+                      defaultValue={valueFor("sftp_username") || site.installation_doctor.last_inputs.sftp_username || ""}
+                    />
                     <Input
                       name="sftp_password"
                       type="password"
@@ -654,7 +693,7 @@ export function RemoteInstallAssistant({
                       name="sftp_project_path"
                       label="Dossier du site"
                       placeholder="/www ou /htdocs/mon-site"
-                      defaultValue={valueFor("sftp_project_path")}
+                      defaultValue={valueFor("sftp_project_path") || site.installation_doctor.last_inputs.sftp_project_path || ""}
                     />
                     <Input
                       name="framework_hint"
