@@ -2949,6 +2949,10 @@ export function getSiteConnectPath(siteId: string): string {
   return `/sites/${siteId}/connect`;
 }
 
+export function getSiteAutomationPath(siteId: string): string {
+  return `/sites/${siteId}/automation`;
+}
+
 export function getSitePath(siteId: string): string {
   return `/sites/${siteId}`;
 }

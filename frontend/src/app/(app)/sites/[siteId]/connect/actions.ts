@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  getSiteAutomationPath,
   getSiteConnectPath,
   requestRemoteInstallationPrecheck,
   type InstallationReadinessReport,
@@ -133,35 +134,41 @@ export async function submitRemoteInstallAction(
 export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
   await requestPremiumCrawl(siteId);
   revalidatePath(getSiteConnectPath(siteId));
-  redirect(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(getSiteAutomationPath(siteId));
 }
 
 export async function launchPremiumGenerationAction(siteId: string): Promise<void> {
   await requestPremiumGeneration(siteId);
   revalidatePath(getSiteConnectPath(siteId));
-  redirect(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(getSiteAutomationPath(siteId));
 }
 
 export async function launchPremiumRewriteAction(siteId: string): Promise<void> {
   await requestPremiumRewrite(siteId);
   revalidatePath(getSiteConnectPath(siteId));
-  redirect(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(getSiteAutomationPath(siteId));
 }
 
 export async function launchPremiumLinkingAction(siteId: string): Promise<void> {
   await requestPremiumLinking(siteId);
   revalidatePath(getSiteConnectPath(siteId));
-  redirect(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(getSiteAutomationPath(siteId));
 }
 
 export async function launchPremiumImageAction(siteId: string): Promise<void> {
   await requestPremiumImages(siteId);
   revalidatePath(getSiteConnectPath(siteId));
-  redirect(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(getSiteAutomationPath(siteId));
 }
 
 export async function launchPremiumPublicationAction(siteId: string): Promise<void> {
   await requestPremiumPublication(siteId);
   revalidatePath(getSiteConnectPath(siteId));
-  redirect(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(getSiteAutomationPath(siteId));
 }
