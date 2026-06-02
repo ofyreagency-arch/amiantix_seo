@@ -132,13 +132,53 @@ class SshRemoteConnector implements RemoteConnector
         }
 
         $this->ssh->setTimeout($timeoutSeconds);
-        $output = $this->ssh->exec($command->command);
+        $output = $this->ssh->exec($this->wrapCommand($command->command));
         $exitCode = $this->ssh->getExitStatus();
+
+        return $this->parseCommandResult((string) $output, $exitCode);
+    }
+
+    private function wrapCommand(string $command): string
+    {
+        $token = bin2hex(random_bytes(8));
+        $stdoutFile = "/tmp/praeviseo_stdout_{$token}";
+        $stderrFile = "/tmp/praeviseo_stderr_{$token}";
+
+        return sprintf(
+            "stdout_file=%s; stderr_file=%s; (%s) 1>\"$stdout_file\" 2>\"$stderr_file\"; exit_code=$?; ".
+            "printf '__PRAEVISEO_EXIT__=%s\n' \"$exit_code\"; ".
+            "printf '__PRAEVISEO_STDOUT_BEGIN__\n'; if [ -f \"$stdout_file\" ]; then cat \"$stdout_file\"; fi; printf '\n__PRAEVISEO_STDOUT_END__\n'; ".
+            "printf '__PRAEVISEO_STDERR_BEGIN__\n'; if [ -f \"$stderr_file\" ]; then cat \"$stderr_file\"; fi; printf '\n__PRAEVISEO_STDERR_END__\n'; ".
+            "rm -f \"$stdout_file\" \"$stderr_file\"",
+            escapeshellarg($stdoutFile),
+            escapeshellarg($stderrFile),
+            $command,
+            '%d',
+        );
+    }
+
+    private function parseCommandResult(string $output, ?int $fallbackExitCode): RemoteCommandResult
+    {
+        $exitCode = $fallbackExitCode;
+        $stdout = trim($output);
+        $stderr = '';
+
+        if (preg_match('/__PRAEVISEO_EXIT__=(\d+)/', $output, $exitMatches) === 1) {
+            $exitCode = (int) $exitMatches[1];
+        }
+
+        if (preg_match('/__PRAEVISEO_STDOUT_BEGIN__\R(?P<stdout>.*?)\R__PRAEVISEO_STDOUT_END__/s', $output, $stdoutMatches) === 1) {
+            $stdout = trim((string) ($stdoutMatches['stdout'] ?? ''));
+        }
+
+        if (preg_match('/__PRAEVISEO_STDERR_BEGIN__\R(?P<stderr>.*?)\R__PRAEVISEO_STDERR_END__/s', $output, $stderrMatches) === 1) {
+            $stderr = trim((string) ($stderrMatches['stderr'] ?? ''));
+        }
 
         return new RemoteCommandResult(
             successful: $exitCode === 0 || $exitCode === null,
-            output: trim((string) $output),
-            errorOutput: '',
+            output: $stdout,
+            errorOutput: $stderr,
             exitCode: $exitCode,
         );
     }

@@ -10,6 +10,8 @@ use App\RemoteInstallation\Connectors\RemoteConnector;
 use App\RemoteInstallation\Exceptions\RemoteInstallationException;
 use App\RemoteInstallation\RemoteCommand;
 use App\RemoteInstallation\RemoteEnvironment;
+use App\RemoteInstallation\RemoteCommandResult;
+use Illuminate\Support\Facades\Log;
 
 class SymfonyInstallerStrategy implements InstallerStrategy
 {
@@ -37,19 +39,62 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             throw RemoteInstallationException::execution('Code de connexion PraeviSEO introuvable pour ce site.');
         }
 
-        $clearResult = $connector->run(RemoteCommand::clearSymfonyCache($environment->projectPath), 180);
+        $clearCommand = RemoteCommand::clearSymfonyCache($environment->projectPath);
+        $clearResult = $connector->run($clearCommand, 180);
 
         if (! $clearResult->successful) {
+            $this->logCommandFailure(
+                phase: 'clear_symfony_cache',
+                installation: $installation,
+                site: $site,
+                environment: $environment,
+                command: $clearCommand,
+                result: $clearResult,
+            );
+
             throw RemoteInstallationException::execution('Le cache Symfony n a pas pu être préparé avant la connexion PraeviSEO.');
         }
 
-        $connectResult = $connector->run(RemoteCommand::connectSymfony($environment->projectPath, $code), 180);
+        $connectCommand = RemoteCommand::connectSymfony($environment->projectPath, $code);
+        $connectResult = $connector->run($connectCommand, 180);
 
         if (! $connectResult->successful) {
+            $this->logCommandFailure(
+                phase: 'connect_symfony',
+                installation: $installation,
+                site: $site,
+                environment: $environment,
+                command: $connectCommand,
+                result: $connectResult,
+            );
+
             throw RemoteInstallationException::execution('PraeviSEO n a pas pu être configuré automatiquement sur Symfony.');
         }
 
         $installation->markProgress(RemoteInstallation::STATUS_CONFIGURING, 'symfony_connected', 75, 'Connexion PraeviSEO configurée sur Symfony.');
+    }
+
+    private function logCommandFailure(
+        string $phase,
+        RemoteInstallation $installation,
+        SeoSite $site,
+        RemoteEnvironment $environment,
+        RemoteCommand $command,
+        RemoteCommandResult $result,
+    ): void {
+        Log::error('Remote Symfony configuration command failed.', [
+            'phase' => $phase,
+            'installation_id' => $installation->id,
+            'site_id' => $site->site_id,
+            'framework' => $environment->framework,
+            'project_path' => $environment->projectPath,
+            'command_label' => $command->label,
+            'command' => $command->command,
+            'stdout' => $result->output,
+            'stderr' => $result->errorOutput,
+            'exit_code' => $result->exitCode,
+            'successful' => $result->successful,
+        ]);
     }
 
     public function activate(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
