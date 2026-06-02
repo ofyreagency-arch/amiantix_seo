@@ -205,20 +205,42 @@ class PremiumAutomationLoopService
                 ->first();
 
             $suggestion = $existingSuggestion ?: $this->rewrite->createSuggestion($page->fresh(['suggestions']), 'enrich');
+            $result = $this->workflow->apply($suggestion->fresh());
+            $page->refresh();
+            $publishedPage = $this->publishPageIfActionable($site, $page);
 
             $this->appendExecutionHistory(
                 $site,
-                'Boucle premium : réécriture préparée',
-                sprintf('PraeviSEO a préparé une nouvelle amélioration automatique pour "%s".', (string) $page->title),
+                'Boucle premium : réécriture appliquée',
+                sprintf('PraeviSEO a appliqué une amélioration automatique réelle sur "%s".', (string) $page->title),
                 'default',
-                'auto_rewrite_prepared',
+                'auto_rewrite_applied',
             );
-            $this->markActionState($site, 'rewrite', 'completed', sprintf('Une amélioration automatique est prête pour "%s".', (string) $page->title));
+
+            if ($publishedPage) {
+                $this->appendExecutionHistory(
+                    $site,
+                    'Boucle premium : réécriture publiée',
+                    sprintf('PraeviSEO a republié automatiquement "%s" puis relancé sa relecture live.', (string) $publishedPage->title),
+                    'default',
+                    'auto_rewrite_published',
+                );
+                $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
+            }
+
+            $this->markActionState(
+                $site,
+                'rewrite',
+                'completed',
+                $publishedPage
+                    ? sprintf('La page "%s" a été réécrite puis republiée automatiquement.', (string) $publishedPage->title)
+                    : sprintf('La page "%s" a été réécrite automatiquement côté moteur.', (string) $page->title)
+            );
 
             return [
                 'executed' => true,
                 'action' => 'rewrite',
-                'reason' => $existingSuggestion ? 'pending_rewrite_reused' : 'rewrite_created',
+                'reason' => $publishedPage ? 'rewrite_published' : ($existingSuggestion ? 'pending_rewrite_reused' : 'rewrite_applied'),
             ];
         } catch (Throwable $e) {
             $this->markActionState(
@@ -344,17 +366,37 @@ class PremiumAutomationLoopService
             $this->markActionState($site, 'images', 'running', 'PraeviSEO relance automatiquement une image SEO.');
             $page = $this->images->generate($page);
             $page = $this->images->approve($page);
+            $publishedPage = $this->publishPageIfActionable($site, $page);
 
             $this->appendExecutionHistory(
                 $site,
                 'Boucle premium : image générée',
-                sprintf('PraeviSEO a généré puis approuvé une image pour "%s".', (string) $page->title),
+                sprintf('PraeviSEO a généré, stocké puis associé une image SEO à "%s".', (string) $page->title),
                 'default',
                 'auto_image_generated',
             );
-            $this->markActionState($site, 'images', 'completed', sprintf('Une image SEO est prête pour "%s".', (string) $page->title));
 
-            return ['executed' => true, 'action' => 'images', 'reason' => 'image_generated'];
+            if ($publishedPage) {
+                $this->appendExecutionHistory(
+                    $site,
+                    'Boucle premium : image publiée',
+                    sprintf('PraeviSEO a republié automatiquement "%s" avec sa nouvelle image.', (string) $publishedPage->title),
+                    'default',
+                    'auto_image_published',
+                );
+                $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
+            }
+
+            $this->markActionState(
+                $site,
+                'images',
+                'completed',
+                $publishedPage
+                    ? sprintf('L image SEO de "%s" a été générée puis publiée automatiquement.', (string) $publishedPage->title)
+                    : sprintf('Une image SEO est prête pour "%s" côté moteur.', (string) $page->title)
+            );
+
+            return ['executed' => true, 'action' => 'images', 'reason' => $publishedPage ? 'image_published' : 'image_generated'];
         } catch (Throwable $e) {
             $this->markActionState(
                 $site,
@@ -515,6 +557,21 @@ class PremiumAutomationLoopService
         );
 
         return $crawl;
+    }
+
+    private function publishPageIfActionable(SeoSite $site, SeoPage $page): ?SeoPage
+    {
+        if (! $page->isPublishedInEngine()) {
+            return null;
+        }
+
+        $targetStatus = $this->livePublication->targetStatusForSite($site);
+
+        if (! (bool) ($targetStatus['engine_actionable'] ?? false)) {
+            return null;
+        }
+
+        return $this->livePublication->publish($page->fresh(), $site);
     }
 
     private function appendExecutionHistory(

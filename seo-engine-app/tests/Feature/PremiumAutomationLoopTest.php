@@ -9,10 +9,13 @@ use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteGoogleConnection;
+use App\Models\SeoSuggestion;
 use App\Runtime\PremiumAutomationLoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Mockery;
 use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
+use App\Services\Media\SeoPageImageGenerator;
 use Tests\TestCase;
 
 class PremiumAutomationLoopTest extends TestCase
@@ -131,6 +134,135 @@ class PremiumAutomationLoopTest extends TestCase
         $this->assertNull($result['action']);
         $this->assertSame('no_actionable_step', $result['reason']);
         $this->assertSame(1, SeoPage::query()->where('site_id', $site->site_id)->count());
+    }
+
+    public function test_premium_loop_can_apply_and_republish_a_rewrite(): void
+    {
+        Http::fake([
+            'https://amiantix.test/api/praeviseo/bridge/publish' => Http::response([
+                'live_url' => 'https://amiantix.test/ressources/diagnostic-amiante',
+            ], 200),
+        ]);
+
+        $site = $this->makePremiumReadySite([
+            'automation' => [
+                'actions' => [
+                    'publication' => ['state' => 'completed', 'updated_at' => now()->subHour()->toIso8601String()],
+                    'linking' => ['state' => 'completed', 'updated_at' => now()->subHour()->toIso8601String()],
+                ],
+            ],
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante',
+            'slug' => 'diagnostic-amiante',
+            'status' => 'published',
+            'published_at' => now()->subDay(),
+            'published_live' => true,
+            'published_live_at' => now()->subDay(),
+            'live_url' => 'https://amiantix.test/ressources/diagnostic-amiante',
+            'title' => 'Titre initial',
+            'meta_description' => 'Meta initiale',
+            'content' => '<p>Avant.</p>',
+            'seo_score' => 74,
+        ]);
+
+        $suggestion = SeoSuggestion::query()->create([
+            'seo_page_id' => $page->id,
+            'source' => 'premium_loop',
+            'status' => 'pending',
+            'signals_json' => ['source' => 'gsc'],
+            'suggestions_json' => [
+                'title' => 'Titre optimisé',
+                'content' => '<p>Apres.</p>',
+            ],
+        ]);
+
+        $result = $this->app->make(PremiumAutomationLoopService::class)->runForSite($site->fresh());
+
+        $page->refresh();
+        $suggestion->refresh();
+        $site->refresh();
+
+        $this->assertTrue($result['executed']);
+        $this->assertSame('rewrite', $result['action']);
+        $this->assertSame('rewrite_published', $result['reason']);
+        $this->assertSame('Titre optimisé', $page->title);
+        $this->assertSame('<p>Apres.</p>', $page->content);
+        $this->assertTrue($page->published_live);
+        $this->assertSame('applied', $suggestion->status);
+        $this->assertSame('completed', data_get($site->settings_json, 'automation.actions.rewrite.state'));
+    }
+
+    public function test_premium_loop_can_generate_and_republish_an_image(): void
+    {
+        Http::fake([
+            'https://amiantix.test/api/praeviseo/bridge/publish' => Http::response([
+                'live_url' => 'https://amiantix.test/ressources/fiche-retrait-amiante',
+            ], 200),
+        ]);
+
+        $site = $this->makePremiumReadySite([
+            'automation' => [
+                'actions' => [
+                    'publication' => ['state' => 'completed', 'updated_at' => now()->subHour()->toIso8601String()],
+                    'linking' => ['state' => 'completed', 'updated_at' => now()->toIso8601String()],
+                    'rewrite' => ['state' => 'completed', 'updated_at' => now()->toIso8601String()],
+                    'generation' => ['state' => 'completed', 'updated_at' => now()->toIso8601String()],
+                ],
+            ],
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'fiche retrait amiante',
+            'slug' => 'fiche-retrait-amiante',
+            'status' => 'published',
+            'published_at' => now()->subDay(),
+            'published_live' => true,
+            'published_live_at' => now()->subDay(),
+            'live_url' => 'https://amiantix.test/ressources/fiche-retrait-amiante',
+            'title' => 'Fiche retrait amiante',
+            'content' => '<p>Page publiée.</p>',
+            'seo_score' => 69,
+        ]);
+
+        $images = Mockery::mock(SeoPageImageGenerator::class);
+        $images->shouldReceive('generate')
+            ->once()
+            ->andReturnUsing(function (SeoPage $page): SeoPage {
+                $page->forceFill([
+                    'image_path' => 'seo-pages/amiantix/fiche-retrait-amiante.png',
+                    'image_alt' => 'Fiche retrait amiante',
+                    'image_status' => 'generated',
+                ])->save();
+
+                return $page->refresh();
+            });
+        $images->shouldReceive('approve')
+            ->once()
+            ->andReturnUsing(function (SeoPage $page): SeoPage {
+                $page->forceFill([
+                    'image_status' => 'approved',
+                ])->save();
+
+                return $page->refresh();
+            });
+        $this->app->instance(SeoPageImageGenerator::class, $images);
+
+        $result = $this->app->make(PremiumAutomationLoopService::class)->runForSite($site->fresh());
+
+        $page->refresh();
+        $site->refresh();
+
+        $this->assertTrue($result['executed']);
+        $this->assertSame('images', $result['action']);
+        $this->assertSame('image_published', $result['reason']);
+        $this->assertSame('seo-pages/amiantix/fiche-retrait-amiante.png', $page->image_path);
+        $this->assertSame('approved', $page->image_status);
+        $this->assertTrue($page->published_live);
+        $this->assertSame('completed', data_get($site->settings_json, 'automation.actions.images.state'));
     }
 
     /**

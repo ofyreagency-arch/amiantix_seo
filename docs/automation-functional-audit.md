@@ -25,13 +25,10 @@ Automatisations auditées :
 
 - `Crawl`
 - `Créer un article`
-- `Maillage`
-- `Publication`
-
-### Partiellement fonctionnel
-
 - `Réécriture`
+- `Maillage`
 - `Image SEO`
+- `Publication`
 
 ### Non branché
 
@@ -216,12 +213,11 @@ Et aussi :
 
 ### Statut
 
-- `Partiellement fonctionnel`
+- `Fonctionnel`
 
 ### Ce qui est réellement exécuté
 
-Le bouton `Préparer une réécriture` ne réécrit pas immédiatement la page live.  
-Il prépare une **suggestion de réécriture**.
+Le bouton `Préparer une réécriture` va maintenant jusqu à une vraie application de la réécriture, puis à une republication live si la cible est prête.
 
 Chaîne d exécution :
 
@@ -237,12 +233,21 @@ Chaîne d exécution :
    - `resolveRewriteCandidatePage()`
 6. production de suggestion
    - `SeoRewriteService::createSuggestion(..., 'enrich')`
+7. application réelle
+   - `SeoSuggestionWorkflowService::apply()`
+8. republication live si la cible est prête
+   - `SeoLivePublicationService::publish()`
+9. suivi après publication
+   - relecture relancée via `scheduleObservedCrawlIfIdle(..., 'after_publication')`
 
 ### Job / commande / service lancé
 
 - service : `SeoRewriteService`
-- pas de job queue
-- pas d application automatique du contenu dans cette action
+- service d application : `SeoSuggestionWorkflowService`
+- service de publication live : `SeoLivePublicationService`
+- crawl post-publication :
+  - `scheduleObservedCrawlIfIdle()`
+  - `RunObservedSiteCrawlJob`
 
 ### Où le résultat est stocké
 
@@ -251,7 +256,18 @@ Dans `seo_suggestions` / modèle `SeoSuggestion` :
 - `source`
 - `signals_json`
 - `suggestions_json`
-- `status = pending`
+- `status = applied`
+- `applied_at`
+
+Dans `seo_pages` :
+
+- `title`
+- `meta_description`
+- `content`
+- champs suggestion appliqués selon le payload
+- `published_live`
+- `published_live_at`
+- `live_url`
 
 Et aussi :
 
@@ -263,19 +279,21 @@ Et aussi :
 - `action_statuses.rewrite`
 - `execution_history`
 - `latest_suggestion` dans `publications`, `pages`, `activity`, `dashboard`
+- puis, si la cible live est prête :
+  - `published_live`
+  - `live_url`
+  - nouvelle relecture déclenchée
 
-### Ce qui reste partiel
+### Limites actuelles
 
-- la page n est pas réécrite/appliquée automatiquement ici
-- on prépare une amélioration, on n exécute pas encore une mutation complète du contenu final
-- il y a donc de la valeur réelle, mais sous forme de **préparation**
+- si la cible live n est pas encore actionnable, la réécriture s applique bien côté moteur mais attend la prochaine vraie publication
+- la qualité du résultat dépend toujours de la qualité de la suggestion initiale
 
 ### Verdict
 
-- ce n est **pas du faux**
-- mais ce n est pas encore une boucle “réécriture appliquée et republiée” à ce point précis
-- classification correcte :
-  - `Partiellement fonctionnel`
+- la réécriture est maintenant **réellement exécutée de bout en bout**
+- elle couvre sélection, génération, application, publication éventuelle et suivi
+- la question suivante n est plus le branchement, mais la **qualité de la recommandation produite**
 
 ---
 
@@ -363,11 +381,11 @@ Dans `seo_sites.settings_json` :
 
 ### Statut
 
-- `Partiellement fonctionnel`
+- `Fonctionnel`
 
 ### Ce qui est réellement exécuté
 
-Le bouton `Générer l’image SEO` déclenche une vraie génération d image via OpenAI, puis approuve l image dans le moteur.
+Le bouton `Générer l’image SEO` déclenche une vraie génération d image via OpenAI, l associe à la page, puis republie la page si la cible live est prête.
 
 Chaîne d exécution :
 
@@ -386,12 +404,19 @@ Chaîne d exécution :
    - appel HTTP OpenAI `/v1/images/generations`
 7. validation image
    - `SeoPageImageGenerator::approve()`
+8. republication live si la cible est prête
+   - `SeoLivePublicationService::publish()`
+9. suivi après publication
+   - relecture relancée via `scheduleObservedCrawlIfIdle(..., 'after_publication')`
 
 ### Job / commande / service lancé
 
 - service : `SeoPageImageGenerator`
 - appel HTTP réel OpenAI
-- pas de job queue dédié
+- service de publication live : `SeoLivePublicationService`
+- crawl post-publication :
+  - `scheduleObservedCrawlIfIdle()`
+  - `RunObservedSiteCrawlJob`
 
 ### Où le résultat est stocké
 
@@ -406,6 +431,9 @@ Dans `seo_pages` :
 - `image_alt`
 - `image_status`
 - `image_quality_json`
+- `published_live`
+- `published_live_at`
+- `live_url`
 
 Dans `seo_sites.settings_json` :
 
@@ -418,19 +446,22 @@ Dans `seo_sites.settings_json` :
 - `execution_history`
 - publications/pages quand la page enrichie est listée
 - score/indexabilité image côté moteur
+- puis, si la cible live est prête :
+  - `published_live`
+  - `live_url`
+  - nouvelle relecture déclenchée
 
-### Ce qui reste partiel
+### Limites actuelles
 
 - dépend d `OPENAI_API_KEY`
 - dépend du stockage public
-- l image est générée et approuvée dans le moteur, mais sa valeur SEO réelle dépend ensuite de la publication/live
+- si la cible live n est pas prête, l image reste correctement associée côté moteur et attend la prochaine vraie publication
 
 ### Verdict
 
 - backend réellement branché
-- mais dépendance externe forte
-- classification la plus honnête :
-  - `Partiellement fonctionnel`
+- génération, stockage, association, publication et suivi sont couverts
+- le vrai risque restant est surtout la dépendance externe OpenAI et stockage
 
 ---
 

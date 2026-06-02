@@ -336,7 +336,13 @@ class ClientSitesController extends Controller
         }
     }
 
-    public function startPremiumRewrite(Request $request, string $siteId, SeoRewriteService $rewrite): JsonResponse
+    public function startPremiumRewrite(
+        Request $request,
+        string $siteId,
+        SeoRewriteService $rewrite,
+        SeoSuggestionWorkflowService $workflow,
+        SeoLivePublicationService $livePublication,
+    ): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -371,14 +377,37 @@ class ClientSitesController extends Controller
                 ->first();
 
             $suggestion = $existingSuggestion ?: $rewrite->createSuggestion($page->fresh(['suggestions']), 'enrich');
+            $result = $workflow->apply($suggestion->fresh());
+            $page->refresh();
+            $publishedPage = $this->publishPageIfActionable($site, $page, $livePublication);
+
             $this->appendExecutionHistory(
                 $site,
-                'Réécriture préparée',
-                sprintf('PraeviSEO a préparé une amélioration pour la page "%s".', (string) $page->title),
+                'Réécriture appliquée',
+                sprintf('PraeviSEO a appliqué une amélioration réelle sur la page "%s".', (string) $page->title),
                 'default',
-                'rewrite_prepared',
+                'rewrite_applied',
             );
-            $this->markActionState($site, 'rewrite', 'completed', sprintf('Une amélioration est prête pour "%s".', (string) $page->title));
+
+            if ($publishedPage) {
+                $this->appendExecutionHistory(
+                    $site,
+                    'Réécriture publiée',
+                    sprintf('PraeviSEO a republié "%s" sur le site live puis relancé la relecture.', (string) $publishedPage->title),
+                    'default',
+                    'rewrite_published',
+                );
+                $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
+            }
+
+            $this->markActionState(
+                $site,
+                'rewrite',
+                'completed',
+                $publishedPage
+                    ? sprintf('La page "%s" a été réécrite puis republiée.', (string) $publishedPage->title)
+                    : sprintf('La page "%s" a été réécrite côté moteur et reste prête pour la prochaine publication.', (string) $page->title)
+            );
             $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
             return response()->json([
@@ -389,6 +418,9 @@ class ClientSitesController extends Controller
                     'title' => (string) $page->title,
                     'suggestion_id' => (int) ($suggestion->id ?? 0),
                     'already_pending' => $existingSuggestion !== null,
+                    'updated_fields' => $result['updated_fields'],
+                    'published_live' => $publishedPage?->isPublishedLive() ?? false,
+                    'live_url' => (string) ($publishedPage?->live_url ?? ''),
                 ],
             ], 202);
         } catch (Throwable $e) {
@@ -599,14 +631,34 @@ class ClientSitesController extends Controller
 
             $page = $images->generate($page);
             $page = $images->approve($page);
+            $publishedPage = $this->publishPageIfActionable($site, $page, app(SeoLivePublicationService::class));
             $this->appendExecutionHistory(
                 $site,
                 'Image SEO générée',
-                sprintf('PraeviSEO a généré puis approuvé une image pour "%s".', (string) $page->title),
+                sprintf('PraeviSEO a généré, stocké puis associé une image SEO à "%s".', (string) $page->title),
                 'default',
                 'image_generated',
             );
-            $this->markActionState($site, 'images', 'completed', sprintf('Une image SEO est prête pour "%s".', (string) $page->title));
+
+            if ($publishedPage) {
+                $this->appendExecutionHistory(
+                    $site,
+                    'Image SEO publiée',
+                    sprintf('PraeviSEO a republié "%s" avec sa nouvelle image puis relancé la relecture.', (string) $publishedPage->title),
+                    'default',
+                    'image_published',
+                );
+                $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
+            }
+
+            $this->markActionState(
+                $site,
+                'images',
+                'completed',
+                $publishedPage
+                    ? sprintf('L image SEO de "%s" a été générée puis publiée en live.', (string) $publishedPage->title)
+                    : sprintf('Une image SEO est prête et associée à "%s" côté moteur.', (string) $page->title)
+            );
             $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
             return response()->json([
@@ -617,6 +669,8 @@ class ClientSitesController extends Controller
                     'title' => (string) $page->title,
                     'image_path' => (string) ($page->image_path ?? ''),
                     'image_status' => (string) ($page->image_status ?? ''),
+                    'published_live' => $publishedPage?->isPublishedLive() ?? false,
+                    'live_url' => (string) ($publishedPage?->live_url ?? ''),
                 ],
             ], 202);
         } catch (Throwable $e) {
@@ -1192,6 +1246,24 @@ class ClientSitesController extends Controller
         );
 
         return $crawl;
+    }
+
+    private function publishPageIfActionable(
+        SeoSite $site,
+        SeoPage $page,
+        SeoLivePublicationService $livePublication,
+    ): ?SeoPage {
+        if (! $page->isPublishedInEngine()) {
+            return null;
+        }
+
+        $targetStatus = $livePublication->targetStatusForSite($site);
+
+        if (! (bool) ($targetStatus['engine_actionable'] ?? false)) {
+            return null;
+        }
+
+        return $livePublication->publish($page->fresh(), $site);
     }
 
     /**
