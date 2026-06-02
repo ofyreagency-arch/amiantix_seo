@@ -28,6 +28,10 @@ class InstallationPrecheckService
             'php_version' => null,
             'composer_version' => null,
             'bridge_status' => null,
+            'framework_version' => null,
+            'queue_driver' => null,
+            'disk_free_mb' => null,
+            'praeviseo_url' => null,
             'project_path' => $this->projectPath($data),
             'access_method' => (string) ($data['access_method'] ?? ''),
         ];
@@ -91,10 +95,17 @@ class InstallationPrecheckService
             $phpVersion = $this->runRequired($connector, RemoteCommand::detectPhpVersion($projectPath));
             $detected['php_version'] = $phpVersion;
             $validated[] = $this->item('php', 'PHP valide', sprintf('Version détectée : %s.', $phpVersion));
+            $this->evaluatePhpVersion($phpVersion, $warnings, $blockers, $manualActions);
 
             $composerVersion = $this->runRequired($connector, RemoteCommand::detectComposer($projectPath));
             $detected['composer_version'] = $composerVersion;
             $validated[] = $this->item('composer', 'Composer valide', sprintf('Version détectée : %s.', $composerVersion));
+
+            $frameworkVersion = $this->runOptional($connector, RemoteCommand::detectFrameworkVersion($projectPath, $framework));
+            if ($frameworkVersion !== null && trim($frameworkVersion) !== '' && Str::lower(trim($frameworkVersion)) !== 'unknown') {
+                $detected['framework_version'] = trim($frameworkVersion);
+                $validated[] = $this->item('framework_version', 'Version framework détectée', sprintf('Version détectée : %s.', trim($frameworkVersion)));
+            }
 
             $writeAccess = Str::lower($this->runRequired($connector, RemoteCommand::detectWriteAccess($projectPath)));
 
@@ -152,6 +163,95 @@ class InstallationPrecheckService
                 }
             }
 
+            $phpExtensions = $this->runOptional($connector, RemoteCommand::detectInstalledPhpExtensions($projectPath));
+            if ($phpExtensions !== null) {
+                $this->evaluatePhpExtensions($phpExtensions, $warnings, $blockers, $manualActions);
+            }
+
+            $diskFreeMb = (int) trim($this->runOptional($connector, RemoteCommand::detectDiskFreeMegabytes($projectPath)) ?: '0');
+            if ($diskFreeMb > 0) {
+                $detected['disk_free_mb'] = (string) $diskFreeMb;
+
+                if ($diskFreeMb < 256) {
+                    $blockers[] = $this->blocker(
+                        'disk_space',
+                        'Espace disque insuffisant',
+                        sprintf('Le serveur ne laisse qu environ %d Mo disponibles dans le dossier projet.', $diskFreeMb),
+                        false,
+                    );
+                    $manualActions[] = $this->item(
+                        'disk_space_manual',
+                        'Libérer de l espace disque',
+                        'Libérez de la place avant de lancer l installation pour éviter un échec pendant Composer ou le cache.',
+                    );
+                } elseif ($diskFreeMb < 1024) {
+                    $warnings[] = $this->item(
+                        'disk_space',
+                        'Espace disque limité',
+                        sprintf('Le serveur laisse environ %d Mo libres. L installation peut passer, mais reste serrée.', $diskFreeMb),
+                    );
+                } else {
+                    $validated[] = $this->item('disk_space', 'Espace disque suffisant', sprintf('Environ %d Mo restent disponibles pour l installation.', $diskFreeMb));
+                }
+            }
+
+            $storageAccess = Str::lower($this->runOptional($connector, RemoteCommand::detectStorageWriteAccess($projectPath, $framework)) ?: 'unknown');
+            if (str_starts_with($storageAccess, 'not_writable:')) {
+                $path = Str::after($storageAccess, 'not_writable:');
+                $blockers[] = $this->blocker(
+                    'storage_permissions',
+                    'Droits d écriture incomplets',
+                    sprintf('PraeviSEO ne peut pas écrire correctement dans %s.', $path),
+                    true,
+                );
+                $autofixable[] = $this->item(
+                    'storage_permissions_autofix',
+                    'Droits storage/cache/logs',
+                    'PraeviSEO pourra tenter une correction simple des droits sur les dossiers techniques du framework.',
+                );
+            } elseif ($storageAccess === 'writable') {
+                $validated[] = $this->item('storage_permissions', 'Droits techniques valides', 'Les dossiers storage/cache/logs nécessaires sont accessibles en écriture.');
+            }
+
+            $databaseState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectDatabaseAccess($projectPath, $framework)) ?: 'unknown'));
+            if (in_array($databaseState, ['ok', 'configured'], true)) {
+                $validated[] = $this->item('database', 'Accès base de données détecté', 'La configuration base de données nécessaire au site semble bien présente.');
+            } elseif ($databaseState === 'missing') {
+                $warnings[] = $this->item(
+                    'database',
+                    'Base de données à vérifier',
+                    'PraeviSEO n a pas pu confirmer la configuration base de données depuis ce diagnostic.',
+                );
+                $manualActions[] = $this->item(
+                    'database_manual',
+                    'Configuration base à confirmer',
+                    'Confirmez que le site peut déjà se connecter à sa base avant l installation premium.',
+                );
+            }
+
+            $internetState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectInternetConnectivity($projectPath)) ?: 'unknown'));
+            if ($internetState === 'ok') {
+                $validated[] = $this->item('internet', 'Connectivité internet détectée', 'Le serveur semble bien pouvoir joindre les dépendances externes nécessaires.');
+            } elseif ($internetState === 'missing') {
+                $warnings[] = $this->item(
+                    'internet',
+                    'Connectivité internet à confirmer',
+                    'PraeviSEO n a pas pu vérifier clairement l accès sortant du serveur vers les dépendances Composer.',
+                );
+            }
+
+            $queueDriver = trim($this->runOptional($connector, RemoteCommand::detectQueueDriver($projectPath)) ?: '');
+            if ($queueDriver !== '' && Str::lower($queueDriver) !== 'missing') {
+                $detected['queue_driver'] = $queueDriver;
+                $validated[] = $this->item('queue_driver', 'Queue détectée', sprintf('Driver détecté : %s.', $queueDriver));
+            } else {
+                $warnings[] = $this->item(
+                    'queue_driver',
+                    'Queue non détectée',
+                    'PraeviSEO n a pas trouvé de driver de queue explicite dans le .env du site.',
+                );
+            }
+
             $workerCount = (int) trim($this->runOptional($connector, RemoteCommand::detectWorkerCount($projectPath)) ?: '0');
 
             if ($workerCount > 0) {
@@ -169,6 +269,44 @@ class InstallationPrecheckService
                 );
             }
 
+            $schedulerEntries = (int) trim($this->runOptional($connector, RemoteCommand::detectSchedulerEntries($projectPath)) ?: '0');
+            if ($schedulerEntries > 0) {
+                $validated[] = $this->item('scheduler', 'Scheduler détecté', sprintf('%d entrée(s) cron liées au scheduler ou au worker ont été repérées.', $schedulerEntries));
+            } else {
+                $warnings[] = $this->item(
+                    'scheduler',
+                    'Aucun scheduler détecté',
+                    'PraeviSEO n a pas trouvé de cron scheduler évident pour relancer les tâches automatiques.',
+                );
+                $manualActions[] = $this->item(
+                    'scheduler_manual',
+                    'Scheduler à activer',
+                    'Ajoutez un cron ou un scheduler si vous voulez que les automatisations tournent sans intervention.',
+                );
+            }
+
+            $supervisorProcesses = (int) trim($this->runOptional($connector, RemoteCommand::detectSupervisorProcesses($projectPath)) ?: '0');
+            if ($supervisorProcesses > 0) {
+                $validated[] = $this->item('supervisor', 'Supervisor détecté', sprintf('%d processus Supervisor ont été repérés.', $supervisorProcesses));
+            } else {
+                $warnings[] = $this->item(
+                    'supervisor',
+                    'Supervisor non détecté',
+                    'Aucun superviseur de worker n a été repéré pour fiabiliser les tâches de fond.',
+                );
+            }
+
+            $redisState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectRedisAvailability($projectPath)) ?: 'missing'));
+            if (str_contains($redisState, 'pong') || $redisState === 'extension') {
+                $validated[] = $this->item('redis', 'Redis détecté', 'Le serveur semble déjà prêt pour un driver Redis ou un cache plus robuste.');
+            } else {
+                $warnings[] = $this->item(
+                    'redis',
+                    'Redis non détecté',
+                    'PraeviSEO peut fonctionner sans Redis, mais la queue et le cache avancé seront moins robustes.',
+                );
+            }
+
             if ($this->bridgeInstalled($connector, $projectPath, $framework)) {
                 $detected['bridge_status'] = 'installed';
                 $validated[] = $this->item(
@@ -176,6 +314,68 @@ class InstallationPrecheckService
                     'Bridge PraeviSEO détecté',
                     'Le bridge PraeviSEO semble déjà présent sur le site. L installation pourra surtout valider et activer la connexion.',
                 );
+
+                $praeviseoCommand = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectPraeviseoConnectCommand($projectPath, $framework)) ?: 'missing'));
+                if ($praeviseoCommand === 'present') {
+                    $validated[] = $this->item(
+                        'praeviseo_command',
+                        'Commande PraeviSEO détectée',
+                        'La commande de connexion PraeviSEO est déjà disponible dans le framework.',
+                    );
+                } else {
+                    $warnings[] = $this->item(
+                        'praeviseo_command',
+                        'Commande PraeviSEO à vérifier',
+                        'Le bridge semble présent, mais la commande de connexion n a pas encore été confirmée.',
+                    );
+                }
+
+                $praeviseoUrl = trim($this->runOptional($connector, RemoteCommand::detectPraeviseoUrl($projectPath, $framework)) ?: '');
+                if ($praeviseoUrl === '' || Str::lower($praeviseoUrl) === 'missing') {
+                    $praeviseoUrl = 'https://app.praeviseo.com';
+                }
+
+                $detected['praeviseo_url'] = $praeviseoUrl;
+
+                $praeviseoHost = parse_url($praeviseoUrl, PHP_URL_HOST);
+                if (is_string($praeviseoHost) && $praeviseoHost !== '') {
+                    $apiDnsState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectDomainDns($projectPath, $praeviseoHost)) ?: 'unknown'));
+                    if ($apiDnsState === 'ok') {
+                        $validated[] = $this->item(
+                            'praeviseo_api_dns',
+                            'API PraeviSEO résolue',
+                            sprintf('Le serveur résout bien le domaine %s utilisé par le bridge.', $praeviseoHost),
+                        );
+                    } else {
+                        $blockers[] = $this->blocker(
+                            'praeviseo_api_dns',
+                            'API PraeviSEO introuvable',
+                            sprintf('Le serveur ne résout pas le domaine %s utilisé par le bridge.', $praeviseoHost),
+                            false,
+                        );
+                        $manualActions[] = $this->item(
+                            'praeviseo_api_dns_manual',
+                            'URL API PraeviSEO à corriger',
+                            'Corrigez PRAEVISEO_URL ou pointez le bridge vers le vrai domaine PraeviSEO avant l installation.',
+                        );
+                    }
+                }
+
+                $apiConnectUrl = rtrim($praeviseoUrl, '/').'/api/bridge/connect';
+                $apiHttpsState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectHttpsStatus($projectPath, $apiConnectUrl)) ?: 'unknown'));
+                if ($apiHttpsState === 'ok') {
+                    $validated[] = $this->item(
+                        'praeviseo_api_https',
+                        'API PraeviSEO joignable en HTTPS',
+                        'Le bridge peut déjà joindre l endpoint HTTPS de connexion PraeviSEO.',
+                    );
+                } elseif (($blockers[array_key_last($blockers)]['key'] ?? null) !== 'praeviseo_api_dns') {
+                    $warnings[] = $this->item(
+                        'praeviseo_api_https',
+                        'API PraeviSEO à vérifier',
+                        'Le bridge n a pas encore confirmé l accès HTTPS à l endpoint /api/bridge/connect de PraeviSEO.',
+                    );
+                }
             } else {
                 $detected['bridge_status'] = 'missing';
                 $warnings[] = $this->item(
@@ -188,6 +388,37 @@ class InstallationPrecheckService
                     'Installation du bridge',
                     'PraeviSEO pourra installer automatiquement le bridge adapté au framework détecté.',
                 );
+            }
+
+            if (in_array($framework, ['laravel', 'symfony'], true) && isset($appUrl) && $appUrl !== '' && Str::lower($appUrl) !== 'missing') {
+                $host = parse_url($appUrl, PHP_URL_HOST);
+                $scheme = parse_url($appUrl, PHP_URL_SCHEME);
+
+                if (is_string($host) && $host !== '') {
+                    $dnsState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectDomainDns($projectPath, $host)) ?: 'unknown'));
+                    if ($dnsState === 'ok') {
+                        $validated[] = $this->item('dns', 'DNS du domaine détecté', sprintf('Le domaine %s répond déjà côté DNS.', $host));
+                    } elseif ($dnsState === 'missing') {
+                        $warnings[] = $this->item(
+                            'dns',
+                            'DNS du domaine à vérifier',
+                            sprintf('PraeviSEO n a pas confirmé la résolution DNS de %s depuis le serveur.', $host),
+                        );
+                    }
+                }
+
+                if (is_string($scheme) && Str::lower($scheme) === 'https') {
+                    $httpsState = Str::lower(trim($this->runOptional($connector, RemoteCommand::detectHttpsStatus($projectPath, $appUrl)) ?: 'unknown'));
+                    if ($httpsState === 'ok') {
+                        $validated[] = $this->item('https', 'HTTPS détecté', 'Le site répond déjà correctement en HTTPS.');
+                    } elseif ($httpsState === 'missing') {
+                        $warnings[] = $this->item(
+                            'https',
+                            'HTTPS à vérifier',
+                            'PraeviSEO n a pas réussi à confirmer le certificat ou la réponse HTTPS du site.',
+                        );
+                    }
+                }
             }
 
             $autofixable[] = $this->item(
@@ -355,6 +586,11 @@ class InstallationPrecheckService
             'env_file' => 35,
             'app_url' => 35,
             'permissions' => 25,
+            'storage_permissions' => 30,
+            'php_version' => 45,
+            'php_extensions' => 40,
+            'disk_space' => 25,
+            'praeviseo_api_dns' => 50,
         ];
 
         $warningPenalty = count($warnings) * 5;
@@ -369,6 +605,31 @@ class InstallationPrecheckService
             $score = min($score, 59);
         }
 
+        $technicalPenalty = 0;
+        $installationPenalty = 0;
+        foreach ($blockers as $blocker) {
+            $key = $blocker['key'];
+            if (in_array($key, ['connectivity', 'project_path', 'project_directory', 'permissions', 'storage_permissions', 'php_version', 'php_extensions', 'disk_space'], true)) {
+                $technicalPenalty += $criticalWeights[$key] ?? 20;
+            }
+
+            if (in_array($key, ['framework', 'env_file', 'app_url', 'praeviseo_api_dns'], true)) {
+                $installationPenalty += $criticalWeights[$key] ?? 20;
+            }
+        }
+
+        foreach ($warnings as $warning) {
+            $key = $warning['key'];
+            if (in_array($key, ['worker', 'scheduler', 'supervisor', 'redis', 'database', 'dns', 'https', 'queue_driver', 'internet', 'praeviseo_api_https'], true)) {
+                $installationPenalty += 5;
+            } else {
+                $technicalPenalty += 4;
+            }
+        }
+
+        $technicalScore = max(0, 100 - min(100, $technicalPenalty));
+        $installationScore = max(0, 100 - min(100, $installationPenalty));
+
         return new InstallationReadinessReport(
             $score,
             $validated,
@@ -377,6 +638,11 @@ class InstallationPrecheckService
             $autofixable,
             $manualActions,
             $detected,
+            [
+                'global' => $score,
+                'technical' => $technicalScore,
+                'installation' => $installationScore,
+            ],
         );
     }
 
@@ -394,5 +660,72 @@ class InstallationPrecheckService
     private function blocker(string $key, string $label, string $detail, bool $autofixable): array
     {
         return compact('key', 'label', 'detail', 'autofixable');
+    }
+
+    /**
+     * @param array<int,array{key:string,label:string,detail:string}> $warnings
+     * @param array<int,array{key:string,label:string,detail:string,autofixable:bool}> $blockers
+     * @param array<int,array{key:string,label:string,detail:string}> $manualActions
+     */
+    private function evaluatePhpVersion(string $phpVersion, array &$warnings, array &$blockers, array &$manualActions): void
+    {
+        if (preg_match('/(\d+\.\d+\.\d+)/', $phpVersion, $matches) !== 1) {
+            return;
+        }
+
+        $normalized = $matches[1];
+
+        if (version_compare($normalized, '8.2.0', '<')) {
+            $blockers[] = $this->blocker(
+                'php_version',
+                'Version PHP trop ancienne',
+                sprintf('PraeviSEO demande au minimum PHP 8.2. La version détectée est %s.', $normalized),
+                false,
+            );
+            $manualActions[] = $this->item(
+                'php_version_manual',
+                'Mettre PHP à jour',
+                'Passez le site sur une version PHP plus récente avant de lancer l installation premium.',
+            );
+        } elseif (version_compare($normalized, '8.3.0', '<')) {
+            $warnings[] = $this->item(
+                'php_version',
+                'Version PHP acceptable mais à surveiller',
+                sprintf('La version %s peut fonctionner, mais PraeviSEO est plus à l aise sur PHP 8.3 ou plus.', $normalized),
+            );
+        }
+    }
+
+    /**
+     * @param array<int,array{key:string,label:string,detail:string}> $warnings
+     * @param array<int,array{key:string,label:string,detail:string,autofixable:bool}> $blockers
+     * @param array<int,array{key:string,label:string,detail:string}> $manualActions
+     */
+    private function evaluatePhpExtensions(string $phpExtensions, array &$warnings, array &$blockers, array &$manualActions): void
+    {
+        $loaded = collect(preg_split('/\R+/', Str::lower($phpExtensions)) ?: [])
+            ->map(static fn (?string $line): string => trim((string) $line))
+            ->filter()
+            ->values()
+            ->all();
+
+        $required = ['ctype', 'curl', 'iconv', 'json', 'mbstring', 'openssl', 'pdo', 'tokenizer', 'xml'];
+        $missing = array_values(array_diff($required, $loaded));
+
+        if ($missing === []) {
+            return;
+        }
+
+        $blockers[] = $this->blocker(
+            'php_extensions',
+            'Extensions PHP manquantes',
+            sprintf('PraeviSEO n a pas trouvé ces extensions PHP attendues : %s.', implode(', ', $missing)),
+            false,
+        );
+        $manualActions[] = $this->item(
+            'php_extensions_manual',
+            'Activer les extensions PHP',
+            'Activez les extensions PHP manquantes avant de relancer l installation premium.',
+        );
     }
 }

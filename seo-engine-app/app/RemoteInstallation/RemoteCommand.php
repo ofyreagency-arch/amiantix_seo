@@ -89,6 +89,148 @@ final class RemoteCommand
         );
     }
 
+    public static function detectFrameworkVersion(string $projectPath, string $framework): self
+    {
+        $command = match ($framework) {
+            'laravel' => 'php artisan --version',
+            'symfony' => 'php bin/console --version',
+            default => 'echo unknown',
+        };
+
+        return new self(
+            'detect_framework_version',
+            self::withinProject($projectPath, $command),
+        );
+    }
+
+    public static function detectInstalledPhpExtensions(string $projectPath): self
+    {
+        return new self(
+            'detect_php_extensions',
+            self::withinProject($projectPath, 'php -m'),
+        );
+    }
+
+    public static function detectDiskFreeMegabytes(string $projectPath): self
+    {
+        return new self(
+            'detect_disk_free_megabytes',
+            self::withinProject($projectPath, "df -Pm . | awk 'NR==2 {print \$4}'"),
+        );
+    }
+
+    public static function detectQueueDriver(string $projectPath): self
+    {
+        return new self(
+            'detect_queue_driver',
+            self::withinProject($projectPath, 'if [ -f .env ]; then grep -E "^QUEUE_CONNECTION=" .env | tail -n 1 | cut -d "=" -f2- || true; else echo missing; fi'),
+        );
+    }
+
+    public static function detectSchedulerEntries(string $projectPath): self
+    {
+        return new self(
+            'detect_scheduler_entries',
+            self::withinProject($projectPath, 'crontab -l 2>/dev/null | grep -E "schedule:run|cron:run|messenger:consume" | wc -l'),
+        );
+    }
+
+    public static function detectSupervisorProcesses(string $projectPath): self
+    {
+        return new self(
+            'detect_supervisor_processes',
+            self::withinProject($projectPath, 'if command -v supervisorctl >/dev/null 2>&1; then supervisorctl status 2>/dev/null | wc -l; else echo 0; fi'),
+        );
+    }
+
+    public static function detectRedisAvailability(string $projectPath): self
+    {
+        return new self(
+            'detect_redis_availability',
+            self::withinProject($projectPath, "if php -m | grep -i '^redis$' >/dev/null 2>&1; then echo extension; elif command -v redis-cli >/dev/null 2>&1; then redis-cli ping 2>/dev/null || echo missing; else echo missing; fi"),
+        );
+    }
+
+    public static function detectStorageWriteAccess(string $projectPath, string $framework): self
+    {
+        $command = match ($framework) {
+            'laravel' => 'for dir in storage bootstrap/cache storage/logs; do [ -e "$dir" ] && [ ! -w "$dir" ] && { echo not_writable:$dir; exit 0; }; done; echo writable',
+            'symfony' => 'for dir in var var/cache var/log; do [ -e "$dir" ] && [ ! -w "$dir" ] && { echo not_writable:$dir; exit 0; }; done; echo writable',
+            default => 'echo unknown',
+        };
+
+        return new self(
+            'detect_storage_write_access',
+            self::withinProject($projectPath, $command),
+        );
+    }
+
+    public static function detectInternetConnectivity(string $projectPath): self
+    {
+        return new self(
+            'detect_internet_connectivity',
+            self::withinProject($projectPath, 'if command -v curl >/dev/null 2>&1; then curl -I -L -s --max-time 8 https://repo.packagist.org/packages.json >/dev/null && echo ok || echo missing; else echo missing; fi'),
+        );
+    }
+
+    public static function detectDomainDns(string $projectPath, string $host): self
+    {
+        return new self(
+            'detect_domain_dns',
+            self::withinProject($projectPath, 'if command -v getent >/dev/null 2>&1; then getent ahosts '.self::quote($host).' >/dev/null 2>&1 && echo ok || echo missing; else echo unknown; fi'),
+        );
+    }
+
+    public static function detectHttpsStatus(string $projectPath, string $url): self
+    {
+        return new self(
+            'detect_https_status',
+            self::withinProject($projectPath, 'if command -v curl >/dev/null 2>&1; then curl -I -L -s --max-time 8 '.self::quote($url).' >/dev/null && echo ok || echo missing; else echo unknown; fi'),
+        );
+    }
+
+    public static function detectDatabaseAccess(string $projectPath, string $framework): self
+    {
+        $command = match ($framework) {
+            'laravel' => 'php artisan tinker --execute="try { DB::connection()->getPdo(); echo \'ok\'; } catch (Throwable $e) { echo \'missing\'; }"',
+            'symfony' => 'if [ -f .env ] && grep -E "^DATABASE_URL=" .env >/dev/null 2>&1; then echo configured; else echo missing; fi',
+            default => 'echo unknown',
+        };
+
+        return new self(
+            'detect_database_access',
+            self::withinProject($projectPath, $command),
+        );
+    }
+
+    public static function detectPraeviseoConnectCommand(string $projectPath, string $framework): self
+    {
+        $command = match ($framework) {
+            'laravel' => 'php artisan list --raw | grep -E "^praeviseo:connect$" >/dev/null 2>&1 && echo present || echo missing',
+            'symfony' => 'php bin/console list --raw | grep -E "^praeviseo:connect$" >/dev/null 2>&1 && echo present || echo missing',
+            default => 'echo unknown',
+        };
+
+        return new self(
+            'detect_praeviseo_connect_command',
+            self::withinProject($projectPath, $command),
+        );
+    }
+
+    public static function detectPraeviseoUrl(string $projectPath, string $framework): self
+    {
+        $command = match ($framework) {
+            'laravel' => 'if [ -f .env ]; then grep -E "^PRAEVISEO_URL=" .env | tail -n 1 | cut -d "=" -f2- || true; else echo missing; fi',
+            'symfony' => 'if [ -f .env.local ] && grep -E "^PRAEVISEO_URL=" .env.local >/dev/null 2>&1; then grep -E "^PRAEVISEO_URL=" .env.local | tail -n 1 | cut -d "=" -f2-; elif [ -f .env ] && grep -E "^PRAEVISEO_URL=" .env >/dev/null 2>&1; then grep -E "^PRAEVISEO_URL=" .env | tail -n 1 | cut -d "=" -f2-; else echo missing; fi',
+            default => 'echo missing',
+        };
+
+        return new self(
+            'detect_praeviseo_url',
+            self::withinProject($projectPath, $command),
+        );
+    }
+
     public static function installLaravelBridge(string $projectPath): self
     {
         return new self(

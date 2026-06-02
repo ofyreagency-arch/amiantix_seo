@@ -463,6 +463,48 @@ export function RemoteInstallAssistant({
                 </div>
               </div>
 
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Score global</div>
+                  <div className="mt-2 text-2xl font-semibold text-text">{report.breakdown.global}%</div>
+                </div>
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Score technique</div>
+                  <div className="mt-2 text-2xl font-semibold text-text">{report.breakdown.technical}%</div>
+                </div>
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Score installation</div>
+                  <div className="mt-2 text-2xl font-semibold text-text">{report.breakdown.installation}%</div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {report.detected.php_version ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">PHP</div>
+                    <div className="mt-2 text-sm font-semibold text-text">{report.detected.php_version}</div>
+                  </div>
+                ) : null}
+                {report.detected.framework_version ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Framework</div>
+                    <div className="mt-2 text-sm font-semibold text-text">{report.detected.framework_version}</div>
+                  </div>
+                ) : null}
+                {report.detected.queue_driver ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Queue</div>
+                    <div className="mt-2 text-sm font-semibold text-text">{report.detected.queue_driver}</div>
+                  </div>
+                ) : null}
+                {report.detected.disk_free_mb ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Espace libre</div>
+                    <div className="mt-2 text-sm font-semibold text-text">{report.detected.disk_free_mb} Mo</div>
+                  </div>
+                ) : null}
+              </div>
+
               {diagnosticCompleted ? (
                 <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-4 text-sm text-text">
                   <div className="font-semibold">Diagnostic terminé</div>
@@ -542,6 +584,55 @@ export function RemoteInstallAssistant({
           </Card>
         ) : null}
 
+        {installationFailed ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Historique d’installation</CardTitle>
+              <CardDescription>
+                Le diagnostic est maintenant séparé de la dernière tentative réelle. Cette erreur n’empêche plus de relancer une nouvelle installation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-4 text-sm">
+                <div className="font-semibold text-text">Dernière tentative interrompue</div>
+                <p className="mt-2 leading-6 text-danger">
+                  {liveInstallation.error_message ||
+                    liveInstallation.logs.at(-1)?.message ||
+                    "La dernière tentative d installation n a pas abouti."}
+                </p>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Dernier état</div>
+                  <div className="mt-2 text-sm font-semibold text-text">{stepLabel(liveInstallation.current_step)}</div>
+                </div>
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Date</div>
+                  <div className="mt-2 text-sm font-semibold text-text">
+                    {liveInstallation.requested_at
+                      ? new Date(liveInstallation.requested_at).toLocaleString("fr-FR")
+                      : "Date non disponible"}
+                  </div>
+                </div>
+              </div>
+
+              {liveInstallation.logs.length > 0 ? (
+                <div className="space-y-2">
+                  {liveInstallation.logs.slice(-5).reverse().map((log) => (
+                    <div key={`${log.at}-${log.step}`} className="rounded-xl border border-border bg-surface-2 px-3 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-text-subtle">
+                        {stepLabel(log.step)}
+                      </div>
+                      <div className="mt-1 text-sm text-text">{log.message}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Ce que le client doit ressentir</CardTitle>
@@ -592,18 +683,7 @@ export function RemoteInstallAssistant({
                 </div>
               ) : null}
 
-              {installationFailed ? (
-                <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
-                  <div className="font-semibold text-text">Dernière tentative interrompue</div>
-                  <p className="mt-2 leading-6">
-                    {liveInstallation.error_message ||
-                      liveInstallation.logs.at(-1)?.message ||
-                      "PraeviSEO a bien enregistré vos accès, mais la tentative précédente n a pas abouti. Corrigez les champs ci-dessous puis relancez d abord le diagnostic."}
-                  </p>
-                </div>
-              ) : null}
-
-              {state.status === "error" ? (
+              {state.status === "error" && state.phase !== "diagnostic" ? (
                 <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
                   {state.message}
                 </div>

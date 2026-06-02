@@ -13,6 +13,7 @@ final class InstallationReadinessReport
      * @param array<int,array{key:string,label:string,detail:string}> $autofixable
      * @param array<int,array{key:string,label:string,detail:string}> $manualActions
      * @param array<string,string|null> $detected
+     * @param array{global:int,technical:int,installation:int} $breakdown
      */
     public function __construct(
         public readonly int $score,
@@ -22,6 +23,7 @@ final class InstallationReadinessReport
         public readonly array $autofixable,
         public readonly array $manualActions,
         public readonly array $detected = [],
+        public readonly array $breakdown = ['global' => 0, 'technical' => 0, 'installation' => 0],
     ) {
     }
 
@@ -40,7 +42,8 @@ final class InstallationReadinessReport
      *   blockers:array<int,array{key:string,label:string,detail:string,autofixable:bool}>,
      *   autofixable:array<int,array{key:string,label:string,detail:string}>,
      *   manual_actions:array<int,array{key:string,label:string,detail:string}>,
-     *   detected:array<string,string|null>
+     *   detected:array<string,string|null>,
+     *   breakdown:array{global:int,technical:int,installation:int}
      * }
      */
     public function toArray(): array
@@ -55,6 +58,7 @@ final class InstallationReadinessReport
             'autofixable' => $this->autofixable,
             'manual_actions' => $this->manualActions,
             'detected' => $this->detected,
+            'breakdown' => $this->breakdown,
         ];
     }
 

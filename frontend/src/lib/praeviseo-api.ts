@@ -289,6 +289,11 @@ export type InstallationReadinessBlocker = InstallationReadinessItem & {
 
 export type InstallationReadinessReport = {
   score: number;
+  breakdown: {
+    global: number;
+    technical: number;
+    installation: number;
+  };
   status: "ready" | "blocked";
   summary: string;
   validated: InstallationReadinessItem[];
@@ -300,6 +305,10 @@ export type InstallationReadinessReport = {
     framework: string | null;
     php_version: string | null;
     composer_version: string | null;
+    framework_version: string | null;
+    queue_driver: string | null;
+    disk_free_mb: string | null;
+    praeviseo_url: string | null;
     project_path: string | null;
     access_method: string | null;
   };
@@ -1861,6 +1870,11 @@ function normaliseInstallationReadinessReport(raw: unknown): InstallationReadine
 
   return {
     score: Number(report.score ?? 0),
+    breakdown: {
+      global: Number((report.breakdown as Record<string, unknown> | undefined)?.global ?? report.score ?? 0),
+      technical: Number((report.breakdown as Record<string, unknown> | undefined)?.technical ?? report.score ?? 0),
+      installation: Number((report.breakdown as Record<string, unknown> | undefined)?.installation ?? report.score ?? 0),
+    },
     status: String(report.status ?? "blocked") === "ready" ? "ready" : "blocked",
     summary: String(report.summary ?? ""),
     validated: normaliseItems(report.validated),
@@ -1877,6 +1891,18 @@ function normaliseInstallationReadinessReport(raw: unknown): InstallationReadine
         : null,
       composer_version: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).composer_version
         ? String((report.detected as Record<string, unknown>).composer_version)
+        : null,
+      framework_version: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).framework_version
+        ? String((report.detected as Record<string, unknown>).framework_version)
+        : null,
+      queue_driver: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).queue_driver
+        ? String((report.detected as Record<string, unknown>).queue_driver)
+        : null,
+      disk_free_mb: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).disk_free_mb
+        ? String((report.detected as Record<string, unknown>).disk_free_mb)
+        : null,
+      praeviseo_url: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).praeviseo_url
+        ? String((report.detected as Record<string, unknown>).praeviseo_url)
         : null,
       project_path: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).project_path
         ? String((report.detected as Record<string, unknown>).project_path)
@@ -2542,6 +2568,11 @@ export async function requestRemoteInstallationPrecheck(input: RemoteInstallatio
   if (!backendConfigured()) {
     return {
       score: 84,
+      breakdown: {
+        global: 84,
+        technical: 88,
+        installation: 72,
+      },
       status: "blocked",
       summary: "Le site est presque prêt, mais APP_URL manque encore avant l installation réelle.",
       validated: [
@@ -2559,6 +2590,10 @@ export async function requestRemoteInstallationPrecheck(input: RemoteInstallatio
         framework: input.framework_hint ?? "symfony",
         php_version: "8.3",
         composer_version: "Composer 2",
+        framework_version: null,
+        queue_driver: null,
+        disk_free_mb: null,
+        praeviseo_url: null,
         project_path: input.ssh_project_path ?? input.sftp_project_path ?? null,
         access_method: input.access_method,
       },
@@ -2605,6 +2640,11 @@ export async function requestRemoteInstallationPrecheck(input: RemoteInstallatio
 
   return normaliseInstallationReadinessReport(payload.report) ?? {
     score: 0,
+    breakdown: {
+      global: 0,
+      technical: 0,
+      installation: 0,
+    },
     status: "blocked",
     summary: "PraeviSEO n a pas pu lire le rapport de préparation.",
     validated: [],
@@ -2616,6 +2656,10 @@ export async function requestRemoteInstallationPrecheck(input: RemoteInstallatio
       framework: null,
       php_version: null,
       composer_version: null,
+      framework_version: null,
+      queue_driver: null,
+      disk_free_mb: null,
+      praeviseo_url: null,
       project_path: null,
       access_method: null,
     },
