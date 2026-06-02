@@ -68,8 +68,15 @@ export async function clearSession(): Promise<void> {
 
 export async function getSessionToken(): Promise<string | null> {
   const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value ?? null;
 
-  return cookieStore.get(SESSION_COOKIE)?.value ?? null;
+  console.info("[praeviseo][auth] getSessionToken", {
+    has_cookie: token !== null,
+    cookie_name: SESSION_COOKIE,
+    token_length: token ? token.length : 0,
+  });
+
+  return token;
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<FrontendUser> {

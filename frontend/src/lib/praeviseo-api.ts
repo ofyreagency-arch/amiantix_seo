@@ -1915,6 +1915,14 @@ function normaliseInstallationReadinessReport(raw: unknown): InstallationReadine
 }
 
 async function appFetch<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+  console.info("[praeviseo][api] appFetch:start", {
+    path,
+    method: init?.method ?? "GET",
+    has_token: Boolean(token),
+    token_length: token ? token.length : 0,
+    backend_configured: backendBaseUrl !== "",
+  });
+
   const response = await fetch(`${backendBaseUrl}${path}`, {
     ...init,
     cache: "no-store",
@@ -1923,6 +1931,13 @@ async function appFetch<T>(path: string, init?: RequestInit, token?: string): Pr
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
+  });
+
+  console.info("[praeviseo][api] appFetch:response", {
+    path,
+    method: init?.method ?? "GET",
+    status: response.status,
+    ok: response.ok,
   });
 
   if (!response.ok) {
@@ -2667,6 +2682,11 @@ export async function requestRemoteInstallationPrecheck(input: RemoteInstallatio
 }
 
 export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite> {
+  console.info("[praeviseo][api] requestPremiumCrawl:start", {
+    site_id: siteId,
+    backend_configured: backendConfigured(),
+  });
+
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);
 
@@ -2694,6 +2714,12 @@ export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite
   }
 
   const token = await getSessionToken();
+
+  console.info("[praeviseo][api] requestPremiumCrawl:token", {
+    site_id: siteId,
+    has_token: Boolean(token),
+    token_length: token ? token.length : 0,
+  });
 
   if (!token) {
     throw new Error("Session client manquante.");

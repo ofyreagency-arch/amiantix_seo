@@ -132,7 +132,14 @@ export async function submitRemoteInstallAction(
 }
 
 export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
+  console.info("[praeviseo][action] launchPremiumCrawlAction:start", {
+    site_id: siteId,
+  });
   await requestPremiumCrawl(siteId);
+  console.info("[praeviseo][action] launchPremiumCrawlAction:success", {
+    site_id: siteId,
+    redirect_to: getSiteAutomationPath(siteId),
+  });
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
   redirect(getSiteAutomationPath(siteId));
