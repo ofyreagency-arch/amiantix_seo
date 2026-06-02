@@ -27,6 +27,7 @@ class InstallationPrecheckService
             'framework' => null,
             'php_version' => null,
             'composer_version' => null,
+            'bridge_status' => null,
             'project_path' => $this->projectPath($data),
             'access_method' => (string) ($data['access_method'] ?? ''),
         ];
@@ -54,6 +55,30 @@ class InstallationPrecheckService
         try {
             $connector->connect();
             $validated[] = $this->item('ssh', 'SSH valide', 'Le serveur répond bien et PraeviSEO peut ouvrir une session sécurisée.');
+
+            $projectDirectoryState = Str::lower($this->runRequired($connector, RemoteCommand::detectProjectDirectory($projectPath)));
+
+            if (! str_contains($projectDirectoryState, 'present')) {
+                $blockers[] = $this->blocker(
+                    'project_directory',
+                    'Dossier projet introuvable',
+                    'PraeviSEO ne trouve pas le dossier du site à cet emplacement sur le serveur distant.',
+                    false,
+                );
+                $manualActions[] = $this->item(
+                    'project_directory_manual',
+                    'Chemin du projet à vérifier',
+                    'Confirmez le dossier exact du site sur le serveur avant de relancer le diagnostic.',
+                );
+
+                return $this->report($validated, $warnings, $blockers, $autofixable, $manualActions, $detected);
+            }
+
+            $validated[] = $this->item(
+                'project_directory',
+                'Dossier projet trouvé',
+                sprintf('PraeviSEO a trouvé le site dans %s.', $projectPath)
+            );
 
             $framework = $this->detectFramework($connector, $projectPath, (string) ($data['framework_hint'] ?? ''));
             $detected['framework'] = $framework;
@@ -141,6 +166,27 @@ class InstallationPrecheckService
                     'worker_manual',
                     'Worker à activer',
                     'Préparez un worker de queue ou un superviseur si vous voulez une activation entièrement fluide.',
+                );
+            }
+
+            if ($this->bridgeInstalled($connector, $projectPath, $framework)) {
+                $detected['bridge_status'] = 'installed';
+                $validated[] = $this->item(
+                    'bridge',
+                    'Bridge PraeviSEO détecté',
+                    'Le bridge PraeviSEO semble déjà présent sur le site. L installation pourra surtout valider et activer la connexion.',
+                );
+            } else {
+                $detected['bridge_status'] = 'missing';
+                $warnings[] = $this->item(
+                    'bridge',
+                    'Bridge PraeviSEO à installer',
+                    'PraeviSEO devra encore installer le bridge officiel sur ce site pendant la vraie phase d installation.',
+                );
+                $autofixable[] = $this->item(
+                    'bridge_install',
+                    'Installation du bridge',
+                    'PraeviSEO pourra installer automatiquement le bridge adapté au framework détecté.',
                 );
             }
 
@@ -265,6 +311,16 @@ class InstallationPrecheckService
         return trim((string) ($data['ssh_project_path'] ?? $data['sftp_project_path'] ?? ''));
     }
 
+    private function bridgeInstalled(RemoteConnector $connector, string $projectPath, string $framework): bool
+    {
+        return match ($framework) {
+            'laravel' => $connector->fileExists($projectPath.'/vendor/praeviseo/laravel-bridge/composer.json'),
+            'symfony' => $connector->fileExists($projectPath.'/vendor/praeviseo/symfony-bridge/composer.json'),
+            'wordpress' => $connector->fileExists($projectPath.'/wp-content/plugins/praeviseo-wordpress-bridge/praeviseo-wordpress-bridge.php'),
+            default => false,
+        };
+    }
+
     private function isSafeProjectPath(string $path): bool
     {
         if ($path === '' || ! str_starts_with($path, '/')) {
@@ -290,7 +346,28 @@ class InstallationPrecheckService
         array $manualActions,
         array $detected,
     ): InstallationReadinessReport {
-        $score = max(0, min(100, 100 - (count($blockers) * 25) - (count($warnings) * 8)));
+        $criticalWeights = [
+            'project_path' => 55,
+            'project_directory' => 50,
+            'connectivity' => 60,
+            'unexpected' => 45,
+            'framework' => 40,
+            'env_file' => 35,
+            'app_url' => 35,
+            'permissions' => 25,
+        ];
+
+        $warningPenalty = count($warnings) * 5;
+        $blockerPenalty = array_sum(array_map(
+            fn (array $item): int => $criticalWeights[$item['key']] ?? 20,
+            $blockers,
+        ));
+
+        $score = max(0, min(100, 100 - $warningPenalty - $blockerPenalty));
+
+        if ($blockers !== []) {
+            $score = min($score, 59);
+        }
 
         return new InstallationReadinessReport(
             $score,

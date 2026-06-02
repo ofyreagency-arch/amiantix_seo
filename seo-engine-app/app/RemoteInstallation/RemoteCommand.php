@@ -41,6 +41,14 @@ final class RemoteCommand
         );
     }
 
+    public static function detectProjectDirectory(string $projectPath): self
+    {
+        return new self(
+            'detect_project_directory',
+            '[ -d '.self::quote($projectPath).' ] && echo present || echo missing',
+        );
+    }
+
     public static function detectComposer(string $projectPath): self
     {
         return new self(

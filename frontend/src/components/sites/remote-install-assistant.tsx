@@ -135,10 +135,14 @@ export function RemoteInstallAssistant({
   );
 
   const installationRequested =
-    isInstallationInProgress(liveInstallation.status) ||
-    liveInstallation.status === "completed" ||
+    ["connecting", "detecting_environment", "installing", "configuring", "activating", "completed"].includes(liveInstallation.status) ||
     (state.phase === "install" && state.status === "success");
   const installationFailed = liveInstallation.status === "failed";
+  const accessesSaved =
+    liveInstallation.status === "pending" ||
+    state.phase !== "idle" ||
+    installationRequested ||
+    installationFailed;
   const progressInstallation = installationFailed
     ? {
         ...liveInstallation,
@@ -149,6 +153,7 @@ export function RemoteInstallAssistant({
     : liveInstallation;
   const report = state.report ?? latestReport;
   const reportReady = report?.status === "ready";
+  const hasBlockers = (report?.blockers?.length ?? 0) > 0;
   const diagnosticCompleted = state.phase === "diagnostic" && report !== null;
 
   const valueFor = (field: string) => state.values[field] ?? "";
@@ -393,7 +398,7 @@ export function RemoteInstallAssistant({
         {installationRequested && !installationFailed ? (
           <Card>
             <CardHeader>
-              <CardTitle>Progression de l’installation</CardTitle>
+              <CardTitle>Installation et activation</CardTitle>
               <CardDescription>
                 Le diagnostic est terminé. PraeviSEO suit maintenant l installation et l activation du site en temps réel.
               </CardDescription>
@@ -412,7 +417,7 @@ export function RemoteInstallAssistant({
               />
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted leading-6">
                 {progressInstallation.logs.at(-1)?.message ||
-                    "PraeviSEO prépare maintenant automatiquement l’installation distante de votre site."}
+                    "PraeviSEO installe maintenant la couche premium et prépare l activation du site."}
               </div>
               {progressInstallation.logs.length > 0 ? (
                 <div className="space-y-2">
@@ -536,7 +541,7 @@ export function RemoteInstallAssistant({
             {[
               "Je choisis où mon site est hébergé",
               "Je donne un accès sécurisé si nécessaire",
-              "PraeviSEO installe automatiquement le nécessaire",
+              "PraeviSEO m explique d abord ce qui manque",
               "Mon site devient actif sans jargon technique",
             ].map((item) => (
               <div key={item} className="flex items-start gap-2">
@@ -563,6 +568,17 @@ export function RemoteInstallAssistant({
                     {state.message ||
                       liveInstallation.logs.at(-1)?.message ||
                       "PraeviSEO installe maintenant la couche premium puis activera le site dès que l environnement sera prêt."}
+                  </p>
+                </div>
+              ) : null}
+
+              {accessesSaved && !installationRequested && !installationFailed ? (
+                <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-4 text-sm text-text">
+                  <div className="font-semibold">{report ? "Diagnostic disponible" : "Accès enregistrés"}</div>
+                  <p className="mt-2 leading-6 text-text-muted">
+                    {report
+                      ? "PraeviSEO a terminé l analyse de préparation. Lisez le rapport ci-dessous avant de lancer l installation."
+                      : "PraeviSEO a bien enregistré vos accès. La prochaine étape est le diagnostic de préparation, pas encore l installation."}
                   </p>
                 </div>
               ) : null}
@@ -691,8 +707,8 @@ export function RemoteInstallAssistant({
                   <Button size="lg" type="submit" name="intent" value="precheck" loading={isPending}>
                     Lancer le diagnostic d’installation
                   </Button>
-                  <Button size="lg" type="submit" name="intent" value="install" loading={isPending} disabled={!reportReady}>
-                    {installationRequested ? "Mettre à jour les accès" : "Lancer l’installation réelle"}
+                  <Button size="lg" type="submit" name="intent" value="install" loading={isPending} disabled={!reportReady || hasBlockers}>
+                    Installer PraeviSEO
                   </Button>
                   <Button type="button" variant="secondary" onClick={() => setShowAccessStep(false)}>
                     Fermer cette étape
