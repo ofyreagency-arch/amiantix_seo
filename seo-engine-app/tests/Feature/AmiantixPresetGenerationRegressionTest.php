@@ -6,6 +6,8 @@ namespace Tests\Feature;
 
 use App\SeoPresets\Amiantix\AmiantixBlueprintProvider;
 use App\SeoPresets\Amiantix\AmiantixContentProfile;
+use App\SeoPresets\Amiantix\AmiantixImagePromptProvider;
+use App\SeoPresets\Amiantix\AmiantixInternalLinkProvider;
 use App\SeoPresets\Amiantix\AmiantixPromptProfile;
 use App\Services\Preset\BlockSelectionStrategy;
 use Ofyre\SeoEngine\Services\Composition\NarrativeAssembler;
@@ -13,6 +15,31 @@ use Tests\TestCase;
 
 class AmiantixPresetGenerationRegressionTest extends TestCase
 {
+    public function test_amiantix_internal_link_provider_is_local_and_returns_contextual_links(): void
+    {
+        $links = app(AmiantixInternalLinkProvider::class)->linksFor((object) [
+            'keyword' => 'diagnostic amiante copropriete',
+            'cluster' => 'copropriete',
+            'slug' => 'diagnostic-amiante-copropriete',
+        ]);
+
+        $this->assertNotEmpty($links);
+        $this->assertCount(2, $links);
+        $this->assertContains('/faq-amiante', array_column($links, 'url'));
+        $this->assertContains('/qui-sommes-nous', array_column($links, 'url'));
+        $this->assertNotContains('/diagnostic-amiante-copropriete', array_column($links, 'url'));
+        $this->assertSame('diagnostics', app(AmiantixInternalLinkProvider::class)->clusterForKeyword('diagnostic amiante copropriete'));
+    }
+
+    public function test_amiantix_image_prompt_provider_builds_a_local_cluster_aware_prompt(): void
+    {
+        $prompt = app(AmiantixImagePromptProvider::class)->promptFor('repérage amiante avant travaux', 'reperage');
+
+        $this->assertStringContainsString('reperage amiante avant travaux', $prompt);
+        $this->assertStringContainsString('documents, plans, annotations', $prompt);
+        $this->assertStringContainsString('sans texte dans l image', $prompt);
+    }
+
     public function test_amiantix_blueprint_exposes_expert_generation_inputs(): void
     {
         $blueprint = app(AmiantixBlueprintProvider::class)->resolve('diagnostic amiante Paris', 'diagnostics');
