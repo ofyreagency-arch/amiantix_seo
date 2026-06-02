@@ -137,10 +137,19 @@ export function RemoteInstallAssistant({
   const installationRequested =
     isInstallationInProgress(liveInstallation.status) ||
     liveInstallation.status === "completed" ||
-    (state.status === "success" && state.report === null);
+    (state.phase === "install" && state.status === "success");
   const installationFailed = liveInstallation.status === "failed";
+  const progressInstallation = installationFailed
+    ? {
+        ...liveInstallation,
+        status: "not_started",
+        current_step: null,
+        progress: 0,
+      }
+    : liveInstallation;
   const report = state.report ?? latestReport;
   const reportReady = report?.status === "ready";
+  const diagnosticCompleted = state.phase === "diagnostic" && report !== null;
 
   const valueFor = (field: string) => state.values[field] ?? "";
 
@@ -302,16 +311,16 @@ export function RemoteInstallAssistant({
 
         <Card className="border-brand/20 bg-brand-muted">
           <CardHeader>
-            <CardTitle>3. PraeviSEO s’occupe de l’installation</CardTitle>
+            <CardTitle>3. PraeviSEO commence par diagnostiquer</CardTitle>
             <CardDescription>
-              Une fois l’accès fourni, PraeviSEO pourra détecter automatiquement votre site et préparer l’activation.
+              Une fois l’accès fourni, PraeviSEO analyse d’abord votre environnement, explique ce qui manque puis seulement après lance l’installation.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-text-muted">
             {[
               "Détection automatique de Laravel, Symfony ou WordPress",
-              "Installation et configuration de PraeviSEO sur l’hébergement distant",
-              "Activation du monitoring SEO, des publications et des optimisations",
+              "Rapport clair sur les points validés, les warnings et les bloquants",
+              "Installation et activation uniquement quand le diagnostic est prêt",
             ].map((item) => (
               <div key={item} className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
@@ -344,8 +353,7 @@ export function RemoteInstallAssistant({
           <CardHeader>
             <CardTitle>Assistant d’installation</CardTitle>
             <CardDescription>
-              Le client ne manipule ni terminal, ni Composer, ni fichiers serveur. PraeviSEO se charge de la couche technique
-              pour ouvrir ensuite l’exécution SEO continue.
+              Le client ne manipule ni terminal, ni Composer, ni fichiers serveur. PraeviSEO analyse, explique, corrige ce qu il peut, puis active le site.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -364,11 +372,10 @@ export function RemoteInstallAssistant({
             <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-text">
                 <WandSparkles className="w-4 h-4 text-[hsl(var(--brand))]" />
-                Installation distante assistée
+                Assistant d installation
               </div>
               <p className="mt-2 text-sm leading-6 text-text-muted">
-                Cette expérience prépare le vrai flow SaaS d’installation automatique sur hébergement. Le moteur et
-                le bridge restent identiques, mais la complexité technique est masquée au client.
+                Le moteur et le bridge restent identiques. Ce parcours premium simplifie surtout la connexion, le diagnostic et l activation.
               </p>
             </div>
 
@@ -383,35 +390,33 @@ export function RemoteInstallAssistant({
           </CardContent>
         </Card>
 
-        {installationRequested ? (
+        {installationRequested && !installationFailed ? (
           <Card>
             <CardHeader>
               <CardTitle>Progression de l’installation</CardTitle>
               <CardDescription>
-                PraeviSEO travaille automatiquement sur votre site. Vous pouvez suivre chaque étape en temps réel.
+                Le diagnostic est terminé. PraeviSEO suit maintenant l installation et l activation du site en temps réel.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <Badge variant={statusVariant(liveInstallation.status)}>
-                  {stepLabel(liveInstallation.current_step)}
+                <Badge variant={statusVariant(progressInstallation.status)}>
+                  {stepLabel(progressInstallation.current_step)}
                 </Badge>
-                <span className="text-sm text-text-muted">{liveInstallation.progress}%</span>
+                <span className="text-sm text-text-muted">{progressInstallation.progress}%</span>
               </div>
               <Progress
-                value={liveInstallation.progress}
-                variant={statusVariant(liveInstallation.status)}
+                value={progressInstallation.progress}
+                variant={statusVariant(progressInstallation.status)}
                 size="lg"
               />
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted leading-6">
-                {liveInstallation.error_message
-                  ? liveInstallation.error_message
-                  : liveInstallation.logs.at(-1)?.message ||
+                {progressInstallation.logs.at(-1)?.message ||
                     "PraeviSEO prépare maintenant automatiquement l’installation distante de votre site."}
               </div>
-              {liveInstallation.logs.length > 0 ? (
+              {progressInstallation.logs.length > 0 ? (
                 <div className="space-y-2">
-                  {liveInstallation.logs.slice(-5).reverse().map((log) => (
+                  {progressInstallation.logs.slice(-5).reverse().map((log) => (
                     <div key={`${log.at}-${log.step}`} className="rounded-xl border border-border bg-surface-2 px-3 py-3">
                       <div className="text-xs font-semibold uppercase tracking-[0.14em] text-text-subtle">
                         {stepLabel(log.step)}
@@ -430,19 +435,28 @@ export function RemoteInstallAssistant({
             <CardHeader>
               <CardTitle>PraeviSEO Installation Doctor</CardTitle>
               <CardDescription>
-                Avant l installation réelle, PraeviSEO vérifie ce qui est déjà prêt, ce qui bloque encore et ce qu il pourra corriger.
+                Diagnostic → rapport → correction → installation → activation. PraeviSEO commence toujours par vous expliquer ce qui manque.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-text">Score d installation</div>
+                    <div className="text-sm font-semibold text-text">Diagnostic d installation</div>
                     <p className="mt-1 text-sm leading-6 text-text-muted">{report.summary}</p>
                   </div>
                   <Badge variant={reportReady ? "success" : "warning"}>{report.score}%</Badge>
                 </div>
               </div>
+
+              {diagnosticCompleted ? (
+                <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-4 text-sm text-text">
+                  <div className="font-semibold">Diagnostic terminé</div>
+                  <p className="mt-2 leading-6 text-text-muted">
+                    PraeviSEO a terminé l analyse de votre environnement. L installation réelle peut maintenant démarrer si tous les bloquants sont levés.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="grid gap-4 xl:grid-cols-2">
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
@@ -542,13 +556,13 @@ export function RemoteInstallAssistant({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {installationRequested && !installationFailed ? (
+              {state.phase === "install" && installationRequested && !installationFailed ? (
                 <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-4 text-sm text-text">
-                  <div className="font-semibold">Installation distante déjà en préparation</div>
+                  <div className="font-semibold">Installation et activation en cours</div>
                   <p className="mt-2 leading-6 text-text-muted">
                     {state.message ||
                       liveInstallation.logs.at(-1)?.message ||
-                      "Vos accès sont bien enregistrés. PraeviSEO prépare maintenant automatiquement l’activation distante du site."}
+                      "PraeviSEO installe maintenant la couche premium puis activera le site dès que l environnement sera prêt."}
                   </p>
                 </div>
               ) : null}
@@ -559,7 +573,7 @@ export function RemoteInstallAssistant({
                   <p className="mt-2 leading-6">
                     {liveInstallation.error_message ||
                       liveInstallation.logs.at(-1)?.message ||
-                      "PraeviSEO a bien enregistré vos accès, mais la tentative précédente n a pas abouti. Corrigez les champs ci-dessous puis relancez un nouveau diagnostic."}
+                      "PraeviSEO a bien enregistré vos accès, mais la tentative précédente n a pas abouti. Corrigez les champs ci-dessous puis relancez d abord le diagnostic."}
                   </p>
                 </div>
               ) : null}
@@ -670,8 +684,7 @@ export function RemoteInstallAssistant({
                 ) : null}
 
                 <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4 text-sm text-text-muted leading-6">
-                  Cette étape prépare la vraie installation distante assistée. Si vous n’avez pas encore ces accès,
-                  vous pourrez toujours revenir ici plus tard ou utiliser l’installateur officiel en dessous.
+                  Cette étape commence par le diagnostic de votre environnement. PraeviSEO n essaiera pas d installer quoi que ce soit tant que les bloquants ne sont pas levés.
                 </div>
 
                 <div className="flex flex-wrap gap-3">

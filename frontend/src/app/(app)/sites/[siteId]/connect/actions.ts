@@ -17,6 +17,7 @@ import {
 
 export type RemoteInstallActionState = {
   status: "idle" | "success" | "error";
+  phase: "idle" | "diagnostic" | "install";
   message: string;
   values: Record<string, string>;
   report: InstallationReadinessReport | null;
@@ -89,9 +90,10 @@ export async function submitRemoteInstallAction(
 
       return {
         status: report.status === "ready" ? "success" : "error",
+        phase: "diagnostic",
         message:
           report.status === "ready"
-            ? "Le diagnostic est bon. PraeviSEO peut maintenant lancer l installation."
+            ? "Le diagnostic est terminé. PraeviSEO peut maintenant lancer l installation."
             : report.summary,
         values,
         report,
@@ -102,10 +104,11 @@ export async function submitRemoteInstallAction(
 
     return {
       status: "success",
+      phase: "install",
       message:
         site.installation.requested_at
-          ? "Vos accès ont bien été enregistrés. La couche premium d automatisation est maintenant en préparation."
-          : "Vos accès ont bien été enregistrés.",
+          ? "Le diagnostic est validé. PraeviSEO lance maintenant l installation et l activation du site."
+          : "Le diagnostic est validé. PraeviSEO lance maintenant l installation.",
       values: {
         ...values,
         hosting_provider: site.installation.hosting_provider ?? values.hosting_provider,
@@ -116,6 +119,7 @@ export async function submitRemoteInstallAction(
   } catch (error) {
     return {
       status: "error",
+      phase: _previousState.phase,
       message:
         error instanceof Error
           ? error.message
