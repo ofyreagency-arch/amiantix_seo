@@ -1923,15 +1923,29 @@ async function appFetch<T>(path: string, init?: RequestInit, token?: string): Pr
     backend_configured: backendBaseUrl !== "",
   });
 
-  const response = await fetch(`${backendBaseUrl}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${backendBaseUrl}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (error) {
+    console.error("[praeviseo][api] appFetch:request_error", {
+      path,
+      method: init?.method ?? "GET",
+      error_name: error instanceof Error ? error.name : typeof error,
+      error_message: error instanceof Error ? error.message : String(error),
+      error_stack: error instanceof Error ? error.stack ?? null : null,
+    });
+
+    throw error;
+  }
 
   console.info("[praeviseo][api] appFetch:response", {
     path,
@@ -1942,6 +1956,7 @@ async function appFetch<T>(path: string, init?: RequestInit, token?: string): Pr
 
   if (!response.ok) {
     let message = `PraeviSEO admin API error ${response.status} on ${path}`;
+    let rawBody: string | null = null;
 
     try {
       const payload = (await response.json()) as {
@@ -1962,11 +1977,21 @@ async function appFetch<T>(path: string, init?: RequestInit, token?: string): Pr
       }
     } catch {
       const text = await response.text();
+      rawBody = text;
 
       if (text.trim() !== "") {
         message = text;
       }
     }
+
+    console.error("[praeviseo][api] appFetch:http_error", {
+      path,
+      method: init?.method ?? "GET",
+      status: response.status,
+      status_text: response.statusText,
+      response_body: rawBody,
+      final_message: message,
+    });
 
     throw new Error(humanizeBackendMessage(message));
   }
@@ -2713,27 +2738,38 @@ export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite
     };
   }
 
-  const token = await getSessionToken();
+  try {
+    const token = await getSessionToken();
 
-  console.info("[praeviseo][api] requestPremiumCrawl:token", {
-    site_id: siteId,
-    has_token: Boolean(token),
-    token_length: token ? token.length : 0,
-  });
+    console.info("[praeviseo][api] requestPremiumCrawl:token", {
+      site_id: siteId,
+      has_token: Boolean(token),
+      token_length: token ? token.length : 0,
+    });
 
-  if (!token) {
-    throw new Error("Session client manquante.");
+    if (!token) {
+      throw new Error("Session client manquante.");
+    }
+
+    const payload = await appFetch<SiteResponse>(
+      `/api/client/sites/${siteId}/crawl`,
+      {
+        method: "POST",
+      },
+      token
+    );
+
+    return normaliseSite(payload.site);
+  } catch (error) {
+    console.error("[praeviseo][api] requestPremiumCrawl:error", {
+      site_id: siteId,
+      error_name: error instanceof Error ? error.name : typeof error,
+      error_message: error instanceof Error ? error.message : String(error),
+      error_stack: error instanceof Error ? error.stack ?? null : null,
+    });
+
+    throw error;
   }
-
-  const payload = await appFetch<SiteResponse>(
-    `/api/client/sites/${siteId}/crawl`,
-    {
-      method: "POST",
-    },
-    token
-  );
-
-  return normaliseSite(payload.site);
 }
 
 export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSite> {

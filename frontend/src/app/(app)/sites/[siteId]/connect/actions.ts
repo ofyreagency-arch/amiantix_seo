@@ -54,6 +54,38 @@ function readValues(formData: FormData): Record<string, string> {
   }, {});
 }
 
+function serializeActionError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    const details: Record<string, unknown> = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack ?? null,
+    };
+
+    const withDigest = error as Error & { digest?: string; cause?: unknown };
+
+    if (typeof withDigest.digest !== "undefined") {
+      details.digest = withDigest.digest;
+    }
+
+    if (typeof withDigest.cause !== "undefined") {
+      details.cause = withDigest.cause;
+    }
+
+    return details;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    return {
+      value: error,
+    };
+  }
+
+  return {
+    value: String(error),
+  };
+}
+
 export async function submitRemoteInstallAction(
   siteId: string,
   _previousState: RemoteInstallActionState,
@@ -135,14 +167,24 @@ export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
   console.info("[praeviseo][action] launchPremiumCrawlAction:start", {
     site_id: siteId,
   });
-  await requestPremiumCrawl(siteId);
-  console.info("[praeviseo][action] launchPremiumCrawlAction:success", {
-    site_id: siteId,
-    redirect_to: getSiteAutomationPath(siteId),
-  });
-  revalidatePath(getSiteConnectPath(siteId));
-  revalidatePath(getSiteAutomationPath(siteId));
-  redirect(getSiteAutomationPath(siteId));
+
+  try {
+    await requestPremiumCrawl(siteId);
+    console.info("[praeviseo][action] launchPremiumCrawlAction:success", {
+      site_id: siteId,
+      redirect_to: getSiteAutomationPath(siteId),
+    });
+    revalidatePath(getSiteConnectPath(siteId));
+    revalidatePath(getSiteAutomationPath(siteId));
+    redirect(getSiteAutomationPath(siteId));
+  } catch (error) {
+    console.error("[praeviseo][action] launchPremiumCrawlAction:error", {
+      site_id: siteId,
+      ...serializeActionError(error),
+    });
+
+    throw error;
+  }
 }
 
 export async function launchPremiumGenerationAction(siteId: string): Promise<void> {
