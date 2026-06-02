@@ -1,0 +1,591 @@
+import { notFound } from "next/navigation";
+import { Bot, FileSearch, ImagePlus, Link2, Monitor, Sparkles } from "lucide-react";
+import { Topbar } from "@/components/layout/topbar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getPublications,
+  getSettings,
+  getSite,
+} from "@/lib/praeviseo-api";
+import { formatDate } from "@/lib/utils";
+import {
+  launchPremiumCrawlAction,
+  launchPremiumGenerationAction,
+  launchPremiumImageAction,
+  launchPremiumLinkingAction,
+  launchPremiumPublicationAction,
+  launchPremiumRewriteAction,
+} from "../connect/actions";
+
+interface SiteAutomationPageProps {
+  params: Promise<{ siteId: string }>;
+}
+
+const ACTION_NEXT_PASSES: Record<string, string> = {
+  generation: "Relance lors du prochain passage premium si une nouvelle requête utile se confirme.",
+  crawl: "Relance au prochain contrôle du site ou juste après une publication importante.",
+  rewrite: "Relance dès qu’une page prioritaire redevient le meilleur levier SEO.",
+  linking: "Relance dès que PraeviSEO voit assez de pages à mieux relier.",
+  publication: "Relance dès qu’un contenu prêt à sortir ou à republier est validé.",
+  images: "Relance dès qu’une page ou un article devient prêt à être enrichi visuellement.",
+  monitoring: "Contrôle continu à chaque boucle premium et après chaque action importante.",
+};
+
+const EXECUTION_STEPS = [
+  {
+    icon: FileSearch,
+    title: "Crawl du site",
+    detail: "PraeviSEO relit le site, repère les pages existantes et valide où il peut agir sans risque.",
+  },
+  {
+    icon: Sparkles,
+    title: "Préparation des actions",
+    detail: "Le moteur prépare les pages à enrichir, les réécritures utiles et les liens internes à ouvrir.",
+  },
+  {
+    icon: Bot,
+    title: "Exécution automatique",
+    detail: "PraeviSEO publie, réécrit, relie les pages et relance les vérifications sans manipulation manuelle.",
+  },
+  {
+    icon: Monitor,
+    title: "Monitoring continu",
+    detail: "Après l’exécution, PraeviSEO suit le résultat, détecte les progrès et prépare la prochaine action utile.",
+  },
+] as const;
+
+export default async function SiteAutomationPage({ params }: SiteAutomationPageProps) {
+  const { siteId } = await params;
+  const site = await getSite(siteId);
+  const publications = await getPublications();
+  const settings = await getSettings();
+
+  if (!site) {
+    notFound();
+  }
+
+  const totalConnectedSites = settings.sites.filter(
+    (item) => item.publication_bridge_status === "connected" || item.gsc_connection_status === "connected" || item.gsc_connection_status === "configured"
+  ).length;
+  const sitePublications = publications.items.filter((item) => item.site_id === site.site_id);
+  const leadRisingPage = site.summary.top_rising_pages[0] ?? null;
+  const leadRefresh = sitePublications.find((item) => item.latest_suggestion || item.observed_content) ?? null;
+  const leadIndexationAlert = site.summary.indexation_alerts[0] ?? null;
+  const livePublishedCount = sitePublications.filter((item) => item.published_live).length;
+  const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
+  const loopStatus = site.action_statuses.monitoring.state === "completed" ? "Active" : site.action_statuses.monitoring.state === "failed" ? "À revoir" : "En attente";
+  const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
+
+  const describeResult = (state: string, detail?: string | null, error?: string | null) => {
+    if (state === "failed") {
+      return error || "La dernière tentative s’est arrêtée avant la fin et demande une reprise.";
+    }
+
+    if (state === "completed") {
+      return detail || "La dernière exécution est allée au bout sans blocage remonté.";
+    }
+
+    if (state === "pending" || state === "requested") {
+      return detail || "PraeviSEO a déjà préparé cette action et la reprendra au prochain passage utile.";
+    }
+
+    return detail || "PraeviSEO n’a pas encore exécuté cette action de manière visible sur ce site.";
+  };
+
+  const executionCenter = [
+    {
+      key: "generation",
+      title: "Nouvel article",
+      status: site.action_statuses.generation.label,
+      detail:
+        site.action_statuses.generation.detail ||
+        (site.summary.new_queries.length > 0
+          ? "PraeviSEO a déjà repéré de nouvelles recherches Google qui peuvent devenir de vrais articles sur le site."
+          : "Dès qu'une nouvelle recherche utile se confirme, PraeviSEO pourra ouvrir un nouvel article automatiquement."),
+      updatedAt: site.action_statuses.generation.updated_at,
+      nextPass: ACTION_NEXT_PASSES.generation,
+      result: describeResult(site.action_statuses.generation.state, site.action_statuses.generation.detail, site.action_statuses.generation.error),
+      impact:
+        site.summary.new_queries.length > 0
+          ? `${site.summary.new_queries.length} nouvelle(s) requête(s) peuvent déjà devenir de nouveaux contenus visibles.`
+          : "Prépare la prochaine ouverture éditoriale utile dès qu’un sujet assez net apparaît.",
+    },
+    {
+      key: "crawl",
+      title: "Crawl automatique",
+      status: site.action_statuses.crawl.label,
+      detail:
+        site.action_statuses.crawl.detail ||
+        (monitoredContentCount > 0
+          ? `${monitoredContentCount} page(s) sont déjà relues par PraeviSEO.`
+          : "Le premier crawl premium relira le site pour préparer les prochaines actions automatiques."),
+      updatedAt: site.action_statuses.crawl.updated_at,
+      nextPass: ACTION_NEXT_PASSES.crawl,
+      result: describeResult(site.action_statuses.crawl.state, site.action_statuses.crawl.detail, site.action_statuses.crawl.error),
+      impact:
+        monitoredContentCount > 0
+          ? `${monitoredContentCount} page(s) sont déjà relues et comparées par PraeviSEO.`
+          : "Ouvre la lecture du site et alimente les prochaines décisions automatiques.",
+    },
+    {
+      key: "rewrite",
+      title: "Réécriture SEO",
+      status: site.action_statuses.rewrite.label,
+      detail:
+        site.action_statuses.rewrite.detail ||
+        (leadRefresh
+          ? "PraeviSEO a déjà repéré un contenu à retravailler. L’automatisation peut reprendre cette amélioration."
+          : "La couche payante préparera les premières réécritures dès qu’un contenu utile sera détecté."),
+      updatedAt: site.action_statuses.rewrite.updated_at,
+      nextPass: ACTION_NEXT_PASSES.rewrite,
+      result: describeResult(site.action_statuses.rewrite.state, site.action_statuses.rewrite.detail, site.action_statuses.rewrite.error),
+      impact:
+        leadRefresh
+          ? "Peut améliorer un contenu déjà utile sans repartir d’une page blanche."
+          : "Prépare la prochaine amélioration éditoriale dès qu’un contenu devient prioritaire.",
+    },
+    {
+      key: "linking",
+      title: "Maillage interne",
+      status: site.action_statuses.linking.label,
+      detail:
+        site.action_statuses.linking.detail ||
+        (site.summary.observed_link_gap_pages.length > 0
+          ? "Le site contient déjà des pages à mieux relier."
+          : "Le maillage interne sera préparé dès que PraeviSEO aura assez de pages à relier proprement."),
+      updatedAt: site.action_statuses.linking.updated_at,
+      nextPass: ACTION_NEXT_PASSES.linking,
+      result: describeResult(site.action_statuses.linking.state, site.action_statuses.linking.detail, site.action_statuses.linking.error),
+      impact:
+        site.summary.observed_link_gap_pages.length > 0
+          ? `${site.summary.observed_link_gap_pages.length} page(s) peuvent déjà recevoir un meilleur maillage interne.`
+          : "Renforcera la circulation interne dès que PraeviSEO repère assez de pages à relier.",
+    },
+    {
+      key: "publication",
+      title: "Publication automatique",
+      status: site.action_statuses.publication.label,
+      detail:
+        site.action_statuses.publication.detail ||
+        (livePublishedCount > 0
+          ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent être repris automatiquement.`
+          : site.publication_bridge_status === "connected"
+            ? "Le site est prêt à recevoir les premières publications et mises à jour automatiques."
+            : "La publication démarrera juste après l’activation complète de la connexion premium."),
+      updatedAt: site.action_statuses.publication.updated_at,
+      nextPass: ACTION_NEXT_PASSES.publication,
+      result: describeResult(site.action_statuses.publication.state, site.action_statuses.publication.detail, site.action_statuses.publication.error),
+      impact:
+        livePublishedCount > 0
+          ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent maintenant être suivis en conditions réelles.`
+          : "Transforme les contenus préparés en pages réellement visibles sur le site.",
+    },
+    {
+      key: "images",
+      title: "Images SEO",
+      status: site.action_statuses.images.label,
+      detail:
+        site.action_statuses.images.detail ||
+        (leadRisingPage
+          ? "PraeviSEO peut déjà préparer une image claire pour la page qui a le plus de potentiel visible."
+          : "Les premières images SEO seront préparées dès qu’une page assez utile et stable sera priorisée."),
+      updatedAt: site.action_statuses.images.updated_at,
+      nextPass: ACTION_NEXT_PASSES.images,
+      result: describeResult(site.action_statuses.images.state, site.action_statuses.images.detail, site.action_statuses.images.error),
+      impact:
+        leadRisingPage
+          ? `Peut renforcer visuellement ${leadRisingPage.label}, la page qui a déjà le plus de potentiel visible.`
+          : "Ajoute une couche visuelle SEO dès qu’une page mérite d’être enrichie.",
+    },
+    {
+      key: "monitoring",
+      title: "Monitoring continu",
+      status: site.action_statuses.monitoring.label,
+      detail:
+        site.action_statuses.monitoring.detail ||
+        (site.summary.observed_site_health_score > 0
+          ? "PraeviSEO suit déjà la santé du site et peut relancer les prochaines priorités utiles."
+          : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles."),
+      updatedAt: site.action_statuses.monitoring.updated_at,
+      nextPass: ACTION_NEXT_PASSES.monitoring,
+      result: describeResult(site.action_statuses.monitoring.state, site.action_statuses.monitoring.detail, site.action_statuses.monitoring.error),
+      impact:
+        site.summary.observed_site_health_score > 0
+          ? `Surveille déjà la santé observée du site autour de ${site.summary.observed_site_health_score}/100.`
+          : "Mesure les effets réels et relance la prochaine action utile sans intervention manuelle.",
+    },
+  ] as const;
+
+  const automationOverview = [
+    {
+      title: "Boucle premium",
+      status: loopStatus,
+      detail:
+        loopStatus === "Active"
+          ? "PraeviSEO surveille déjà le site et peut relancer les prochaines actions utiles."
+          : loopStatus === "À revoir"
+            ? "La dernière boucle a remonté un blocage. Regardez l’historique et les points à revoir."
+            : "La boucle premium redémarrera dès que les prochaines actions deviendront utiles.",
+    },
+    {
+      title: "Lecture Google",
+      status: site.readiness.gsc_connected ? "Active" : "À reconnecter",
+      detail: site.readiness.gsc_connected
+        ? "Les signaux Search Console guident déjà les prochaines pages et requêtes à traiter."
+        : "Sans lecture Google, PraeviSEO perd une partie de sa capacité à prioriser les gains visibles.",
+    },
+    {
+      title: "Contenus suivis",
+      status: `${monitoredContentCount} page(s)`,
+      detail:
+        monitoredContentCount > 0
+          ? "PraeviSEO relit déjà ces pages pour comparer les gains, repérer les liens utiles et préparer les relances."
+          : "Les premiers contenus suivis apparaîtront après les prochains crawls et publications utiles.",
+    },
+    {
+      title: "Publications live",
+      status: `${livePublishedCount} live`,
+      detail:
+        latestPublishedContent
+          ? `Dernier contenu visible : ${latestPublishedContent.title}. PraeviSEO peut maintenant le suivre, le relier et le faire évoluer.`
+          : "Aucun contenu premium n’est encore visible en ligne. Les prochaines publications apparaîtront ici.",
+    },
+    {
+      title: "Prochain passage",
+      status: "Prête",
+      detail: site.next_action.detail || "PraeviSEO attend la prochaine priorité assez claire pour relancer la boucle.",
+    },
+    {
+      title: "Parc actif",
+      status: totalConnectedSites > 1 ? `${totalConnectedSites} sites` : "1 site",
+      detail:
+        totalConnectedSites > 1
+          ? `La même logique d’automatisation tourne déjà sur ${totalConnectedSites} sites suivis dans votre espace.`
+          : "Ce site sert de base active. Les prochains sites pourront reprendre la même couche d’automatisation.",
+    },
+  ] as const;
+
+  const compactExecutionHistory = site.execution_history.reduce<Array<(typeof site.execution_history)[number] & { repeat_count?: number }>>(
+    (carry, entry) => {
+      const existingIndex = carry.findIndex(
+        (item) => item.kind === entry.kind && item.label === entry.label && item.detail === entry.detail
+      );
+
+      if (existingIndex === -1) {
+        carry.push({ ...entry, repeat_count: 1 });
+
+        return carry;
+      }
+
+      const existing = carry[existingIndex];
+      const existingDate = new Date(existing.at).getTime();
+      const currentDate = new Date(entry.at).getTime();
+
+      carry[existingIndex] = {
+        ...(currentDate >= existingDate ? entry : existing),
+        repeat_count: (existing.repeat_count ?? 1) + 1,
+      };
+
+      return carry;
+    },
+    []
+  );
+
+  const executionHistory =
+    compactExecutionHistory.length > 0
+      ? compactExecutionHistory
+          .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())
+          .slice(0, 8)
+      : [
+          {
+            at: new Date().toISOString(),
+            label: "Historique en préparation",
+            detail: "PraeviSEO affichera ici les prochaines actions dès qu’une première exécution premium sera réellement lancée.",
+            tone: "secondary" as const,
+            kind: "empty",
+            repeat_count: 1,
+          },
+        ];
+
+  const executionIssues = Object.entries(site.action_statuses)
+    .filter(([, status]) => status.state === "failed" && status.error)
+    .map(([key, status]) => ({
+      key,
+      title:
+        key === "crawl"
+          ? "Crawl à vérifier"
+          : key === "generation"
+            ? "Nouvel article à vérifier"
+            : key === "rewrite"
+              ? "Réécriture à vérifier"
+              : key === "linking"
+                ? "Maillage à vérifier"
+                : key === "images"
+                  ? "Image SEO à vérifier"
+                  : key === "publication"
+                    ? "Publication à vérifier"
+                    : "Monitoring à vérifier",
+      detail: status.error as string,
+      updatedAt: status.updated_at,
+    }));
+
+  const starterPlan = [
+    leadRisingPage
+      ? {
+          title: "Page déjà proche d’un gain visible",
+          detail: `${leadRisingPage.label} commence déjà à gagner du terrain dans Google et peut être renforcée automatiquement.`,
+          impact: "Une page déjà visible peut progresser plus vite si PraeviSEO la relit, l’enrichit puis relance sa publication.",
+        }
+      : null,
+    leadRefresh
+      ? {
+          title: "Contenu à enrichir ensuite",
+          detail:
+            leadRefresh.latest_suggestion?.summary ??
+            "PraeviSEO pourra reprendre ce contenu, l’enrichir puis le republier si vous activez l’automatisation.",
+          impact:
+            leadRefresh.latest_suggestion?.impact_expected ??
+            "Un contenu plus clair, plus solide et plus facile à faire progresser dans Google.",
+        }
+      : null,
+    leadIndexationAlert
+      ? {
+          title: "Page à sécuriser",
+          detail: `${leadIndexationAlert.label} reste encore fragile dans la lecture Google actuelle.`,
+          impact: "L’automatisation pourra corriger, republier puis relancer une vérification propre derrière.",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ title: string; detail: string; impact: string }>;
+
+  return (
+    <div className="min-h-screen">
+      <Topbar
+        title={`Automatisations · ${site.name}`}
+        subtitle="Ce que PraeviSEO fait pour ce site, quand il le fait et ce que cela produit."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button href={`/sites/${site.site_id}`} variant="secondary" size="sm">
+              Retour au cockpit SEO
+            </Button>
+            <Button href={`/sites/${site.site_id}/connect`} size="sm">
+              Santé technique
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="p-6 space-y-6">
+        <div className="rounded-3xl border border-brand/20 bg-brand-muted px-6 py-6">
+          <h1 className="text-2xl font-bold tracking-tight text-text">Automatisations du site</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
+            Cette page répond à une seule question : qu’est-ce que PraeviSEO fait déjà pour votre site, à quel rythme et avec quel résultat.
+            Toute la partie SSH, Doctor et installation reste dans la santé technique.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Ce que PraeviSEO exécute pour vous</CardTitle>
+                <CardDescription>
+                  Chaque bloc montre l’état actuel, le dernier passage utile, le prochain déclenchement attendu et le résultat observé.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <form action={launchPremiumCrawlAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">Lancer un crawl</Button>
+                </form>
+                <form action={launchPremiumGenerationAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">Créer un article</Button>
+                </form>
+                <form action={launchPremiumRewriteAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">Préparer une réécriture</Button>
+                </form>
+                <form action={launchPremiumLinkingAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">Renforcer le maillage</Button>
+                </form>
+                <form action={launchPremiumImageAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">Générer l’image SEO</Button>
+                </form>
+                <form action={launchPremiumPublicationAction.bind(null, site.site_id)}>
+                  <Button type="submit" variant="secondary">Publier</Button>
+                </form>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-7">
+            {executionCenter.map((item) => (
+              <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-text">{item.title}</div>
+                  <Badge variant="secondary">{item.status}</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-text-muted">{item.detail}</p>
+                <div className="mt-4 space-y-3 text-xs leading-6 text-text-subtle">
+                  <div>
+                    <span className="font-semibold text-text">Dernière exécution :</span>{" "}
+                    {item.updatedAt ? formatDate(item.updatedAt) : "pas encore de passage visible"}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-text">Prochain passage :</span> {item.nextPass}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-text">Résultat :</span> {item.result}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-text">Impact généré :</span> {item.impact}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Comment PraeviSEO travaille</CardTitle>
+            <CardDescription>
+              Le fonctionnement des automatisations, une fois le site activé.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-4">
+            {EXECUTION_STEPS.map((step) => {
+              const Icon = step.icon;
+
+              return (
+                <div key={step.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-subtle">
+                    <Icon className="h-5 w-5 text-[hsl(var(--brand))]" />
+                  </div>
+                  <div className="mt-4 text-sm font-semibold text-text">{step.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{step.detail}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Rythme d’automatisation</CardTitle>
+              <CardDescription>
+                La vue synthétique du moteur : ce qui tourne déjà, ce qui nourrit les priorités et ce qui repartira ensuite.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {automationOverview.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{item.title}</div>
+                    <Badge variant="secondary">{item.status}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Historique d’exécution</CardTitle>
+              <CardDescription>
+                Ce que PraeviSEO a déjà lancé, confirmé ou relancé sur ce site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {executionHistory.map((entry, index) => (
+                <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">
+                      {entry.label}
+                      {(entry.repeat_count ?? 1) > 1 ? ` (${entry.repeat_count} fois)` : ""}
+                    </div>
+                    <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Prochaines opportunités automatiques</CardTitle>
+            <CardDescription>
+              Les pages et contenus que PraeviSEO pourra traiter en premier si vous laissez tourner l’automatisation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-3">
+            {starterPlan.length > 0 ? (
+              starterPlan.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-sm font-semibold text-text">{item.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                  <div className="mt-3 rounded-xl border border-brand/20 bg-brand-muted px-3 py-3 text-sm text-text">
+                    <span className="font-semibold">Gain attendu :</span> {item.impact}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="xl:col-span-3 rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                PraeviSEO préparera d’abord un crawl, un repérage des pages utiles et une première séquence d’actions automatiques
+                dès qu’une première opportunité claire sera confirmée sur ce site.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {executionIssues.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Erreurs à revoir</CardTitle>
+              <CardDescription>
+                Les derniers points bloquants rencontrés par les automatisations. La santé technique reste disponible séparément.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 xl:grid-cols-2">
+              {executionIssues.map((issue) => (
+                <div key={issue.key} className="rounded-2xl border border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.06)] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{issue.title}</div>
+                    <Badge variant="danger">{issue.updatedAt ? issue.updatedAt.slice(0, 10) : "À revoir"}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{issue.detail}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          {[
+            {
+              title: "Ce que vous pilotez ici",
+              detail: "Les statuts des automatisations, les déclenchements manuels, l’historique et les erreurs d’exécution.",
+            },
+            {
+              title: "Ce qui reste technique",
+              detail: "SSH, Doctor, accès serveur, activation et maintenance du bridge restent dans la santé technique.",
+            },
+            {
+              title: "Ce qui reste produit",
+              detail: "Le cockpit SEO principal continue de répondre à la question la plus simple : que faut-il faire maintenant pour progresser sur Google ?",
+            },
+          ].map((item) => (
+            <Card key={item.title}>
+              <CardContent className="pt-5">
+                <div className="text-base font-semibold text-text">{item.title}</div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

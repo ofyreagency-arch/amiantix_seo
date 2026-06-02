@@ -3,6 +3,7 @@ import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
+import { Button } from "@/components/ui/button";
 import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
@@ -149,7 +150,17 @@ export default async function QueriesCockpitPage() {
     <div className="min-h-screen">
       <Topbar
         title="Requêtes Google"
-        subtitle="Comprendre ce que Google associe vraiment à votre site, et quelles requêtes gagnent en potentiel."
+        subtitle="Les requêtes qui représentent une opportunité réelle de visibilité ou de clics."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button href="/optimizations" size="sm">
+              Exploiter les requêtes
+            </Button>
+            <Button href="/dashboard" variant="secondary" size="sm">
+              Retour au dashboard
+            </Button>
+          </div>
+        }
       />
 
       <div className="p-6 space-y-6">
@@ -172,10 +183,18 @@ export default async function QueriesCockpitPage() {
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Comment Google commence déjà à relier votre site à des recherches</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Quelles requêtes représentent une vraie opportunité</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            PraeviSEO traduit ici les recherches que Google commence à associer à votre site, puis explique quand cela mérite vraiment une action.
+            Cette page sert à lire les requêtes à potentiel : proches du top 10, à fort volume, à faible CTR, en progression récente et déjà reliées à une bonne page.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button href="/optimizations">
+              Exploiter les requêtes
+            </Button>
+            <Button href="/pages" variant="secondary">
+              Voir les pages liées
+            </Button>
+          </div>
           {(freshestSyncAt || freshestDataAsOf) && (
             <p className="mt-3 text-xs text-text-subtle">
               {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
@@ -190,7 +209,7 @@ export default async function QueriesCockpitPage() {
 
         <CockpitAssistantGuide
           title="PraeviSEO vous aide a comprendre si ces recherches comptent vraiment"
-          description="Cette vue sert surtout de radar : elle dit quand une recherche devient utile, pourquoi elle merite votre attention et quand elle peut encore attendre."
+          description="Cette vue sert de radar utile : elle vous dit quand une requête devient intéressante, pourquoi elle mérite votre attention et quelle page elle peut pousser."
           whatText={queriesAssistantWhat}
           whyText={queriesAssistantWhy}
           nextText={queriesAssistantNext}

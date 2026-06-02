@@ -197,6 +197,50 @@ export default async function DashboardPage() {
       ? `${progressingHealthSites.length} site(s) gagnent déjà en solidité sur les dernières lectures observées.`
       : "La solidité globale du site reste stable sur les dernières lectures observées.",
   ];
+  const dashboardDecisionBlocks = [
+    {
+      title: "Où en est votre site",
+      items: [
+        totalDeltaImpressions > 0
+          ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impressions sur la période suivie.`
+          : totalDeltaImpressions < 0
+            ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impressions sur la période suivie.`
+            : "La visibilité reste globalement stable sur les dernières lectures Google.",
+        healthTrackedSites.length > 0
+          ? `PraeviSEO suit déjà une santé SEO moyenne autour de ${averageObservedHealth}/100 sur les sites relus.`
+          : "La lecture de santé structurelle continue de s’enrichir au fil des observations.",
+      ],
+    },
+    {
+      title: "Opportunités prioritaires",
+      items: [
+        topOpportunities[0]?.reason ?? "Les prochaines opportunités prioritaires apparaîtront ici dès qu’un signal devient assez fort.",
+        optimizations.gsc_opportunities.summary.near_top_10 > 0
+          ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent déjà du top 10.`
+          : "Aucune page très proche du top 10 pour le moment.",
+      ],
+    },
+    {
+      title: "Gain potentiel",
+      items: [
+        actionPlan[0]?.estimated_impact === "high"
+          ? "PraeviSEO voit déjà un gain potentiel fort sur la première action recommandée."
+          : actionPlan[0]
+            ? "PraeviSEO voit déjà un gain potentiel utile sur la première action recommandée."
+            : "Le prochain gain potentiel sera chiffré dès qu’une action claire se détachera.",
+        linkedQueryWatchlist.length > 0
+          ? `${linkedQueryWatchlist.length} requête(s) ont déjà une bonne page cible repérée.`
+          : "Les prochains liens requête → page viendront préciser le potentiel réel de progression.",
+      ],
+    },
+    {
+      title: "Résumé de l’activité récente",
+      items: [
+        freshestSyncAt ? `Dernière lecture Google enregistrée le ${formatDate(freshestSyncAt)}.` : "Le prochain événement utile remontera ici automatiquement.",
+        topOpportunities[0]?.reason ?? "PraeviSEO continue de surveiller les prochains mouvements SEO utiles.",
+      ],
+    },
+  ] as const;
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -409,13 +453,18 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen">
       <Topbar
-        title="Vue d'ensemble SEO"
-        subtitle="Votre cockpit client PraeviSEO : performances GSC, indexation Google et prochaines actions utiles."
+        title="Dashboard SEO"
+        subtitle="Où en est votre site, ce qui bloque sa progression et où se trouve le prochain gain."
         lastSync={backendLive ? "données Google actualisées" : "mode démonstration"}
         actions={
-          <Button href="/sites/new" size="sm">
-            Connecter un site
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button href="/optimizations" size="sm">
+              Voir les opportunités
+            </Button>
+            <Button href="/activity" variant="secondary" size="sm">
+              Comprendre l’activité
+            </Button>
+          </div>
         }
       />
 
@@ -425,10 +474,10 @@ export default async function DashboardPage() {
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
-            { label: lowDashboardQuerySignal ? "Veille Google" : "Google comprend", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length + linkedQueryWatchlist.length, tone: "success" },
+            { label: lowDashboardQuerySignal ? "Veille Google" : "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length + linkedQueryWatchlist.length, tone: "success" },
             { label: "Santé SEO", href: "#sante", count: healthWatchlist.length, tone: "secondary" },
             { label: "Indexation", href: "#indexation", count: indexationAlerts.length || indexedPagesValue, tone: "secondary" },
-            { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
+            { label: "Activité", href: "#activite", count: activityFeed.length, tone: "default" },
           ]}
         />
 
@@ -436,14 +485,13 @@ export default async function DashboardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
               <Badge variant="brand-subtle" className="mb-3">
-                {backendLive ? "Analyse GSC active" : "Mode démonstration"}
+                {backendLive ? "Cockpit SEO actif" : "Mode démonstration"}
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">
-                PraeviSEO analyse déjà votre SEO avec Google
+                Le cockpit qui montre où gagner du trafic maintenant
               </h1>
               <p className="mt-2 text-sm text-text-muted leading-7">
-                Sans installer quoi que ce soit, PraeviSEO transforme déjà Google Search Console en priorités,
-                opportunités, recommandations et signaux utiles à suivre régulièrement.
+                Cette page sert à répondre à une seule question : où en est votre site, ce qui freine sa croissance et quelle action peut créer le prochain gain visible.
               </p>
               {(freshestSyncAt || freshestDataAsOf) && (
                 <p className="mt-3 text-xs text-text-subtle">
@@ -453,15 +501,15 @@ export default async function DashboardPage() {
               )}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button href="/sites/join" variant="secondary">
-                Rejoindre un site
+              <Button href="/optimizations">
+                Voir les opportunités
+                <ArrowRight className="w-4 h-4" />
               </Button>
               <Button href="/sites" variant="secondary">
                 Voir mes sites
               </Button>
-              <Button href="/sites/new">
+              <Button href="/sites/new" variant="secondary">
                 Ajouter un site
-                <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -477,6 +525,23 @@ export default async function DashboardPage() {
                 </div>
                 <CardTitle className="text-sm leading-6 text-text-muted font-medium">{item.detail}</CardTitle>
               </CardHeader>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-4">
+          {dashboardDecisionBlocks.map((block) => (
+            <Card key={block.title}>
+              <CardHeader>
+                <CardTitle className="text-base">{block.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {block.items.map((item) => (
+                  <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                    {item}
+                  </div>
+                ))}
+              </CardContent>
             </Card>
           ))}
         </div>
@@ -581,7 +646,7 @@ export default async function DashboardPage() {
 
         <CockpitAssistantGuide
           title="PraeviSEO vous guide, pas a pas"
-          description="Cette vue resume ce qui bouge, pourquoi cela compte et quelle action merite votre attention en premier."
+          description="Cette vue sert d’abord à vous dire où vous en êtes, ce qui compte vraiment et quelle action mérite votre attention en premier."
           whatText={dashboardAssistantWhat}
           whyText={dashboardAssistantWhy}
           nextText={dashboardAssistantNext}
@@ -693,7 +758,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Pages à suivre</CardTitle>
               <CardDescription>
-                Les pages qui bougent le plus ou qui méritent un refresh rapide dans le cockpit free.
+                Un résumé rapide des pages à suivre. La décision page par page se prend dans la vue Pages.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -734,6 +799,11 @@ export default async function DashboardPage() {
                   </div>
                 ))
               )}
+              <div className="pt-2">
+                <Button href="/pages" variant="secondary" className="w-full">
+                  Travailler les pages
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -743,7 +813,7 @@ export default async function DashboardPage() {
               <CardDescription>
                 {lowDashboardQuerySignal
                   ? "Google commence seulement à associer quelques recherches à votre site. Ce bloc reste volontairement simple tant que le signal n’est pas plus fort."
-                  : "Les recherches qui progressent, émergent ou que PraeviSEO sait déjà rattacher à une page observée."}
+                  : "Un résumé des requêtes utiles. La vraie lecture d’opportunité se fait dans la vue Requêtes."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -806,6 +876,11 @@ export default async function DashboardPage() {
                   );
                 })
               )}
+              <div className="pt-2">
+                <Button href="/queries" variant="secondary" className="w-full">
+                  Exploiter les requêtes
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -1002,7 +1077,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Quoi traiter d’abord</CardTitle>
               <CardDescription>
-                Le plan d’action le plus utile à ouvrir maintenant, à partir des opportunités Google et des recommandations moteur.
+                Le meilleur résumé du prochain levier. Le plan détaillé reste dans Optimisations.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1045,6 +1120,11 @@ export default async function DashboardPage() {
                   </div>
                 ))
               )}
+              <div className="pt-2">
+                <Button href="/optimizations" className="w-full">
+                  Voir les actions
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -1072,9 +1152,9 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Activité SEO récente</CardTitle>
+              <CardTitle>Résumé de l’activité récente</CardTitle>
               <CardDescription>
-                Le feed chronologique du cockpit : imports Google, recommandations et mouvements visibles.
+                Ce dashboard résume l’activité. Le journal complet reste dans la page Activité.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1098,6 +1178,11 @@ export default async function DashboardPage() {
                   </div>
                 ))
               )}
+              <div className="pt-2">
+                <Button href="/activity" variant="secondary" className="w-full">
+                  Comprendre ce qui s’est passé
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -3,6 +3,7 @@ import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
+import { Button } from "@/components/ui/button";
 import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
@@ -303,7 +304,17 @@ export default async function PagesCockpitPage() {
     <div className="min-h-screen">
       <Topbar
         title="Pages"
-        subtitle="La lecture page par page de votre SEO : progression, baisses, potentiel et pages à surveiller."
+        subtitle="Les pages à travailler maintenant : celles qui montent, chutent, stagnent ou méritent un enrichissement."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button href="/optimizations" size="sm">
+              Voir les actions
+            </Button>
+            <Button href="/dashboard" variant="secondary" size="sm">
+              Retour au dashboard
+            </Button>
+          </div>
+        }
       />
 
       <div className="p-6 space-y-6">
@@ -321,11 +332,18 @@ export default async function PagesCockpitPage() {
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Vos pages SEO les plus importantes en un coup d’œil</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Quelles pages méritent d’être travaillées maintenant</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            PraeviSEO transforme déjà Google Search Console en lecture claire : quelles pages progressent, lesquelles
-            ralentissent, et où agir vite.
+            Cette page sert à lire le site page par page : quelles pages montent, lesquelles chutent, lesquelles sont proches d’un gain et lesquelles doivent être enrichies.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button href="/optimizations">
+              Travailler les pages
+            </Button>
+            <Button href="/queries" variant="secondary">
+              Voir les requêtes liées
+            </Button>
+          </div>
           {(freshestSyncAt || freshestDataAsOf) && (
             <p className="mt-3 text-xs text-text-subtle">
               {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
@@ -373,7 +391,7 @@ export default async function PagesCockpitPage() {
 
         <CockpitAssistantGuide
           title="PraeviSEO vous explique quoi faire sur vos pages"
-          description="Cette vue ne montre pas seulement des pages : elle vous aide a comprendre ou agir d abord et ce que cela debloque."
+          description="Cette vue ne montre qu’une chose : quelles pages méritent une action, pourquoi elles comptent et ce que vous débloquez en les travaillant."
           whatText={pagesAssistantWhat}
           whyText={pagesAssistantWhy}
           nextText={pagesAssistantNext}

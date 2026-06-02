@@ -164,16 +164,63 @@ export default async function OptimizationsPage() {
   ]
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 6);
+  const optimizationDecisionBlocks = [
+    {
+      title: "Impact estimé",
+      items: [
+        leadRecommendation
+          ? `${impactLabel(leadRecommendation.estimated_impact)} sur l’action ${leadRecommendation.title}.`
+          : "Le prochain impact fort apparaîtra ici dès qu’une recommandation claire remontera.",
+        leadOpportunity
+          ? `Google montre déjà un levier concret sur ${leadOpportunity.label}.`
+          : "Les prochains signaux Google utiles apparaîtront ici automatiquement.",
+      ],
+    },
+    {
+      title: "Difficulté",
+      items: [
+        leadRecommendation
+          ? `${difficultyLabel(leadRecommendation.difficulty)} pour la meilleure action actuellement suggérée.`
+          : "PraeviSEO précisera l’effort requis dès qu’une action sortira du lot.",
+        pagesToRefresh.length > 0
+          ? `${pagesToRefresh.length} page(s) peuvent déjà être retravaillées sans chantier trop lourd.`
+          : "Aucune page chaude à retravailler rapidement pour le moment.",
+      ],
+    },
+    {
+      title: "Priorité",
+      items: [
+        leadOpportunity
+          ? `${opportunityPriorityLabel(leadOpportunity.priority_label)} sur ${leadOpportunity.label}.`
+          : "Aucune priorité très forte n’est encore remontée.",
+        optimizations.gsc_opportunities.summary.high_priority > 0
+          ? `${optimizations.gsc_opportunities.summary.high_priority} opportunité(s) sont déjà classées en priorité haute.`
+          : "Les prochaines priorités fortes apparaîtront ici quand le signal deviendra assez net.",
+      ],
+    },
+    {
+      title: "Action recommandée",
+      items: [
+        leadRecommendation?.suggested_action ?? leadOpportunity?.action ?? "PraeviSEO affichera ici l’action la plus utile dès qu’elle sera claire.",
+        actionPlan[0]?.reasoning ?? "Le moteur continue de comparer les prochains gains possibles.",
+      ],
+    },
+  ] as const;
 
   return (
     <div className="min-h-screen">
       <Topbar
         title="Optimisations"
-        subtitle="Les opportunités SEO détectées par PraeviSEO à partir de Google Search Console."
+        subtitle="Les actions qui peuvent réellement vous faire gagner du trafic maintenant."
         actions={
-          <Button href="/dashboard" variant="secondary" size="sm">
-            Retour au dashboard
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button href="/sites" size="sm">
+              Lancer les actions
+            </Button>
+            <Button href="/dashboard" variant="secondary" size="sm">
+              Retour au dashboard
+            </Button>
+          </div>
         }
       />
       <div className="p-6 space-y-6">
@@ -184,16 +231,40 @@ export default async function OptimizationsPage() {
             { label: "Pages à refresh", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
             { label: "Plan d’action", href: "#plan-action", count: actionPlan.length, tone: "warning" },
-            { label: "Activité SEO", href: "#activite", count: optimizations.items.length, tone: "default" },
+            { label: "Activité", href: "#activite", count: optimizations.items.length, tone: "default" },
           ]}
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Vos meilleures opportunités SEO, sans installer quoi que ce soit</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Les actions SEO qui méritent d’être ouvertes maintenant</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            PraeviSEO lit déjà Google Search Console pour repérer les pages proches d’un gain rapide, les pages qui
-            attirent encore trop peu de clics, les baisses de visibilité et les recherches qui méritent une meilleure réponse.
+            Cette page sert à une seule chose : trier les actions qui peuvent vraiment faire gagner du trafic, avec leur impact attendu, leur difficulté, leur priorité et l’action recommandée.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button href="/sites">
+              Lancer les actions
+            </Button>
+            <Button href="/activity" variant="secondary">
+              Voir le contexte récent
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-4">
+          {optimizationDecisionBlocks.map((block) => (
+            <Card key={block.title}>
+              <CardHeader>
+                <CardTitle className="text-base">{block.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {block.items.map((item) => (
+                  <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                    {item}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -248,7 +319,7 @@ export default async function OptimizationsPage() {
             <CardHeader>
               <CardTitle>Pourquoi agir maintenant</CardTitle>
               <CardDescription>
-                Le signal le plus concret que PraeviSEO voit déjà dans Google.
+                Le signal Google le plus concret que PraeviSEO voit déjà derrière cette action.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -290,7 +361,7 @@ export default async function OptimizationsPage() {
             <CardHeader>
               <CardTitle>Gain attendu et effort</CardTitle>
               <CardDescription>
-                La meilleure action déjà prête pour faire progresser votre visibilité.
+                La meilleure action déjà prête, avec son ratio gain attendu / difficulté.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -430,9 +501,9 @@ export default async function OptimizationsPage() {
 
           <Card id="activite" className="scroll-mt-24">
             <CardHeader>
-              <CardTitle>Activité SEO</CardTitle>
+              <CardTitle>Contexte récent</CardTitle>
               <CardDescription>
-                Le feed chronologique des opportunités et recommandations déjà visibles dans PraeviSEO.
+                Le minimum utile pour comprendre d’où vient l’action. Le journal complet reste dans Activité.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -458,6 +529,11 @@ export default async function OptimizationsPage() {
                   </div>
                 ))
               )}
+              <div className="pt-2">
+                <Button href="/activity" variant="secondary" className="w-full">
+                  Comprendre ce qui s’est passé
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -466,7 +542,7 @@ export default async function OptimizationsPage() {
           <CardHeader>
             <CardTitle>Plan d’action recommandé par PraeviSEO</CardTitle>
             <CardDescription>
-              Les actions déjà prêtes les plus utiles pour aider le client à améliorer sa visibilité.
+              Les actions déjà prêtes les plus utiles pour améliorer la visibilité, classées par impact, effort et priorité.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

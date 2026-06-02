@@ -3009,7 +3009,7 @@ export function getPraeviseoClientStatus(
     return "Automatisation en préparation";
   }
 
-  return site.readiness.gsc_connected ? "Analyse GSC active" : "Search Console à connecter";
+  return site.readiness.gsc_connected ? "Cockpit SEO actif" : "Search Console à connecter";
 }
 
 export function isInstallationInProgress(status: string): boolean {
@@ -3042,7 +3042,7 @@ export function getPraeviseoClientDetail(
   site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
 ): string {
   if (site.publication_bridge_status === "connected") {
-    return "PraeviSEO analyse vos performances GSC et peut aussi executer des actions avancees via la couche premium.";
+    return "PraeviSEO suit déjà vos performances Google et peut maintenant exécuter des actions avancées sur le site.";
   }
 
   if (site.publication_bridge_status === "requested") {
@@ -3060,12 +3060,12 @@ export function getPraeviseoActivationLabel(
   site: Pick<PraeviseoSite, "publication_bridge_status" | "readiness">
 ): string {
   if (site.publication_bridge_status === "requested") {
-    return "Suivre l’automatisation";
+    return "Suivre l’activation";
   }
 
   if (site.publication_bridge_status === "connected") {
-    return "Automatisation active";
+    return "Ouvrir les automatisations";
   }
 
-  return site.readiness.gsc_connected ? "Découvrir l’automatisation" : "Connecter Search Console";
+  return site.readiness.gsc_connected ? "Activer l’automatisation" : "Connecter Search Console";
 }

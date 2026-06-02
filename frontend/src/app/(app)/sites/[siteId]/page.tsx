@@ -31,6 +31,19 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     notFound();
   }
 
+  const technicalPath = getSiteConnectPath(site.site_id);
+  const automationPath = `/sites/${site.site_id}/automation`;
+  const primaryActionHref = site.publication_bridge_status === "connected"
+    ? automationPath
+    : site.readiness.gsc_connected
+      ? technicalPath
+      : `/sites/${site.site_id}/search-console`;
+  const primaryActionLabel = site.publication_bridge_status === "connected"
+    ? "Voir les automatisations"
+    : site.readiness.gsc_connected
+      ? "Terminer l’activation"
+      : "Connecter Search Console";
+
   const backendLive = hasBackendConnection();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
@@ -129,6 +142,36 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       ? `${refreshContent.length} contenu(s) méritent déjà un refresh ou une relance.`
       : "Aucun contenu chaud à relancer pour le moment sur ce site.",
   ];
+  const growthBlockers = [
+    siteSignals[0] ?? null,
+    siteIndexationAlerts[0]?.detail ?? null,
+    site.summary.gsc_delta_clicks < 0 ? "Les clics reculent sur la dernière période suivie." : null,
+    cannibalContent[0]
+      ? `${cannibalContent[0].title} parle encore d’un sujet qui mérite d’être clarifié.`
+      : null,
+  ].filter((item): item is string => item !== null).slice(0, 3);
+  const growthLevers = [
+    siteOpportunities[0]?.reason ?? null,
+    risingQueries[0]
+      ? `${risingQueries[0].query} commence à bouger dans Google et peut ouvrir un vrai gain de trafic.`
+      : null,
+    linkedQueryWatchlist[0]
+      ? `${linkedQueryWatchlist[0].query} a déjà une bonne page cible repérée par PraeviSEO.`
+      : null,
+    refreshContent[0]
+      ? `${refreshContent[0].title} a déjà la matière pour être enrichi puis relancé.`
+      : null,
+  ].filter((item): item is string => item !== null).slice(0, 3);
+  const recommendedMoves = [
+    siteActionPlan[0]?.suggested_action ?? siteActionPlan[0]?.reasoning ?? null,
+    siteOpportunities[0]?.action ?? null,
+    site.next_action.detail || null,
+  ].filter((item): item is string => item !== null).slice(0, 3);
+  const priorityNow = [
+    siteActionPlan[0]?.title ?? null,
+    siteOpportunities[0]?.label ?? null,
+    pageMomentum[0]?.label ? `${pageMomentum[0].label} mérite une lecture immédiate.` : null,
+  ].filter((item): item is string => item !== null).slice(0, 3);
   const activityFeed = [
     ...siteOpportunities.map((item) => ({
       id: `site-opportunity-${item.slug}-${item.type}`,
@@ -292,12 +335,19 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     <div className="min-h-screen">
       <Topbar
         title={site.name}
-        subtitle="Vue client : performances GSC, indexation et prochaines actions utiles."
+        subtitle="Le cockpit SEO qui montre où gagner du trafic maintenant."
         lastSync={backendLive ? "lecture GSC actualisée" : "données de démonstration"}
         actions={
-          <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`} size="sm">
-            {getPraeviseoActivationLabel(site)}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button href={primaryActionHref} size="sm">
+              {primaryActionLabel}
+            </Button>
+            {site.publication_bridge_status === "connected" ? (
+              <Button href={technicalPath} variant="secondary" size="sm">
+                Santé technique
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -308,9 +358,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             { label: "Opportunités", href: "#opportunites", count: siteOpportunities.length, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageMomentum.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: risingQueries.length + newQueries.length + queryWatchlist.length, tone: "success" },
-            { label: "Blogs", href: "#blogs", count: enrichmentContent.length + linkingContent.length + cannibalContent.length, tone: "secondary" },
+            { label: "Contenus", href: "#blogs", count: enrichmentContent.length + linkingContent.length + cannibalContent.length, tone: "secondary" },
             { label: "Indexation", href: "#indexation", count: siteIndexationAlerts.length || site.summary.gsc_indexed_pages, tone: "secondary" },
-            { label: "Activité SEO", href: "#activite", count: activityFeed.length, tone: "default" },
+            { label: "Activité", href: "#activite", count: activityFeed.length, tone: "default" },
           ]}
         />
 
@@ -349,10 +399,15 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}>
-                {site.readiness.gsc_connected ? "Découvrir l’automatisation" : "Connecter Search Console"}
+              <Button href={primaryActionHref}>
+                {primaryActionLabel}
                 <ArrowRight className="w-4 h-4" />
               </Button>
+              {site.publication_bridge_status === "connected" ? (
+                <Button href={technicalPath} variant="secondary">
+                  Santé technique
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -367,6 +422,50 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 </div>
                 <CardTitle className="text-sm leading-6 text-text-muted font-medium">{item.detail}</CardTitle>
               </CardHeader>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-4">
+          {[
+            {
+              title: "Ce qui freine la croissance",
+              items: growthBlockers,
+              empty: "Aucun frein fort n’est visible pour l’instant. PraeviSEO reste en veille sur les prochains reculs ou points flous.",
+            },
+            {
+              title: "Ce qui peut faire gagner du trafic",
+              items: growthLevers,
+              empty: "Le prochain levier de croissance apparaîtra ici dès qu’un signal devient assez clair pour être rentable.",
+            },
+            {
+              title: "Ce que PraeviSEO recommande",
+              items: recommendedMoves,
+              empty: "PraeviSEO prépare encore la prochaine recommandation utile pour ce site.",
+            },
+            {
+              title: "Ce qui est prioritaire maintenant",
+              items: priorityNow,
+              empty: "Aucune priorité très nette ne se détache encore. Le cockpit continuera de trier les prochains signaux utiles.",
+            },
+          ].map((section) => (
+            <Card key={section.title}>
+              <CardHeader>
+                <CardTitle className="text-base">{section.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {section.items.length === 0 ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                    {section.empty}
+                  </div>
+                ) : (
+                  section.items.map((item) => (
+                    <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                      {item}
+                    </div>
+                  ))
+                )}
+              </CardContent>
             </Card>
           ))}
         </div>
@@ -398,9 +497,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <div id="opportunites" className="grid gap-6 xl:grid-cols-[1fr_0.9fr] scroll-mt-24">
           <Card>
             <CardHeader>
-              <CardTitle>État réel du site</CardTitle>
+              <CardTitle>Ce qui peut faire progresser le site</CardTitle>
               <CardDescription>
-                Ce que le client doit comprendre immédiatement, sans jargon admin.
+                La lecture la plus simple possible : où vous en êtes et quel levier peut faire gagner du trafic ensuite.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -788,27 +887,26 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             <CardHeader>
               <CardTitle>Prochaine action recommandée</CardTitle>
               <CardDescription>
-                Le dashboard client pousse la prochaine vraie étape, pas les diagnostics internes.
+                La prochaine vraie étape pour faire progresser le site, sans noyer le client dans la technique.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4">
-                <div className="text-sm font-semibold text-text">
-                  {nextActionLabel}
-                </div>
+                <div className="text-sm font-semibold text-text">{nextActionLabel}</div>
                 <p className="mt-2 text-sm text-text-muted leading-6">
                   {nextActionDetail}
                 </p>
               </div>
 
-              <Button
-                href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}
-                className="w-full"
-              >
-                {getPraeviseoActivationLabel(site)}
+              <Button href={primaryActionHref} className="w-full">
+                {primaryActionLabel}
               </Button>
 
-              {!site.readiness.gsc_connected ? (
+              {site.publication_bridge_status === "connected" ? (
+                <Button href={technicalPath} className="w-full" variant="secondary">
+                  Ouvrir la santé technique
+                </Button>
+              ) : !site.readiness.gsc_connected ? (
                 <Button href={`/sites/${site.site_id}/search-console`} className="w-full" variant="secondary">
                   Connecter mon Google
                 </Button>
@@ -816,11 +914,11 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
               <div className="space-y-3">
                 {[
-                  site.readiness.gsc_connected ? "Google Search Console déjà relié" : "Google Search Console à relier",
-                  "Performances, indexation et opportunités déjà analysées",
-                  "Le free reste utile sans aucune installation",
-                  "Une couche d’automatisation pourra venir plus tard si vous voulez aller plus loin",
-                  "Le cockpit revient déjà avec des priorités, tendances et recommandations lisibles",
+                  site.readiness.gsc_connected ? "Google Search Console alimente déjà les priorités du cockpit" : "Relier Google Search Console ouvrira des priorités encore plus fiables",
+                  "Les opportunités les plus proches d’un gain sont déjà triées",
+                  "Les pages qui montent, ralentissent ou décrochent sont visibles ici",
+                  "Les requêtes à potentiel et les contenus à retravailler sont déjà reliés",
+                  "Le cockpit vous dit quoi faire maintenant, pas comment installer l’outil",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2 text-sm text-text-muted">
                     <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
@@ -835,9 +933,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <div id="activite" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
           <Card>
             <CardHeader>
-              <CardTitle>Quoi traiter d’abord</CardTitle>
+              <CardTitle>Actions prioritaires</CardTitle>
               <CardDescription>
-                Le meilleur plan d’action disponible maintenant sur ce site, entre recommandations, recherches et contenus.
+                Les actions qui peuvent créer le plus d’impact maintenant, entre pages, requêtes et contenus.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

@@ -21,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const NAV_ITEMS: Array<{
+type SidebarNavSection = {
   section: string;
   items: Array<{
     label: string;
@@ -29,17 +29,19 @@ const NAV_ITEMS: Array<{
     icon: typeof LayoutDashboard;
     badge?: string;
   }>;
-}> = [
+};
+
+const NAV_ITEMS: SidebarNavSection[] = [
   {
     section: "Principal",
     items: [
-      { label: "Vue d'ensemble", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Dashboard SEO", href: "/dashboard", icon: LayoutDashboard },
       { label: "Opportunités", href: "/optimizations", icon: Sparkles },
       { label: "Pages", href: "/pages", icon: FileText },
-      { label: "Google comprend", href: "/queries", icon: LineChart },
-      { label: "Blogs", href: "/publications", icon: Send },
+      { label: "Requêtes Google", href: "/queries", icon: LineChart },
+      { label: "Contenus", href: "/publications", icon: Send },
       { label: "Indexation", href: "/indexation", icon: Database },
-      { label: "Activité SEO", href: "/activity", icon: Activity },
+      { label: "Activité", href: "/activity", icon: Activity },
     ],
   },
   {
@@ -67,6 +69,19 @@ export function Sidebar({ sites = [] }: SidebarProps) {
   const pathname = usePathname();
   const activeSite =
     sites.find((site) => pathname.startsWith(`/sites/${site.site_id}`)) ?? sites[0] ?? null;
+  const siteNavItems: SidebarNavSection[] = activeSite
+    ? [
+        {
+          section: "Site Actif",
+          items: [
+            { label: "Cockpit du site", href: `/sites/${activeSite.site_id}`, icon: Globe },
+            { label: "Automatisations", href: `/sites/${activeSite.site_id}/automation`, icon: Sparkles },
+            { label: "Santé technique", href: `/sites/${activeSite.site_id}/connect`, icon: Settings },
+          ],
+        },
+      ]
+    : [];
+  const navSections = [...siteNavItems, ...NAV_ITEMS];
 
   return (
     <aside className="flex flex-col w-60 min-h-screen bg-surface border-r border-border shrink-0">
@@ -106,7 +121,7 @@ export function Sidebar({ sites = [] }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-3 space-y-5 overflow-y-auto">
-        {NAV_ITEMS.map((section) => (
+        {navSections.map((section) => (
           <div key={section.section}>
             <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-text-subtle">
               {section.section}

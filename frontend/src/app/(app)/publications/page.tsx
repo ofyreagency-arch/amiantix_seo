@@ -108,10 +108,10 @@ export default async function PublicationsPage() {
   return (
     <div className="min-h-screen">
       <Topbar
-        title="Blogs"
+        title="Contenus"
         subtitle={
           hasRealContent
-            ? "Les contenus suivis par PraeviSEO pour détecter les articles à développer, à relancer ou à surveiller."
+            ? "Les contenus suivis par PraeviSEO pour détecter ce qu’il faut développer, enrichir, relancer ou surveiller."
             : "Cet espace s’activera dès que PraeviSEO repère de vrais contenus éditoriaux sur votre site."
         }
       />

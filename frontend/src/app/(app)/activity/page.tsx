@@ -3,6 +3,7 @@ import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
+import { Button } from "@/components/ui/button";
 import {
   getClientRecommendationBadge,
   getClientRecommendationText,
@@ -199,7 +200,7 @@ export default async function ActivityCockpitPage() {
       .filter((site) => site.gsc_last_sync_at)
       .map((site) => ({
         id: `sync-${site.site_id}`,
-        title: `${site.name} relu par Google`,
+        title: `PraeviSEO a reçu une nouvelle lecture Google pour ${site.name}`,
         detail:
           site.summary.gsc_delta_impressions > 0
             ? `+${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions sur la dernière période.`
@@ -214,7 +215,7 @@ export default async function ActivityCockpitPage() {
       })),
     ...optimizations.gsc_opportunities.items.slice(0, 6).map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
-      title: item.label,
+      title: `PraeviSEO a détecté une nouvelle opportunité sur ${item.label}`,
       detail: item.reason,
       badge: item.priority_label,
       badgeVariant: item.priority_level === "high" ? "warning" : "secondary",
@@ -223,7 +224,7 @@ export default async function ActivityCockpitPage() {
     })),
     ...optimizations.items.slice(0, 6).map((item) => ({
       id: `optimization-${item.id}`,
-      title: item.page.title,
+      title: `PraeviSEO recommande une action sur ${item.page.title}`,
       detail: item.summary,
       badge: item.status === "pending" ? "Reco ouverte" : "Reco suivie",
       badgeVariant: item.status === "pending" ? "warning" : "secondary",
@@ -232,7 +233,9 @@ export default async function ActivityCockpitPage() {
     })),
     ...publications.items.slice(0, 6).map((item) => ({
       id: `publication-${item.id}`,
-      title: item.title,
+      title: item.published_live
+        ? `PraeviSEO suit un contenu déjà visible : ${item.title}`
+        : `PraeviSEO a préparé un contenu : ${item.title}`,
       detail: item.observed_content?.snapshot_word_delta
         ? item.observed_content.snapshot_word_delta > 0
           ? `Le contenu a gagné ${item.observed_content.snapshot_word_delta} mot(s) depuis la lecture précédente.`
@@ -247,7 +250,10 @@ export default async function ActivityCockpitPage() {
     })),
     ...queryMovementFeed.slice(0, 6).map((item) => ({
       id: `query-${item.site_name}-${item.query}-${item.trend}`,
-      title: item.query,
+      title:
+        item.trend === "new"
+          ? `PraeviSEO a repéré une nouvelle requête : ${item.query}`
+          : `PraeviSEO suit une requête en hausse : ${item.query}`,
       detail:
         item.trend === "new"
           ? `Nouvelle requête détectée avec ${item.impressions} impressions et une position moyenne de ${item.position.toFixed(1)}.`
@@ -265,7 +271,7 @@ export default async function ActivityCockpitPage() {
     })),
     ...indexationFeed.slice(0, 6).map((item) => ({
       id: `indexation-${item.site_name}-${item.slug}`,
-      title: item.label,
+      title: `PraeviSEO garde un point d’indexation sous surveillance : ${item.label}`,
       detail: item.detail,
       badge: "Indexation",
       badgeVariant: "warning" as const,
@@ -278,7 +284,7 @@ export default async function ActivityCockpitPage() {
     ...enrichmentFeed.slice(0, 6),
     ...observedRecommendations.slice(0, 6).map((item) => ({
       id: `observed-recommendation-${item.id}`,
-      title: getClientRecommendationTitle(item.title),
+      title: `PraeviSEO a ouvert une recommandation : ${getClientRecommendationTitle(item.title)}`,
       detail: getClientRecommendationText(item.suggested_action ?? item.reasoning),
       badge: getClientRecommendationBadge(item.priority),
       badgeVariant: item.priority <= 30 ? "warning" as const : "secondary" as const,
@@ -370,8 +376,18 @@ export default async function ActivityCockpitPage() {
   return (
     <div className="min-h-screen">
       <Topbar
-        title="Activité SEO"
-        subtitle="Le feed vivant du cockpit : alertes, variations, mouvements et nouvelles opportunités détectées."
+        title="Activité"
+        subtitle="Le journal chronologique de ce que PraeviSEO a détecté, analysé, recommandé ou relancé."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button href="/dashboard" size="sm">
+              Retour au dashboard
+            </Button>
+            <Button href="/optimizations" variant="secondary" size="sm">
+              Voir les actions
+            </Button>
+          </div>
+        }
       />
 
       <div className="p-6 space-y-6">
@@ -388,11 +404,18 @@ export default async function ActivityCockpitPage() {
         />
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Le feed vivant de votre SEO</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Le journal vivant du site</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            PraeviSEO donne ici une sensation de mouvement continu : variations Google, opportunités détectées,
-            recommandations ouvertes et activité récente du cockpit.
+            Cette page sert à comprendre ce qui s’est passé, dans quel ordre, avec quel impact et ce que PraeviSEO a déjà repéré ensuite.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button href="/dashboard">
+              Comprendre ce qui s’est passé
+            </Button>
+            <Button href="/optimizations" variant="secondary">
+              Voir ce qui en découle
+            </Button>
+          </div>
           {(freshestSyncAt || freshestDataAsOf) && (
             <p className="mt-3 text-xs text-text-subtle">
               {freshestSyncAt ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.` : "Synchronisation GSC en attente."}{" "}
@@ -406,8 +429,8 @@ export default async function ActivityCockpitPage() {
         </div>
 
         <CockpitAssistantGuide
-          title="PraeviSEO vous aide a lire ce qui bouge vraiment"
-          description="Cette vue sert a separer le bruit du vrai signal : ce qui a change, ce qui merite une verification et ce qu'il faut ouvrir ensuite."
+          title="PraeviSEO vous raconte ce qui s’est vraiment passé"
+          description="Cette vue trie le bruit pour ne laisser que les événements utiles : ce qui a bougé, ce qui a été détecté et ce qu’il faut ouvrir ensuite."
           whatText={activityAssistantWhat}
           whyText={activityAssistantWhy}
           nextText={activityAssistantNext}
@@ -601,14 +624,14 @@ export default async function ActivityCockpitPage() {
           </CockpitSignalListCard>
         </div>
 
-        <CockpitSignalListCard
-          id="timeline"
-          className="scroll-mt-24"
-          title="Timeline SEO"
-          description="Progression, historique et activité détectée récemment dans PraeviSEO."
-          empty={timelineFeed.length === 0}
-          emptyMessage="La timeline se remplira automatiquement avec les prochaines variations SEO."
-        >
+          <CockpitSignalListCard
+            id="timeline"
+            className="scroll-mt-24"
+            title="Journal des événements"
+            description="Chaque ligne raconte un fait : détection, recommandation, mouvement Google, contenu suivi ou signal à traiter."
+            empty={timelineFeed.length === 0}
+            emptyMessage="Le journal se remplira automatiquement dès que PraeviSEO détectera les prochains événements utiles."
+          >
           {timelineFeed.map((item) => (
             <CockpitSignalItem
               key={item.id}
