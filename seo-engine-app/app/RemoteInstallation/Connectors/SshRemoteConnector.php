@@ -145,11 +145,11 @@ class SshRemoteConnector implements RemoteConnector
         $stderrFile = "/tmp/praeviseo_stderr_{$token}";
 
         return sprintf(
-            "stdout_file=%s; stderr_file=%s; (%s) 1>\"$stdout_file\" 2>\"$stderr_file\"; exit_code=$?; ".
-            "printf '__PRAEVISEO_EXIT__=%s\n' \"$exit_code\"; ".
-            "printf '__PRAEVISEO_STDOUT_BEGIN__\n'; if [ -f \"$stdout_file\" ]; then cat \"$stdout_file\"; fi; printf '\n__PRAEVISEO_STDOUT_END__\n'; ".
-            "printf '__PRAEVISEO_STDERR_BEGIN__\n'; if [ -f \"$stderr_file\" ]; then cat \"$stderr_file\"; fi; printf '\n__PRAEVISEO_STDERR_END__\n'; ".
-            "rm -f \"$stdout_file\" \"$stderr_file\"",
+            "stdout_file=%s; stderr_file=%s; (%s) 1>\"\$stdout_file\" 2>\"\$stderr_file\"; exit_code=$?; ".
+            "printf '__PRAEVISEO_EXIT__=%s\n' \"\$exit_code\"; ".
+            "printf '__PRAEVISEO_STDOUT_BEGIN__\n'; if [ -f \"\$stdout_file\" ]; then cat \"\$stdout_file\"; fi; printf '\n__PRAEVISEO_STDOUT_END__\n'; ".
+            "printf '__PRAEVISEO_STDERR_BEGIN__\n'; if [ -f \"\$stderr_file\" ]; then cat \"\$stderr_file\"; fi; printf '\n__PRAEVISEO_STDERR_END__\n'; ".
+            "rm -f \"\$stdout_file\" \"\$stderr_file\"",
             escapeshellarg($stdoutFile),
             escapeshellarg($stderrFile),
             $command,
