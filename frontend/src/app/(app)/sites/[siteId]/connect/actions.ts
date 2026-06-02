@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   getSiteConnectPath,
+  requestRemoteInstallationPrecheck,
+  type InstallationReadinessReport,
   requestPremiumCrawl,
   requestPremiumGeneration,
   requestPremiumImages,
@@ -17,6 +19,7 @@ export type RemoteInstallActionState = {
   status: "idle" | "success" | "error";
   message: string;
   values: Record<string, string>;
+  report: InstallationReadinessReport | null;
 };
 
 const FIELDS = [
@@ -57,7 +60,7 @@ export async function submitRemoteInstallAction(
   const values = readValues(formData);
 
   try {
-    const site = await requestRemoteInstallation({
+    const payload = {
       site_id: siteId,
       hosting_provider: values.hosting_provider,
       access_method: (values.access_method as "ssh" | "sftp" | "api") || "ssh",
@@ -78,7 +81,24 @@ export async function submitRemoteInstallAction(
       api_project_id: values.api_project_id,
       api_account_name: values.api_account_name,
       api_notes: values.api_notes,
-    });
+    };
+    const intent = String(formData.get("intent") ?? "precheck");
+
+    if (intent === "precheck") {
+      const report = await requestRemoteInstallationPrecheck(payload);
+
+      return {
+        status: report.status === "ready" ? "success" : "error",
+        message:
+          report.status === "ready"
+            ? "Le diagnostic est bon. PraeviSEO peut maintenant lancer l installation."
+            : report.summary,
+        values,
+        report,
+      };
+    }
+
+    const site = await requestRemoteInstallation(payload);
 
     return {
       status: "success",
@@ -91,6 +111,7 @@ export async function submitRemoteInstallAction(
         hosting_provider: site.installation.hosting_provider ?? values.hosting_provider,
         access_method: site.installation.access_method ?? values.access_method,
       },
+      report: site.installation.readiness_report,
     };
   } catch (error) {
     return {
@@ -100,6 +121,7 @@ export async function submitRemoteInstallAction(
           ? error.message
           : "Impossible d enregistrer les accès pour le moment.",
       values,
+      report: _previousState.report,
     };
   }
 }

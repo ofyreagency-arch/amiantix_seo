@@ -36,6 +36,7 @@ export type PraeviseoSite = {
     detected_framework: string | null;
     detected_php_version: string | null;
     detected_composer: string | null;
+    readiness_report: InstallationReadinessReport | null;
     logs: Array<{
       at: string;
       level: string;
@@ -270,6 +271,34 @@ export type PraeviseoSite = {
   };
 };
 
+export type InstallationReadinessItem = {
+  key: string;
+  label: string;
+  detail: string;
+};
+
+export type InstallationReadinessBlocker = InstallationReadinessItem & {
+  autofixable: boolean;
+};
+
+export type InstallationReadinessReport = {
+  score: number;
+  status: "ready" | "blocked";
+  summary: string;
+  validated: InstallationReadinessItem[];
+  warnings: InstallationReadinessItem[];
+  blockers: InstallationReadinessBlocker[];
+  autofixable: InstallationReadinessItem[];
+  manual_actions: InstallationReadinessItem[];
+  detected: {
+    framework: string | null;
+    php_version: string | null;
+    composer_version: string | null;
+    project_path: string | null;
+    access_method: string | null;
+  };
+};
+
 export type PraeviseoDashboard = {
   sites: PraeviseoSite[];
   totals: {
@@ -494,6 +523,7 @@ export type RemoteInstallationInput = {
 type SitesResponse = { sites: unknown[] };
 type SiteResponse = { site: unknown };
 type InstallationStatusResponse = { site: unknown; installation: unknown };
+type InstallationPrecheckResponse = { report: unknown };
 
 const backendBaseUrl = (
   process.env.PRAEVISEO_API_URL ??
@@ -537,6 +567,7 @@ const mockSites: PraeviseoSite[] = [
       detected_framework: "symfony",
       detected_php_version: "8.3",
       detected_composer: "Composer 2",
+      readiness_report: null,
       logs: [],
     },
     crawl: {
@@ -883,6 +914,7 @@ const mockSites: PraeviseoSite[] = [
       detected_framework: null,
       detected_php_version: null,
       detected_composer: null,
+      readiness_report: null,
       logs: [],
     },
     crawl: null,
@@ -1398,6 +1430,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       detected_composer: (site.installation as Record<string, unknown> | undefined)?.detected_composer
         ? String((site.installation as Record<string, unknown> | undefined)?.detected_composer)
         : null,
+      readiness_report: normaliseInstallationReadinessReport(
+        (site.installation as Record<string, unknown> | undefined)?.readiness_report
+      ),
       logs: Array.isArray((site.installation as Record<string, unknown> | undefined)?.logs)
         ? (((site.installation as Record<string, unknown> | undefined)?.logs as unknown[]) ?? []).map((entry) => ({
             at: String((entry as Record<string, unknown>)?.at ?? ""),
@@ -1757,6 +1792,59 @@ function normaliseSite(raw: unknown): PraeviseoSite {
   };
 }
 
+function normaliseInstallationReadinessReport(raw: unknown): InstallationReadinessReport | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const report = raw as Record<string, unknown>;
+  const normaliseItems = (value: unknown): InstallationReadinessItem[] =>
+    Array.isArray(value)
+      ? value.map((entry) => ({
+          key: String((entry as Record<string, unknown>).key ?? ""),
+          label: String((entry as Record<string, unknown>).label ?? ""),
+          detail: String((entry as Record<string, unknown>).detail ?? ""),
+        }))
+      : [];
+  const normaliseBlockers = (value: unknown): InstallationReadinessBlocker[] =>
+    Array.isArray(value)
+      ? value.map((entry) => ({
+          key: String((entry as Record<string, unknown>).key ?? ""),
+          label: String((entry as Record<string, unknown>).label ?? ""),
+          detail: String((entry as Record<string, unknown>).detail ?? ""),
+          autofixable: Boolean((entry as Record<string, unknown>).autofixable ?? false),
+        }))
+      : [];
+
+  return {
+    score: Number(report.score ?? 0),
+    status: String(report.status ?? "blocked") === "ready" ? "ready" : "blocked",
+    summary: String(report.summary ?? ""),
+    validated: normaliseItems(report.validated),
+    warnings: normaliseItems(report.warnings),
+    blockers: normaliseBlockers(report.blockers),
+    autofixable: normaliseItems(report.autofixable),
+    manual_actions: normaliseItems(report.manual_actions),
+    detected: {
+      framework: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).framework
+        ? String((report.detected as Record<string, unknown>).framework)
+        : null,
+      php_version: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).php_version
+        ? String((report.detected as Record<string, unknown>).php_version)
+        : null,
+      composer_version: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).composer_version
+        ? String((report.detected as Record<string, unknown>).composer_version)
+        : null,
+      project_path: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).project_path
+        ? String((report.detected as Record<string, unknown>).project_path)
+        : null,
+      access_method: report.detected && typeof report.detected === "object" && (report.detected as Record<string, unknown>).access_method
+        ? String((report.detected as Record<string, unknown>).access_method)
+        : null,
+    },
+  };
+}
+
 async function appFetch<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
   const response = await fetch(`${backendBaseUrl}${path}`, {
     ...init,
@@ -2107,6 +2195,7 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         detected_framework: null,
         detected_php_version: null,
         detected_composer: null,
+        readiness_report: null,
         logs: [],
       },
       crawl: null,
@@ -2317,6 +2406,7 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
         detected_framework: null,
         detected_php_version: null,
         detected_composer: null,
+        readiness_report: null,
         logs: [],
       },
       crawl: {
@@ -2388,6 +2478,90 @@ export async function requestRemoteInstallation(input: RemoteInstallationInput):
   );
 
   return normaliseSite(payload.site);
+}
+
+export async function requestRemoteInstallationPrecheck(input: RemoteInstallationInput): Promise<InstallationReadinessReport> {
+  if (!backendConfigured()) {
+    return {
+      score: 84,
+      status: "blocked",
+      summary: "Le site est presque prêt, mais APP_URL manque encore avant l installation réelle.",
+      validated: [
+        { key: "ssh", label: "SSH valide", detail: "PraeviSEO peut bien joindre le serveur." },
+        { key: "php", label: "PHP valide", detail: "Une version PHP utilisable est déjà détectée." },
+        { key: "composer", label: "Composer valide", detail: "Composer est disponible pour préparer le bridge." },
+        { key: "framework", label: "Framework détecté", detail: "Le site a bien été reconnu avant installation." },
+        { key: "permissions", label: "Permissions valides", detail: "Le dossier du projet reste accessible en écriture." },
+      ],
+      warnings: [{ key: "worker", label: "Aucun worker détecté", detail: "Le site pourra fonctionner, mais certaines étapes asynchrones mériteront un worker." }],
+      blockers: [{ key: "app_url", label: "APP_URL absente", detail: "PraeviSEO a besoin de l URL publique du site avant l activation.", autofixable: true }],
+      autofixable: [{ key: "app_url_autofix", label: "APP_URL automatique", detail: "PraeviSEO pourra injecter une APP_URL cohérente avant l installation." }],
+      manual_actions: [],
+      detected: {
+        framework: input.framework_hint ?? "symfony",
+        php_version: "8.3",
+        composer_version: "Composer 2",
+        project_path: input.ssh_project_path ?? input.sftp_project_path ?? null,
+        access_method: input.access_method,
+      },
+    };
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<InstallationPrecheckResponse>(
+    `/api/client/sites/${input.site_id}/installation-precheck`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        hosting_provider: input.hosting_provider,
+        access_method: input.access_method,
+        ssh_host: input.ssh_host,
+        ssh_port: input.ssh_port,
+        ssh_username: input.ssh_username,
+        ssh_project_path: input.ssh_project_path,
+        ssh_secret: input.ssh_secret,
+        ssh_sudo_command: input.ssh_sudo_command,
+        sftp_host: input.sftp_host,
+        sftp_port: input.sftp_port,
+        sftp_username: input.sftp_username,
+        sftp_password: input.sftp_password,
+        sftp_project_path: input.sftp_project_path,
+        framework_hint: input.framework_hint,
+        api_platform: input.api_platform,
+        api_token: input.api_token,
+        api_project_id: input.api_project_id,
+        api_account_name: input.api_account_name,
+        api_notes: input.api_notes,
+      }),
+    },
+    token
+  );
+
+  return normaliseInstallationReadinessReport(payload.report) ?? {
+    score: 0,
+    status: "blocked",
+    summary: "PraeviSEO n a pas pu lire le rapport de préparation.",
+    validated: [],
+    warnings: [],
+    blockers: [{ key: "report", label: "Rapport illisible", detail: "Le diagnostic a répondu, mais son format est incomplet.", autofixable: false }],
+    autofixable: [],
+    manual_actions: [],
+    detected: {
+      framework: null,
+      php_version: null,
+      composer_version: null,
+      project_path: null,
+      access_method: null,
+    },
+  };
 }
 
 export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite> {

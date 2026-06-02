@@ -21,6 +21,7 @@ use App\Models\SeoSuggestion;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
+use App\RemoteInstallation\InstallationPrecheckService;
 use App\Runtime\PremiumArticleGenerationService;
 use App\Runtime\SeoEngineContext;
 use Illuminate\Http\JsonResponse;
@@ -645,31 +646,21 @@ class ClientSitesController extends Controller
             ->where('site_id', $siteId)
             ->firstOrFail();
 
-        $data = $request->validate([
-            'hosting_provider' => ['required', 'string', 'in:vps_linux,ovh,ionos,hostinger,oswitch,vercel,other'],
-            'access_method' => ['required', 'string', 'in:ssh,sftp,api'],
-            'ssh_host' => ['nullable', 'string', 'max:255'],
-            'ssh_port' => ['nullable', 'integer', 'between:1,65535'],
-            'ssh_username' => ['nullable', 'string', 'max:120'],
-            'ssh_project_path' => ['nullable', 'string', 'max:500'],
-            'ssh_secret' => ['nullable', 'string', 'max:10000'],
-            'ssh_sudo_command' => ['nullable', 'string', 'max:120'],
-            'sftp_host' => ['nullable', 'string', 'max:255'],
-            'sftp_port' => ['nullable', 'integer', 'between:1,65535'],
-            'sftp_username' => ['nullable', 'string', 'max:120'],
-            'sftp_password' => ['nullable', 'string', 'max:4000'],
-            'sftp_project_path' => ['nullable', 'string', 'max:500'],
-            'framework_hint' => ['nullable', 'string', 'max:120'],
-            'api_platform' => ['nullable', 'string', 'max:120'],
-            'api_token' => ['nullable', 'string', 'max:4000'],
-            'api_project_id' => ['nullable', 'string', 'max:255'],
-            'api_account_name' => ['nullable', 'string', 'max:255'],
-            'api_notes' => ['nullable', 'string', 'max:2000'],
-        ]);
+        $data = $this->validateInstallationRequest($request);
 
         $this->validateInstallationAccess($data);
 
+        $precheck = app(InstallationPrecheckService::class)->run($data);
+
+        if (! $precheck->isReady()) {
+            return response()->json([
+                'message' => 'L installation ne peut pas continuer tant que les blocages du diagnostic ne sont pas levés.',
+                'report' => $precheck->toArray(),
+            ], 422);
+        }
+
         $payload = $this->buildInstallationPayload($data);
+        $payload['connection_metadata']['precheck_report'] = $precheck->toArray();
 
         $installation = RemoteInstallation::query()->create([
             'site_id' => $site->site_id,
@@ -709,6 +700,54 @@ class ClientSitesController extends Controller
             'site' => $this->serializeSite($site),
             'installation' => $this->serializeInstallation($installation),
         ], 202);
+    }
+
+    public function installationPrecheck(Request $request, string $siteId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $user->seoSites()
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $data = $this->validateInstallationRequest($request);
+
+        $this->validateInstallationAccess($data);
+
+        $report = app(InstallationPrecheckService::class)->run($data);
+
+        return response()->json([
+            'report' => $report->toArray(),
+        ]);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function validateInstallationRequest(Request $request): array
+    {
+        return $request->validate([
+            'hosting_provider' => ['required', 'string', 'in:vps_linux,ovh,ionos,hostinger,oswitch,vercel,other'],
+            'access_method' => ['required', 'string', 'in:ssh,sftp,api'],
+            'ssh_host' => ['nullable', 'string', 'max:255'],
+            'ssh_port' => ['nullable', 'integer', 'between:1,65535'],
+            'ssh_username' => ['nullable', 'string', 'max:120'],
+            'ssh_project_path' => ['nullable', 'string', 'max:500'],
+            'ssh_secret' => ['nullable', 'string', 'max:10000'],
+            'ssh_sudo_command' => ['nullable', 'string', 'max:120'],
+            'sftp_host' => ['nullable', 'string', 'max:255'],
+            'sftp_port' => ['nullable', 'integer', 'between:1,65535'],
+            'sftp_username' => ['nullable', 'string', 'max:120'],
+            'sftp_password' => ['nullable', 'string', 'max:4000'],
+            'sftp_project_path' => ['nullable', 'string', 'max:500'],
+            'framework_hint' => ['nullable', 'string', 'max:120'],
+            'api_platform' => ['nullable', 'string', 'max:120'],
+            'api_token' => ['nullable', 'string', 'max:4000'],
+            'api_project_id' => ['nullable', 'string', 'max:255'],
+            'api_account_name' => ['nullable', 'string', 'max:255'],
+            'api_notes' => ['nullable', 'string', 'max:2000'],
+        ]);
     }
 
     public function installationStatus(Request $request, string $siteId): JsonResponse
@@ -2336,6 +2375,7 @@ class ClientSitesController extends Controller
                 'detected_framework' => null,
                 'detected_php_version' => null,
                 'detected_composer' => null,
+                'readiness_report' => null,
                 'logs' => [],
             ];
         }
@@ -2354,6 +2394,7 @@ class ClientSitesController extends Controller
             'detected_framework' => $installation->detected_framework,
             'detected_php_version' => $installation->detected_php_version,
             'detected_composer' => $installation->detected_composer,
+            'readiness_report' => data_get($installation->connection_metadata, 'precheck_report'),
             'logs' => $installation->safeLogs(),
         ];
     }

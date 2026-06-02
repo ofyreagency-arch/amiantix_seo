@@ -57,6 +57,30 @@ final class RemoteCommand
         );
     }
 
+    public static function detectEnvFile(string $projectPath): self
+    {
+        return new self(
+            'detect_env_file',
+            self::withinProject($projectPath, '[ -f .env ] && echo present || echo missing'),
+        );
+    }
+
+    public static function detectAppUrl(string $projectPath): self
+    {
+        return new self(
+            'detect_app_url',
+            self::withinProject($projectPath, 'if [ -f .env ]; then grep -E "^APP_URL=" .env | tail -n 1 | cut -d "=" -f2- || true; else echo missing; fi'),
+        );
+    }
+
+    public static function detectWorkerCount(string $projectPath): self
+    {
+        return new self(
+            'detect_worker_count',
+            self::withinProject($projectPath, 'ps aux | grep -E "queue:work|messenger:consume" | grep -v grep | wc -l'),
+        );
+    }
+
     public static function installLaravelBridge(string $projectPath): self
     {
         return new self(

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import type { RemoteInstallActionState } from "@/app/(app)/sites/[siteId]/connect/actions";
-import type { PraeviseoSite } from "@/lib/praeviseo-api";
+import type { InstallationReadinessReport, PraeviseoSite } from "@/lib/praeviseo-api";
 import { CheckCircle2, Cloud, HardDrive, KeyRound, LockKeyhole, ServerCog, WandSparkles } from "lucide-react";
 
 type HostingOption = {
@@ -122,6 +122,7 @@ export function RemoteInstallAssistant({
     (site.installation.access_method as AccessOption["id"] | null) ?? "ssh"
   );
   const [showAccessStep, setShowAccessStep] = useState<boolean>(isInstallationInProgress(site.installation.status));
+  const [latestReport, setLatestReport] = useState<InstallationReadinessReport | null>(site.installation.readiness_report);
 
   const selectedHosting = useMemo(
     () => HOSTING_OPTIONS.find((option) => option.id === hostingId) ?? HOSTING_OPTIONS[0],
@@ -136,13 +137,16 @@ export function RemoteInstallAssistant({
   const installationRequested =
     isInstallationInProgress(liveInstallation.status) ||
     site.publication_bridge_status === "requested" ||
-    state.status === "success";
+    (state.status === "success" && state.report === null);
   const installationFailed = liveInstallation.status === "failed";
+  const report = state.report ?? latestReport;
+  const reportReady = report?.status === "ready";
 
   const valueFor = (field: string) => state.values[field] ?? "";
 
   useEffect(() => {
     setLiveInstallation(site.installation);
+    setLatestReport(site.installation.readiness_report);
   }, [site.installation]);
 
   useEffect(() => {
@@ -160,6 +164,10 @@ export function RemoteInstallAssistant({
       requestAnimationFrame(() => {
         accessStepRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
+    }
+
+    if (state.report) {
+      setLatestReport(state.report);
     }
   }, [state]);
 
@@ -417,6 +425,95 @@ export function RemoteInstallAssistant({
           </Card>
         ) : null}
 
+        {report ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>PraeviSEO Installation Doctor</CardTitle>
+              <CardDescription>
+                Avant l installation réelle, PraeviSEO vérifie ce qui est déjà prêt, ce qui bloque encore et ce qu il pourra corriger.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-text">Score d installation</div>
+                    <p className="mt-1 text-sm leading-6 text-text-muted">{report.summary}</p>
+                  </div>
+                  <Badge variant={reportReady ? "success" : "warning"}>{report.score}%</Badge>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Validé</div>
+                  <div className="mt-3 space-y-3">
+                    {report.validated.length > 0 ? report.validated.map((item) => (
+                      <div key={item.key}>
+                        <div className="text-sm font-semibold text-text">{item.label}</div>
+                        <p className="mt-1 text-sm leading-6 text-text-muted">{item.detail}</p>
+                      </div>
+                    )) : <p className="text-sm leading-6 text-text-muted">Aucun point validé pour le moment.</p>}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Bloquants</div>
+                  <div className="mt-3 space-y-3">
+                    {report.blockers.length > 0 ? report.blockers.map((item) => (
+                      <div key={item.key}>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-semibold text-text">{item.label}</div>
+                          {item.autofixable ? <Badge variant="secondary">Corrigible auto</Badge> : null}
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-text-muted">{item.detail}</p>
+                      </div>
+                    )) : <p className="text-sm leading-6 text-text-muted">Aucun blocage détecté. PraeviSEO peut installer.</p>}
+                  </div>
+                </div>
+              </div>
+
+              {(report.warnings.length > 0 || report.autofixable.length > 0 || report.manual_actions.length > 0) ? (
+                <div className="grid gap-4 xl:grid-cols-3">
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Warnings</div>
+                    <div className="mt-3 space-y-3">
+                      {report.warnings.length > 0 ? report.warnings.map((item) => (
+                        <div key={item.key}>
+                          <div className="text-sm font-semibold text-text">{item.label}</div>
+                          <p className="mt-1 text-sm leading-6 text-text-muted">{item.detail}</p>
+                        </div>
+                      )) : <p className="text-sm leading-6 text-text-muted">Aucun warning détecté.</p>}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Corrections auto prévues</div>
+                    <div className="mt-3 space-y-3">
+                      {report.autofixable.length > 0 ? report.autofixable.map((item) => (
+                        <div key={item.key}>
+                          <div className="text-sm font-semibold text-text">{item.label}</div>
+                          <p className="mt-1 text-sm leading-6 text-text-muted">{item.detail}</p>
+                        </div>
+                      )) : <p className="text-sm leading-6 text-text-muted">Aucune correction automatique prévue pour ce diagnostic.</p>}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-subtle">Actions humaines</div>
+                    <div className="mt-3 space-y-3">
+                      {report.manual_actions.length > 0 ? report.manual_actions.map((item) => (
+                        <div key={item.key}>
+                          <div className="text-sm font-semibold text-text">{item.label}</div>
+                          <p className="mt-1 text-sm leading-6 text-text-muted">{item.detail}</p>
+                        </div>
+                      )) : <p className="text-sm leading-6 text-text-muted">Aucune action humaine supplémentaire n est demandée.</p>}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Ce que le client doit ressentir</CardTitle>
@@ -578,8 +675,11 @@ export function RemoteInstallAssistant({
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <Button size="lg" type="submit" loading={isPending}>
-                    {installationRequested ? "Mettre à jour les accès" : "Préparer l’installation distante"}
+                  <Button size="lg" type="submit" name="intent" value="precheck" loading={isPending}>
+                    Lancer le diagnostic d’installation
+                  </Button>
+                  <Button size="lg" type="submit" name="intent" value="install" loading={isPending} disabled={!reportReady}>
+                    {installationRequested ? "Mettre à jour les accès" : "Lancer l’installation réelle"}
                   </Button>
                   <Button type="button" variant="secondary" onClick={() => setShowAccessStep(false)}>
                     Fermer cette étape
