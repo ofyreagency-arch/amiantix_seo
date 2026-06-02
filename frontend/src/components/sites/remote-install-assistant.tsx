@@ -136,7 +136,7 @@ export function RemoteInstallAssistant({
 
   const installationRequested =
     isInstallationInProgress(liveInstallation.status) ||
-    site.publication_bridge_status === "requested" ||
+    liveInstallation.status === "completed" ||
     (state.status === "success" && state.report === null);
   const installationFailed = liveInstallation.status === "failed";
   const report = state.report ?? latestReport;
@@ -555,11 +555,11 @@ export function RemoteInstallAssistant({
 
               {installationFailed ? (
                 <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-4 text-sm text-danger">
-                  <div className="font-semibold text-text">Installation distante à corriger</div>
+                  <div className="font-semibold text-text">Dernière tentative interrompue</div>
                   <p className="mt-2 leading-6">
                     {liveInstallation.error_message ||
                       liveInstallation.logs.at(-1)?.message ||
-                      "PraeviSEO a bien enregistré vos accès, mais l’installation a échoué. Corrigez les champs ci-dessous puis relancez."}
+                      "PraeviSEO a bien enregistré vos accès, mais la tentative précédente n a pas abouti. Corrigez les champs ci-dessous puis relancez un nouveau diagnostic."}
                   </p>
                 </div>
               ) : null}

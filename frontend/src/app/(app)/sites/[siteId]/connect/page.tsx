@@ -225,9 +225,36 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
       detail: site.next_action.detail,
     },
   ] as const;
+  const compactExecutionHistory = site.execution_history.reduce<Array<(typeof site.execution_history)[number] & { repeat_count?: number }>>(
+    (carry, entry) => {
+      const existingIndex = carry.findIndex(
+        (item) => item.kind === entry.kind && item.label === entry.label && item.detail === entry.detail
+      );
+
+      if (existingIndex === -1) {
+        carry.push({ ...entry, repeat_count: 1 });
+
+        return carry;
+      }
+
+      const existing = carry[existingIndex];
+      const existingDate = new Date(existing.at).getTime();
+      const currentDate = new Date(entry.at).getTime();
+
+      carry[existingIndex] = {
+        ...(currentDate >= existingDate ? entry : existing),
+        repeat_count: (existing.repeat_count ?? 1) + 1,
+      };
+
+      return carry;
+    },
+    []
+  );
   const executionHistory =
-    site.execution_history.length > 0
-      ? site.execution_history
+    compactExecutionHistory.length > 0
+      ? compactExecutionHistory
+          .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())
+          .slice(0, 8)
       : [
           {
             at: new Date().toISOString(),
@@ -235,6 +262,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             detail: "PraeviSEO affichera ici les prochaines actions dès qu’une première exécution premium sera réellement lancée.",
             tone: "secondary" as const,
             kind: "empty",
+            repeat_count: 1,
           },
         ];
   const executionIssues = Object.entries(site.action_statuses)
@@ -288,7 +316,7 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
 
   const installationLabel = getPraeviseoInstallLabel(site);
   const installationDetail = getPraeviseoInstallDetail(site);
-  const installationPending = isInstallationInProgress(site.installation.status) || site.publication_bridge_status === "requested";
+  const installationPending = isInstallationInProgress(site.installation.status) || site.installation.status === "completed";
 
   return (
     <div className="min-h-screen">
@@ -500,7 +528,10 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
                 executionHistory.map((entry, index) => (
                   <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">{entry.label}</div>
+                      <div className="text-sm font-semibold text-text">
+                        {entry.label}
+                        {(entry.repeat_count ?? 1) > 1 ? ` (${entry.repeat_count} fois)` : ""}
+                      </div>
                       <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
