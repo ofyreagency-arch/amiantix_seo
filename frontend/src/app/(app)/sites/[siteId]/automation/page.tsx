@@ -21,6 +21,7 @@ import {
 
 interface SiteAutomationPageProps {
   params: Promise<{ siteId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 const ACTION_NEXT_PASSES: Record<string, string> = {
@@ -56,8 +57,9 @@ const EXECUTION_STEPS = [
   },
 ] as const;
 
-export default async function SiteAutomationPage({ params }: SiteAutomationPageProps) {
+export default async function SiteAutomationPage({ params, searchParams }: SiteAutomationPageProps) {
   const { siteId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
   const site = await getSite(siteId);
   const publications = await getPublications();
   const settings = await getSettings();
@@ -77,6 +79,9 @@ export default async function SiteAutomationPage({ params }: SiteAutomationPageP
   const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
   const loopStatus = site.action_statuses.monitoring.state === "completed" ? "Active" : site.action_statuses.monitoring.state === "failed" ? "À revoir" : "En attente";
   const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
+  const feedbackType = typeof resolvedSearchParams.feedback === "string" ? resolvedSearchParams.feedback : null;
+  const feedbackTitle = typeof resolvedSearchParams.feedback_title === "string" ? resolvedSearchParams.feedback_title : null;
+  const feedbackDetail = typeof resolvedSearchParams.feedback_detail === "string" ? resolvedSearchParams.feedback_detail : null;
 
   const describeResult = (state: string, detail?: string | null, error?: string | null) => {
     if (state === "failed") {
@@ -384,6 +389,21 @@ export default async function SiteAutomationPage({ params }: SiteAutomationPageP
             Toute la partie SSH, Doctor et installation reste dans la santé technique.
           </p>
         </div>
+
+        {feedbackType && feedbackTitle && feedbackDetail ? (
+          <div
+            className={
+              feedbackType === "success"
+                ? "rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4"
+                : feedbackType === "warning"
+                  ? "rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4"
+                  : "rounded-2xl border border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.06)] px-5 py-4"
+            }
+          >
+            <div className="text-sm font-semibold text-text">{feedbackTitle}</div>
+            <p className="mt-2 text-sm leading-6 text-text-muted">{feedbackDetail}</p>
+          </div>
+        ) : null}
 
         <Card>
           <CardHeader>

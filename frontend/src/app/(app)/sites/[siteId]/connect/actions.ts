@@ -86,6 +86,21 @@ function serializeActionError(error: unknown): Record<string, unknown> {
   };
 }
 
+function buildAutomationFeedbackUrl(
+  siteId: string,
+  type: "success" | "warning" | "error",
+  title: string,
+  detail: string
+): string {
+  const params = new URLSearchParams({
+    feedback: type,
+    feedback_title: title,
+    feedback_detail: detail,
+  });
+
+  return `${getSiteAutomationPath(siteId)}?${params.toString()}`;
+}
+
 export async function submitRemoteInstallAction(
   siteId: string,
   _previousState: RemoteInstallActionState,
@@ -170,13 +185,19 @@ export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
 
   try {
     await requestPremiumCrawl(siteId);
+    const redirectTo = buildAutomationFeedbackUrl(
+      siteId,
+      "success",
+      "Crawl lancé",
+      "PraeviSEO a bien planifié une nouvelle relecture du site. Le statut du crawl va passer en planifié puis en cours dès que le job démarre."
+    );
     console.info("[praeviseo][action] launchPremiumCrawlAction:success", {
       site_id: siteId,
-      redirect_to: getSiteAutomationPath(siteId),
+      redirect_to: redirectTo,
     });
     revalidatePath(getSiteConnectPath(siteId));
     revalidatePath(getSiteAutomationPath(siteId));
-    redirect(getSiteAutomationPath(siteId));
+    redirect(redirectTo);
   } catch (error) {
     console.error("[praeviseo][action] launchPremiumCrawlAction:error", {
       site_id: siteId,
@@ -188,10 +209,36 @@ export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
 }
 
 export async function launchPremiumGenerationAction(siteId: string): Promise<void> {
-  await requestPremiumGeneration(siteId);
-  revalidatePath(getSiteConnectPath(siteId));
-  revalidatePath(getSiteAutomationPath(siteId));
-  redirect(getSiteAutomationPath(siteId));
+  try {
+    await requestPremiumGeneration(siteId);
+    revalidatePath(getSiteConnectPath(siteId));
+    revalidatePath(getSiteAutomationPath(siteId));
+    redirect(
+      buildAutomationFeedbackUrl(
+        siteId,
+        "success",
+        "Article lancé",
+        "PraeviSEO a bien démarré la préparation d’un nouvel article pour ce site."
+      )
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "PraeviSEO n a pas pu démarrer la génération pour le moment.";
+
+    if (message.includes("attend encore avant d ouvrir un nouveau sujet")) {
+      revalidatePath(getSiteConnectPath(siteId));
+      revalidatePath(getSiteAutomationPath(siteId));
+      redirect(
+        buildAutomationFeedbackUrl(
+          siteId,
+          "warning",
+          "Cooldown génération actif",
+          "PraeviSEO évite simplement d’ouvrir un nouveau sujet trop vite. La génération redeviendra disponible au prochain passage utile."
+        )
+      );
+    }
+
+    throw error;
+  }
 }
 
 export async function launchPremiumRewriteAction(siteId: string): Promise<void> {
