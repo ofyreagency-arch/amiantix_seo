@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Recommendations;
 
-use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
@@ -664,13 +663,35 @@ class RecommendationEngineService
      */
     private function classificationStatsForSite(string $siteId): array
     {
-        return SeoPage::query()
+        return SeoSitePage::query()
             ->where('site_id', $siteId)
-            ->get(['meta_json'])
-            ->map(function (SeoPage $page): string {
-                $meta = is_array($page->meta_json) ? $page->meta_json : [];
+            ->get([
+                'normalized_url',
+                'path',
+                'title',
+                'meta_description',
+                'primary_h1',
+                'indexability_state',
+                'latest_word_count',
+                'authority_score',
+                'orphan_score',
+                'cluster_label',
+            ])
+            ->map(function (SeoSitePage $page): string {
+                $classification = $this->classifier->classify([
+                    'url' => $page->normalized_url,
+                    'path' => $page->path,
+                    'title' => $page->title,
+                    'meta_description' => $page->meta_description,
+                    'primary_h1' => $page->primary_h1,
+                    'indexability_state' => $page->indexability_state,
+                    'word_count' => (int) $page->latest_word_count,
+                    'authority_score' => (float) $page->authority_score,
+                    'orphan_score' => (float) $page->orphan_score,
+                    'cluster' => $page->cluster_label,
+                ]);
 
-                return (string) data_get($meta, 'page_classification.page_type', 'UNCLASSIFIED');
+                return (string) ($classification['page_type'] ?? 'UNCLASSIFIED');
             })
             ->countBy()
             ->sortKeys()
