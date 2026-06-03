@@ -28,9 +28,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Ofyre\SeoEngine\Services\Console\SeoGeneratePageRunner;
 use Ofyre\SeoEngine\Services\Rewrite\SeoRewriteService;
@@ -1068,6 +1069,23 @@ class ClientSitesController extends Controller
         $crawl = $site->relationLoaded('latestObservedCrawl')
             ? $site->getRelation('latestObservedCrawl')
             : $site->latestObservedCrawl()->first();
+
+        Log::info('Client site serializeSite crawl trace', [
+            'site_id' => $site->site_id,
+            'request_path' => request()->path(),
+            'crawl_relation_loaded' => $site->relationLoaded('latestObservedCrawl'),
+            'crawl_model' => $crawl ? [
+                'id' => $crawl->id,
+                'status' => $crawl->status,
+                'discovered_url_count' => $crawl->discovered_url_count,
+                'crawled_url_count' => $crawl->crawled_url_count,
+                'started_at' => $crawl->started_at?->toIso8601String(),
+                'completed_at' => $crawl->completed_at?->toIso8601String(),
+                'created_at' => $crawl->created_at?->toIso8601String(),
+                'meta_json' => $crawl->meta_json,
+            ] : null,
+            'serialized_crawl' => $this->serializeObservedCrawl($crawl),
+        ]);
 
         $pagesPublished = (clone $pageQuery)->where('status', 'published')->count();
         $pagesLive = $hasPublishedLiveColumn

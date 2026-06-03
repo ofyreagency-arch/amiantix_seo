@@ -77,6 +77,13 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     notFound();
   }
 
+  console.info("[praeviseo][automation] page_crawl_trace", {
+    site_id: site.site_id,
+    route: `/sites/${site.site_id}/automation`,
+    crawl: site.crawl,
+    action_status_crawl: site.action_statuses.crawl,
+  });
+
   const totalConnectedSites = settings.sites.filter(
     (item) => item.publication_bridge_status === "connected" || item.gsc_connection_status === "connected" || item.gsc_connection_status === "configured"
   ).length;

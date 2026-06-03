@@ -2033,7 +2033,20 @@ export async function getSite(siteId: string): Promise<PraeviseoSite | null> {
 
     const payload = await appFetch<SiteResponse>(`/api/client/sites/${siteId}`, undefined, token);
 
-    return normaliseSite(payload.site);
+    console.info("[praeviseo][api] getSite:raw_crawl", {
+      site_id: siteId,
+      raw_crawl: (payload.site as Record<string, unknown> | undefined)?.crawl ?? null,
+    });
+
+    const normalizedSite = normaliseSite(payload.site);
+
+    console.info("[praeviseo][api] getSite:normalized_crawl", {
+      site_id: siteId,
+      normalized_crawl: normalizedSite.crawl,
+      normalized_action_status_crawl: normalizedSite.action_statuses.crawl,
+    });
+
+    return normalizedSite;
   } catch {
     return null;
   }
