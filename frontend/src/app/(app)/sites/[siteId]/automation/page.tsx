@@ -307,7 +307,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     },
   ] as const;
 
-  const rawCrawlDerivedHistory = latestCrawl
+  const rawCrawlDerivedHistory: Array<ExecutionHistoryEntry | null> = latestCrawl
     ? [
         latestCrawl.requested_at
           ? {
