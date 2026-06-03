@@ -1069,6 +1069,18 @@ class ClientSitesController extends Controller
         $crawl = $site->relationLoaded('latestObservedCrawl')
             ? $site->getRelation('latestObservedCrawl')
             : $site->latestObservedCrawl()->first();
+        $lastSuccessfulCrawl = SeoSiteCrawl::query()
+            ->where('site_id', $site->site_id)
+            ->where('status', 'completed')
+            ->latest('completed_at')
+            ->latest('id')
+            ->first();
+        $recentCrawls = SeoSiteCrawl::query()
+            ->where('site_id', $site->site_id)
+            ->latest('created_at')
+            ->latest('id')
+            ->limit(10)
+            ->get();
 
         Log::info('Client site serializeSite crawl trace', [
             'site_id' => $site->site_id,
@@ -1120,6 +1132,11 @@ class ClientSitesController extends Controller
             'installation_doctor' => $this->serializeInstallationDoctor($site),
             'installation' => $this->serializeInstallation($installation),
             'crawl' => $this->serializeObservedCrawl($crawl),
+            'last_successful_crawl' => $this->serializeObservedCrawl($lastSuccessfulCrawl),
+            'recent_crawls' => $recentCrawls
+                ->map(fn (SeoSiteCrawl $recentCrawl): array => $this->serializeObservedCrawl($recentCrawl) ?? [])
+                ->values()
+                ->all(),
             'publication_target' => $this->publicationTargetStatus($site),
             'execution_history' => $this->executionHistory($site),
             'action_statuses' => $this->actionStatuses($site, $crawl),

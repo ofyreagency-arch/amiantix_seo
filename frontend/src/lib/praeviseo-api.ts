@@ -1,6 +1,21 @@
 import "server-only";
 import { getSessionToken } from "@/lib/auth";
 
+export type PraeviseoCrawl = {
+  id: number;
+  status: string;
+  base_url: string;
+  max_pages: number;
+  discovered_url_count: number;
+  crawled_url_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  requested_at: string | null;
+  issues_count: number;
+  error: string | null;
+  trigger: string | null;
+};
+
 export type PraeviseoSite = {
   id: number;
   site_id: string;
@@ -50,20 +65,9 @@ export type PraeviseoSite = {
       message: string;
     }>;
   };
-  crawl: {
-    id: number;
-    status: string;
-    base_url: string;
-    max_pages: number;
-    discovered_url_count: number;
-    crawled_url_count: number;
-    started_at: string | null;
-    completed_at: string | null;
-    requested_at: string | null;
-    issues_count: number;
-    error: string | null;
-    trigger: string | null;
-  } | null;
+  crawl: PraeviseoCrawl | null;
+  last_successful_crawl: PraeviseoCrawl | null;
+  recent_crawls: PraeviseoCrawl[];
   publication_target: {
     mode: string;
     label: string;
@@ -612,6 +616,36 @@ const mockSites: PraeviseoSite[] = [
       error: null,
       trigger: "premium_client",
     },
+    last_successful_crawl: {
+      id: 101,
+      status: "completed",
+      base_url: "https://amiantix.com",
+      max_pages: 80,
+      discovered_url_count: 19,
+      crawled_url_count: 19,
+      started_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      completed_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      requested_at: new Date(Date.now() - 1000 * 60 * 19).toISOString(),
+      issues_count: 3,
+      error: null,
+      trigger: "premium_client",
+    },
+    recent_crawls: [
+      {
+        id: 101,
+        status: "completed",
+        base_url: "https://amiantix.com",
+        max_pages: 80,
+        discovered_url_count: 19,
+        crawled_url_count: 19,
+        started_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+        completed_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+        requested_at: new Date(Date.now() - 1000 * 60 * 19).toISOString(),
+        issues_count: 3,
+        error: null,
+        trigger: "premium_client",
+      },
+    ],
     publication_target: {
       mode: "symfony_bridge",
       label: "Bridge Symfony",
@@ -952,6 +986,8 @@ const mockSites: PraeviseoSite[] = [
       logs: [],
     },
     crawl: null,
+    last_successful_crawl: null,
+    recent_crawls: [],
     publication_target: {
       mode: "laravel_bridge",
       label: "Bridge Laravel",
@@ -1406,6 +1442,28 @@ function humanizeBackendMessage(message: string): string {
 function normaliseSite(raw: unknown): PraeviseoSite {
   const site = raw as Record<string, unknown>;
   const summary = (site.summary ?? {}) as Record<string, unknown>;
+  const normaliseCrawl = (rawCrawl: unknown): PraeviseoCrawl | null => {
+    if (!rawCrawl || typeof rawCrawl !== "object") {
+      return null;
+    }
+
+    const crawl = rawCrawl as Record<string, unknown>;
+
+    return {
+      id: Number(crawl.id ?? 0),
+      status: String(crawl.status ?? "pending"),
+      base_url: String(crawl.base_url ?? ""),
+      max_pages: Number(crawl.max_pages ?? 0),
+      discovered_url_count: Number(crawl.discovered_url_count ?? 0),
+      crawled_url_count: Number(crawl.crawled_url_count ?? 0),
+      started_at: crawl.started_at ? String(crawl.started_at) : null,
+      completed_at: crawl.completed_at ? String(crawl.completed_at) : null,
+      requested_at: crawl.requested_at ? String(crawl.requested_at) : null,
+      issues_count: Number(crawl.issues_count ?? 0),
+      error: crawl.error ? String(crawl.error) : null,
+      trigger: crawl.trigger ? String(crawl.trigger) : null,
+    };
+  };
 
   return {
     id: Number(site.id ?? 0),
@@ -1494,32 +1552,13 @@ function normaliseSite(raw: unknown): PraeviseoSite {
           }))
         : [],
     },
-    crawl: site.crawl
-      ? {
-          id: Number((site.crawl as Record<string, unknown>).id ?? 0),
-          status: String((site.crawl as Record<string, unknown>).status ?? "pending"),
-          base_url: String((site.crawl as Record<string, unknown>).base_url ?? ""),
-          max_pages: Number((site.crawl as Record<string, unknown>).max_pages ?? 0),
-          discovered_url_count: Number((site.crawl as Record<string, unknown>).discovered_url_count ?? 0),
-          crawled_url_count: Number((site.crawl as Record<string, unknown>).crawled_url_count ?? 0),
-          started_at: (site.crawl as Record<string, unknown>).started_at
-            ? String((site.crawl as Record<string, unknown>).started_at)
-            : null,
-          completed_at: (site.crawl as Record<string, unknown>).completed_at
-            ? String((site.crawl as Record<string, unknown>).completed_at)
-            : null,
-          requested_at: (site.crawl as Record<string, unknown>).requested_at
-            ? String((site.crawl as Record<string, unknown>).requested_at)
-            : null,
-          issues_count: Number((site.crawl as Record<string, unknown>).issues_count ?? 0),
-          error: (site.crawl as Record<string, unknown>).error
-            ? String((site.crawl as Record<string, unknown>).error)
-            : null,
-          trigger: (site.crawl as Record<string, unknown>).trigger
-            ? String((site.crawl as Record<string, unknown>).trigger)
-            : null,
-        }
-      : null,
+    crawl: normaliseCrawl(site.crawl),
+    last_successful_crawl: normaliseCrawl(site.last_successful_crawl),
+    recent_crawls: Array.isArray(site.recent_crawls)
+      ? site.recent_crawls
+          .map((crawl) => normaliseCrawl(crawl))
+          .filter((crawl): crawl is PraeviseoCrawl => crawl !== null)
+      : [],
     publication_target: {
       mode: String((site.publication_target as Record<string, unknown> | undefined)?.mode ?? "runtime"),
       label: String((site.publication_target as Record<string, unknown> | undefined)?.label ?? "Publication live"),
@@ -2327,6 +2366,8 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         logs: [],
       },
       crawl: null,
+      last_successful_crawl: null,
+      recent_crawls: [],
       publication_target: {
         mode: input.publication_mode,
         label:

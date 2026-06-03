@@ -81,6 +81,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     site_id: site.site_id,
     route: `/sites/${site.site_id}/automation`,
     crawl: site.crawl,
+    last_successful_crawl: site.last_successful_crawl,
+    recent_crawls_count: site.recent_crawls.length,
     action_status_crawl: site.action_statuses.crawl,
   });
 
@@ -95,12 +97,14 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
   const loopStatus = site.action_statuses.monitoring.state === "completed" ? "Active" : site.action_statuses.monitoring.state === "failed" ? "À revoir" : "En attente";
   const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
-  const latestCrawl = site.crawl;
+  const currentCrawl = site.crawl;
+  const lastSuccessfulCrawl = site.last_successful_crawl;
+  const recentCrawls = site.recent_crawls;
   const feedbackType = typeof resolvedSearchParams.feedback === "string" ? resolvedSearchParams.feedback : null;
   const feedbackTitle = typeof resolvedSearchParams.feedback_title === "string" ? resolvedSearchParams.feedback_title : null;
   const feedbackDetail = typeof resolvedSearchParams.feedback_detail === "string" ? resolvedSearchParams.feedback_detail : null;
   const crawlImpactItems = [
-    latestCrawl && latestCrawl.issues_count > 0 ? `${latestCrawl.issues_count} point(s) à surveiller détecté(s)` : null,
+    lastSuccessfulCrawl && lastSuccessfulCrawl.issues_count > 0 ? `${lastSuccessfulCrawl.issues_count} point(s) à surveiller détecté(s)` : null,
     site.summary.top_rising_pages.length > 0 ? `${site.summary.top_rising_pages.length} page(s) montrent déjà un potentiel de progression` : null,
     site.summary.indexation_alerts.length > 0 ? `${site.summary.indexation_alerts.length} alerte(s) d’indexation restent à traiter` : null,
     site.summary.observed_link_gap_pages.length > 0 ? `${site.summary.observed_link_gap_pages.length} page(s) peuvent être mieux reliées ensuite` : null,
@@ -109,18 +113,13 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     crawlImpactItems.length > 0
       ? crawlImpactItems.join(" · ")
       : "Le crawl alimente surtout la lecture du site et prépare les prochaines opportunités exploitables.";
-  const latestSuccessfulCrawlAt =
-    latestCrawl?.status === "completed"
-      ? latestCrawl.completed_at
-      : site.action_statuses.crawl.state === "completed"
-        ? site.action_statuses.crawl.updated_at
-        : null;
+  const latestSuccessfulCrawlAt = lastSuccessfulCrawl?.completed_at ?? null;
   const crawlProgressValue =
-    latestCrawl && latestCrawl.max_pages > 0
+    currentCrawl && currentCrawl.max_pages > 0
       ? Math.min(
           100,
           Math.round(
-            (Math.max(latestCrawl.crawled_url_count, latestCrawl.discovered_url_count, 0) / latestCrawl.max_pages) * 100
+            (Math.max(currentCrawl.crawled_url_count, currentCrawl.discovered_url_count, 0) / currentCrawl.max_pages) * 100
           )
         )
       : 0;
@@ -314,38 +313,38 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     },
   ] as const;
 
-  const rawCrawlDerivedHistory: Array<ExecutionHistoryEntry | null> = latestCrawl
+  const rawCrawlDerivedHistory: Array<ExecutionHistoryEntry | null> = currentCrawl
     ? [
-        latestCrawl.requested_at
+        currentCrawl.requested_at
           ? {
-              at: latestCrawl.requested_at,
+              at: currentCrawl.requested_at,
               label: "Crawl lancé",
               detail: "PraeviSEO a bien planifié une nouvelle lecture complète du site.",
               tone: "secondary" as const,
               kind: "crawl_requested",
             }
           : null,
-        latestCrawl.started_at
+        currentCrawl.started_at
           ? {
-              at: latestCrawl.started_at,
+              at: currentCrawl.started_at,
               label: "Crawl en cours",
-              detail: `PraeviSEO relit actuellement ${latestCrawl.crawled_url_count} page(s) sur ${latestCrawl.max_pages} maximum.`,
+              detail: `PraeviSEO relit actuellement ${currentCrawl.crawled_url_count} page(s) sur ${currentCrawl.max_pages} maximum.`,
               tone: "secondary" as const,
               kind: "crawl_running",
             }
           : null,
-        latestCrawl.completed_at && latestCrawl.status === "completed"
+        lastSuccessfulCrawl?.completed_at
           ? {
-              at: latestCrawl.completed_at,
+              at: lastSuccessfulCrawl.completed_at,
               label: "Crawl terminé",
-              detail: `${latestCrawl.crawled_url_count} page(s) relues et ${latestCrawl.issues_count} point(s) à surveiller remonté(s).`,
+              detail: `${lastSuccessfulCrawl.crawled_url_count} page(s) relues et ${lastSuccessfulCrawl.issues_count} point(s) à surveiller remonté(s).`,
               tone: "default" as const,
               kind: "crawl_completed",
             }
           : null,
-        latestCrawl.completed_at && latestCrawl.status === "completed"
+        lastSuccessfulCrawl?.completed_at
           ? {
-              at: latestCrawl.completed_at,
+              at: lastSuccessfulCrawl.completed_at,
               label: "Impact du crawl détecté",
               detail: crawlImpactSummary,
               tone: "secondary" as const,
@@ -498,10 +497,10 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               Le parcours réel du crawl : quand il part, ce qu’il relit, quand il finit et ce qu’il a détecté.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <CardContent className="grid gap-4 xl:grid-cols-3">
             <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-text">État actuel</div>
+                <div className="text-sm font-semibold text-text">Crawl en cours</div>
                 <Badge variant="secondary">{site.action_statuses.crawl.label}</Badge>
               </div>
               <p className="mt-3 text-sm leading-6 text-text-muted">
@@ -516,27 +515,72 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               <div className="mt-4 grid gap-3 text-sm text-text-muted sm:grid-cols-2">
                 <div>
                   <span className="font-semibold text-text">Pages découvertes :</span>{" "}
-                  {latestCrawl ? latestCrawl.discovered_url_count : 0}
+                  {currentCrawl ? currentCrawl.discovered_url_count : 0}
                 </div>
                 <div>
                   <span className="font-semibold text-text">Pages analysées :</span>{" "}
-                  {latestCrawl ? latestCrawl.crawled_url_count : 0}
+                  {currentCrawl ? currentCrawl.crawled_url_count : 0}
+                </div>
+                <div>
+                  <span className="font-semibold text-text">Heure de lancement :</span>{" "}
+                  {currentCrawl?.requested_at ? formatDate(currentCrawl.requested_at) : "pas encore lancé"}
                 </div>
                 <div>
                   <span className="font-semibold text-text">Heure de début :</span>{" "}
-                  {latestCrawl?.started_at ? formatDate(latestCrawl.started_at) : "pas encore démarré"}
+                  {currentCrawl?.started_at ? formatDate(currentCrawl.started_at) : "pas encore démarré"}
                 </div>
                 <div>
-                  <span className="font-semibold text-text">Heure de fin :</span>{" "}
-                  {latestCrawl?.completed_at ? formatDate(latestCrawl.completed_at) : "pas encore terminé"}
-                </div>
-                <div>
-                  <span className="font-semibold text-text">Dernier crawl réussi :</span>{" "}
-                  {latestSuccessfulCrawlAt ? formatDate(latestSuccessfulCrawlAt) : "aucun crawl terminé pour le moment"}
+                  <span className="font-semibold text-text">Progression :</span>{" "}
+                  {crawlProgressValue}%
                 </div>
                 <div>
                   <span className="font-semibold text-text">Résultat du crawl :</span>{" "}
-                  {latestCrawl ? latestCrawl.issues_count : 0} point(s) remonté(s)
+                  {currentCrawl ? currentCrawl.issues_count : 0} point(s) remonté(s)
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-text">Dernier crawl réussi</div>
+                <Badge variant="secondary">{lastSuccessfulCrawl ? "Disponible" : "Aucun"}</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-text-muted">
+                {lastSuccessfulCrawl
+                  ? "Le dernier crawl terminé reste visible ici, même si un nouveau crawl est maintenant en attente ou en cours."
+                  : "Dès qu’un premier crawl complet sera terminé, PraeviSEO gardera ici son dernier résultat réussi."}
+              </p>
+              <div className="mt-4 grid gap-3 text-sm text-text-muted sm:grid-cols-2">
+                <div>
+                  <span className="font-semibold text-text">Date :</span>{" "}
+                  {latestSuccessfulCrawlAt ? formatDate(latestSuccessfulCrawlAt) : "pas encore de crawl réussi"}
+                </div>
+                <div>
+                  <span className="font-semibold text-text">Pages analysées :</span>{" "}
+                  {lastSuccessfulCrawl ? lastSuccessfulCrawl.crawled_url_count : 0}
+                </div>
+                <div>
+                  <span className="font-semibold text-text">Pages découvertes :</span>{" "}
+                  {lastSuccessfulCrawl ? lastSuccessfulCrawl.discovered_url_count : 0}
+                </div>
+                <div>
+                  <span className="font-semibold text-text">Durée :</span>{" "}
+                  {lastSuccessfulCrawl?.started_at && lastSuccessfulCrawl?.completed_at
+                    ? `${Math.max(
+                        0,
+                        Math.round(
+                          (new Date(lastSuccessfulCrawl.completed_at).getTime() -
+                            new Date(lastSuccessfulCrawl.started_at).getTime()) /
+                            1000
+                        )
+                      )} sec`
+                    : "indisponible"}
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="font-semibold text-text">Résultats :</span>{" "}
+                  {lastSuccessfulCrawl
+                    ? `${lastSuccessfulCrawl.issues_count} point(s) détecté(s), ${lastSuccessfulCrawl.crawled_url_count} page(s) relue(s).`
+                    : "Aucun résultat disponible pour le moment."}
                 </div>
               </div>
             </div>
@@ -558,6 +602,66 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 )}
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Historique des 10 derniers crawls</CardTitle>
+            <CardDescription>
+              Les derniers passages du moteur pour que l’utilisateur voie immédiatement ce que PraeviSEO a réellement fait.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentCrawls.length > 0 ? (
+              recentCrawls.map((crawl) => {
+                const durationSeconds =
+                  crawl.started_at && crawl.completed_at
+                    ? Math.max(0, Math.round((new Date(crawl.completed_at).getTime() - new Date(crawl.started_at).getTime()) / 1000))
+                    : null;
+
+                return (
+                  <div key={crawl.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">Crawl #{crawl.id}</div>
+                      <Badge variant="secondary">{crawl.status}</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-3 text-sm text-text-muted sm:grid-cols-2 xl:grid-cols-5">
+                      <div>
+                        <span className="font-semibold text-text">Date :</span>{" "}
+                        {crawl.requested_at ? formatDate(crawl.requested_at) : "indisponible"}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Pages analysées :</span>{" "}
+                        {crawl.crawled_url_count}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Pages découvertes :</span>{" "}
+                        {crawl.discovered_url_count}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Durée :</span>{" "}
+                        {durationSeconds !== null ? `${durationSeconds} sec` : "indisponible"}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Résultat :</span>{" "}
+                        {crawl.status === "completed"
+                          ? `${crawl.issues_count} point(s)`
+                          : crawl.status === "pending"
+                            ? "En attente"
+                            : crawl.status === "running"
+                              ? "En cours"
+                              : crawl.error ?? "À vérifier"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                Aucun crawl n’a encore été enregistré pour ce site.
+              </div>
+            )}
           </CardContent>
         </Card>
 
