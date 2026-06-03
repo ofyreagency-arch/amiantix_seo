@@ -236,3 +236,170 @@ Artisan::command('seo:smoke-check {--site_id=} {--include-tests : Run targeted f
 
     return $doctorResult['ok'] ? self::SUCCESS : self::FAILURE;
 })->purpose('Run a quick end-to-end SEO health check for doctor, GSC sync, metrics and optional cockpit tests.');
+
+Artisan::command('seo:bridge-validate {site_id} {--page-id= : Optional seo_pages.id to verify publish-live observation chain}', function (
+    \App\Services\Publication\BridgePublicationValidator $validator,
+): int {
+    $siteId = (string) $this->argument('site_id');
+    $site = \App\Models\SeoSite::query()->where('site_id', $siteId)->first();
+
+    if (! $site) {
+        $this->error('Site introuvable: '.$siteId);
+
+        return self::FAILURE;
+    }
+
+    $report = $validator->inspectSite($site);
+
+    $this->info('Bridge validation — '.$site->name.' ('.$site->site_id.')');
+    $this->line('Mode: '.(string) $report['publication_mode']);
+    $this->line('Statut bridge: '.(string) $report['bridge_status']);
+    $this->line('Endpoint: '.(string) ($report['endpoint'] ?? '—'));
+    $this->line('Secret: '.(($report['has_secret'] ?? false) ? 'oui' : 'non'));
+    $this->line('Préfixe: '.(string) ($report['path_prefix'] ?? '—'));
+    $this->line('Prêt publication: '.(($report['ready'] ?? false) ? 'oui' : 'non'));
+
+    if ($report['endpoint_reachable'] !== null) {
+        $this->line('Endpoint joignable: '.(($report['endpoint_reachable'] ?? false) ? 'oui' : 'non').' ('.(string) ($report['endpoint_reachable_detail'] ?? '').')');
+    }
+
+    $pageId = $this->option('page-id');
+
+    if ($pageId !== null && $pageId !== '') {
+        $page = \App\Models\SeoPage::query()
+            ->where('site_id', $site->site_id)
+            ->whereKey((int) $pageId)
+            ->first();
+
+        if (! $page) {
+            $this->error('Page introuvable pour ce site.');
+
+            return self::FAILURE;
+        }
+
+        $pageReport = $validator->inspectPublishedPage($site, $page);
+        $this->newLine();
+        $this->info('Chaîne publish-live → observe');
+        $this->line('Live: '.(($pageReport['published_live'] ?? false) ? 'oui' : 'non'));
+        $this->line('URL live: '.(string) ($pageReport['live_url'] ?? '—'));
+        $this->line('Observed match: '.(($pageReport['observed_matched'] ?? false) ? 'oui' : 'non'));
+        $this->line('HTTP observed: '.(string) ($pageReport['observed_http_status'] ?? '—'));
+        $this->line('Règle: '.(string) ($pageReport['observed_match_rule'] ?? '—'));
+        $this->line('Chaîne OK: '.(($pageReport['chain_ok'] ?? false) ? 'oui' : 'non'));
+
+        if (! ($pageReport['chain_ok'] ?? false)) {
+            return self::FAILURE;
+        }
+    }
+
+    if (! ($report['ready'] ?? false)) {
+        return self::FAILURE;
+    }
+
+    return self::SUCCESS;
+})->purpose('Validate Laravel bridge configuration and optional publish-live observation chain for one site.');
+
+Artisan::command('seo:recommendation-audit {site_id} {--top=20 : Number of accepted recommendations to display}', function (
+    \App\Recommendations\RecommendationEngineService $engine,
+): int {
+    $siteId = (string) $this->argument('site_id');
+    $top = max(1, (int) $this->option('top'));
+
+    $site = \App\Models\SeoSite::query()->where('site_id', $siteId)->first();
+
+    if (! $site) {
+        $this->error('Site introuvable: '.$siteId);
+
+        return self::FAILURE;
+    }
+
+    $audit = $engine->audit($site);
+    $accepted = collect($audit['accepted'] ?? [])->take($top)->values();
+    $rejected = collect($audit['rejected'] ?? [])->values();
+
+    $this->info('Audit recommandations — '.$site->name.' ('.$site->site_id.')');
+    $this->line(sprintf(
+        'Retenues: %d | Rejetées: %d | Pages analysées: %d',
+        (int) ($audit['summary']['accepted'] ?? 0),
+        (int) ($audit['summary']['rejected'] ?? 0),
+        (int) ($audit['summary']['pages_analyzed'] ?? 0),
+    ));
+
+    $this->newLine();
+    $this->info('SECTION 1 — Top recommandations retenues');
+
+    if ($accepted->isEmpty()) {
+        $this->warn('Aucune recommandation acceptée.');
+    } else {
+        $this->table(
+            ['URL', 'Action', 'Recommendation Score', 'Page Type', 'Business Intent', 'SEO Eligibility', 'Impact', 'Why Generated'],
+            $accepted->map(function (array $item): array {
+                $meta = is_array($item['meta_json'] ?? null) ? $item['meta_json'] : [];
+
+                return [
+                    (string) ($meta['url'] ?? $meta['source_url'] ?? $meta['target_url'] ?? $meta['context_label'] ?? '—'),
+                    (string) ($item['type'] ?? '—'),
+                    (string) data_get($meta, 'scoring.recommendation_score', '—'),
+                    (string) data_get($meta, 'page_classification.page_type', '—'),
+                    (string) data_get($meta, 'business_intent.intent_type', '—'),
+                    (string) data_get($meta, 'page_classification.seo_eligibility_score', '—'),
+                    (string) data_get($meta, 'impact_estimate.estimated_impact', '—'),
+                    (string) ($item['reasoning'] ?? '—'),
+                ];
+            })->all()
+        );
+    }
+
+    $this->newLine();
+    $this->info('SECTION 2 — Recommandations rejetées');
+
+    if ($rejected->isEmpty()) {
+        $this->warn('Aucune recommandation supprimée.');
+    } else {
+        $this->table(
+            ['URL', 'Action', 'Page Type', 'Rejected By', 'Reason Rejected'],
+            $rejected->map(fn (array $item): array => [
+                (string) ($item['url'] ?? '—'),
+                (string) ($item['action'] ?? '—'),
+                (string) ($item['page_type'] ?? '—'),
+                (string) ($item['rejected_by'] ?? $item['layer'] ?? '—'),
+                (string) ($item['reason'] ?? '—'),
+            ])->all()
+        );
+    }
+
+    $pageTypes = collect($audit['summary']['page_types'] ?? [])->sortKeys();
+    $rejectedBy = collect($audit['summary']['rejected_by'] ?? [])->sortKeys();
+
+    $this->newLine();
+    $this->info('SECTION 3 — Statistiques moteur');
+    $this->line('Pages analysées : '.(int) ($audit['summary']['pages_analyzed'] ?? 0));
+    $this->line('Recommandations générées : '.(int) ($audit['summary']['accepted'] ?? 0));
+    $this->line('Recommandations rejetées : '.(int) ($audit['summary']['rejected'] ?? 0));
+
+    $this->newLine();
+    $this->info('Répartition des pages');
+
+    if ($pageTypes->isEmpty()) {
+        $this->warn('Aucune page classifiée.');
+    } else {
+        $this->table(
+            ['Page Type', 'Count'],
+            $pageTypes->map(fn (int $count, string $type): array => [$type, (string) $count])->values()->all()
+        );
+    }
+
+    $this->newLine();
+    $this->info('Répartition des rejets');
+
+    if ($rejectedBy->isEmpty()) {
+        $this->warn('Aucun rejet enregistré.');
+    } else {
+        $this->table(
+            ['Rejected By', 'Count'],
+            $rejectedBy->map(fn (int $count, string $type): array => [$type, (string) $count])->values()->all()
+        );
+    }
+
+    return self::SUCCESS;
+})->purpose('Audit retained and rejected SEO recommendations for one site with engine statistics and rejection layers.');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Recommendations;
 
+use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
@@ -27,19 +28,12 @@ class RecommendationEngineService
      */
     public function generate(SeoSite $site, bool $forceEmbeddings = false): Collection
     {
-        $summary = $this->understanding->analyze($site, $forceEmbeddings);
+        $audit = $this->audit($site, $forceEmbeddings);
 
         SeoRecommendation::query()->where('site_id', $site->site_id)->delete();
         SeoStrategyItem::query()->where('site_id', $site->site_id)->delete();
 
-        $recommendations = $this->deduplicate(
-            collect()
-                ->merge($this->fromOrphans($site->site_id, $summary['orphan_pages']))
-                ->merge($this->fromWeakPages($site->site_id, $summary['weak_pages']))
-                ->merge($this->fromOverlaps($site->site_id, $summary['overlaps']))
-                ->merge($this->fromGaps($site->site_id, $summary['content_gaps']))
-        )
-            ->filter()
+        $recommendations = collect($audit['accepted'])
             ->sortBy('priority')
             ->values();
 
@@ -65,17 +59,106 @@ class RecommendationEngineService
     }
 
     /**
+     * @return array{
+     *   accepted:array<int,array<string,mixed>>,
+     *   rejected:array<int,array<string,mixed>>,
+     *   summary:array{
+     *     accepted:int,
+     *     rejected:int,
+     *     pages_analyzed:int,
+     *     page_types:array<string,int>,
+     *     rejected_by:array<string,int>
+     *   }
+     * }
+     */
+    public function audit(SeoSite $site, bool $forceEmbeddings = false): array
+    {
+        $summary = $this->understanding->analyze($site, $forceEmbeddings);
+
+        $assessed = collect()
+            ->merge($this->fromOrphans($site->site_id, $summary['orphan_pages'], true))
+            ->merge($this->fromWeakPages($site->site_id, $summary['weak_pages'], true))
+            ->merge($this->fromOverlaps($site->site_id, $summary['overlaps'], true))
+            ->merge($this->fromGaps($site->site_id, $summary['content_gaps'], true));
+
+        $accepted = $this->deduplicate(
+            $assessed
+                ->where('accepted', true)
+                ->pluck('recommendation')
+                ->filter(fn ($item): bool => is_array($item))
+        )
+            ->sortBy('priority')
+            ->values()
+            ->all();
+
+        $acceptedSignatures = collect($accepted)
+            ->mapWithKeys(fn (array $item): array => [$this->recommendationSignature($item) => true]);
+
+        $rejected = $assessed
+            ->where('accepted', false)
+            ->pluck('rejected')
+            ->filter(fn ($item): bool => is_array($item))
+            ->values()
+            ->all();
+
+        $deduplicatedOut = $assessed
+            ->where('accepted', true)
+            ->pluck('recommendation')
+            ->filter(fn ($item): bool => is_array($item))
+            ->filter(fn (array $item): bool => ! $acceptedSignatures->has($this->recommendationSignature($item)))
+            ->map(function (array $item): array {
+                $meta = is_array($item['meta_json'] ?? null) ? $item['meta_json'] : [];
+
+                return [
+                    'url' => (string) ($meta['url'] ?? $meta['source_url'] ?? $meta['target_url'] ?? ''),
+                    'title' => (string) ($item['title'] ?? ''),
+                    'action' => (string) ($item['type'] ?? ''),
+                    'layer' => 'deduplication',
+                    'rejected_by' => 'deduplication',
+                    'reason' => 'Signature déjà couverte par une recommandation plus forte.',
+                    'page_type' => (string) data_get($meta, 'page_classification.page_type', ''),
+                    'business_intent' => (string) data_get($meta, 'business_intent.intent_type', ''),
+                    'seo_eligibility_score' => (int) data_get($meta, 'page_classification.seo_eligibility_score', 0),
+                    'recommendation_score' => (int) data_get($meta, 'scoring.recommendation_score', 0),
+                    'impact_estimate' => (string) data_get($meta, 'impact_estimate.estimated_impact', 'none'),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $allRejected = array_values([...$rejected, ...$deduplicatedOut]);
+        $classificationStats = $this->classificationStatsForSite($site->site_id);
+        $rejectedBy = collect($allRejected)
+            ->groupBy(fn (array $item): string => (string) ($item['rejected_by'] ?? $item['layer'] ?? 'unknown'))
+            ->map(fn (Collection $items): int => $items->count())
+            ->sortKeys()
+            ->all();
+
+        return [
+            'accepted' => $accepted,
+            'rejected' => $allRejected,
+            'summary' => [
+                'accepted' => count($accepted),
+                'rejected' => count($allRejected),
+                'pages_analyzed' => array_sum($classificationStats),
+                'page_types' => $classificationStats,
+                'rejected_by' => $rejectedBy,
+            ],
+        ];
+    }
+
+    /**
      * @param  array<int,array<string,mixed>>  $orphans
      * @return array<int,array<string,mixed>>
      */
-    private function fromOrphans(string $siteId, array $orphans): array
+    private function fromOrphans(string $siteId, array $orphans, bool $forAudit = false): array
     {
-        return collect($orphans)->take(8)->map(function (array $page) use ($siteId): ?array {
+        return collect($orphans)->take(8)->map(function (array $page) use ($siteId): array {
             $label = $this->pageLabel($page['title'] ?? null, $page['url'] ?? null);
             $orphanScore = (int) round(((float) ($page['orphan_score'] ?? 0)) * 100);
             $inlinks = (int) ($page['inlinks'] ?? 0);
 
-            return $this->finalizeRecommendation([
+            return [
                 'site_id' => $siteId,
                 'site_page_id' => $page['id'],
                 'site_crawl_id' => null,
@@ -98,17 +181,20 @@ class RecommendationEngineService
                     'orphan_score' => (float) ($page['orphan_score'] ?? 0),
                 ]),
                 'generated_at' => now(),
-            ], $page);
-        })->filter()->values()->all();
+            ];
+        })->map(fn (array $item): array => $this->evaluateCandidate($item, $item['meta_json'] ?? [], null, $forAudit))
+            ->when(! $forAudit, fn (Collection $collection): Collection => $collection->where('accepted', true))
+            ->values()
+            ->all();
     }
 
     /**
      * @param  array<int,array<string,mixed>>  $pages
      * @return array<int,array<string,mixed>>
      */
-    private function fromWeakPages(string $siteId, array $pages): array
+    private function fromWeakPages(string $siteId, array $pages, bool $forAudit = false): array
     {
-        return collect($pages)->take(8)->map(function (array $page) use ($siteId): ?array {
+        return collect($pages)->take(8)->map(function (array $page) use ($siteId): array {
             $label = $this->pageLabel($page['title'] ?? null, $page['url'] ?? null);
             $reasons = [];
 
@@ -128,7 +214,7 @@ class RecommendationEngineService
                 $reasons[] = 'missing H1';
             }
 
-            return $this->finalizeRecommendation([
+            return [
                 'site_id' => $siteId,
                 'site_page_id' => $page['id'],
                 'site_crawl_id' => null,
@@ -150,15 +236,18 @@ class RecommendationEngineService
                     'reasons' => $reasons,
                 ]),
                 'generated_at' => now(),
-            ], $page);
-        })->filter()->values()->all();
+            ];
+        })->map(fn (array $item): array => $this->evaluateCandidate($item, $item['meta_json'] ?? [], null, $forAudit))
+            ->when(! $forAudit, fn (Collection $collection): Collection => $collection->where('accepted', true))
+            ->values()
+            ->all();
     }
 
     /**
      * @param  array<int,array<string,mixed>>  $pairs
      * @return array<int,array<string,mixed>>
      */
-    private function fromOverlaps(string $siteId, array $pairs): array
+    private function fromOverlaps(string $siteId, array $pairs, bool $forAudit = false): array
     {
         $pageContexts = $this->sitePageContexts(
             $siteId,
@@ -170,14 +259,14 @@ class RecommendationEngineService
                 ->all()
         );
 
-        return collect($pairs)->take(8)->map(function (array $pair) use ($siteId, $pageContexts): ?array {
+        return collect($pairs)->take(8)->map(function (array $pair) use ($siteId, $pageContexts): array {
             $sourceId = (int) ($pair['source_id'] ?? 0);
             $targetId = (int) ($pair['target_id'] ?? 0);
             $source = $pageContexts[$sourceId] ?? ['label' => 'Page '.$sourceId, 'url' => $pair['source_url'] ?? null];
             $target = $pageContexts[$targetId] ?? ['label' => (string) ($pair['label'] ?? 'Page '.$targetId), 'url' => $pair['target_url'] ?? ($pair['url'] ?? null)];
             $score = (float) ($pair['similarity_score'] ?? $pair['score'] ?? 0);
 
-            return $this->finalizeRecommendation([
+            return [
                 'site_id' => $siteId,
                 'site_page_id' => $sourceId,
                 'site_crawl_id' => null,
@@ -200,23 +289,32 @@ class RecommendationEngineService
                     'source_url' => $source['url'],
                     'target_label' => $target['label'],
                     'target_url' => $target['url'],
+                    'target_id' => $targetId,
                     'similarity_score' => $score,
                 ]),
                 'generated_at' => now(),
-            ], $source, $target);
-        })->filter()->values()->all();
+            ];
+        })->map(fn (array $item): array => $this->evaluateCandidate(
+            $item,
+            $pageContexts[(int) ($item['site_page_id'] ?? 0)] ?? [],
+            $pageContexts[(int) (($item['meta_json']['target_id'] ?? 0))] ?? [],
+            $forAudit
+        ))
+            ->when(! $forAudit, fn (Collection $collection): Collection => $collection->where('accepted', true))
+            ->values()
+            ->all();
     }
 
     /**
      * @param  array<int,array<string,mixed>>  $gaps
      * @return array<int,array<string,mixed>>
      */
-    private function fromGaps(string $siteId, array $gaps): array
+    private function fromGaps(string $siteId, array $gaps, bool $forAudit = false): array
     {
-        return collect($gaps)->take(8)->map(function (array $gap) use ($siteId): ?array {
+        return collect($gaps)->take(8)->map(function (array $gap) use ($siteId): array {
             $cluster = (string) ($gap['cluster'] ?? 'untitled-cluster');
 
-            return $this->finalizeRecommendation([
+            return [
                 'site_id' => $siteId,
                 'site_page_id' => null,
                 'site_crawl_id' => null,
@@ -237,16 +335,17 @@ class RecommendationEngineService
                 'status' => 'pending',
                 'meta_json' => $gap,
                 'generated_at' => now(),
-            ], [
-                'url' => null,
-                'path' => null,
-                'title' => $cluster,
-                'cluster' => $cluster,
-                'word_count' => (int) ($gap['avg_word_count'] ?? 0),
-                'authority_score' => (float) ($gap['avg_authority'] ?? 0),
-                'indexability_state' => 'indexable',
-            ]);
-        })->filter()->values()->all();
+            ];
+        })->map(fn (array $item): array => $this->evaluateCandidate($item, [
+            'title' => $item['cluster'] ?? null,
+            'cluster' => $item['cluster'] ?? null,
+            'word_count' => (int) data_get($item, 'meta_json.avg_word_count', 0),
+            'authority_score' => (float) data_get($item, 'meta_json.avg_authority', 0),
+            'indexability_state' => 'indexable',
+        ], null, $forAudit))
+            ->when(! $forAudit, fn (Collection $collection): Collection => $collection->where('accepted', true))
+            ->values()
+            ->all();
     }
 
     /**
@@ -295,7 +394,7 @@ class RecommendationEngineService
 
     /**
      * @param  array<int,int>  $pageIds
-     * @return array<int,array{label:string,url:?string}>
+     * @return array<int,array<string,mixed>>
      */
     private function sitePageContexts(string $siteId, array $pageIds): array
     {
@@ -311,6 +410,7 @@ class RecommendationEngineService
                 'cluster_label',
                 'latest_word_count',
                 'authority_score',
+                'orphan_score',
             ])
             ->mapWithKeys(fn (SeoSitePage $page): array => [
                 $page->id => [
@@ -322,6 +422,7 @@ class RecommendationEngineService
                     'indexability_state' => $page->indexability_state,
                     'word_count' => (int) $page->latest_word_count,
                     'authority_score' => (float) $page->authority_score,
+                    'orphan_score' => (float) $page->orphan_score,
                 ],
             ])
             ->all();
@@ -331,9 +432,9 @@ class RecommendationEngineService
      * @param  array<string,mixed>  $item
      * @param  array<string,mixed>|null  $pageContext
      * @param  array<string,mixed>|null  $secondaryContext
-     * @return array<string,mixed>|null
+     * @return array{accepted:bool,recommendation:?array<string,mixed>,rejected:?array<string,mixed>}
      */
-    private function finalizeRecommendation(array $item, ?array $pageContext = null, ?array $secondaryContext = null): ?array
+    private function evaluateCandidate(array $item, ?array $pageContext = null, ?array $secondaryContext = null, bool $includeRejected = false): array
     {
         $primaryContext = $this->hydrateContext(
             (string) ($item['site_id'] ?? ''),
@@ -347,28 +448,49 @@ class RecommendationEngineService
                 $this->normalizedContext($secondaryContext)
             )
             : null;
+
         $classification = $this->classifier->classify($primaryContext);
         $businessIntent = $this->businessIntent->classify($primaryContext);
         $signals = $this->signalsFor($item, $primaryContext);
         $eligibility = $this->eligibility->evaluate((string) ($item['type'] ?? ''), $classification, $businessIntent, $signals);
+        $meta = is_array($item['meta_json'] ?? null) ? $item['meta_json'] : [];
 
         if ($secondary !== null && ($item['type'] ?? null) === 'differentiate_intent') {
             $secondaryClassification = $this->classifier->classify($secondary);
             $secondaryBusinessIntent = $this->businessIntent->classify($secondary);
+            $secondaryEligibility = $this->eligibility->evaluate((string) ($item['type'] ?? ''), $secondaryClassification, $secondaryBusinessIntent, $this->signalsFor($item, $secondary));
 
-            if (
-                ! $eligibility['eligible']
-                && ! $this->eligibility->evaluate((string) ($item['type'] ?? ''), $secondaryClassification, $secondaryBusinessIntent, $this->signalsFor($item, $secondary))['eligible']
-            ) {
-                return null;
+            if (! $eligibility['eligible'] && ! $secondaryEligibility['eligible']) {
+                return [
+                    'accepted' => false,
+                    'recommendation' => null,
+                    'rejected' => $includeRejected
+                        ? $this->rejectedPayload($item, $meta, $classification, $businessIntent, $eligibility, 'eligibility')
+                        : null,
+                ];
             }
         } elseif (! $eligibility['eligible']) {
-            return null;
+            return [
+                'accepted' => false,
+                'recommendation' => null,
+                'rejected' => $includeRejected
+                    ? $this->rejectedPayload($item, $meta, $classification, $businessIntent, $eligibility, 'eligibility')
+                    : null,
+            ];
         }
 
         $impact = $this->impactEstimator->estimate((string) ($item['type'] ?? ''), $classification, $businessIntent, $signals);
         $scoring = $this->scoring->score((string) ($item['type'] ?? ''), $classification, $businessIntent, $eligibility, $impact, $signals);
-        $meta = is_array($item['meta_json'] ?? null) ? $item['meta_json'] : [];
+
+        if (($scoring['recommendation_score'] ?? 0) <= 0) {
+            return [
+                'accepted' => false,
+                'recommendation' => null,
+                'rejected' => $includeRejected
+                    ? $this->rejectedPayload($item, $meta, $classification, $businessIntent, $eligibility, 'scoring', $scoring, $impact)
+                    : null,
+            ];
+        }
 
         $item['priority'] = $scoring['priority'];
         $item['estimated_impact'] = $impact['estimated_impact'];
@@ -381,7 +503,11 @@ class RecommendationEngineService
         ]);
         $item['reasoning'] = $this->decorateReasoning((string) ($item['reasoning'] ?? ''), $scoring, $impact);
 
-        return $item;
+        return [
+            'accepted' => true,
+            'recommendation' => $item,
+            'rejected' => null,
+        ];
     }
 
     /**
@@ -492,8 +618,63 @@ class RecommendationEngineService
         return trim($reasoning).' Score '.(int) ($scoring['recommendation_score'] ?? 0).'/100.'
             .' Impact estimé : +'.(int) ($impact['monthly_gain_min'] ?? 0)
             .' à +'.(int) ($impact['monthly_gain_max'] ?? 0)
-            .' visites/mois. Confiance '.(int) ($impact['confidence'] ?? 0).'%.'.
-            $suffix;
+            .' visites/mois. Confiance '.(int) ($impact['confidence'] ?? 0).'%.'
+            .$suffix;
+    }
+
+    /**
+     * @param  array<string,mixed>  $item
+     * @param  array<string,mixed>  $meta
+     * @param  array<string,mixed>  $classification
+     * @param  array<string,mixed>  $businessIntent
+     * @param  array<string,mixed>  $eligibility
+     * @param  array<string,mixed>  $scoring
+     * @param  array<string,mixed>  $impact
+     * @return array<string,mixed>
+     */
+    private function rejectedPayload(
+        array $item,
+        array $meta,
+        array $classification,
+        array $businessIntent,
+        array $eligibility,
+        string $layer,
+        array $scoring = [],
+        array $impact = [],
+    ): array {
+        return [
+            'url' => (string) ($meta['url'] ?? $meta['source_url'] ?? $meta['target_url'] ?? ''),
+            'title' => (string) ($item['title'] ?? ''),
+            'action' => (string) ($item['type'] ?? ''),
+            'layer' => $layer,
+            'rejected_by' => $layer,
+            'reason' => $layer === 'eligibility'
+                ? implode(' | ', (array) ($eligibility['blocked_reasons'] ?? []))
+                : 'Recommendation score <= 0',
+            'page_type' => (string) ($classification['page_type'] ?? ''),
+            'business_intent' => (string) ($businessIntent['intent_type'] ?? ''),
+            'seo_eligibility_score' => (int) ($classification['seo_eligibility_score'] ?? 0),
+            'recommendation_score' => (int) ($scoring['recommendation_score'] ?? 0),
+            'impact_estimate' => (string) ($impact['estimated_impact'] ?? 'none'),
+        ];
+    }
+
+    /**
+     * @return array<string,int>
+     */
+    private function classificationStatsForSite(string $siteId): array
+    {
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->get(['meta_json'])
+            ->map(function (SeoPage $page): string {
+                $meta = is_array($page->meta_json) ? $page->meta_json : [];
+
+                return (string) data_get($meta, 'page_classification.page_type', 'UNCLASSIFIED');
+            })
+            ->countBy()
+            ->sortKeys()
+            ->all();
     }
 
     /**
