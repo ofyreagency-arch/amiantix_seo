@@ -101,6 +101,14 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const lastSuccessfulCrawl = site.last_successful_crawl;
   const recentCrawls = site.recent_crawls;
   const crawlReport = site.crawl_report;
+  const displayCrawl =
+    currentCrawl &&
+    lastSuccessfulCrawl &&
+    currentCrawl.id === lastSuccessfulCrawl.id &&
+    currentCrawl.status !== "completed" &&
+    lastSuccessfulCrawl.status === "completed"
+      ? lastSuccessfulCrawl
+      : currentCrawl;
   const crawlReportPages = crawlReport?.pages ?? [];
   const crawlReportIssues = crawlReport?.issues ?? [];
   const crawlReportIssueSummary = crawlReport?.issue_summary ?? [];
@@ -130,13 +138,55 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       ? crawlImpactItems.join(" · ")
       : "Le crawl alimente surtout la lecture du site et prépare les prochaines opportunités exploitables.";
   const latestSuccessfulCrawlAt = lastSuccessfulCrawl?.completed_at ?? null;
-  const activeCrawlId = currentCrawl?.id ?? crawlReport?.reference_crawl_id ?? null;
+  const activeCrawlId = displayCrawl?.id ?? crawlReport?.reference_crawl_id ?? null;
+  const crawlDisplayState =
+    displayCrawl?.status === "completed"
+      ? "completed"
+      : displayCrawl?.status === "running"
+        ? "running"
+        : displayCrawl?.status === "failed"
+          ? "failed"
+          : displayCrawl?.status === "pending"
+            ? "pending"
+            : site.action_statuses.crawl.state;
+  const crawlDisplayLabel =
+    crawlDisplayState === "completed"
+      ? "Terminé"
+      : crawlDisplayState === "running"
+        ? "En cours"
+        : crawlDisplayState === "failed"
+          ? "Erreur"
+          : crawlDisplayState === "pending"
+            ? "Planifié"
+            : site.action_statuses.crawl.label;
+  const crawlDisplayDetail =
+    crawlDisplayState === "completed" && displayCrawl
+      ? `La dernière relecture a parcouru ${displayCrawl.crawled_url_count} page(s) et remonté ${displayCrawl.issues_count} point(s) à surveiller.`
+      : crawlDisplayState === "running" && displayCrawl
+        ? `PraeviSEO relit actuellement ${displayCrawl.crawled_url_count} page(s) sur ${displayCrawl.max_pages} maximum.`
+        : crawlDisplayState === "pending"
+          ? "Une nouvelle relecture premium a été demandée et va démarrer automatiquement."
+          : crawlDisplayState === "failed" && displayCrawl?.error
+            ? displayCrawl.error
+            : site.action_statuses.crawl.detail || "PraeviSEO n’a pas encore lancé de lecture visible sur ce site.";
+  const crawlDisplayTitle =
+    crawlDisplayState === "completed"
+      ? "Dernier crawl lancé"
+      : crawlDisplayState === "running"
+        ? "Crawl en cours"
+        : crawlDisplayState === "pending"
+          ? "Crawl en attente"
+          : crawlDisplayState === "failed"
+            ? "Crawl à revoir"
+            : "Crawl";
   const crawlProgressValue =
-    currentCrawl && currentCrawl.max_pages > 0
+    crawlDisplayState === "completed"
+      ? 100
+      : displayCrawl && displayCrawl.max_pages > 0
       ? Math.min(
           100,
           Math.round(
-            (Math.max(currentCrawl.crawled_url_count, currentCrawl.discovered_url_count, 0) / currentCrawl.max_pages) * 100
+            (Math.max(displayCrawl.crawled_url_count, displayCrawl.discovered_url_count, 0) / displayCrawl.max_pages) * 100
           )
         )
       : 0;
@@ -517,11 +567,11 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           <CardContent className="grid gap-4 xl:grid-cols-3">
               <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-text">Crawl en cours</div>
-                  <Badge variant="secondary">{site.action_statuses.crawl.label}</Badge>
+                  <div className="text-sm font-semibold text-text">{crawlDisplayTitle}</div>
+                  <Badge variant="secondary">{crawlDisplayLabel}</Badge>
                 </div>
               <p className="mt-3 text-sm leading-6 text-text-muted">
-                {site.action_statuses.crawl.detail || "PraeviSEO n’a pas encore lancé de lecture visible sur ce site."}
+                {crawlDisplayDetail}
               </p>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-3">
                 <div
@@ -536,19 +586,19 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 </div>
                 <div>
                   <span className="font-semibold text-text">Pages découvertes :</span>{" "}
-                  {currentCrawl ? currentCrawl.discovered_url_count : 0}
+                  {displayCrawl ? displayCrawl.discovered_url_count : 0}
                 </div>
                 <div>
                   <span className="font-semibold text-text">Pages analysées :</span>{" "}
-                  {currentCrawl ? currentCrawl.crawled_url_count : 0}
+                  {displayCrawl ? displayCrawl.crawled_url_count : 0}
                 </div>
                 <div>
                   <span className="font-semibold text-text">Heure de lancement :</span>{" "}
-                  {currentCrawl?.requested_at ? formatDate(currentCrawl.requested_at) : "pas encore lancé"}
+                  {displayCrawl?.requested_at ? formatDate(displayCrawl.requested_at) : "pas encore lancé"}
                 </div>
                 <div>
                   <span className="font-semibold text-text">Heure de début :</span>{" "}
-                  {currentCrawl?.started_at ? formatDate(currentCrawl.started_at) : "pas encore démarré"}
+                  {displayCrawl?.started_at ? formatDate(displayCrawl.started_at) : "pas encore démarré"}
                 </div>
                 <div>
                   <span className="font-semibold text-text">Progression :</span>{" "}
@@ -556,7 +606,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 </div>
                 <div>
                   <span className="font-semibold text-text">Résultat du crawl :</span>{" "}
-                  {currentCrawl ? currentCrawl.issues_count : 0} point(s) remonté(s)
+                  {displayCrawl ? displayCrawl.issues_count : 0} point(s) remonté(s)
                 </div>
               </div>
             </div>
