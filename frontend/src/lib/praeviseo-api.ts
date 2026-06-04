@@ -16,6 +16,56 @@ export type PraeviseoCrawl = {
   trigger: string | null;
 };
 
+export type PraeviseoObservedPage = {
+  label: string;
+  slug: string;
+  url: string;
+  path: string;
+  authority_score: number;
+  orphan_score: number;
+  overlap_score: number;
+  pillar_likelihood: number;
+  internal_inlinks: number;
+  internal_outlinks: number;
+  latest_word_count: number;
+  indexability_state: string;
+  cluster_label: string | null;
+  last_seen_at: string | null;
+};
+
+export type PraeviseoCrawlReport = {
+  reference_crawl_id: number | null;
+  pages: PraeviseoObservedPage[];
+  issues: Array<{
+    type: string;
+    severity: string;
+    url: string | null;
+    details: string;
+    detected_at: string | null;
+  }>;
+  issue_summary: Array<{
+    type: string;
+    count: number;
+  }>;
+  produced_data: {
+    observed_pages: number;
+    weak_pages: number;
+    orphan_pages: number;
+    link_gap_pages: number;
+    pillar_candidates: number;
+    health_score: number;
+    crawl_issues: number;
+    indexed_pages: number;
+    non_indexed_pages: number;
+  };
+  changes: Array<{
+    label: string;
+    current: number;
+    previous: number;
+    delta: number;
+  }>;
+};
+
 export type PraeviseoSite = {
   id: number;
   site_id: string;
@@ -68,6 +118,7 @@ export type PraeviseoSite = {
   crawl: PraeviseoCrawl | null;
   last_successful_crawl: PraeviseoCrawl | null;
   recent_crawls: PraeviseoCrawl[];
+  crawl_report?: PraeviseoCrawlReport;
   publication_target: {
     mode: string;
     label: string;
@@ -1462,6 +1513,112 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       issues_count: Number(crawl.issues_count ?? 0),
       error: crawl.error ? String(crawl.error) : null,
       trigger: crawl.trigger ? String(crawl.trigger) : null,
+      };
+    };
+
+  const normaliseObservedPage = (rawPage: unknown): PraeviseoObservedPage | null => {
+    if (!rawPage || typeof rawPage !== "object") {
+      return null;
+    }
+
+    const page = rawPage as Record<string, unknown>;
+
+    return {
+      label: String(page.label ?? ""),
+      slug: String(page.slug ?? ""),
+      url: String(page.url ?? ""),
+      path: String(page.path ?? "/"),
+      authority_score: Number(page.authority_score ?? 0),
+      orphan_score: Number(page.orphan_score ?? 0),
+      overlap_score: Number(page.overlap_score ?? 0),
+      pillar_likelihood: Number(page.pillar_likelihood ?? 0),
+      internal_inlinks: Number(page.internal_inlinks ?? 0),
+      internal_outlinks: Number(page.internal_outlinks ?? 0),
+      latest_word_count: Number(page.latest_word_count ?? 0),
+      indexability_state: String(page.indexability_state ?? "unknown"),
+      cluster_label: page.cluster_label ? String(page.cluster_label) : null,
+      last_seen_at: page.last_seen_at ? String(page.last_seen_at) : null,
+    };
+  };
+
+  const normaliseCrawlReport = (rawReport: unknown): PraeviseoCrawlReport => {
+    if (!rawReport || typeof rawReport !== "object") {
+      return {
+        reference_crawl_id: null,
+        pages: [],
+        issues: [],
+        issue_summary: [],
+        produced_data: {
+          observed_pages: 0,
+          weak_pages: 0,
+          orphan_pages: 0,
+          link_gap_pages: 0,
+          pillar_candidates: 0,
+          health_score: 0,
+          crawl_issues: 0,
+          indexed_pages: 0,
+          non_indexed_pages: 0,
+        },
+        changes: [],
+      };
+    }
+
+    const report = rawReport as Record<string, unknown>;
+    const producedData = (report.produced_data ?? {}) as Record<string, unknown>;
+
+    return {
+      reference_crawl_id: report.reference_crawl_id == null ? null : Number(report.reference_crawl_id),
+      pages: Array.isArray(report.pages)
+        ? report.pages
+            .map((page) => normaliseObservedPage(page))
+            .filter((page): page is PraeviseoObservedPage => page !== null)
+        : [],
+      issues: Array.isArray(report.issues)
+        ? report.issues.map((issue) => {
+            const item = issue as Record<string, unknown>;
+
+            return {
+              type: String(item.type ?? ""),
+              severity: String(item.severity ?? "info"),
+              url: item.url ? String(item.url) : null,
+              details: String(item.details ?? ""),
+              detected_at: item.detected_at ? String(item.detected_at) : null,
+            };
+          })
+        : [],
+      issue_summary: Array.isArray(report.issue_summary)
+        ? report.issue_summary.map((entry) => {
+            const item = entry as Record<string, unknown>;
+
+            return {
+              type: String(item.type ?? ""),
+              count: Number(item.count ?? 0),
+            };
+          })
+        : [],
+      produced_data: {
+        observed_pages: Number(producedData.observed_pages ?? 0),
+        weak_pages: Number(producedData.weak_pages ?? 0),
+        orphan_pages: Number(producedData.orphan_pages ?? 0),
+        link_gap_pages: Number(producedData.link_gap_pages ?? 0),
+        pillar_candidates: Number(producedData.pillar_candidates ?? 0),
+        health_score: Number(producedData.health_score ?? 0),
+        crawl_issues: Number(producedData.crawl_issues ?? 0),
+        indexed_pages: Number(producedData.indexed_pages ?? 0),
+        non_indexed_pages: Number(producedData.non_indexed_pages ?? 0),
+      },
+      changes: Array.isArray(report.changes)
+        ? report.changes.map((entry) => {
+            const item = entry as Record<string, unknown>;
+
+            return {
+              label: String(item.label ?? ""),
+              current: Number(item.current ?? 0),
+              previous: Number(item.previous ?? 0),
+              delta: Number(item.delta ?? 0),
+            };
+          })
+        : [],
     };
   };
 
@@ -1559,6 +1716,7 @@ function normaliseSite(raw: unknown): PraeviseoSite {
           .map((crawl) => normaliseCrawl(crawl))
           .filter((crawl): crawl is PraeviseoCrawl => crawl !== null)
       : [],
+    crawl_report: normaliseCrawlReport(site.crawl_report),
     publication_target: {
       mode: String((site.publication_target as Record<string, unknown> | undefined)?.mode ?? "runtime"),
       label: String((site.publication_target as Record<string, unknown> | undefined)?.label ?? "Publication live"),

@@ -100,6 +100,22 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const currentCrawl = site.crawl;
   const lastSuccessfulCrawl = site.last_successful_crawl;
   const recentCrawls = site.recent_crawls;
+  const crawlReport = site.crawl_report;
+  const crawlReportPages = crawlReport?.pages ?? [];
+  const crawlReportIssues = crawlReport?.issues ?? [];
+  const crawlReportIssueSummary = crawlReport?.issue_summary ?? [];
+  const crawlReportChanges = crawlReport?.changes ?? [];
+  const crawlReportProducedData = crawlReport?.produced_data ?? {
+    observed_pages: 0,
+    weak_pages: 0,
+    orphan_pages: 0,
+    link_gap_pages: 0,
+    pillar_candidates: 0,
+    health_score: 0,
+    crawl_issues: 0,
+    indexed_pages: 0,
+    non_indexed_pages: 0,
+  };
   const feedbackType = typeof resolvedSearchParams.feedback === "string" ? resolvedSearchParams.feedback : null;
   const feedbackTitle = typeof resolvedSearchParams.feedback_title === "string" ? resolvedSearchParams.feedback_title : null;
   const feedbackDetail = typeof resolvedSearchParams.feedback_detail === "string" ? resolvedSearchParams.feedback_detail : null;
@@ -114,6 +130,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       ? crawlImpactItems.join(" · ")
       : "Le crawl alimente surtout la lecture du site et prépare les prochaines opportunités exploitables.";
   const latestSuccessfulCrawlAt = lastSuccessfulCrawl?.completed_at ?? null;
+  const activeCrawlId = currentCrawl?.id ?? crawlReport?.reference_crawl_id ?? null;
   const crawlProgressValue =
     currentCrawl && currentCrawl.max_pages > 0
       ? Math.min(
@@ -498,11 +515,11 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 xl:grid-cols-3">
-            <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-text">Crawl en cours</div>
-                <Badge variant="secondary">{site.action_statuses.crawl.label}</Badge>
-              </div>
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-text">Crawl en cours</div>
+                  <Badge variant="secondary">{site.action_statuses.crawl.label}</Badge>
+                </div>
               <p className="mt-3 text-sm leading-6 text-text-muted">
                 {site.action_statuses.crawl.detail || "PraeviSEO n’a pas encore lancé de lecture visible sur ce site."}
               </p>
@@ -513,6 +530,10 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 />
               </div>
               <div className="mt-4 grid gap-3 text-sm text-text-muted sm:grid-cols-2">
+                <div>
+                  <span className="font-semibold text-text">Crawl lancé :</span>{" "}
+                  {activeCrawlId ? `#${activeCrawlId}` : "pas encore de crawl identifié"}
+                </div>
                 <div>
                   <span className="font-semibold text-text">Pages découvertes :</span>{" "}
                   {currentCrawl ? currentCrawl.discovered_url_count : 0}
@@ -604,6 +625,156 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             </div>
           </CardContent>
         </Card>
+
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pages relues par le crawl</CardTitle>
+              <CardDescription>
+                Les pages réellement relues lors du dernier crawl de référence, pour comprendre ce que PraeviSEO a observé.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {crawlReportPages.length > 0 ? (
+                crawlReportPages.map((page) => (
+                  <div key={page.url} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{page.label}</div>
+                      <Badge variant="secondary">{page.indexability_state}</Badge>
+                    </div>
+                    <p className="mt-2 break-all text-xs text-text-subtle">{page.url}</p>
+                    <div className="mt-3 grid gap-3 text-sm text-text-muted sm:grid-cols-2 xl:grid-cols-4">
+                      <div>
+                        <span className="font-semibold text-text">Mots :</span> {page.latest_word_count}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Autorité :</span> {page.authority_score}/100
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Orphelinage :</span> {page.orphan_score}/100
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Inlinks :</span> {page.internal_inlinks}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  Les pages relues apparaîtront ici dès qu’un crawl complet aura fini d’analyser le site.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Problèmes trouvés</CardTitle>
+              <CardDescription>
+                Les points réellement remontés par le crawl, sans passer par les logs ou la base.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {crawlReportIssueSummary.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {crawlReportIssueSummary.map((issue) => (
+                    <div key={`${issue.type}-${issue.count}`} className="rounded-xl border border-border bg-surface-2 px-3 py-3 text-sm text-text">
+                      <span className="font-semibold">{issue.type}</span> : {issue.count}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {crawlReportIssues.length > 0 ? (
+                <div className="space-y-3">
+                  {crawlReportIssues.map((issue, index) => (
+                    <div key={`${issue.type}-${issue.url ?? index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-text">{issue.type}</div>
+                        <Badge variant={issue.severity === "critical" || issue.severity === "high" ? "danger" : "secondary"}>
+                          {issue.severity}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-text-muted">{issue.details}</p>
+                      {issue.url ? <p className="mt-2 break-all text-xs text-text-subtle">{issue.url}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  Aucun problème concret n’a encore été remonté par le crawl de référence.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Données produites par le crawl</CardTitle>
+              <CardDescription>
+                Ce que PraeviSEO a réellement ajouté ou mis à jour après la lecture du site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {[
+                ["Pages observées", crawlReportProducedData.observed_pages],
+                ["Pages faibles", crawlReportProducedData.weak_pages],
+                ["Pages orphelines", crawlReportProducedData.orphan_pages],
+                ["Pages à mieux relier", crawlReportProducedData.link_gap_pages],
+                ["Piliers candidats", crawlReportProducedData.pillar_candidates],
+                ["Score santé", crawlReportProducedData.health_score],
+                ["Issues crawl", crawlReportProducedData.crawl_issues],
+                ["Pages indexées", crawlReportProducedData.indexed_pages],
+                ["Pages non indexées", crawlReportProducedData.non_indexed_pages],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-xs uppercase tracking-[0.22em] text-text-subtle">{label}</div>
+                  <div className="mt-2 text-2xl font-semibold text-text">{value}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Ce qui a changé depuis le crawl précédent</CardTitle>
+              <CardDescription>
+                La différence avant / après pour voir si le nouveau passage a réellement produit quelque chose.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {crawlReportChanges.length > 0 ? (
+                crawlReportChanges.map((change) => (
+                  <div key={change.label} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{change.label}</div>
+                      <Badge variant={change.delta > 0 ? "default" : change.delta < 0 ? "danger" : "secondary"}>
+                        {change.delta > 0 ? `+${change.delta}` : `${change.delta}`}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-3 text-sm text-text-muted sm:grid-cols-3">
+                      <div>
+                        <span className="font-semibold text-text">Avant :</span> {change.previous}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Après :</span> {change.current}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text">Écart :</span> {change.delta > 0 ? `+${change.delta}` : change.delta}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  PraeviSEO affichera ici les différences dès qu’il pourra comparer ce crawl à un précédent crawl terminé.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>

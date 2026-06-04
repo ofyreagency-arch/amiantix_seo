@@ -1081,6 +1081,15 @@ class ClientSitesController extends Controller
             ->latest('id')
             ->limit(10)
             ->get();
+        $crawlReport = $this->crawlReport(
+            site: $site,
+            crawl: $crawl,
+            lastSuccessfulCrawl: $lastSuccessfulCrawl,
+            observedSnapshot: $observedSnapshot,
+            observedHealth: $observedHealth,
+            observedHealthDelta: $observedHealthDelta,
+            gscSnapshot: $gscSnapshot,
+        );
 
         Log::info('Client site serializeSite crawl trace', [
             'site_id' => $site->site_id,
@@ -1137,6 +1146,7 @@ class ClientSitesController extends Controller
                 ->map(fn (SeoSiteCrawl $recentCrawl): array => $this->serializeObservedCrawl($recentCrawl) ?? [])
                 ->values()
                 ->all(),
+            'crawl_report' => $crawlReport,
             'publication_target' => $this->publicationTargetStatus($site),
             'execution_history' => $this->executionHistory($site),
             'action_statuses' => $this->actionStatuses($site, $crawl),
@@ -1248,6 +1258,123 @@ class ClientSitesController extends Controller
             'issues_count' => (int) ($meta['issues_count'] ?? 0),
             'error' => isset($meta['error']) ? (string) $meta['error'] : null,
             'trigger' => isset($meta['trigger']) ? (string) $meta['trigger'] : null,
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $observedSnapshot
+     * @param  array<string,mixed>  $observedHealth
+     * @param  array<string,mixed>  $gscSnapshot
+     * @return array<string,mixed>
+     */
+    private function crawlReport(
+        SeoSite $site,
+        ?SeoSiteCrawl $crawl,
+        ?SeoSiteCrawl $lastSuccessfulCrawl,
+        array $observedSnapshot,
+        array $observedHealth,
+        int $observedHealthDelta,
+        array $gscSnapshot,
+    ): array {
+        $referenceCrawl = $lastSuccessfulCrawl ?? $crawl;
+        $previousSuccessfulCrawl = $lastSuccessfulCrawl
+            ? SeoSiteCrawl::query()
+                ->where('site_id', $site->site_id)
+                ->where('status', 'completed')
+                ->where('id', '!=', $lastSuccessfulCrawl->id)
+                ->latest('completed_at')
+                ->latest('id')
+                ->first()
+            : null;
+
+        $pages = collect();
+        $issues = collect();
+        $issueSummary = collect();
+
+        if ($referenceCrawl) {
+            $pages = SeoSitePage::query()
+                ->where('site_id', $site->site_id)
+                ->where('last_crawl_id', $referenceCrawl->id)
+                ->orderByDesc('authority_score')
+                ->orderByDesc('last_seen_at')
+                ->limit(8)
+                ->get()
+                ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
+                ->values();
+
+            $issueRows = SeoSiteCrawlIssue::query()
+                ->where('site_id', $site->site_id)
+                ->where('site_crawl_id', $referenceCrawl->id)
+                ->latest('detected_at')
+                ->get();
+
+            $issues = $issueRows
+                ->take(8)
+                ->map(fn (SeoSiteCrawlIssue $issue): array => [
+                    'type' => (string) $issue->issue_type,
+                    'severity' => (string) $issue->severity,
+                    'url' => $issue->url ? (string) $issue->url : null,
+                    'details' => (string) $issue->details,
+                    'detected_at' => $issue->detected_at?->toIso8601String(),
+                ])
+                ->values();
+
+            $issueSummary = $issueRows
+                ->groupBy('issue_type')
+                ->map(fn (Collection $group, string $type): array => [
+                    'type' => $type,
+                    'count' => $group->count(),
+                ])
+                ->sortByDesc('count')
+                ->take(6)
+                ->values();
+        }
+
+        $currentIssuesCount = (int) ($lastSuccessfulCrawl ? ($lastSuccessfulCrawl->meta_json['issues_count'] ?? 0) : 0);
+        $previousIssuesCount = (int) ($previousSuccessfulCrawl ? ($previousSuccessfulCrawl->meta_json['issues_count'] ?? 0) : 0);
+
+        return [
+            'reference_crawl_id' => $referenceCrawl?->id,
+            'pages' => $pages->all(),
+            'issues' => $issues->all(),
+            'issue_summary' => $issueSummary->all(),
+            'produced_data' => [
+                'observed_pages' => (int) ($observedSnapshot['total'] ?? 0),
+                'weak_pages' => (int) ($observedSnapshot['weak_pages'] ?? 0),
+                'orphan_pages' => (int) ($observedSnapshot['orphan_pages'] ?? 0),
+                'link_gap_pages' => count((array) ($observedSnapshot['link_gap_pages'] ?? [])),
+                'pillar_candidates' => (int) ($observedSnapshot['pillar_candidates'] ?? 0),
+                'health_score' => (int) ($observedHealth['health_score'] ?? 0),
+                'crawl_issues' => (int) ($observedHealth['crawl_issues'] ?? 0),
+                'indexed_pages' => (int) ($gscSnapshot['indexed_pages'] ?? 0),
+                'non_indexed_pages' => (int) ($gscSnapshot['non_indexed_pages'] ?? 0),
+            ],
+            'changes' => [
+                [
+                    'label' => 'Pages analysées',
+                    'current' => (int) ($lastSuccessfulCrawl?->crawled_url_count ?? 0),
+                    'previous' => (int) ($previousSuccessfulCrawl?->crawled_url_count ?? 0),
+                    'delta' => (int) (($lastSuccessfulCrawl?->crawled_url_count ?? 0) - ($previousSuccessfulCrawl?->crawled_url_count ?? 0)),
+                ],
+                [
+                    'label' => 'Pages découvertes',
+                    'current' => (int) ($lastSuccessfulCrawl?->discovered_url_count ?? 0),
+                    'previous' => (int) ($previousSuccessfulCrawl?->discovered_url_count ?? 0),
+                    'delta' => (int) (($lastSuccessfulCrawl?->discovered_url_count ?? 0) - ($previousSuccessfulCrawl?->discovered_url_count ?? 0)),
+                ],
+                [
+                    'label' => 'Points remontés',
+                    'current' => $currentIssuesCount,
+                    'previous' => $previousIssuesCount,
+                    'delta' => $currentIssuesCount - $previousIssuesCount,
+                ],
+                [
+                    'label' => 'Score santé observée',
+                    'current' => (int) ($observedHealth['health_score'] ?? 0),
+                    'previous' => (int) (($observedHealth['health_score'] ?? 0) - $observedHealthDelta),
+                    'delta' => $observedHealthDelta,
+                ],
+            ],
         ];
     }
 
