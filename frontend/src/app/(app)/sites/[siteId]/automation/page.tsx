@@ -1,4 +1,3 @@
-import { Bot, FileSearch, ImagePlus, Link2, Monitor, Sparkles } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { SiteAccessState } from "@/components/sites/site-access-state";
 import { Badge } from "@/components/ui/badge";
@@ -42,29 +41,6 @@ const ACTION_NEXT_PASSES: Record<string, string> = {
   images: "Relance dès qu’une page ou un article devient prêt à être enrichi visuellement.",
   monitoring: "Contrôle continu à chaque boucle premium et après chaque action importante.",
 };
-
-const EXECUTION_STEPS = [
-  {
-    icon: FileSearch,
-    title: "Crawl du site",
-    detail: "PraeviSEO relit le site, repère les pages existantes et valide où il peut agir sans risque.",
-  },
-  {
-    icon: Sparkles,
-    title: "Préparation des actions",
-    detail: "Le moteur prépare les pages à enrichir, les réécritures utiles et les liens internes à ouvrir.",
-  },
-  {
-    icon: Bot,
-    title: "Exécution automatique",
-    detail: "PraeviSEO publie, réécrit, relie les pages et relance les vérifications sans manipulation manuelle.",
-  },
-  {
-    icon: Monitor,
-    title: "Monitoring continu",
-    detail: "Après l’exécution, PraeviSEO suit le résultat, détecte les progrès et prépare la prochaine action utile.",
-  },
-] as const;
 
 export default async function SiteAutomationPage({ params, searchParams }: SiteAutomationPageProps) {
   const { siteId } = await params;
@@ -644,6 +620,13 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       action: launchPremiumPublicationAction.bind(null, site.site_id),
     },
   ] as const;
+  const primaryActionButtons = actionButtons
+    .filter((item) => item.recommended)
+    .concat(actionButtons.filter((item) => !item.recommended))
+    .slice(0, 3);
+  const executionHighlights = executionCenter.filter((item) =>
+    ["crawl", "publication", "rewrite", "monitoring"].includes(item.key)
+  );
 
   const starterPlan = [
     leadIndexationAlert
@@ -1110,16 +1093,16 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           <CardHeader>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <CardTitle>Ce que PraeviSEO exécute pour vous</CardTitle>
+                <CardTitle>Actions à lancer maintenant</CardTitle>
                 <CardDescription>
-                  Chaque bloc montre l’état actuel, le dernier passage utile, le prochain déclenchement attendu et le résultat observé.
+                  Trois actions maximum pour avancer sans vous perdre. Le reste continue automatiquement en arrière-plan.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 xl:grid-cols-3">
-              {actionButtons.map((item) => (
+              {primaryActionButtons.map((item) => (
                 <div
                   key={item.key}
                   className={
@@ -1144,8 +1127,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               ))}
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-7">
-            {executionCenter.map((item) => (
+            <div className="grid gap-4 xl:grid-cols-4">
+            {executionHighlights.map((item) => (
               <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-text">{item.title}</div>
@@ -1170,30 +1153,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               </div>
             ))}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Comment PraeviSEO travaille</CardTitle>
-            <CardDescription>
-              Le fonctionnement des automatisations, une fois le site activé.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-4">
-            {EXECUTION_STEPS.map((step) => {
-              const Icon = step.icon;
-
-              return (
-                <div key={step.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-subtle">
-                    <Icon className="h-5 w-5 text-[hsl(var(--brand))]" />
-                  </div>
-                  <div className="mt-4 text-sm font-semibold text-text">{step.title}</div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{step.detail}</p>
-                </div>
-              );
-            })}
           </CardContent>
         </Card>
 
@@ -1304,29 +1263,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           </Card>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          {[
-            {
-              title: "Ce que vous pilotez ici",
-              detail: "Les statuts des automatisations, les déclenchements manuels, l’historique et les erreurs d’exécution.",
-            },
-            {
-              title: "Ce qui reste technique",
-              detail: "SSH, Doctor, accès serveur, activation et maintenance du bridge restent dans la santé technique.",
-            },
-            {
-              title: "Ce qui reste produit",
-              detail: "Le cockpit SEO principal continue de répondre à la question la plus simple : que faut-il faire maintenant pour progresser sur Google ?",
-            },
-          ].map((item) => (
-            <Card key={item.title}>
-              <CardContent className="pt-5">
-                <div className="text-base font-semibold text-text">{item.title}</div>
-                <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       </div>
     </div>
   );
