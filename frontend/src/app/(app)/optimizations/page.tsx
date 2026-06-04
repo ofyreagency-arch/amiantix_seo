@@ -3,7 +3,7 @@ import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getOptimizations } from "@/lib/praeviseo-api";
+import { getOptimizations, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 function opportunityTypeLabel(type: string): string {
@@ -208,6 +208,63 @@ export default async function OptimizationsPage() {
       ],
     },
   ] as const;
+  const opportunityActions = (item: (typeof opportunities)[number]) => {
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [];
+
+    if (item.type === "emerging_query" && item.query) {
+      actions.push({
+        label: "Voir les requêtes",
+        href: "/queries",
+        variant: "primary",
+      });
+    } else if (item.type === "near_top_10" || item.type === "sustained_drop") {
+      actions.push({
+        label: "Voir les pages",
+        href: "/pages",
+        variant: "primary",
+      });
+    } else if (item.type === "low_ctr") {
+      actions.push({
+        label: "Voir l’indexation",
+        href: `/sites/${item.site_id}/search-console`,
+        variant: "primary",
+      });
+    } else {
+      actions.push({
+        label: "Ouvrir l’automatisation",
+        href: `/sites/${item.site_id}/automation`,
+        variant: "primary",
+      });
+    }
+
+    actions.push({
+      label: "Ouvrir le site",
+      href: getSitePath(item.site_id),
+      variant: "secondary",
+    });
+
+    return actions;
+  };
+
+  const recommendationActions = (item: (typeof observedRecommendations)[number]) => {
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [
+      {
+        label: "Ouvrir l’automatisation",
+        href: `/sites/${item.site_id}/automation`,
+        variant: "primary",
+      },
+    ];
+
+    if (item.title.toLowerCase().includes("requête") || item.title.toLowerCase().includes("query")) {
+      actions.push({ label: "Voir les requêtes", href: "/queries", variant: "secondary" });
+    } else if (item.title.toLowerCase().includes("maillage") || item.title.toLowerCase().includes("lien")) {
+      actions.push({ label: "Voir les pages", href: "/pages", variant: "secondary" });
+    } else {
+      actions.push({ label: "Voir les optimisations", href: "/optimizations", variant: "secondary" });
+    }
+
+    return actions;
+  };
 
   return (
     <div className="min-h-screen">
@@ -350,6 +407,13 @@ export default async function OptimizationsPage() {
                   <p className="text-sm text-text">
                     Action a ouvrir : <span className="font-medium">{leadOpportunity.action}</span>
                   </p>
+                  <div className="flex flex-wrap gap-2">
+                    {opportunityActions(leadOpportunity).map((action) => (
+                      <Button key={`${leadOpportunity.site_id}-${leadOpportunity.slug}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                        {action.label}
+                      </Button>
+                    ))}
+                  </div>
                 </>
               ) : (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
@@ -390,6 +454,13 @@ export default async function OptimizationsPage() {
                     Action a ouvrir :{" "}
                     <span className="font-medium">{leadRecommendation.suggested_action ?? "a préciser bientôt"}</span>
                   </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recommendationActions(leadRecommendation).map((action) => (
+                      <Button key={`${leadRecommendation.id}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                        {action.label}
+                      </Button>
+                    ))}
+                  </div>
                 </>
               ) : (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
@@ -427,6 +498,13 @@ export default async function OptimizationsPage() {
                     <p className="mt-2 text-sm text-text">
                       A ouvrir maintenant : <span className="font-medium">{item.action}</span>
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {opportunityActions(item).map((action) => (
+                        <Button key={`${item.site_id}-${item.slug}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}
@@ -461,6 +539,13 @@ export default async function OptimizationsPage() {
                     <p className="mt-2 text-xs text-text-subtle">
                       Pourquoi maintenant : {item.type === "sustained_drop" ? "la page a deja perdu un signal durable" : "la page est proche d’un gain visible sans changement lourd"}.
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {opportunityActions(item).map((action) => (
+                        <Button key={`${item.site_id}-${item.slug}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}
@@ -495,6 +580,13 @@ export default async function OptimizationsPage() {
                     <p className="mt-2 text-sm text-text">
                       Page a renforcer : <span className="font-medium">{item.label}</span>
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {opportunityActions(item).map((action) => (
+                        <Button key={`${item.site_id}-${item.query}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}
