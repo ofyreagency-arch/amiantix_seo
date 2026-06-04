@@ -133,6 +133,7 @@ class SeoLivePublicationService
 
         $endpoint = $site->publicationWebhookUrl();
         $payload = $this->webhookPayload($page, $site);
+        $body = (string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         if (! $endpoint) {
             throw new RuntimeException('Aucun endpoint de publication CMS/API n est configuré pour ce site.');
@@ -144,16 +145,17 @@ class SeoLivePublicationService
 
         try {
             $request = Http::timeout(12)
-                ->acceptJson()
-                ->asJson();
+                ->acceptJson();
 
             if ($signed) {
-                $signedHeaders = $this->signedHeaders($site, $payload);
-                $this->logSignedWebhookRequest($site, $endpoint, $payload, $signedHeaders);
+                $signedHeaders = $this->signedHeaders($site, $body);
+                $this->logSignedWebhookRequest($site, $endpoint, $body, $signedHeaders);
                 $request = $request->withHeaders($signedHeaders);
             }
 
-            $response = $request->post($endpoint, $payload);
+            $response = $request
+                ->withBody($body, 'application/json')
+                ->post($endpoint);
 
             if (! $response->successful()) {
                 $preview = trim((string) $response->body());
@@ -370,13 +372,11 @@ class SeoLivePublicationService
     }
 
     /**
-     * @param  array<string,mixed>  $payload
      * @return array<string,string>
      */
-    private function signedHeaders(SeoSite $site, array $payload): array
+    private function signedHeaders(SeoSite $site, string $body): array
     {
         $timestamp = (string) now()->timestamp;
-        $body = (string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $signature = hash_hmac('sha256', $timestamp.'.'.$body, (string) $site->publicationSharedSecret());
 
         return [
@@ -384,18 +384,17 @@ class SeoLivePublicationService
             'X-Praeviseo-Site-Id' => (string) $site->site_id,
             'X-Praeviseo-Timestamp' => $timestamp,
             'X-Praeviseo-Signature' => $signature,
+            'Content-Type' => 'application/json',
         ];
     }
 
     /**
-     * @param  array<string,mixed>  $payload
      * @param  array<string,string>  $headers
      */
-    private function logSignedWebhookRequest(SeoSite $site, string $endpoint, array $payload, array $headers): void
+    private function logSignedWebhookRequest(SeoSite $site, string $endpoint, string $body, array $headers): void
     {
         try {
             $timestamp = (string) ($headers['X-Praeviseo-Timestamp'] ?? '');
-            $body = (string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $secret = (string) $site->publicationSharedSecret();
             $logPath = storage_path('logs/praeviseo-bridge-signature.log');
 
