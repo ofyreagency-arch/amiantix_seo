@@ -10,6 +10,7 @@ use App\Models\SeoSiteSitemap;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
@@ -147,7 +148,9 @@ class SeoLivePublicationService
                 ->asJson();
 
             if ($signed) {
-                $request = $request->withHeaders($this->signedHeaders($site, $payload));
+                $signedHeaders = $this->signedHeaders($site, $payload);
+                $this->logSignedWebhookRequest($site, $endpoint, $payload, $signedHeaders);
+                $request = $request->withHeaders($signedHeaders);
             }
 
             $response = $request->post($endpoint, $payload);
@@ -382,5 +385,33 @@ class SeoLivePublicationService
             'X-Praeviseo-Timestamp' => $timestamp,
             'X-Praeviseo-Signature' => $signature,
         ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $payload
+     * @param  array<string,string>  $headers
+     */
+    private function logSignedWebhookRequest(SeoSite $site, string $endpoint, array $payload, array $headers): void
+    {
+        try {
+            $timestamp = (string) ($headers['X-Praeviseo-Timestamp'] ?? '');
+            $body = (string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $secret = (string) $site->publicationSharedSecret();
+            $logPath = storage_path('logs/praeviseo-bridge-signature.log');
+
+            File::append($logPath, json_encode([
+                'logged_at' => now()->toIso8601String(),
+                'side' => 'praeviseo',
+                'site_id' => (string) $site->site_id,
+                'endpoint' => $endpoint,
+                'timestamp' => $timestamp,
+                'body' => $body,
+                'signature' => (string) ($headers['X-Praeviseo-Signature'] ?? ''),
+                'secret' => $secret,
+                'secret_sha256' => hash('sha256', $secret),
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE).PHP_EOL);
+        } catch (\Throwable) {
+            // Never block publication because the debug trace could not be written.
+        }
     }
 }

@@ -102,10 +102,51 @@ final class PraeviseoBridgeService
             throw new RuntimeException('Timestamp PraeviSEO expiré.');
         }
 
-        $expected = hash_hmac('sha256', $timestamp.'.'.$request->getContent(), $secret);
+        $body = $request->getContent();
+        $expected = hash_hmac('sha256', $timestamp.'.'.$body, $secret);
+
+        $this->logSignatureTrace(
+            timestamp: $timestamp,
+            body: $body,
+            receivedSignature: $signature,
+            expectedSignature: $expected,
+            secret: $secret,
+            siteId: $headerSiteId,
+        );
 
         if (! hash_equals($expected, $signature)) {
             throw new RuntimeException('Signature PraeviSEO invalide.');
+        }
+    }
+
+    private function logSignatureTrace(
+        string $timestamp,
+        string $body,
+        string $receivedSignature,
+        string $expectedSignature,
+        string $secret,
+        string $siteId,
+    ): void {
+        try {
+            $projectRoot = dirname(__DIR__, 5);
+            $logDirectory = $projectRoot.'/var/log';
+            $logPath = is_dir($logDirectory)
+                ? $logDirectory.'/praeviseo-bridge-signature.log'
+                : sys_get_temp_dir().'/praeviseo-bridge-signature.log';
+
+            file_put_contents($logPath, json_encode([
+                'logged_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+                'side' => 'symfony_bridge',
+                'site_id' => $siteId,
+                'timestamp' => $timestamp,
+                'body' => $body,
+                'received_signature' => $receivedSignature,
+                'expected_signature' => $expectedSignature,
+                'secret' => $secret,
+                'secret_sha256' => hash('sha256', $secret),
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE).PHP_EOL, FILE_APPEND);
+        } catch (\Throwable) {
+            // Never block the bridge because the debug trace could not be written.
         }
     }
 }
