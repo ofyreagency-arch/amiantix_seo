@@ -582,6 +582,69 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       updatedAt: status.updated_at,
     }));
 
+  const actionButtons = [
+    {
+      key: "crawl",
+      label: "Lancer un crawl",
+      description:
+        crawlDisplayState === "completed"
+          ? "Relancer une lecture propre du site pour mettre à jour les signaux observés."
+          : "Démarrer ou relancer la lecture premium du site.",
+      recommended: recommendedActionKey === "crawl",
+      action: launchPremiumCrawlAction.bind(null, site.site_id),
+    },
+    {
+      key: "generation",
+      label: "Créer un article",
+      description:
+        site.summary.new_queries.length > 0
+          ? `Une requête montante est déjà visible : ${site.summary.new_queries[0].query}.`
+          : "Ouvrir un nouveau contenu dès qu’un sujet assez net mérite une vraie page.",
+      recommended: recommendedActionKey === "generation",
+      action: launchPremiumGenerationAction.bind(null, site.site_id),
+    },
+    {
+      key: "rewrite",
+      label: "Préparer une réécriture",
+      description: leadRefresh
+        ? `Un contenu est déjà à retravailler : ${leadRefresh.title}.`
+        : "Relancer un contenu existant qui peut progresser sans repartir de zéro.",
+      recommended: recommendedActionKey === "rewrite",
+      action: launchPremiumRewriteAction.bind(null, site.site_id),
+    },
+    {
+      key: "linking",
+      label: "Renforcer le maillage",
+      description: site.summary.observed_link_gap_pages[0]
+        ? `Une page manque déjà de soutien interne : ${site.summary.observed_link_gap_pages[0].label}.`
+        : "Ouvrir des liens internes utiles dès que PraeviSEO voit une vraie cible à soutenir.",
+      recommended: recommendedActionKey === "linking",
+      action: launchPremiumLinkingAction.bind(null, site.site_id),
+    },
+    {
+      key: "images",
+      label: "Générer l’image SEO",
+      description: leadRisingPage
+        ? `Une page à potentiel visible peut déjà recevoir un renfort visuel : ${leadRisingPage.label}.`
+        : "Préparer une image SEO dès qu’une page assez stable mérite un enrichissement visuel.",
+      recommended: recommendedActionKey === "images",
+      action: launchPremiumImageAction.bind(null, site.site_id),
+    },
+    {
+      key: "publication",
+      label: "Publier",
+      description: hasLivePages
+        ? "Pousser un nouveau contenu ou une mise à jour sur le site déjà connecté."
+        : publicationReady
+          ? "Le bridge répond déjà : une première publication live peut partir."
+          : bridgeConnected
+            ? "Le bridge est actif, mais PraeviSEO attend encore un contenu prêt à pousser."
+            : "La publication live restera limitée tant que le bridge n’est pas complètement prêt.",
+      recommended: recommendedActionKey === "publication",
+      action: launchPremiumPublicationAction.bind(null, site.site_id),
+    },
+  ] as const;
+
   const starterPlan = [
     leadIndexationAlert
       ? {
@@ -1052,29 +1115,36 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                   Chaque bloc montre l’état actuel, le dernier passage utile, le prochain déclenchement attendu et le résultat observé.
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <form action={launchPremiumCrawlAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant={recommendedActionKey === "crawl" ? "primary" : "secondary"}>Lancer un crawl</Button>
-                </form>
-                <form action={launchPremiumGenerationAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant={recommendedActionKey === "generation" ? "primary" : "secondary"}>Créer un article</Button>
-                </form>
-                <form action={launchPremiumRewriteAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant={recommendedActionKey === "rewrite" ? "primary" : "secondary"}>Préparer une réécriture</Button>
-                </form>
-                <form action={launchPremiumLinkingAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant={recommendedActionKey === "linking" ? "primary" : "secondary"}>Renforcer le maillage</Button>
-                </form>
-                <form action={launchPremiumImageAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant={recommendedActionKey === "images" ? "primary" : "secondary"}>Générer l’image SEO</Button>
-                </form>
-                <form action={launchPremiumPublicationAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant={recommendedActionKey === "publication" ? "primary" : "secondary"}>Publier</Button>
-                </form>
-              </div>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-7">
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 xl:grid-cols-3">
+              {actionButtons.map((item) => (
+                <div
+                  key={item.key}
+                  className={
+                    item.recommended
+                      ? "rounded-2xl border border-brand/30 bg-brand-muted px-4 py-4"
+                      : "rounded-2xl border border-border bg-surface-2 px-4 py-4"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{item.label}</div>
+                    <Badge variant={item.recommended ? "default" : "secondary"}>
+                      {item.recommended ? "Recommandé" : "Disponible"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.description}</p>
+                  <form action={item.action} className="mt-4">
+                    <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
+                      {item.label}
+                    </Button>
+                  </form>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-7">
             {executionCenter.map((item) => (
               <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1099,6 +1169,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 </div>
               </div>
             ))}
+            </div>
           </CardContent>
         </Card>
 
