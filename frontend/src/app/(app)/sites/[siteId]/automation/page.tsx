@@ -3,6 +3,7 @@ import { SiteAccessState } from "@/components/sites/site-access-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getPublications,
   getSettings,
@@ -570,6 +571,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "crawl",
       label: "Lancer un crawl",
+      stage: "now",
       ctaLabel: "Lancer un crawl",
       description:
         crawlDisplayState === "completed"
@@ -585,6 +587,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "generation",
       label: "Créer un article",
+      stage: generationReady ? "now" : gscConnected ? "soon" : "prep",
       ctaLabel: generationReady ? "Créer l’article ciblé" : "Sujet encore trop flou",
       description:
         generationReady
@@ -602,6 +605,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "rewrite",
       label: "Préparer une réécriture",
+      stage: rewriteReady ? "now" : gscConnected || Boolean(lastSuccessfulCrawl) ? "soon" : "prep",
       ctaLabel: rewriteReady ? "Relancer la réécriture" : "Aucune page prête",
       description: leadRefresh
         ? `Un contenu est déjà à retravailler : ${leadRefresh.title}.`
@@ -618,6 +622,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "linking",
       label: "Renforcer le maillage",
+      stage: linkingReady ? "now" : gscConnected || Boolean(lastSuccessfulCrawl) ? "soon" : "prep",
       ctaLabel: linkingReady ? "Lancer le maillage utile" : "Pas encore de cible nette",
       description: site.summary.observed_link_gap_pages[0]
         ? `Une page manque déjà de soutien interne : ${site.summary.observed_link_gap_pages[0].label}.`
@@ -634,6 +639,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "images",
       label: "Générer l’image SEO",
+      stage: imageReady ? "now" : monitoredContentCount > 0 || Boolean(lastSuccessfulCrawl) ? "soon" : "prep",
       ctaLabel: imageReady ? "Préparer l’image utile" : "Aucune page assez stable",
       description: leadRisingPage
         ? `Une page à potentiel visible peut déjà recevoir un renfort visuel : ${leadRisingPage.label}.`
@@ -650,6 +656,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "publication",
       label: "Publier",
+      stage: publicationLaunchReady ? "now" : bridgeConnected ? "soon" : "prep",
       ctaLabel: publicationLaunchReady
         ? "Publier en live"
         : !bridgeConnected
@@ -676,10 +683,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       action: launchPremiumPublicationAction.bind(null, site.site_id),
     },
   ] as const;
-  const primaryActionButtons = actionButtons
-    .filter((item) => item.recommended)
-    .concat(actionButtons.filter((item) => !item.recommended))
-    .slice(0, 3);
+  const actionableNowButtons = actionButtons.filter((item) => item.stage === "now");
+  const comingSoonButtons = actionButtons.filter((item) => item.stage === "soon");
+  const preparationButtons = actionButtons.filter((item) => item.stage === "prep");
   const recommendedActionButton =
     recommendedActionKey ? actionButtons.find((item) => item.key === recommendedActionKey) ?? null : null;
   const executionHighlights = executionCenter.filter((item) =>
@@ -1185,49 +1191,99 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               <div>
                 <CardTitle>Actions à lancer maintenant</CardTitle>
                 <CardDescription>
-                  Trois actions maximum pour avancer sans vous perdre. Le reste continue automatiquement en arrière-plan.
+                  Toutes les actions SEO sont ici, rangées par niveau réel de disponibilité pour éviter les faux espoirs.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 xl:grid-cols-3">
-              {primaryActionButtons.map((item) => (
-                <div
-                  key={item.key}
-                  className={
-                    item.recommended
-                      ? "rounded-2xl border border-brand/30 bg-brand-muted px-4 py-4"
-                      : "rounded-2xl border border-border bg-surface-2 px-4 py-4"
-                  }
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-text">{item.label}</div>
-                    <Badge variant={item.recommended ? "default" : item.available ? "secondary" : "warning"}>
-                      {item.recommended ? "Recommandé" : item.available ? "Disponible" : "À préparer"}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.description}</p>
-                  {item.blockedReason ? (
-                    <p className="mt-3 text-xs leading-6 text-text-subtle">{item.blockedReason}</p>
-                  ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {item.available ? (
-                      <form action={item.action} className="w-full">
-                        <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
-                          {item.ctaLabel}
-                        </Button>
-                      </form>
-                    ) : null}
-                    {!item.available && item.helperHref ? (
-                      <Button href={item.helperHref} variant="secondary" className="w-full">
-                        {item.helperLabel}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
+            <Tabs defaultValue="now" className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="now">Disponible maintenant ({actionableNowButtons.length})</TabsTrigger>
+                <TabsTrigger value="soon">Bientôt prêt ({comingSoonButtons.length})</TabsTrigger>
+                <TabsTrigger value="prep">Encore en préparation ({preparationButtons.length})</TabsTrigger>
+              </TabsList>
+
+              {[
+                {
+                  value: "now",
+                  items: actionableNowButtons,
+                  empty: "Aucune action n’est encore assez prête pour partir tout de suite. Commencez par relancer un crawl propre.",
+                },
+                {
+                  value: "soon",
+                  items: comingSoonButtons,
+                  empty: "Aucune action intermédiaire n’attend encore de petit déblocage sur ce site.",
+                },
+                {
+                  value: "prep",
+                  items: preparationButtons,
+                  empty: "Tout le reste est déjà branché ou bientôt prêt.",
+                },
+              ].map((group) => (
+                <TabsContent key={group.value} value={group.value} className="mt-0">
+                  {group.items.length > 0 ? (
+                    <div className="grid gap-3 xl:grid-cols-3">
+                      {group.items.map((item) => (
+                        <div
+                          key={item.key}
+                          className={
+                            item.recommended
+                              ? "rounded-2xl border border-brand/30 bg-brand-muted px-4 py-4"
+                              : "rounded-2xl border border-border bg-surface-2 px-4 py-4"
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-semibold text-text">{item.label}</div>
+                            <Badge
+                              variant={
+                                item.stage === "now"
+                                  ? item.recommended
+                                    ? "default"
+                                    : "secondary"
+                                  : item.stage === "soon"
+                                    ? "warning"
+                                    : "secondary"
+                              }
+                            >
+                              {item.stage === "now"
+                                ? item.recommended
+                                  ? "Recommandé"
+                                  : "Disponible"
+                                : item.stage === "soon"
+                                  ? "Bientôt prêt"
+                                  : "En préparation"}
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-text-muted">{item.description}</p>
+                          {item.blockedReason ? (
+                            <p className="mt-3 text-xs leading-6 text-text-subtle">{item.blockedReason}</p>
+                          ) : null}
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {item.available ? (
+                              <form action={item.action} className="grow">
+                                <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
+                                  {item.ctaLabel}
+                                </Button>
+                              </form>
+                            ) : null}
+                            {item.helperHref ? (
+                              <Button href={item.helperHref} variant={item.available ? "secondary" : "primary"} className="grow">
+                                {item.helperLabel}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                      {group.empty}
+                    </div>
+                  )}
+                </TabsContent>
               ))}
-            </div>
+            </Tabs>
 
             <div className="grid gap-4 xl:grid-cols-4">
             {executionHighlights.map((item) => (
