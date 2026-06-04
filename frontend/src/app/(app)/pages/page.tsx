@@ -7,10 +7,24 @@ import { Button } from "@/components/ui/button";
 import { getDashboard, getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
-export default async function PagesCockpitPage() {
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getValue(value: string | string[] | undefined, fallback = ""): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
+
+export default async function PagesCockpitPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const focus = getValue(resolvedSearchParams.focus);
+  const focusSite = getValue(resolvedSearchParams.site);
+  const focusTarget = getValue(resolvedSearchParams.target);
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -334,6 +348,26 @@ export default async function PagesCockpitPage() {
 
     return actions;
   };
+  const focusMessage =
+    focus === "refresh"
+      ? {
+          title: "Page à retravailler en priorité",
+          detail: `${focusTarget || "Cette page"} est la cible ouverte depuis une opportunité de refresh. Commencez par la section Pages à refresh ou Pages à surveiller.`,
+          href: "#refresh",
+        }
+      : focus === "linking"
+        ? {
+            title: "Page à mieux relier maintenant",
+            detail: `${focusTarget || "Cette page"} a été ouverte comme cible de maillage. Commencez par les priorités structurelles et les pages importantes encore trop peu reliées.`,
+            href: "#priorites",
+          }
+        : focus === "query"
+          ? {
+              title: "Page cible à vérifier pour cette requête",
+              detail: `${focusTarget || "La cible sélectionnée"} vient d’une requête ou d’une optimisation. Vérifiez d’abord si la bonne page existe déjà et si elle mérite un refresh ou un meilleur maillage.`,
+              href: "#surveiller",
+            }
+          : null;
 
   return (
     <div className="min-h-screen">
@@ -390,6 +424,23 @@ export default async function PagesCockpitPage() {
             normal que seules quelques pages remontent fortement d’une période à l’autre.
           </p>
         </div>
+
+        {focusMessage ? (
+          <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">
+                  {focusMessage.detail}
+                  {focusSite ? ` Site ciblé : ${focusSite}.` : ""}
+                </p>
+              </div>
+              <Button href={focusMessage.href} size="sm">
+                Ouvrir la bonne section
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-xl border border-border bg-surface p-5">
           <p className="text-xs text-text-subtle">Lecture du moment</p>

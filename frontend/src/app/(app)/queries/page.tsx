@@ -7,10 +7,24 @@ import { Button } from "@/components/ui/button";
 import { getDashboard, getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
-export default async function QueriesCockpitPage() {
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getValue(value: string | string[] | undefined, fallback = ""): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
+
+export default async function QueriesCockpitPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const focus = getValue(resolvedSearchParams.focus);
+  const focusSite = getValue(resolvedSearchParams.site);
+  const focusQuery = getValue(resolvedSearchParams.query);
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
     .filter((value): value is string => Boolean(value))
@@ -153,7 +167,9 @@ export default async function QueriesCockpitPage() {
     const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [
       {
         label: linkedPublication ? "Ouvrir l’automatisation" : "Voir les optimisations",
-        href: linkedPublication ? `/sites/${siteId}/automation` : "/optimizations",
+        href: linkedPublication
+          ? `/sites/${siteId}/automation?focus=query&query=${encodeURIComponent(query)}`
+          : `/optimizations?focus=query&site=${encodeURIComponent(siteId)}&query=${encodeURIComponent(query)}`,
         variant: "primary",
       },
     ];
@@ -173,13 +189,27 @@ export default async function QueriesCockpitPage() {
     } else {
       actions.push({
         label: "Voir les pages liées",
-        href: "/pages",
+        href: `/pages?focus=query&site=${encodeURIComponent(siteId)}&target=${encodeURIComponent(query)}`,
         variant: "secondary",
       });
     }
 
     return actions;
   };
+  const focusMessage =
+    focus === "query"
+      ? {
+          title: "Requête ouverte depuis une action",
+          detail: `${focusQuery || "Cette requête"} a été ouverte comme cible prioritaire. Vérifiez d’abord si elle pousse déjà la bonne page ou si elle doit ouvrir un nouveau contenu.`,
+          href: "#meilleures",
+        }
+      : focus === "emerging"
+        ? {
+            title: "Nouvelle requête à qualifier",
+            detail: `${focusQuery || "Cette requête"} vient d’un signal émergent. Regardez d’abord les nouvelles pistes puis vérifiez s’il existe déjà une page capable de la porter.`,
+            href: "#emergentes",
+          }
+        : null;
 
   return (
     <div className="min-h-screen">
@@ -241,6 +271,23 @@ export default async function QueriesCockpitPage() {
             il est normal que certaines périodes restent calmes avant que Google fasse remonter de nouveaux signaux.
           </p>
         </div>
+
+        {focusMessage ? (
+          <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">
+                  {focusMessage.detail}
+                  {focusSite ? ` Site ciblé : ${focusSite}.` : ""}
+                </p>
+              </div>
+              <Button href={focusMessage.href} size="sm">
+                Ouvrir la bonne section
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <CockpitAssistantGuide
           title="PraeviSEO vous aide a comprendre si ces recherches comptent vraiment"

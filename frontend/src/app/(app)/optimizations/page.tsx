@@ -6,6 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getOptimizations, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getValue(value: string | string[] | undefined, fallback = ""): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
+
 function opportunityTypeLabel(type: string): string {
   return (
     {
@@ -71,8 +81,12 @@ function opportunityStateLabel(stateLabel: string): string {
   );
 }
 
-export default async function OptimizationsPage() {
+export default async function OptimizationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const optimizations = await getOptimizations();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const focus = getValue(resolvedSearchParams.focus);
+  const focusSite = getValue(resolvedSearchParams.site);
+  const focusQuery = getValue(resolvedSearchParams.query);
   const opportunities = optimizations.gsc_opportunities.items;
   const observedRecommendations = optimizations.recommendations.items;
   const recommendationOpportunityCount = optimizations.recommendations.summary.total;
@@ -214,13 +228,13 @@ export default async function OptimizationsPage() {
     if (item.type === "emerging_query" && item.query) {
       actions.push({
         label: "Voir les requêtes",
-        href: "/queries",
+        href: `/queries?focus=emerging&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.query)}`,
         variant: "primary",
       });
     } else if (item.type === "near_top_10" || item.type === "sustained_drop") {
       actions.push({
         label: "Voir les pages",
-        href: "/pages",
+        href: `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.label)}`,
         variant: "primary",
       });
     } else if (item.type === "low_ctr") {
@@ -265,6 +279,14 @@ export default async function OptimizationsPage() {
 
     return actions;
   };
+  const focusMessage =
+    focus === "query"
+      ? {
+          title: "Opportunité ouverte depuis une requête",
+          detail: `${focusQuery || "Cette requête"} a été envoyée ici pour décider si elle doit ouvrir un contenu, renforcer une page ou rester en veille.`,
+          href: "#requetes",
+        }
+      : null;
 
   return (
     <div className="min-h-screen">
@@ -308,6 +330,23 @@ export default async function OptimizationsPage() {
             </Button>
           </div>
         </div>
+
+        {focusMessage ? (
+          <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">
+                  {focusMessage.detail}
+                  {focusSite ? ` Site ciblé : ${focusSite}.` : ""}
+                </p>
+              </div>
+              <Button href={focusMessage.href} size="sm">
+                Ouvrir la bonne section
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid gap-4 xl:grid-cols-4">
           {optimizationDecisionBlocks.map((block) => (
