@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 type BadgeTone = "default" | "brand-subtle" | "secondary" | "success" | "warning" | "danger";
@@ -49,6 +50,11 @@ interface CockpitSignalItemProps {
   badgeTone?: BadgeTone;
   description: string;
   chips?: string[];
+  actions?: Array<{
+    label: string;
+    href: string;
+    variant?: "primary" | "secondary";
+  }>;
 }
 
 export function CockpitSignalItem({
@@ -58,6 +64,7 @@ export function CockpitSignalItem({
   badgeTone = "secondary",
   description,
   chips = [],
+  actions = [],
 }: CockpitSignalItemProps) {
   return (
     <div className="rounded-xl border border-border px-4 py-3">
@@ -75,6 +82,15 @@ export function CockpitSignalItem({
             <span key={chip} className="rounded-full border border-border px-2.5 py-1">
               {chip}
             </span>
+          ))}
+        </div>
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {actions.map((action) => (
+            <Button key={`${title}-${action.label}-${action.href}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+              {action.label}
+            </Button>
           ))}
         </div>
       ) : null}
