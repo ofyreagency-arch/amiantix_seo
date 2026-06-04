@@ -28,6 +28,7 @@ export default async function DashboardPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
+  const recommendationOpportunityCount = optimizations.recommendations.summary.total;
   const normalizeQuery = (value: string) => value.trim().toLowerCase();
   const freshestSyncAt = dashboard.sites
     .map((site) => site.gsc_last_sync_at)
@@ -472,7 +473,7 @@ export default async function DashboardPage() {
         <CockpitSectionNav
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
-            { label: "Opportunités", href: "#opportunites", count: optimizations.gsc_opportunities.summary.total, tone: "warning" },
+            { label: "Opportunités", href: "#opportunites", count: recommendationOpportunityCount, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
             { label: lowDashboardQuerySignal ? "Veille Google" : "Requêtes Google", href: "#requetes", count: risingQueryWatchlist.length + newQueryWatchlist.length + linkedQueryWatchlist.length, tone: "success" },
             { label: "Santé SEO", href: "#sante", count: healthWatchlist.length, tone: "secondary" },
@@ -572,9 +573,9 @@ export default async function DashboardPage() {
             },
             {
               label: "Opportunités actives",
-              value: optimizations.gsc_opportunities.summary.total,
+              value: recommendationOpportunityCount,
               icon: SearchCheck,
-              hint: "priorités SEO déjà détectées à partir de Google Search Console",
+              hint: "actions SEO retenues par le moteur après qualification et priorisation",
             },
             {
               label: "URLs relues",

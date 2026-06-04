@@ -75,6 +75,8 @@ export default async function OptimizationsPage() {
   const optimizations = await getOptimizations();
   const opportunities = optimizations.gsc_opportunities.items;
   const observedRecommendations = optimizations.recommendations.items;
+  const recommendationOpportunityCount = optimizations.recommendations.summary.total;
+  const gscOpportunityCount = optimizations.gsc_opportunities.summary.total;
   const queryWatchlist = opportunities.filter((item) => item.query).slice(0, 4);
   const pagesToRefresh = opportunities.filter((item) => item.type === "near_top_10" || item.type === "sustained_drop").slice(0, 4);
   const quickWins = opportunities.filter((item) => item.priority_level === "high" || item.action_state === "ready").slice(0, 4);
@@ -97,13 +99,13 @@ export default async function OptimizationsPage() {
   ].filter((item): item is string => item !== null);
   const liveMoments = [
     {
-      label: "Nouvelles opportunités",
-      value: optimizations.gsc_opportunities.summary.total,
+      label: "Signaux Google détectés",
+      value: gscOpportunityCount,
       detail:
-        optimizations.gsc_opportunities.summary.total > 0
-          ? "PraeviSEO a déjà des leviers concrets à ouvrir"
+        gscOpportunityCount > 0
+          ? "Google a déjà remonté des signaux exploitables"
           : "aucun levier fort n’est encore remonté",
-      tone: optimizations.gsc_opportunities.summary.total > 0 ? "warning" : "secondary",
+      tone: gscOpportunityCount > 0 ? "warning" : "secondary",
     },
     {
       label: "Pages proches du top 10",
@@ -226,7 +228,7 @@ export default async function OptimizationsPage() {
       <div className="p-6 space-y-6">
         <CockpitSectionNav
           items={[
-            { label: "Vue d’ensemble", href: "#vue-ensemble", count: optimizations.gsc_opportunities.summary.total, tone: "default" },
+            { label: "Vue d’ensemble", href: "#vue-ensemble", count: recommendationOpportunityCount, tone: "default" },
             { label: "Gains rapides", href: "#gains-rapides", count: quickWins.length, tone: "warning" },
             { label: "Pages à refresh", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
