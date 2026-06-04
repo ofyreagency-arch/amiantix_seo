@@ -558,57 +558,103 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       updatedAt: status.updated_at,
     }));
 
+  const generationReady = site.summary.new_queries.length > 0;
+  const rewriteReady = Boolean(leadRefresh || leadRisingPage);
+  const linkingReady =
+    site.summary.observed_link_gap_pages.length > 0 || site.summary.observed_orphan_alerts.length > 0;
+  const imageReady = Boolean(leadRisingPage || leadRefresh);
+  const publicationContentReady = Boolean(leadRefresh || latestPublishedContent || hasPublishedPages);
+  const publicationLaunchReady = publicationReady && publicationContentReady;
+
   const actionButtons = [
     {
       key: "crawl",
       label: "Lancer un crawl",
+      ctaLabel: "Lancer un crawl",
       description:
         crawlDisplayState === "completed"
           ? "Relancer une lecture propre du site pour mettre à jour les signaux observés."
           : "Démarrer ou relancer la lecture premium du site.",
       recommended: recommendedActionKey === "crawl",
+      available: true,
+      blockedReason: null,
+      helperHref: `/sites/${site.site_id}/automation#suivi-crawl`,
+      helperLabel: "Voir le suivi du crawl",
       action: launchPremiumCrawlAction.bind(null, site.site_id),
     },
     {
       key: "generation",
       label: "Créer un article",
+      ctaLabel: generationReady ? "Créer l’article ciblé" : "Sujet encore trop flou",
       description:
-        site.summary.new_queries.length > 0
+        generationReady
           ? `Une requête montante est déjà visible : ${site.summary.new_queries[0].query}.`
           : "Ouvrir un nouveau contenu dès qu’un sujet assez net mérite une vraie page.",
       recommended: recommendedActionKey === "generation",
+      available: generationReady,
+      blockedReason: generationReady
+        ? null
+        : "PraeviSEO n’a pas encore trouvé une recherche Google assez utile et distincte pour ouvrir un article fiable.",
+      helperHref: "/queries",
+      helperLabel: "Voir les requêtes utiles",
       action: launchPremiumGenerationAction.bind(null, site.site_id),
     },
     {
       key: "rewrite",
       label: "Préparer une réécriture",
+      ctaLabel: rewriteReady ? "Relancer la réécriture" : "Aucune page prête",
       description: leadRefresh
         ? `Un contenu est déjà à retravailler : ${leadRefresh.title}.`
         : "Relancer un contenu existant qui peut progresser sans repartir de zéro.",
       recommended: recommendedActionKey === "rewrite",
+      available: rewriteReady,
+      blockedReason: rewriteReady
+        ? null
+        : "Aucune page n’a encore assez de matière ou de signal pour justifier une vraie réécriture utile.",
+      helperHref: "/pages",
+      helperLabel: "Voir les pages à retravailler",
       action: launchPremiumRewriteAction.bind(null, site.site_id),
     },
     {
       key: "linking",
       label: "Renforcer le maillage",
+      ctaLabel: linkingReady ? "Lancer le maillage utile" : "Pas encore de cible nette",
       description: site.summary.observed_link_gap_pages[0]
         ? `Une page manque déjà de soutien interne : ${site.summary.observed_link_gap_pages[0].label}.`
         : "Ouvrir des liens internes utiles dès que PraeviSEO voit une vraie cible à soutenir.",
       recommended: recommendedActionKey === "linking",
+      available: linkingReady,
+      blockedReason: linkingReady
+        ? null
+        : "PraeviSEO n’a pas encore trouvé assez de pages prioritaires avec assez de contexte pour ouvrir des liens internes utiles.",
+      helperHref: "/pages",
+      helperLabel: "Voir les pages sous-maillées",
       action: launchPremiumLinkingAction.bind(null, site.site_id),
     },
     {
       key: "images",
       label: "Générer l’image SEO",
+      ctaLabel: imageReady ? "Préparer l’image utile" : "Aucune page assez stable",
       description: leadRisingPage
         ? `Une page à potentiel visible peut déjà recevoir un renfort visuel : ${leadRisingPage.label}.`
         : "Préparer une image SEO dès qu’une page assez stable mérite un enrichissement visuel.",
       recommended: recommendedActionKey === "images",
+      available: imageReady,
+      blockedReason: imageReady
+        ? null
+        : "PraeviSEO attend encore une page assez stable, assez utile et assez prioritaire avant de générer une image SEO propre.",
+      helperHref: "/pages",
+      helperLabel: "Voir les pages candidates",
       action: launchPremiumImageAction.bind(null, site.site_id),
     },
     {
       key: "publication",
       label: "Publier",
+      ctaLabel: publicationLaunchReady
+        ? "Publier en live"
+        : !bridgeConnected
+          ? "Bridge à connecter"
+          : "Contenu encore à préparer",
       description: hasLivePages
         ? "Pousser un nouveau contenu ou une mise à jour sur le site déjà connecté."
         : publicationReady
@@ -617,6 +663,16 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             ? "Le bridge est actif, mais PraeviSEO attend encore un contenu prêt à pousser."
             : "La publication live restera limitée tant que le bridge n’est pas complètement prêt.",
       recommended: recommendedActionKey === "publication",
+      available: publicationLaunchReady,
+      blockedReason: publicationLaunchReady
+        ? null
+        : !bridgeConnected
+          ? "Le bridge client n’est pas encore assez branché pour pousser une vraie publication live."
+          : !publicationReady
+            ? "Le bridge répond, mais PraeviSEO n’a pas encore validé une publication réellement actionnable."
+            : "Le bridge est prêt, mais aucun contenu assez propre n’est encore prêt à partir en live.",
+      helperHref: !bridgeConnected ? `/sites/${site.site_id}/connect` : "/pages",
+      helperLabel: !bridgeConnected ? "Ouvrir la santé technique" : "Voir les contenus prêts",
       action: launchPremiumPublicationAction.bind(null, site.site_id),
     },
   ] as const;
@@ -624,6 +680,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     .filter((item) => item.recommended)
     .concat(actionButtons.filter((item) => !item.recommended))
     .slice(0, 3);
+  const recommendedActionButton =
+    recommendedActionKey ? actionButtons.find((item) => item.key === recommendedActionKey) ?? null : null;
   const executionHighlights = executionCenter.filter((item) =>
     ["crawl", "publication", "rewrite", "monitoring"].includes(item.key)
   );
@@ -634,7 +692,10 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           title: "Page non indexée à débloquer",
           detail: `${leadIndexationAlert.label} reste en dehors de l’index Google : ${leadIndexationAlert.state}.`,
           impact: "La remettre dans un état indexable peut rouvrir une vraie porte d’entrée SEO sur le site.",
-          action: leadIndexationAlert.detail || "Vérifier le statut HTTP, le canonique, le robots et le maillage interne avant republication.",
+          action:
+            leadIndexationAlert.state === "URL is unknown to Google"
+              ? "Vérifier qu’elle renvoie bien 200, qu’elle est liée depuis le site et qu’elle est visible dans le sitemap."
+              : leadIndexationAlert.detail || "Vérifier le statut HTTP, le canonique, le robots et le maillage interne avant republication.",
           targetLabel: leadIndexationAlert.label,
           targetUrl: leadIndexationAlert.url,
           ctaLabel: "Voir la page Search Console",
@@ -660,7 +721,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           title: "Page déjà proche d’un gain visible",
           detail: `${leadRisingPage.label} commence déjà à gagner du terrain dans Google et peut être renforcée automatiquement.`,
           impact: "Une page déjà visible peut progresser plus vite si PraeviSEO la relit, l’enrichit puis relance sa publication.",
-          action: "Relire la page, renforcer son angle utile puis republier proprement une version plus nette.",
+          action: "Choisir cette page comme priorité, clarifier son angle utile puis relancer une version enrichie.",
           targetLabel: leadRisingPage.label,
           targetUrl: leadRisingPage.url,
           ctaLabel: "Préparer une réécriture",
@@ -764,9 +825,20 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             <div>
               <div className="text-base font-semibold text-text">{site.next_action.label}</div>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">{site.next_action.detail}</p>
+              {recommendedActionButton?.blockedReason ? (
+                <p className="mt-3 text-xs leading-6 text-text-subtle">
+                  Pourquoi l’action ne part pas encore : {recommendedActionButton.blockedReason}
+                </p>
+              ) : null}
             </div>
             {recommendedAction.href ? (
               <Button href={recommendedAction.href}>{recommendedAction.label}</Button>
+            ) : recommendedActionButton?.available ? (
+              <form action={recommendedActionButton.action}>
+                <Button type="submit">{recommendedActionButton.ctaLabel}</Button>
+              </form>
+            ) : recommendedActionButton?.helperHref ? (
+              <Button href={recommendedActionButton.helperHref}>{recommendedActionButton.helperLabel}</Button>
             ) : null}
           </CardContent>
         </Card>
@@ -1131,16 +1203,28 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-text">{item.label}</div>
-                    <Badge variant={item.recommended ? "default" : "secondary"}>
-                      {item.recommended ? "Recommandé" : "Disponible"}
+                    <Badge variant={item.recommended ? "default" : item.available ? "secondary" : "warning"}>
+                      {item.recommended ? "Recommandé" : item.available ? "Disponible" : "À préparer"}
                     </Badge>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-text-muted">{item.description}</p>
-                  <form action={item.action} className="mt-4">
-                    <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
-                      {item.label}
-                    </Button>
-                  </form>
+                  {item.blockedReason ? (
+                    <p className="mt-3 text-xs leading-6 text-text-subtle">{item.blockedReason}</p>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {item.available ? (
+                      <form action={item.action} className="w-full">
+                        <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
+                          {item.ctaLabel}
+                        </Button>
+                      </form>
+                    ) : null}
+                    {!item.available && item.helperHref ? (
+                      <Button href={item.helperHref} variant="secondary" className="w-full">
+                        {item.helperLabel}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
