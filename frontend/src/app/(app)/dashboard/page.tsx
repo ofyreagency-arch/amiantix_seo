@@ -198,50 +198,6 @@ export default async function DashboardPage() {
       ? `${progressingHealthSites.length} site(s) gagnent déjà en solidité sur les dernières lectures observées.`
       : "La solidité globale du site reste stable sur les dernières lectures observées.",
   ];
-  const dashboardDecisionBlocks = [
-    {
-      title: "Où en est votre site",
-      items: [
-        totalDeltaImpressions > 0
-          ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impressions sur la période suivie.`
-          : totalDeltaImpressions < 0
-            ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impressions sur la période suivie.`
-            : "La visibilité reste globalement stable sur les dernières lectures Google.",
-        healthTrackedSites.length > 0
-          ? `PraeviSEO suit déjà une santé SEO moyenne autour de ${averageObservedHealth}/100 sur les sites relus.`
-          : "La lecture de santé structurelle continue de s’enrichir au fil des observations.",
-      ],
-    },
-    {
-      title: "Opportunités prioritaires",
-      items: [
-        topOpportunities[0]?.reason ?? "Les prochaines opportunités prioritaires apparaîtront ici dès qu’un signal devient assez fort.",
-        optimizations.gsc_opportunities.summary.near_top_10 > 0
-          ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent déjà du top 10.`
-          : "Aucune page très proche du top 10 pour le moment.",
-      ],
-    },
-    {
-      title: "Gain potentiel",
-      items: [
-        actionPlan[0]?.estimated_impact === "high"
-          ? "PraeviSEO voit déjà un gain potentiel fort sur la première action recommandée."
-          : actionPlan[0]
-            ? "PraeviSEO voit déjà un gain potentiel utile sur la première action recommandée."
-            : "Le prochain gain potentiel sera chiffré dès qu’une action claire se détachera.",
-        linkedQueryWatchlist.length > 0
-          ? `${linkedQueryWatchlist.length} requête(s) ont déjà une bonne page cible repérée.`
-          : "Les prochains liens requête → page viendront préciser le potentiel réel de progression.",
-      ],
-    },
-    {
-      title: "Résumé de l’activité récente",
-      items: [
-        freshestSyncAt ? `Dernière lecture Google enregistrée le ${formatDate(freshestSyncAt)}.` : "Le prochain événement utile remontera ici automatiquement.",
-        topOpportunities[0]?.reason ?? "PraeviSEO continue de surveiller les prochains mouvements SEO utiles.",
-      ],
-    },
-  ] as const;
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -447,6 +403,34 @@ export default async function DashboardPage() {
     return "Ouvrir la fiche site";
   };
 
+  const dashboardActionCards = prioritySites.map((site) => {
+    const primaryCtaHref = priorityHref(site);
+    const primaryCtaLabel = priorityLabel(site);
+    const isConnectionStep =
+      site.next_action.kind === "connect_gsc" ||
+      site.next_action.kind === "connect_bridge" ||
+      site.next_action.kind === "installation_requested";
+    const secondaryHref = isConnectionStep ? getSitePath(site.site_id) : `/sites/${site.site_id}/automation`;
+    const secondaryLabel = isConnectionStep ? "Voir la fiche site" : "Ouvrir l’automatisation";
+
+    return {
+      siteId: site.site_id,
+      siteName: site.name,
+      title: site.next_action.label,
+      detail: site.next_action.detail || getPraeviseoClientDetail(site),
+      priority: site.next_action.priority,
+      primaryCtaHref,
+      primaryCtaLabel,
+      secondaryHref,
+      secondaryLabel,
+      gscConnected: site.readiness.gsc_connected,
+      bridgeReady: site.publication_bridge_status === "connected",
+      pendingSuggestions: site.summary.pending_suggestions,
+      crawlIssues: site.summary.observed_crawl_issues,
+      nonIndexedPages: site.summary.gsc_non_indexed_pages,
+    };
+  });
+
   const indexedPagesValue = dashboard.totals.indexedPagesSynced
     ? dashboard.totals.indexedPages
     : "—";
@@ -472,6 +456,7 @@ export default async function DashboardPage() {
       <div className="p-6 space-y-6">
         <CockpitSectionNav
           items={[
+            { label: "Actions", href: "#actions", count: dashboardActionCards.length, tone: "warning" },
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: recommendationOpportunityCount, tone: "warning" },
             { label: "Pages", href: "#pages", count: pageWatchlist.length, tone: "secondary" },
@@ -530,21 +515,74 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-4">
-          {dashboardDecisionBlocks.map((block) => (
-            <Card key={block.title}>
-              <CardHeader>
-                <CardTitle className="text-base">{block.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {block.items.map((item) => (
-                  <div key={item} className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                    {item}
+        <div id="actions" className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr] scroll-mt-24">
+          <Card className="border-brand/20 bg-brand-muted/40">
+            <CardHeader>
+              <CardTitle>Actions à lancer maintenant</CardTitle>
+              <CardDescription>
+                Les prochaines actions utiles sont déjà triées. Ici, le dashboard arrête de commenter et vous envoie directement vers ce qui débloque le site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {dashboardActionCards.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                  Aucun blocage fort n’est remonté pour le moment. Ouvrez les opportunités pour suivre les prochains signaux utiles.
+                </div>
+              ) : (
+                dashboardActionCards.map((item, index) => (
+                  <div
+                    key={item.siteId}
+                    className="rounded-2xl border border-border-subtle bg-surface px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-text">{item.siteName}</h3>
+                      {index === 0 && <Badge variant="default">Action recommandée</Badge>}
+                      <Badge variant={item.priority === "high" ? "warning" : "secondary"}>
+                        {item.priority === "high" ? "Priorité haute" : "Priorité utile"}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-text">{item.title}</p>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-text-subtle">
+                      <span>{item.gscConnected ? "GSC reliée" : "GSC à connecter"}</span>
+                      <span>{item.bridgeReady ? "Publication prête" : "Publication à brancher"}</span>
+                      <span>{item.pendingSuggestions} action(s) déjà ouverte(s)</span>
+                      <span>{item.nonIndexedPages} page(s) non indexée(s)</span>
+                      <span>{item.crawlIssues} point(s) crawl à revoir</span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button href={item.primaryCtaHref} size="sm">
+                        {item.primaryCtaLabel}
+                        <ArrowRight className="w-4 h-4" />
+                      </Button>
+                      <Button href={item.secondaryHref} variant="secondary" size="sm">
+                        {item.secondaryLabel}
+                      </Button>
+                    </div>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Cap de la semaine</CardTitle>
+              <CardDescription>
+                Le dashboard vous dit ce qui bouge déjà et sur quoi concentrer l’énergie avant de lancer autre chose.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {progressMoments.slice(0, 4).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted"
+                >
+                  {item}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
