@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
 import { Bot, FileSearch, ImagePlus, Link2, Monitor, Sparkles } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
+import { SiteAccessState } from "@/components/sites/site-access-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +74,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const settings = await getSettings();
 
   if (!site) {
-    notFound();
+    return <SiteAccessState siteId={siteId} areaLabel="les automatisations" />;
   }
 
   console.info("[praeviseo][automation] page_crawl_trace", {
@@ -714,7 +714,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             <CardHeader>
               <CardTitle>Données produites par le crawl</CardTitle>
               <CardDescription>
-                Ce que PraeviSEO a réellement ajouté ou mis à jour après la lecture du site.
+                Ce que PraeviSEO a réellement ajouté ou mis à jour après la lecture du site. Les chiffres d indexation
+                ci-dessous portent sur les {site.summary.gsc_indexation_scope_label.toLowerCase()}, pas sur le rapport
+                Pages complet de Google Search Console.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -726,14 +728,19 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 ["Piliers candidats", crawlReportProducedData.pillar_candidates],
                 ["Score santé", crawlReportProducedData.health_score],
                 ["Issues crawl", crawlReportProducedData.crawl_issues],
-                ["Pages indexées", crawlReportProducedData.indexed_pages],
-                ["Pages non indexées", crawlReportProducedData.non_indexed_pages],
+                ["URLs inspectées indexées", crawlReportProducedData.indexed_pages],
+                ["URLs inspectées non indexées", crawlReportProducedData.non_indexed_pages],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                   <div className="text-xs uppercase tracking-[0.22em] text-text-subtle">{label}</div>
                   <div className="mt-2 text-2xl font-semibold text-text">{value}</div>
                 </div>
               ))}
+            </CardContent>
+            <CardContent className="pt-0">
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                {site.summary.gsc_indexation_scope_hint}
+              </div>
             </CardContent>
           </Card>
 
