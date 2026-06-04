@@ -90,16 +90,29 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     (item) => item.publication_bridge_status === "connected" || item.gsc_connection_status === "connected" || item.gsc_connection_status === "configured"
   ).length;
   const sitePublications = publications.items.filter((item) => item.site_id === site.site_id);
+  const bridgeConnected = site.readiness.bridge_connected || site.publication_bridge_status === "connected";
+  const gscConnected = site.readiness.gsc_connected;
   const leadRisingPage = site.summary.top_rising_pages[0] ?? null;
   const leadRefresh = sitePublications.find((item) => item.latest_suggestion || item.observed_content) ?? null;
   const leadIndexationAlert = site.summary.indexation_alerts[0] ?? null;
-  const livePublishedCount = sitePublications.filter((item) => item.published_live).length;
+  const livePublishedCount = Math.max(
+    sitePublications.filter((item) => item.published_live).length,
+    site.readiness.has_live_pages ? 1 : 0
+  );
   const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
-  const loopStatus = site.action_statuses.monitoring.state === "completed" ? "Active" : site.action_statuses.monitoring.state === "failed" ? "À revoir" : "En attente";
+  const publicationReady = bridgeConnected && site.publication_target.engine_actionable;
+  const hasPublishedPages = site.readiness.has_published_pages || sitePublications.length > 0;
+  const hasLivePages = site.readiness.has_live_pages || livePublishedCount > 0;
   const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
   const currentCrawl = site.crawl;
   const lastSuccessfulCrawl = site.last_successful_crawl;
   const recentCrawls = site.recent_crawls;
+  const loopStatus =
+    site.action_statuses.monitoring.state === "failed"
+      ? "À revoir"
+      : bridgeConnected && (gscConnected || hasPublishedPages || Boolean(lastSuccessfulCrawl))
+        ? "Active"
+        : "En attente";
   const crawlReport = site.crawl_report;
   const displayCrawl =
     currentCrawl &&
@@ -191,6 +204,62 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         )
       : 0;
 
+  const idleActionLabel = (state: string, label: string, fallback: string) =>
+    state === "idle" && (label === "À ouvrir" || label === "A ouvrir") ? fallback : label;
+
+  const recommendedAction = (() => {
+    switch (site.next_action.kind) {
+      case "connect_bridge":
+      case "installation_requested":
+      case "installation_failed":
+        return {
+          label: "Ouvrir la santé technique",
+          href: `/sites/${site.site_id}/connect`,
+          actionKey: null,
+        };
+      case "connect_gsc":
+        return {
+          label: "Relier Search Console",
+          href: `/sites/${site.site_id}/search-console`,
+          actionKey: null,
+        };
+      case "review_optimizations":
+        return {
+          label: "Ouvrir les optimisations",
+          href: "/optimizations",
+          actionKey: null,
+        };
+      case "publish_first_page":
+      case "publish_live":
+        return {
+          label: "Publier maintenant",
+          href: null,
+          actionKey: "publication",
+        };
+      case "monitor":
+        return {
+          label: "Revenir au cockpit SEO",
+          href: `/sites/${site.site_id}`,
+          actionKey: null,
+        };
+      default:
+        return {
+          label: site.next_action.label,
+          href: null,
+          actionKey: null,
+        };
+    }
+  })();
+
+  const recommendedActionKey = recommendedAction.actionKey;
+  const nextPassStatus =
+    site.next_action.priority === "high"
+      ? "Priorité haute"
+      : site.next_action.priority === "medium"
+        ? "À préparer"
+        : "Sous contrôle";
+  const nextPassDetail = `${site.next_action.label}. ${site.next_action.detail}`.trim();
+
   const describeResult = (state: string, detail?: string | null, error?: string | null) => {
     if (state === "failed") {
       return error || "La dernière tentative s’est arrêtée avant la fin et demande une reprise.";
@@ -211,7 +280,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "generation",
       title: "Nouvel article",
-      status: site.action_statuses.generation.label,
+      status: idleActionLabel(site.action_statuses.generation.state, site.action_statuses.generation.label, "En veille"),
       detail:
         site.action_statuses.generation.detail ||
         (site.summary.new_queries.length > 0
@@ -245,7 +314,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "rewrite",
       title: "Réécriture SEO",
-      status: site.action_statuses.rewrite.label,
+      status: idleActionLabel(site.action_statuses.rewrite.state, site.action_statuses.rewrite.label, "En veille"),
       detail:
         site.action_statuses.rewrite.detail ||
         (leadRefresh
@@ -262,7 +331,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "linking",
       title: "Maillage interne",
-      status: site.action_statuses.linking.label,
+      status: idleActionLabel(site.action_statuses.linking.state, site.action_statuses.linking.label, "En veille"),
       detail:
         site.action_statuses.linking.detail ||
         (site.summary.observed_link_gap_pages.length > 0
@@ -279,26 +348,39 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "publication",
       title: "Publication automatique",
-      status: site.action_statuses.publication.label,
+      status: hasLivePages
+        ? "Active"
+        : publicationReady
+          ? "Prête"
+          : bridgeConnected
+            ? "Bridge actif"
+            : idleActionLabel(site.action_statuses.publication.state, site.action_statuses.publication.label, "À préparer"),
       detail:
-        site.action_statuses.publication.detail ||
-        (livePublishedCount > 0
+        (hasLivePages
           ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent être repris automatiquement.`
-          : site.publication_bridge_status === "connected"
-            ? "Le site est prêt à recevoir les premières publications et mises à jour automatiques."
-            : "La publication démarrera juste après l’activation complète de la connexion premium."),
+          : publicationReady
+            ? site.publication_target.detail || "Le bridge est prêt. PraeviSEO peut pousser le premier contenu utile dès qu’il est prêt."
+            : bridgeConnected
+              ? "Le bridge répond déjà. Il reste à pousser un premier contenu visible pour démarrer la boucle live."
+              : site.action_statuses.publication.detail ||
+                site.publication_target.detail ||
+                "La publication démarrera juste après l’activation complète de la connexion premium."),
       updatedAt: site.action_statuses.publication.updated_at,
       nextPass: ACTION_NEXT_PASSES.publication,
-      result: describeResult(site.action_statuses.publication.state, site.action_statuses.publication.detail, site.action_statuses.publication.error),
+      result: hasLivePages
+        ? `Le site a déjà ${livePublishedCount} contenu(s) visible(s) en live.`
+        : publicationReady
+          ? "Le site peut déjà recevoir une première publication live."
+          : describeResult(site.action_statuses.publication.state, site.action_statuses.publication.detail, site.action_statuses.publication.error),
       impact:
-        livePublishedCount > 0
+        hasLivePages
           ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent maintenant être suivis en conditions réelles.`
           : "Transforme les contenus préparés en pages réellement visibles sur le site.",
     },
     {
       key: "images",
       title: "Images SEO",
-      status: site.action_statuses.images.label,
+      status: idleActionLabel(site.action_statuses.images.state, site.action_statuses.images.label, "En veille"),
       detail:
         site.action_statuses.images.detail ||
         (leadRisingPage
@@ -315,15 +397,23 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "monitoring",
       title: "Monitoring continu",
-      status: site.action_statuses.monitoring.label,
+      status: bridgeConnected && gscConnected
+        ? "Actif"
+        : site.action_statuses.monitoring.state === "failed"
+          ? site.action_statuses.monitoring.label
+          : idleActionLabel(site.action_statuses.monitoring.state, site.action_statuses.monitoring.label, "En veille"),
       detail:
-        site.action_statuses.monitoring.detail ||
-        (site.summary.observed_site_health_score > 0
+        (bridgeConnected && gscConnected
+          ? "PraeviSEO suit déjà la santé du site, les crawls, les contenus live et les signaux Google sans action manuelle."
+          : site.action_statuses.monitoring.detail ||
+            (site.summary.observed_site_health_score > 0
           ? "PraeviSEO suit déjà la santé du site et peut relancer les prochaines priorités utiles."
-          : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles."),
+          : "Le monitoring premium suivra les actions exécutées, les retours Google et les prochaines priorités utiles.")),
       updatedAt: site.action_statuses.monitoring.updated_at,
       nextPass: ACTION_NEXT_PASSES.monitoring,
-      result: describeResult(site.action_statuses.monitoring.state, site.action_statuses.monitoring.detail, site.action_statuses.monitoring.error),
+      result: bridgeConnected && gscConnected
+        ? "Le site est déjà branché des deux côtés. PraeviSEO continue maintenant à surveiller et relancer si besoin."
+        : describeResult(site.action_statuses.monitoring.state, site.action_statuses.monitoring.detail, site.action_statuses.monitoring.error),
       impact:
         site.summary.observed_site_health_score > 0
           ? `Surveille déjà la santé observée du site autour de ${site.summary.observed_site_health_score}/100.`
@@ -344,8 +434,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     },
     {
       title: "Lecture Google",
-      status: site.readiness.gsc_connected ? "Active" : "À reconnecter",
-      detail: site.readiness.gsc_connected
+      status: gscConnected ? "Active" : "À reconnecter",
+      detail: gscConnected
         ? "Les signaux Search Console guident déjà les prochaines pages et requêtes à traiter."
         : "Sans lecture Google, PraeviSEO perd une partie de sa capacité à prioriser les gains visibles.",
     },
@@ -363,12 +453,16 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       detail:
         latestPublishedContent
           ? `Dernier contenu visible : ${latestPublishedContent.title}. PraeviSEO peut maintenant le suivre, le relier et le faire évoluer.`
-          : "Aucun contenu premium n’est encore visible en ligne. Les prochaines publications apparaîtront ici.",
+          : publicationReady
+            ? `${site.publication_target.detail} La première publication live visible apparaîtra ici.`
+            : bridgeConnected
+              ? "Le bridge est actif, mais aucun contenu n’a encore été poussé en live depuis cette vue."
+              : "Aucun contenu premium n’est encore visible en ligne. Les prochaines publications apparaîtront ici.",
     },
     {
       title: "Prochain passage",
-      status: "Prête",
-      detail: site.next_action.detail || "PraeviSEO attend la prochaine priorité assez claire pour relancer la boucle.",
+      status: nextPassStatus,
+      detail: nextPassDetail || "PraeviSEO attend la prochaine priorité assez claire pour relancer la boucle.",
     },
     {
       title: "Parc actif",
@@ -556,6 +650,24 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             <p className="mt-2 text-sm leading-6 text-text-muted">{feedbackDetail}</p>
           </div>
         ) : null}
+
+        <Card className="border-brand/20 bg-brand-muted">
+          <CardHeader>
+            <CardTitle>Cap recommandé maintenant</CardTitle>
+            <CardDescription>
+              L’action la plus utile à lancer tout de suite pour débloquer le site ou faire repartir la boucle.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-base font-semibold text-text">{site.next_action.label}</div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">{site.next_action.detail}</p>
+            </div>
+            {recommendedAction.href ? (
+              <Button href={recommendedAction.href}>{recommendedAction.label}</Button>
+            ) : null}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -904,22 +1016,22 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               </div>
               <div className="flex flex-wrap gap-2">
                 <form action={launchPremiumCrawlAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant="secondary">Lancer un crawl</Button>
+                  <Button type="submit" variant={recommendedActionKey === "crawl" ? "primary" : "secondary"}>Lancer un crawl</Button>
                 </form>
                 <form action={launchPremiumGenerationAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant="secondary">Créer un article</Button>
+                  <Button type="submit" variant={recommendedActionKey === "generation" ? "primary" : "secondary"}>Créer un article</Button>
                 </form>
                 <form action={launchPremiumRewriteAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant="secondary">Préparer une réécriture</Button>
+                  <Button type="submit" variant={recommendedActionKey === "rewrite" ? "primary" : "secondary"}>Préparer une réécriture</Button>
                 </form>
                 <form action={launchPremiumLinkingAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant="secondary">Renforcer le maillage</Button>
+                  <Button type="submit" variant={recommendedActionKey === "linking" ? "primary" : "secondary"}>Renforcer le maillage</Button>
                 </form>
                 <form action={launchPremiumImageAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant="secondary">Générer l’image SEO</Button>
+                  <Button type="submit" variant={recommendedActionKey === "images" ? "primary" : "secondary"}>Générer l’image SEO</Button>
                 </form>
                 <form action={launchPremiumPublicationAction.bind(null, site.site_id)}>
-                  <Button type="submit" variant="secondary">Publier</Button>
+                  <Button type="submit" variant={recommendedActionKey === "publication" ? "primary" : "secondary"}>Publier</Button>
                 </form>
               </div>
             </div>
