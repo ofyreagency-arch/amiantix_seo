@@ -4,7 +4,7 @@ import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
-import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
+import { getDashboard, getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 export default async function QueriesCockpitPage() {
@@ -84,6 +84,7 @@ export default async function QueriesCockpitPage() {
     linkedQueryItems.length === 0;
   const queryRadar = [
     ...visibleQueries.map((item) => ({
+      site_id: item.site_id,
       title: item.query,
       subtitle: (() => {
         const linkedPublication = findLinkedPublication(item.query, item.site_id);
@@ -97,6 +98,7 @@ export default async function QueriesCockpitPage() {
       description: `${item.impressions} impressions, ${item.clicks} clics, position ${item.position.toFixed(1)}.`,
     })),
     ...risingQueries.map((item) => ({
+      site_id: item.site_id,
       title: item.query,
       subtitle: (() => {
         const linkedPublication = findLinkedPublication(item.query, item.site_id);
@@ -110,6 +112,7 @@ export default async function QueriesCockpitPage() {
       description: `La requête monte depuis ${item.previous_impressions} impressions avec une position moyenne ${item.position.toFixed(1)}.`,
     })),
     ...potentialQueries.slice(0, 3).map((item) => ({
+      site_id: item.site_id,
       title: item.query,
       subtitle: (() => {
         const linkedPublication = findLinkedPublication(item.query, item.site_id);
@@ -145,6 +148,38 @@ export default async function QueriesCockpitPage() {
       ? "Dès que Google donnera un signal plus fort, PraeviSEO vous dira quelle recherche devient vraiment intéressante à travailler."
       : "Quand une recherche devient plus claire, PraeviSEO peut ensuite vous aider à renforcer la bonne page et gagner plus de visibilité.";
   const compactQueries = topQueries.slice(0, 3);
+  const queryActions = (siteId: string, query: string) => {
+    const linkedPublication = findLinkedPublication(query, siteId);
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [
+      {
+        label: linkedPublication ? "Ouvrir l’automatisation" : "Voir les optimisations",
+        href: linkedPublication ? `/sites/${siteId}/automation` : "/optimizations",
+        variant: "primary",
+      },
+    ];
+
+    if (linkedPublication?.live_url) {
+      actions.push({
+        label: "Ouvrir la page cible",
+        href: linkedPublication.live_url,
+        variant: "secondary",
+      });
+    } else if (linkedPublication) {
+      actions.push({
+        label: "Ouvrir le site",
+        href: getSitePath(siteId),
+        variant: "secondary",
+      });
+    } else {
+      actions.push({
+        label: "Voir les pages liées",
+        href: "/pages",
+        variant: "secondary",
+      });
+    }
+
+    return actions;
+  };
 
   return (
     <div className="min-h-screen">
@@ -252,6 +287,7 @@ export default async function QueriesCockpitPage() {
                 badge={item.badge}
                 badgeTone={item.badgeTone}
                 description={item.description}
+                actions={queryActions(item.site_id, item.title)}
               />
             ))}
           </CockpitSignalListCard>
@@ -291,6 +327,7 @@ export default async function QueriesCockpitPage() {
                   badge="À suivre plus tard"
                   badgeTone="warning"
                   description={`${item.impressions} affichage(s) repérés dans Google. Le signal existe, mais il reste encore trop léger pour en faire une vraie priorité.`}
+                  actions={queryActions(item.site_id, item.query)}
                 />
               ))}
             </CockpitSignalListCard>
@@ -327,6 +364,7 @@ export default async function QueriesCockpitPage() {
                 badge={visibleQueries.length > 0 ? "Google vous voit déjà" : "À développer"}
                 badgeTone={visibleQueries.length > 0 ? "success" : "warning"}
                 description={`${item.impressions} affichages dans Google, ${item.clicks} visites obtenues, et une presence autour de la position ${item.position.toFixed(1)}.`}
+                actions={queryActions(item.site_id, item.query)}
               />
             ))}
           </CockpitSignalListCard>
@@ -347,6 +385,7 @@ export default async function QueriesCockpitPage() {
                 badge={`+${item.delta_impressions} impressions`}
                 badgeTone="success"
                 description={`Cette recherche ressort deja un peu dans Google et peut encore gagner en visibilite si la bonne page est renforcée.`}
+                actions={queryActions(item.site_id, item.query)}
               />
             ))}
           </CockpitSignalListCard>
@@ -372,6 +411,7 @@ export default async function QueriesCockpitPage() {
                     ? `${item.gsc_metrics.impressions} affichages sur cette page et une presence autour de la position ${item.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
                     : `${item.observed_content?.snapshot_word_count ?? 0} mots deja vus sur cette page, qui commence a repondre a cette recherche.`
                 }
+                actions={queryActions(item.site_id, item.observed_content?.top_query_match ?? "")}
               />
             ))}
           </CockpitSignalListCard>
@@ -393,6 +433,7 @@ export default async function QueriesCockpitPage() {
                   badge="Bonne page déjà trouvée"
                   badgeTone="warning"
                   description={`${item.impressions} impressions, position ${item.position.toFixed(1)}. PraeviSEO peut déjà lier cette requête à ${linkedPublication?.slug || "/"}.`}
+                  actions={queryActions(item.site_id, item.query)}
                 />
               ))}
           </CockpitSignalListCard>
@@ -426,6 +467,7 @@ export default async function QueriesCockpitPage() {
                     ? `${item.impressions} affichages dans Google. La bonne page semble etre ${linkedPublication.slug || "/"}.`
                     : `${item.impressions} affichages dans Google et un premier signal utile sur cette recherche.`;
                 })()}
+                actions={queryActions(item.site_id, item.query)}
               />
             ))}
           </CockpitSignalListCard>
@@ -458,6 +500,7 @@ export default async function QueriesCockpitPage() {
                     ? `${item.impressions} affichages dans Google. PraeviSEO commence deja a relier cette recherche a ${linkedPublication.slug || "/"}.`
                     : `${item.impressions} affichages dans Google et une piste a suivre si elle progresse.`;
                 })()}
+                actions={queryActions(item.site_id, item.query)}
               />
             ))}
           </CockpitSignalListCard>
