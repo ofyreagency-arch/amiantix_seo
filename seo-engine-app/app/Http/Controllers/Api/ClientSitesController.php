@@ -2086,10 +2086,17 @@ class ClientSitesController extends Controller
     {
         $baseQuery = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
-            ->whereNull('query')
-            ->where('window_days', 28);
+            ->whereNull('query');
 
-        $latestMetricDate = (clone $baseQuery)->max('metric_date');
+        $latestSnapshot = (clone $baseQuery)
+            ->select(['metric_date', 'window_days'])
+            ->orderByDesc('metric_date')
+            ->orderByRaw('CASE WHEN window_days = 28 THEN 1 ELSE 0 END DESC')
+            ->orderByDesc('window_days')
+            ->first();
+
+        $latestMetricDate = $latestSnapshot?->metric_date;
+        $snapshotWindowDays = (int) ($latestSnapshot?->window_days ?? 28);
 
         if (! $latestMetricDate) {
             return [
@@ -2119,6 +2126,7 @@ class ClientSitesController extends Controller
         }
 
         $latestMetricDate = Carbon::parse((string) $latestMetricDate)->toDateString();
+        $baseQuery->where('window_days', $snapshotWindowDays);
         $freshnessCutoff = Carbon::parse($latestMetricDate)->subDays(7)->toDateString();
         $previousMetricDate = (clone $baseQuery)
             ->whereDate('metric_date', '<', $latestMetricDate)
