@@ -155,7 +155,9 @@ class SeoLivePublicationService
 
             $response = $request
                 ->withBody($body, 'application/json')
-                ->post($endpoint);
+                ->send('POST', $endpoint, [
+                    'body' => $body,
+                ]);
 
             if (! $response->successful()) {
                 $preview = trim((string) $response->body());
