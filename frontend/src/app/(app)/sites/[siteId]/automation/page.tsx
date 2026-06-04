@@ -691,6 +691,69 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const executionHighlights = executionCenter.filter((item) =>
     ["crawl", "publication", "rewrite", "monitoring"].includes(item.key)
   );
+  const crawlIssueLead = crawlReportIssues.find((issue) => Boolean(issue.url)) ?? null;
+  const problemActions = [
+    leadIndexationAlert
+      ? {
+          key: "indexation",
+          title: "Débloquer une page hors index",
+          detail: `${leadIndexationAlert.label} reste hors index Google.`,
+          whyNow:
+            leadIndexationAlert.state === "URL is unknown to Google"
+              ? "Google ne connaît pas encore bien cette URL. Il faut d’abord vérifier qu’elle répond proprement et qu’elle est bien exposée."
+              : leadIndexationAlert.detail || "Le signal d’indexation demande une vérification avant toute publication ou réécriture.",
+          primaryHref: `/sites/${site.site_id}/search-console`,
+          primaryLabel: "Voir l’indexation",
+          secondaryHref: leadIndexationAlert.url || null,
+          secondaryLabel: leadIndexationAlert.url ? "Ouvrir la page" : null,
+        }
+      : null,
+    site.summary.observed_weak_page_details[0]
+      ? {
+          key: "weak-page",
+          title: "Retravailler une page faible",
+          detail: `${site.summary.observed_weak_page_details[0].label} manque encore de force SEO visible.`,
+          whyNow: "Cette page existe déjà. Une reprise éditoriale propre peut produire un gain plus vite qu’un nouveau contenu.",
+          primaryHref: "/pages",
+          primaryLabel: "Voir les pages à retravailler",
+          secondaryHref: site.summary.observed_weak_page_details[0].url,
+          secondaryLabel: "Ouvrir la page",
+        }
+      : null,
+    site.summary.observed_link_gap_pages[0]
+      ? {
+          key: "link-gap",
+          title: "Renforcer une page sous-maillée",
+          detail: `${site.summary.observed_link_gap_pages[0].label} manque de soutien interne.`,
+          whyNow: "Un meilleur maillage peut aider Google à recrawler et faire progresser une page déjà utile.",
+          primaryHref: "/pages",
+          primaryLabel: "Voir les pages sous-maillées",
+          secondaryHref: site.summary.observed_link_gap_pages[0].url,
+          secondaryLabel: "Ouvrir la cible",
+        }
+      : null,
+    crawlIssueLead
+      ? {
+          key: "crawl-issue",
+          title: "Corriger un problème de crawl",
+          detail: `${crawlIssueLead.type} détecté sur ${crawlIssueLead.url}.`,
+          whyNow: "Le crawl a déjà trouvé un problème concret. C’est un bon point d’entrée pour une correction visible.",
+          primaryHref: crawlIssueLead.url || null,
+          primaryLabel: "Ouvrir la page concernée",
+          secondaryHref: `/sites/${site.site_id}/automation#problemes-crawl`,
+          secondaryLabel: "Voir les problèmes du crawl",
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    key: string;
+    title: string;
+    detail: string;
+    whyNow: string;
+    primaryHref: string | null;
+    primaryLabel: string;
+    secondaryHref: string | null;
+    secondaryLabel: string | null;
+  }>;
 
   const starterPlan = [
     leadIndexationAlert
@@ -1009,7 +1072,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="problemes-crawl">
             <CardHeader>
               <CardTitle>Problèmes trouvés</CardTitle>
               <CardDescription>
@@ -1311,6 +1374,42 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               </div>
             ))}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Actions SEO par problème</CardTitle>
+            <CardDescription>
+              Les prochains vrais sujets à traiter sur le site, avec un point d’entrée clair pour agir dessus.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-2">
+            {problemActions.length > 0 ? (
+              problemActions.map((item) => (
+                <div key={item.key} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="text-sm font-semibold text-text">{item.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                  <div className="mt-3 rounded-xl border border-border bg-surface-3 px-3 py-3 text-sm text-text-muted">
+                    <span className="font-semibold text-text">Pourquoi maintenant :</span> {item.whyNow}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {item.primaryHref ? (
+                      <Button href={item.primaryHref}>{item.primaryLabel}</Button>
+                    ) : null}
+                    {item.secondaryHref && item.secondaryLabel ? (
+                      <Button href={item.secondaryHref} variant="secondary">
+                        {item.secondaryLabel}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="xl:col-span-2 rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                Dès qu’un problème concret d’indexation, de contenu ou de maillage ressortira, PraeviSEO listera ici les actions SEO à traiter en premier.
+              </div>
+            )}
           </CardContent>
         </Card>
 
