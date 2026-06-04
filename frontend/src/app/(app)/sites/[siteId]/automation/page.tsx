@@ -637,6 +637,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           action: leadIndexationAlert.detail || "Vérifier le statut HTTP, le canonique, le robots et le maillage interne avant republication.",
           targetLabel: leadIndexationAlert.label,
           targetUrl: leadIndexationAlert.url,
+          ctaLabel: "Voir la page Search Console",
+          ctaHref: `/sites/${site.site_id}/search-console`,
+          ctaAction: null,
         }
       : null,
     site.summary.observed_link_gap_pages[0]
@@ -647,6 +650,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           action: "Ouvrir des liens internes utiles depuis les pages déjà fortes du site.",
           targetLabel: site.summary.observed_link_gap_pages[0].label,
           targetUrl: site.summary.observed_link_gap_pages[0].url,
+          ctaLabel: "Renforcer le maillage",
+          ctaHref: null,
+          ctaAction: launchPremiumLinkingAction.bind(null, site.site_id),
         }
       : null,
     leadRisingPage
@@ -657,6 +663,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           action: "Relire la page, renforcer son angle utile puis republier proprement une version plus nette.",
           targetLabel: leadRisingPage.label,
           targetUrl: leadRisingPage.url,
+          ctaLabel: "Préparer une réécriture",
+          ctaHref: null,
+          ctaAction: launchPremiumRewriteAction.bind(null, site.site_id),
         }
       : null,
     leadRefresh
@@ -671,6 +680,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           action: "Préparer une réécriture ciblée puis republier la version enrichie quand le sujet est prêt.",
           targetLabel: leadRefresh.title,
           targetUrl: leadRefresh.live_url || null,
+          ctaLabel: leadRefresh.live_url ? "Voir la page live" : "Préparer une réécriture",
+          ctaHref: leadRefresh.live_url || null,
+          ctaAction: leadRefresh.live_url ? null : launchPremiumRewriteAction.bind(null, site.site_id),
         }
       : null,
     site.summary.new_queries[0]
@@ -681,6 +693,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           action: "Créer un premier contenu dédié ou enrichir une page existante qui répond exactement à cette intention.",
           targetLabel: site.summary.new_queries[0].query,
           targetUrl: null,
+          ctaLabel: "Créer un article",
+          ctaHref: null,
+          ctaAction: launchPremiumGenerationAction.bind(null, site.site_id),
         }
       : null,
   ]
@@ -692,6 +707,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       action: string;
       targetLabel: string;
       targetUrl: string | null;
+      ctaLabel: string;
+      ctaHref: string | null;
+      ctaAction: ((formData: FormData) => void | Promise<void>) | null;
     }>;
 
   return (
@@ -1229,6 +1247,24 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                   </div>
                   <div className="mt-3 rounded-xl border border-brand/20 bg-brand-muted px-3 py-3 text-sm text-text">
                     <span className="font-semibold">Gain attendu :</span> {item.impact}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {item.ctaHref ? (
+                      <Button href={item.ctaHref} size="sm">
+                        {item.ctaLabel}
+                      </Button>
+                    ) : item.ctaAction ? (
+                      <form action={item.ctaAction}>
+                        <Button type="submit" size="sm">
+                          {item.ctaLabel}
+                        </Button>
+                      </form>
+                    ) : null}
+                    {item.targetUrl ? (
+                      <Button href={item.targetUrl} variant="secondary" size="sm">
+                        Ouvrir la cible
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               ))
