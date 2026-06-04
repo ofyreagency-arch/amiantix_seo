@@ -704,6 +704,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               : leadIndexationAlert.detail || "Le signal d’indexation demande une vérification avant toute publication ou réécriture.",
           primaryHref: `/sites/${site.site_id}/search-console`,
           primaryLabel: "Voir l’indexation",
+          action: rewriteReady ? launchPremiumRewriteAction.bind(null, site.site_id) : null,
+          actionLabel: rewriteReady ? "Préparer la correction SEO" : null,
           secondaryHref: leadIndexationAlert.url || null,
           secondaryLabel: leadIndexationAlert.url ? "Ouvrir la page" : null,
         }
@@ -716,6 +718,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           whyNow: "Cette page existe déjà. Une reprise éditoriale propre peut produire un gain plus vite qu’un nouveau contenu.",
           primaryHref: "/pages",
           primaryLabel: "Voir les pages à retravailler",
+          action: rewriteReady ? launchPremiumRewriteAction.bind(null, site.site_id) : null,
+          actionLabel: rewriteReady ? "Lancer la réécriture" : null,
           secondaryHref: site.summary.observed_weak_page_details[0].url,
           secondaryLabel: "Ouvrir la page",
         }
@@ -728,6 +732,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           whyNow: "Un meilleur maillage peut aider Google à recrawler et faire progresser une page déjà utile.",
           primaryHref: "/pages",
           primaryLabel: "Voir les pages sous-maillées",
+          action: linkingReady ? launchPremiumLinkingAction.bind(null, site.site_id) : null,
+          actionLabel: linkingReady ? "Lancer le maillage" : null,
           secondaryHref: site.summary.observed_link_gap_pages[0].url,
           secondaryLabel: "Ouvrir la cible",
         }
@@ -740,6 +746,18 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           whyNow: "Le crawl a déjà trouvé un problème concret. C’est un bon point d’entrée pour une correction visible.",
           primaryHref: crawlIssueLead.url || null,
           primaryLabel: "Ouvrir la page concernée",
+          action:
+            crawlIssueLead.type === "http_error"
+              ? launchPremiumCrawlAction.bind(null, site.site_id)
+              : crawlIssueLead.type === "missing_meta_description" || crawlIssueLead.type === "thin_content"
+                ? launchPremiumRewriteAction.bind(null, site.site_id)
+                : null,
+          actionLabel:
+            crawlIssueLead.type === "http_error"
+              ? "Relancer un crawl propre"
+              : crawlIssueLead.type === "missing_meta_description" || crawlIssueLead.type === "thin_content"
+                ? "Préparer la correction"
+                : null,
           secondaryHref: `/sites/${site.site_id}/automation#problemes-crawl`,
           secondaryLabel: "Voir les problèmes du crawl",
         }
@@ -751,6 +769,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     whyNow: string;
     primaryHref: string | null;
     primaryLabel: string;
+    action: ((formData: FormData) => void | Promise<void>) | null;
+    actionLabel: string | null;
     secondaryHref: string | null;
     secondaryLabel: string | null;
   }>;
@@ -1394,8 +1414,15 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                     <span className="font-semibold text-text">Pourquoi maintenant :</span> {item.whyNow}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
+                    {item.action && item.actionLabel ? (
+                      <form action={item.action}>
+                        <Button type="submit">{item.actionLabel}</Button>
+                      </form>
+                    ) : null}
                     {item.primaryHref ? (
-                      <Button href={item.primaryHref}>{item.primaryLabel}</Button>
+                      <Button href={item.primaryHref} variant={item.action ? "secondary" : "primary"}>
+                        {item.primaryLabel}
+                      </Button>
                     ) : null}
                     {item.secondaryHref && item.secondaryLabel ? (
                       <Button href={item.secondaryHref} variant="secondary">
