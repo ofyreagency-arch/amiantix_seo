@@ -583,11 +583,34 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     }));
 
   const starterPlan = [
+    leadIndexationAlert
+      ? {
+          title: "Page non indexée à débloquer",
+          detail: `${leadIndexationAlert.label} reste en dehors de l’index Google : ${leadIndexationAlert.state}.`,
+          impact: "La remettre dans un état indexable peut rouvrir une vraie porte d’entrée SEO sur le site.",
+          action: leadIndexationAlert.detail || "Vérifier le statut HTTP, le canonique, le robots et le maillage interne avant republication.",
+          targetLabel: leadIndexationAlert.label,
+          targetUrl: leadIndexationAlert.url,
+        }
+      : null,
+    site.summary.observed_link_gap_pages[0]
+      ? {
+          title: "Page à mieux relier ensuite",
+          detail: `${site.summary.observed_link_gap_pages[0].label} manque encore de soutien interne malgré son potentiel observé.`,
+          impact: "Un meilleur maillage aide Google à recrawler, contextualiser puis renforcer la page plus vite.",
+          action: "Ouvrir des liens internes utiles depuis les pages déjà fortes du site.",
+          targetLabel: site.summary.observed_link_gap_pages[0].label,
+          targetUrl: site.summary.observed_link_gap_pages[0].url,
+        }
+      : null,
     leadRisingPage
       ? {
           title: "Page déjà proche d’un gain visible",
           detail: `${leadRisingPage.label} commence déjà à gagner du terrain dans Google et peut être renforcée automatiquement.`,
           impact: "Une page déjà visible peut progresser plus vite si PraeviSEO la relit, l’enrichit puis relance sa publication.",
+          action: "Relire la page, renforcer son angle utile puis republier proprement une version plus nette.",
+          targetLabel: leadRisingPage.label,
+          targetUrl: leadRisingPage.url,
         }
       : null,
     leadRefresh
@@ -599,16 +622,31 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           impact:
             leadRefresh.latest_suggestion?.impact_expected ??
             "Un contenu plus clair, plus solide et plus facile à faire progresser dans Google.",
+          action: "Préparer une réécriture ciblée puis republier la version enrichie quand le sujet est prêt.",
+          targetLabel: leadRefresh.title,
+          targetUrl: leadRefresh.live_url || null,
         }
       : null,
-    leadIndexationAlert
+    site.summary.new_queries[0]
       ? {
-          title: "Page à sécuriser",
-          detail: `${leadIndexationAlert.label} reste encore fragile dans la lecture Google actuelle.`,
-          impact: "L’automatisation pourra corriger, republier puis relancer une vérification propre derrière.",
+          title: "Nouvelle requête à transformer",
+          detail: `La requête "${site.summary.new_queries[0].query}" commence à émerger et peut ouvrir un nouveau contenu utile.`,
+          impact: "Transformer vite une requête montante en page claire aide à capter les premières impressions avant les concurrents.",
+          action: "Créer un premier contenu dédié ou enrichir une page existante qui répond exactement à cette intention.",
+          targetLabel: site.summary.new_queries[0].query,
+          targetUrl: null,
         }
       : null,
-  ].filter(Boolean) as Array<{ title: string; detail: string; impact: string }>;
+  ]
+    .filter(Boolean)
+    .slice(0, 3) as Array<{
+      title: string;
+      detail: string;
+      impact: string;
+      action: string;
+      targetLabel: string;
+      targetUrl: string | null;
+    }>;
 
   return (
     <div className="min-h-screen">
@@ -1146,6 +1184,19 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                   <div className="text-sm font-semibold text-text">{item.title}</div>
                   <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                  <div className="mt-3 rounded-xl border border-border bg-surface-3 px-3 py-3 text-sm text-text-muted">
+                    <span className="font-semibold text-text">Action recommandée :</span> {item.action}
+                  </div>
+                  <div className="mt-3 text-xs leading-6 text-text-subtle">
+                    <span className="font-semibold text-text">Cible :</span>{" "}
+                    {item.targetUrl ? (
+                      <a href={item.targetUrl} className="text-[hsl(var(--brand))] underline underline-offset-4">
+                        {item.targetLabel}
+                      </a>
+                    ) : (
+                      item.targetLabel
+                    )}
+                  </div>
                   <div className="mt-3 rounded-xl border border-brand/20 bg-brand-muted px-3 py-3 text-sm text-text">
                     <span className="font-semibold">Gain attendu :</span> {item.impact}
                   </div>
