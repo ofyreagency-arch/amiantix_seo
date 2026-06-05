@@ -15,6 +15,12 @@ import { formatDate } from "@/lib/utils";
 import { Eye, ImagePlus, PenSquare, UploadCloud } from "lucide-react";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+type StudioTimelineStep = {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "secondary";
+  detail: string;
+};
 
 function getValue(value: string | string[] | undefined, fallback = ""): string {
   if (Array.isArray(value)) {
@@ -50,6 +56,40 @@ function contentProgressLabel(wordDelta: number | null | undefined): string {
   }
 
   return wordDelta > 0 ? `+${wordDelta} mots depuis la dernière lecture` : "Contenu encore stable";
+}
+
+function publicationStateLabel(status: string, publishedLive: boolean): string {
+  if (publishedLive) {
+    return "Live sur le site";
+  }
+
+  return (
+    {
+      published: "Brouillon prêt",
+      draft: "Brouillon en cours",
+      pending: "En préparation",
+    }[status] ?? "État à vérifier"
+  );
+}
+
+function publicationStateTone(status: string, publishedLive: boolean): "success" | "warning" | "secondary" {
+  if (publishedLive) {
+    return "success";
+  }
+
+  return status === "published" ? "warning" : "secondary";
+}
+
+function studioActionSummary(action: string): string {
+  return (
+    {
+      rewrite: "Réécrire d’abord ce contenu pour renforcer l’angle, le corps et la propreté SEO.",
+      image: "Générer ou regénérer l’image pour avoir un visuel prêt avant publication.",
+      publish: "Pousser le contenu sur le site client dès que le texte et l’image sont prêts.",
+      preview: "Contrôler le rendu du brouillon avant toute autre action.",
+      linking: "Revenir vers les pages à relier pour ouvrir le maillage utile autour de ce contenu.",
+    }[action] ?? "Préparer ce contenu dans le bon ordre avant publication."
+  );
 }
 
 export default async function PublicationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
@@ -160,6 +200,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
     focus === "query" && focusedSiteId && focusQuery
       ? launchPremiumGenerationToStudioAction.bind(null, focusedSiteId, focusQuery)
       : null;
+  const studioLead = focusedContent ?? studioItems[0] ?? null;
   const focusMessage =
     focus === "query" && focusQuery
       ? {
@@ -174,6 +215,46 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
             href: focusedContent.live_url || focusedContent.preview_url || null,
           }
         : null;
+  const studioLeadRewriteAction =
+    studioLead ? launchPremiumRewriteToStudioAction.bind(null, studioLead.site_id, studioLead.slug || undefined) : null;
+  const studioLeadImageAction =
+    studioLead ? launchPremiumImageToStudioAction.bind(null, studioLead.site_id, studioLead.slug || undefined) : null;
+  const studioLeadPublicationAction =
+    studioLead ? launchPremiumPublicationToStudioAction.bind(null, studioLead.site_id, studioLead.slug || undefined) : null;
+  const studioTimeline: StudioTimelineStep[] = studioLead
+    ? [
+        {
+          label: "Brouillon moteur",
+          value: publicationStateLabel(studioLead.status, studioLead.published_live),
+          tone: publicationStateTone(studioLead.status, studioLead.published_live),
+          detail:
+            studioLead.published_at
+              ? `Dernière mise à jour moteur le ${formatDate(studioLead.published_at)}`
+              : "Le brouillon attend encore sa première publication visible.",
+        },
+        {
+          label: "Image SEO",
+          value: studioLead.image_url ? "Prête" : "À générer",
+          tone: studioLead.image_url ? "success" : "warning",
+          detail: studioLead.image_status ? `Statut image : ${studioLead.image_status}` : "Aucun visuel prêt pour le moment.",
+        },
+        {
+          label: "Publication live",
+          value: studioLead.published_live ? "Visible" : "En attente",
+          tone: studioLead.published_live ? "success" : "secondary",
+          detail:
+            studioLead.live_url
+              ? "Le contenu a déjà une URL visible sur le site client."
+              : "Le contenu reste encore dans le studio tant qu’il n’est pas poussé.",
+        },
+        {
+          label: "Dernière reco",
+          value: studioLead.latest_suggestion ? "Ouverte" : "Aucune",
+          tone: studioLead.latest_suggestion ? "warning" : "secondary",
+          detail: studioLead.latest_suggestion?.summary ?? "Le moteur n’a pas rouvert de nouvelle suggestion sur ce contenu.",
+        },
+      ]
+    : [];
 
   return (
     <div className="min-h-screen">
@@ -263,6 +344,159 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
               { label: "Contenus à relancer", value: refreshItems.length, tone: refreshItems.length > 0 ? "warning" : "secondary" },
             ]}
           />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+            <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="min-h-[320px] bg-[radial-gradient(circle_at_top,_hsl(var(--brand)/0.18),_transparent_55%),linear-gradient(180deg,hsl(var(--surface-2)),hsl(var(--surface)))]">
+                {studioLead?.image_url ? (
+                  <img
+                    src={studioLead.image_url}
+                    alt={studioLead.image_alt ?? studioLead.title}
+                    className="h-full min-h-[320px] w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full min-h-[320px] items-center justify-center text-text-subtle">
+                    <div className="text-center">
+                      <ImagePlus className="mx-auto h-10 w-10" />
+                      <div className="mt-4 text-xs font-medium uppercase tracking-[0.24em]">
+                        Preview éditorial
+                      </div>
+                      <p className="mt-3 max-w-xs text-sm leading-6 text-text-muted">
+                        {studioLead
+                          ? "Le contenu est prêt à être travaillé ici, même si son image n’est pas encore générée."
+                          : "Le studio affichera ici le prochain brouillon utile avec son image et sa preview."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-5 px-5 py-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={studioLead ? publicationStateTone(studioLead.status, studioLead.published_live) : "secondary"}>
+                    {studioLead ? publicationStateLabel(studioLead.status, studioLead.published_live) : "Studio en veille"}
+                  </Badge>
+                  {studioLead?.image_url ? <Badge variant="secondary">image prête</Badge> : <Badge variant="warning">image à générer</Badge>}
+                  {focusActionLabel ? <Badge variant="warning">priorité : {focusActionLabel.toLowerCase()}</Badge> : null}
+                  {studioLead?.cluster ? <Badge variant="secondary">{studioLead.cluster}</Badge> : null}
+                </div>
+
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-text">
+                    {studioLead?.title ?? "Le studio éditorial attend sa prochaine cible"}
+                  </h2>
+                  <p className="mt-2 text-sm leading-7 text-text-muted">
+                    {studioLead
+                      ? studioLead.excerpt
+                      : "Dès qu’un contenu remonte du moteur, cette zone devient le poste central pour réécrire, imager, prévisualiser puis publier."}
+                  </p>
+                </div>
+
+                {studioLead ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Ce qu’on fait maintenant</div>
+                      <p className="mt-2 leading-6">
+                        {focusAction ? studioActionSummary(focusAction) : "Prévisualiser le brouillon, vérifier l’image puis pousser la publication quand le contenu est propre."}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Signal SEO actuel</div>
+                      <p className="mt-2 leading-6">
+                        {studioLead.gsc_metrics.impressions > 0
+                          ? `${studioLead.gsc_metrics.impressions} impression(s), CTR ${studioLead.gsc_metrics.ctr.toFixed(1)} %, position moyenne ${studioLead.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                          : "Ce contenu n’a pas encore de traction visible dans Google, donc le studio sert d’abord à le préparer proprement."}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">SEO</div>
+                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.seo_score ?? "n/a"}</div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Impressions</div>
+                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.gsc_metrics.impressions ?? 0}</div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Position</div>
+                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.gsc_metrics.position?.toFixed(1) ?? "n/a"}</div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Maillage</div>
+                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.observed_content?.internal_inlinks ?? "n/a"}</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {studioLead?.preview_url ? (
+                    <Button href={studioLead.preview_url} external variant={focusAction === "preview" ? "primary" : "secondary"}>
+                      <Eye className="h-4 w-4" />
+                      Ouvrir la preview
+                    </Button>
+                  ) : null}
+                  {studioLeadImageAction ? (
+                    <form action={studioLeadImageAction}>
+                      <Button variant={focusAction === "image" ? "primary" : "secondary"}>
+                        <ImagePlus className="h-4 w-4" />
+                        {studioLead?.image_url ? "Regénérer l’image" : "Générer l’image"}
+                      </Button>
+                    </form>
+                  ) : null}
+                  {studioLeadRewriteAction ? (
+                    <form action={studioLeadRewriteAction}>
+                      <Button variant={focusAction === "rewrite" ? "primary" : "secondary"}>
+                        <PenSquare className="h-4 w-4" />
+                        Réécrire
+                      </Button>
+                    </form>
+                  ) : null}
+                  {studioLead && !studioLead.published_live && studioLeadPublicationAction ? (
+                    <form action={studioLeadPublicationAction}>
+                      <Button variant={focusAction === "publish" ? "primary" : "secondary"}>
+                        <UploadCloud className="h-4 w-4" />
+                        Publier sur le site
+                      </Button>
+                    </form>
+                  ) : null}
+                  {studioLead?.live_url ? (
+                    <Button href={studioLead.live_url} external variant="secondary">
+                      <UploadCloud className="h-4 w-4" />
+                      Voir le live
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-surface px-5 py-5">
+            <div className="text-sm font-semibold text-text">État du contenu ciblé</div>
+            <p className="mt-2 text-sm leading-6 text-text-muted">
+              L’ordre réel de travail pour ne plus se perdre entre brouillon, image, preview et publication.
+            </p>
+            <div className="mt-5 space-y-3">
+              {studioTimeline.length > 0 ? (
+                studioTimeline.map((step) => (
+                  <div key={step.label} className="rounded-xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium text-text">{step.label}</div>
+                      <Badge variant={step.tone}>{step.value}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{step.detail}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  Dès qu’un contenu sera sélectionné, cette colonne montrera l’état du brouillon, de l’image, du live et des dernières recommandations.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <CockpitSignalListCard
