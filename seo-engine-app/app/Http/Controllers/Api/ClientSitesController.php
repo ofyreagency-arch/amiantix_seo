@@ -271,6 +271,9 @@ class ClientSitesController extends Controller
         ]);
 
         try {
+            $this->logPremiumAction('generation.start', $site, [
+                'keyword_requested' => trim((string) ($data['keyword'] ?? '')) ?: null,
+            ]);
             $this->markActionState($site, 'generation', 'running', 'PraeviSEO prépare un nouveau sujet éditorial à publier sur le site.');
             $keyword = trim((string) ($data['keyword'] ?? ''));
             $keyword = $keyword !== '' ? $keyword : ($articles->resolveCandidateKeyword($site) ?? null);
@@ -313,6 +316,11 @@ class ClientSitesController extends Controller
                 'completed',
                 sprintf('Un nouvel article "%s" est prêt dans le moteur et peut maintenant être enrichi, illustré puis publié.', (string) $page->title)
             );
+            $this->logPremiumAction('generation.success', $site, [
+                'keyword' => $keyword,
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+            ]);
             $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
             return response()->json([
@@ -327,6 +335,9 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
+            $this->logPremiumActionError('generation.failed', $site, $e, [
+                'keyword_requested' => trim((string) ($data['keyword'] ?? '')) ?: null,
+            ]);
             $this->markActionState(
                 $site,
                 'generation',
@@ -364,6 +375,9 @@ class ClientSitesController extends Controller
         $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
+            $this->logPremiumAction('rewrite.start', $site, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState($site, 'rewrite', 'running', 'PraeviSEO prépare la prochaine amélioration de contenu.');
             $page = $this->resolveRewriteCandidatePage($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
@@ -424,6 +438,11 @@ class ClientSitesController extends Controller
                     ? sprintf('La page "%s" a été réécrite puis republiée.', (string) $publishedPage->title)
                     : sprintf('La page "%s" a été réécrite côté moteur et reste prête pour la prochaine publication.', (string) $page->title)
             );
+            $this->logPremiumAction('rewrite.success', $site, [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'published_live' => $publishedPage?->isPublishedLive() ?? false,
+            ]);
             $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
             return response()->json([
@@ -440,6 +459,9 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
+            $this->logPremiumActionError('rewrite.failed', $site, $e, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState(
                 $site,
                 'rewrite',
@@ -471,6 +493,9 @@ class ClientSitesController extends Controller
         $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
+            $this->logPremiumAction('publication.start', $site, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState($site, 'publication', 'running', 'PraeviSEO prépare l envoi de la meilleure page vers le site.');
             $page = $this->resolvePublicationCandidatePage($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
@@ -503,6 +528,11 @@ class ClientSitesController extends Controller
                 'publication_sent',
             );
             $this->markActionState($site, 'publication', 'completed', sprintf('La page "%s" a été envoyée vers le site live.', (string) $page->title));
+            $this->logPremiumAction('publication.success', $site, [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'live_url' => (string) ($page->live_url ?? ''),
+            ]);
             $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
             $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
 
@@ -517,6 +547,9 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
+            $this->logPremiumActionError('publication.failed', $site, $e, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState(
                 $site,
                 'publication',
@@ -552,6 +585,9 @@ class ClientSitesController extends Controller
         $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
+            $this->logPremiumAction('linking.start', $site, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState($site, 'linking', 'running', 'PraeviSEO prépare le renfort de liens internes.');
             ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
@@ -600,6 +636,11 @@ class ClientSitesController extends Controller
                 'default',
                 'linking_applied',
             );
+            $this->logPremiumAction('linking.success', $site, [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'links_applied' => count($internalLinks),
+            ]);
             $this->markActionState($site, 'linking', 'completed', sprintf('%d lien(s) interne(s) utile(s) ont été ajoutés sur "%s".', count($internalLinks), (string) $page->title));
             $page->refresh();
             $this->scheduleObservedCrawlIfIdle($site, 'after_linking');
@@ -618,6 +659,9 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
+            $this->logPremiumActionError('linking.failed', $site, $e, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState(
                 $site,
                 'linking',
@@ -652,6 +696,9 @@ class ClientSitesController extends Controller
         $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
+            $this->logPremiumAction('images.start', $site, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState($site, 'images', 'running', 'PraeviSEO prépare une image SEO utile pour la meilleure page.');
             $page = $this->resolveImageCandidatePage($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
@@ -685,6 +732,12 @@ class ClientSitesController extends Controller
                 'default',
                 'image_generated',
             );
+            $this->logPremiumAction('images.success', $site, [
+                'page_id' => (int) $page->id,
+                'slug' => (string) $page->slug,
+                'image_path' => (string) ($page->image_path ?? ''),
+                'published_live' => $publishedPage?->isPublishedLive() ?? false,
+            ]);
 
             if ($publishedPage) {
                 $this->appendExecutionHistory(
@@ -720,6 +773,9 @@ class ClientSitesController extends Controller
                 ],
             ], 202);
         } catch (Throwable $e) {
+            $this->logPremiumActionError('images.failed', $site, $e, [
+                'slug_requested' => $requestedSlug !== '' ? $requestedSlug : null,
+            ]);
             $this->markActionState(
                 $site,
                 'images',
@@ -1733,6 +1789,33 @@ class ClientSitesController extends Controller
                 ?? $connection?->last_sync_at?->toIso8601String(),
             'error' => null,
         ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $context
+     */
+    private function logPremiumAction(string $event, SeoSite $site, array $context = []): void
+    {
+        Log::info('premium action', [
+            'event' => $event,
+            'site_id' => $site->site_id,
+            ...$context,
+        ]);
+    }
+
+    /**
+     * @param  array<string,mixed>  $context
+     */
+    private function logPremiumActionError(string $event, SeoSite $site, Throwable $e, array $context = []): void
+    {
+        Log::error('premium action failed', [
+            'event' => $event,
+            'site_id' => $site->site_id,
+            'exception' => $e::class,
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+            ...$context,
+        ]);
     }
 
     private function premiumActionErrorMessage(Throwable $e, string $fallback): string

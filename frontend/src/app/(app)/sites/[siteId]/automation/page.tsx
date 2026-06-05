@@ -12,12 +12,11 @@ import {
 import { formatDate } from "@/lib/utils";
 import {
   launchPremiumCrawlAction,
-  launchPremiumGenerationAction,
-  launchPremiumGenerationForKeywordAction,
-  launchPremiumImageAction,
+  launchPremiumGenerationToStudioAction,
+  launchPremiumImageToStudioAction,
   launchPremiumLinkingAction,
-  launchPremiumPublicationAction,
-  launchPremiumRewriteAction,
+  launchPremiumPublicationToStudioAction,
+  launchPremiumRewriteToStudioAction,
 } from "../connect/actions";
 
 interface SiteAutomationPageProps {
@@ -94,7 +93,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     site.readiness.has_live_pages ? 1 : 0
   );
   const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
-  const publicationReady = bridgeConnected && site.publication_target.engine_actionable;
+  const publicationReady = site.publication_target.engine_actionable;
+  const bridgeOperational = bridgeConnected || publicationReady;
   const hasPublishedPages = site.readiness.has_published_pages || sitePublications.length > 0;
   const hasLivePages = site.readiness.has_live_pages || livePublishedCount > 0;
   const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
@@ -346,7 +346,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         ? "Active"
         : publicationReady
           ? "Prête"
-          : bridgeConnected
+          : bridgeOperational
             ? "Bridge actif"
             : idleActionLabel(site.action_statuses.publication.state, site.action_statuses.publication.label, "À préparer"),
       detail:
@@ -354,7 +354,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent être repris automatiquement.`
           : publicationReady
             ? site.publication_target.detail || "Le bridge est prêt. PraeviSEO peut pousser le premier contenu utile dès qu’il est prêt."
-            : bridgeConnected
+            : bridgeOperational
               ? "Le bridge répond déjà. Il reste à pousser un premier contenu visible pour démarrer la boucle live."
               : site.action_statuses.publication.detail ||
                 site.publication_target.detail ||
@@ -449,7 +449,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           ? `Dernier contenu visible : ${latestPublishedContent.title}. PraeviSEO peut maintenant le suivre, le relier et le faire évoluer.`
           : publicationReady
             ? `${site.publication_target.detail} La première publication live visible apparaîtra ici.`
-            : bridgeConnected
+            : bridgeOperational
               ? "Le bridge est actif, mais aucun contenu n’a encore été poussé en live depuis cette vue."
               : "Aucun contenu premium n’est encore visible en ligne. Les prochaines publications apparaîtront ici.",
     },
@@ -594,31 +594,30 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const refreshPageSlug = leadRefresh?.slug || null;
   const generationKeyword = site.summary.new_queries[0]?.query?.trim() || null;
   const runCrawlAction = launchPremiumCrawlAction.bind(null, site.site_id);
-  const runGenerationAction = launchPremiumGenerationAction.bind(null, site.site_id);
   const runGenerationKeywordAction = generationKeyword
-    ? launchPremiumGenerationForKeywordAction.bind(null, site.site_id, generationKeyword)
-    : runGenerationAction;
-  const runRewriteAction = (slug?: string | null) => launchPremiumRewriteAction.bind(null, site.site_id, slug ?? undefined);
+    ? launchPremiumGenerationToStudioAction.bind(null, site.site_id, generationKeyword)
+    : null;
+  const runRewriteAction = (slug?: string | null) => launchPremiumRewriteToStudioAction.bind(null, site.site_id, slug ?? undefined);
   const runLinkingAction = (slug?: string | null) => launchPremiumLinkingAction.bind(null, site.site_id, slug ?? undefined);
-  const runImageAction = (slug?: string | null) => launchPremiumImageAction.bind(null, site.site_id, slug ?? undefined);
+  const runImageAction = (slug?: string | null) => launchPremiumImageToStudioAction.bind(null, site.site_id, slug ?? undefined);
   const runPublicationAction = (slug?: string | null) =>
-    launchPremiumPublicationAction.bind(null, site.site_id, slug ?? undefined);
+    launchPremiumPublicationToStudioAction.bind(null, site.site_id, slug ?? undefined);
   const queryFocusHref = generationKeyword
-    ? `/queries?focus=${encodeURIComponent(generationKeyword)}`
+    ? `/publications?focus=query&site=${encodeURIComponent(site.site_id)}&query=${encodeURIComponent(generationKeyword)}`
     : "/queries";
   const rewriteFocusHref = refreshPageSlug
-    ? `/pages?focus=${encodeURIComponent(refreshPageSlug)}`
+    ? `/publications?focus=content&site=${encodeURIComponent(site.site_id)}&slug=${encodeURIComponent(refreshPageSlug)}&action=rewrite`
     : "/pages";
   const linkingFocusHref = linkGapSlug
-    ? `/pages?focus=${encodeURIComponent(linkGapSlug)}`
+    ? `/pages?focus=linking&site=${encodeURIComponent(site.site_id)}&target=${encodeURIComponent(linkGapSlug)}`
     : "/pages";
   const imageFocusTarget = risingPageSlug ?? refreshPageSlug;
   const imageFocusHref = imageFocusTarget
-    ? `/pages?focus=${encodeURIComponent(imageFocusTarget)}`
+    ? `/publications?focus=content&site=${encodeURIComponent(site.site_id)}&slug=${encodeURIComponent(imageFocusTarget)}&action=image`
     : "/pages";
   const publicationFocusTarget = latestPublishedContent?.slug ?? refreshPageSlug;
   const publicationFocusHref = publicationFocusTarget
-    ? `/publications?focus=${encodeURIComponent(publicationFocusTarget)}`
+    ? `/publications?focus=content&site=${encodeURIComponent(site.site_id)}&slug=${encodeURIComponent(publicationFocusTarget)}&action=publish`
     : "/publications";
 
   const actionButtons = [
@@ -654,7 +653,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         : "PraeviSEO n’a pas encore trouvé une recherche Google assez utile et distincte pour ouvrir un article fiable.",
       helperHref: queryFocusHref,
       helperLabel: "Voir les requêtes utiles",
-      action: generationReady ? runGenerationKeywordAction : runGenerationAction,
+      action: generationReady && runGenerationKeywordAction ? runGenerationKeywordAction : runCrawlAction,
     },
     {
       key: "rewrite",
@@ -710,30 +709,30 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "publication",
       label: "Publier",
-      stage: publicationLaunchReady ? "now" : bridgeConnected ? "soon" : "prep",
+      stage: publicationLaunchReady ? "now" : bridgeOperational ? "soon" : "prep",
       ctaLabel: publicationLaunchReady
         ? "Publier en live"
-        : !bridgeConnected
+        : !bridgeOperational
           ? "Bridge à connecter"
           : "Contenu encore à préparer",
       description: hasLivePages
         ? "Pousser un nouveau contenu ou une mise à jour sur le site déjà connecté."
         : publicationReady
           ? "Le bridge répond déjà : une première publication live peut partir."
-          : bridgeConnected
+          : bridgeOperational
             ? "Le bridge est actif, mais PraeviSEO attend encore un contenu prêt à pousser."
             : "La publication live restera limitée tant que le bridge n’est pas complètement prêt.",
       recommended: recommendedActionKey === "publication",
       available: publicationLaunchReady,
       blockedReason: publicationLaunchReady
         ? null
-        : !bridgeConnected
+        : !bridgeOperational
           ? "Le bridge client n’est pas encore assez branché pour pousser une vraie publication live."
           : !publicationReady
             ? "Le bridge répond, mais PraeviSEO n’a pas encore validé une publication réellement actionnable."
             : "Le bridge est prêt, mais aucun contenu assez propre n’est encore prêt à partir en live.",
-      helperHref: !bridgeConnected ? `/sites/${site.site_id}/connect` : publicationFocusHref,
-      helperLabel: !bridgeConnected ? "Ouvrir la santé technique" : "Voir les contenus prêts",
+      helperHref: !bridgeOperational ? `/sites/${site.site_id}/connect` : publicationFocusHref,
+      helperLabel: !bridgeOperational ? "Ouvrir la santé technique" : "Voir les contenus prêts",
       action: runPublicationAction(latestPublishedContent?.slug ?? refreshPageSlug),
     },
   ] as const;

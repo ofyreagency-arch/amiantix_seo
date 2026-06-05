@@ -841,7 +841,7 @@
 
               <div class="mt-3 rounded-xl {{ !empty($pageLiveMonitoring['manual_required']) ? 'border border-rose-200 bg-rose-50' : 'border border-slate-200 bg-white' }} px-3 py-3">
                   <p class="text-sm font-semibold {{ !empty($pageLiveMonitoring['manual_required']) ? 'text-rose-800' : 'text-slate-800' }}">
-                      {{ $pageLiveMonitoring['state_label'] ?? 'Surveillance réelle' }}
+                      {{ !empty($pageLiveMonitoring['manual_required']) ? ($pageLiveMonitoring['state_label'] ?? 'Surveillance réelle') : 'Surveillance active' }}
                   </p>
                   <p class="mt-1 text-xs {{ !empty($pageLiveMonitoring['manual_required']) ? 'text-rose-700' : 'text-slate-600' }}">
                       {{ $pageLiveMonitoring['detail'] ?? 'Le moteur observe la vraie page publique sans inventer de correction technique.' }}
