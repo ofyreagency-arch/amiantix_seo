@@ -241,29 +241,47 @@ export async function launchPremiumGenerationAction(siteId: string): Promise<voi
   }
 }
 
-export async function launchPremiumRewriteAction(siteId: string): Promise<void> {
-  await requestPremiumRewrite(siteId);
+export async function launchPremiumGenerationForKeywordAction(siteId: string, keyword: string): Promise<void> {
+  try {
+    await requestPremiumGeneration(siteId, { keyword });
+    revalidatePath(getSiteConnectPath(siteId));
+    revalidatePath(getSiteAutomationPath(siteId));
+    redirect(
+      buildAutomationFeedbackUrl(
+        siteId,
+        "success",
+        "Article ciblé lancé",
+        `PraeviSEO a bien démarré un nouvel article autour de "${keyword}".`
+      )
+    );
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function launchPremiumRewriteAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumRewrite(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
   redirect(getSiteAutomationPath(siteId));
 }
 
-export async function launchPremiumLinkingAction(siteId: string): Promise<void> {
-  await requestPremiumLinking(siteId);
+export async function launchPremiumLinkingAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumLinking(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
   redirect(getSiteAutomationPath(siteId));
 }
 
-export async function launchPremiumImageAction(siteId: string): Promise<void> {
-  await requestPremiumImages(siteId);
+export async function launchPremiumImageAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumImages(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
   redirect(getSiteAutomationPath(siteId));
 }
 
-export async function launchPremiumPublicationAction(siteId: string): Promise<void> {
-  await requestPremiumPublication(siteId);
+export async function launchPremiumPublicationAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumPublication(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
   redirect(getSiteAutomationPath(siteId));

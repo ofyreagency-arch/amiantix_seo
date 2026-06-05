@@ -266,10 +266,14 @@ class ClientSitesController extends Controller
             ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
+        $data = $request->validate([
+            'keyword' => ['nullable', 'string', 'max:255'],
+        ]);
 
         try {
             $this->markActionState($site, 'generation', 'running', 'PraeviSEO prépare un nouveau sujet éditorial à publier sur le site.');
-            $keyword = $articles->resolveCandidateKeyword($site);
+            $keyword = trim((string) ($data['keyword'] ?? ''));
+            $keyword = $keyword !== '' ? $keyword : ($articles->resolveCandidateKeyword($site) ?? null);
 
             if ($keyword === null) {
                 $reason = $articles->limitReason($site);
@@ -354,12 +358,22 @@ class ClientSitesController extends Controller
             ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
+        $data = $request->validate([
+            'slug' => ['nullable', 'string', 'max:255'],
+        ]);
+        $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
             $this->markActionState($site, 'rewrite', 'running', 'PraeviSEO prépare la prochaine amélioration de contenu.');
-            $page = $this->resolveRewriteCandidatePage($siteId);
+            $page = $this->resolveRewriteCandidatePage($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
             if (! $page) {
+                if ($requestedSlug !== '') {
+                    return response()->json([
+                        'message' => 'La page demandée est introuvable ou n appartient pas à ce site.',
+                    ], 404);
+                }
+
                 $this->markActionState(
                     $site,
                     'rewrite',
@@ -451,12 +465,22 @@ class ClientSitesController extends Controller
             ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
+        $data = $request->validate([
+            'slug' => ['nullable', 'string', 'max:255'],
+        ]);
+        $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
             $this->markActionState($site, 'publication', 'running', 'PraeviSEO prépare l envoi de la meilleure page vers le site.');
-            $page = $this->resolvePublicationCandidatePage($siteId);
+            $page = $this->resolvePublicationCandidatePage($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
             if (! $page) {
+                if ($requestedSlug !== '') {
+                    return response()->json([
+                        'message' => 'La page ciblée n est pas encore prête pour une publication live.',
+                    ], 422);
+                }
+
                 $this->markActionState(
                     $site,
                     'publication',
@@ -522,12 +546,22 @@ class ClientSitesController extends Controller
             ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
+        $data = $request->validate([
+            'slug' => ['nullable', 'string', 'max:255'],
+        ]);
+        $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
             $this->markActionState($site, 'linking', 'running', 'PraeviSEO prépare le renfort de liens internes.');
-            ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId);
+            ['page' => $page, 'suggestion' => $existingSuggestion] = $this->resolveInternalLinkingCandidate($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
             if (! $page) {
+                if ($requestedSlug !== '') {
+                    return response()->json([
+                        'message' => 'La page ciblée est introuvable ou ne peut pas encore recevoir de maillage automatique.',
+                    ], 422);
+                }
+
                 $this->markActionState(
                     $site,
                     'linking',
@@ -612,12 +646,22 @@ class ClientSitesController extends Controller
             ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
             ->where('site_id', $siteId)
             ->firstOrFail();
+        $data = $request->validate([
+            'slug' => ['nullable', 'string', 'max:255'],
+        ]);
+        $requestedSlug = trim((string) ($data['slug'] ?? ''));
 
         try {
             $this->markActionState($site, 'images', 'running', 'PraeviSEO prépare une image SEO utile pour la meilleure page.');
-            $page = $this->resolveImageCandidatePage($siteId);
+            $page = $this->resolveImageCandidatePage($siteId, $requestedSlug !== '' ? $requestedSlug : null);
 
             if (! $page) {
+                if ($requestedSlug !== '') {
+                    return response()->json([
+                        'message' => 'La page ciblée est introuvable ou n a pas encore besoin d une image prioritaire.',
+                    ], 422);
+                }
+
                 $this->markActionState(
                     $site,
                     'images',
@@ -1723,13 +1767,21 @@ class ClientSitesController extends Controller
         };
     }
 
-    private function resolveRewriteCandidatePage(string $siteId): ?SeoPage
+    private function resolveRewriteCandidatePage(string $siteId, ?string $slug = null): ?SeoPage
     {
-        return SeoPage::query()
+        $query = SeoPage::query()
             ->where('site_id', $siteId)
             ->withCount([
                 'suggestions as pending_suggestions_count' => fn ($query) => $query->where('status', 'pending'),
-            ])
+            ]);
+
+        if ($slug !== null && $slug !== '') {
+            return $query
+                ->where('slug', $slug)
+                ->first();
+        }
+
+        return $query
             ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
             ->orderByRaw('CASE WHEN observed_site_page_id IS NULL THEN 1 ELSE 0 END')
             ->orderByDesc('seo_score')
@@ -1737,7 +1789,7 @@ class ClientSitesController extends Controller
             ->first();
     }
 
-    private function resolvePublicationCandidatePage(string $siteId): ?SeoPage
+    private function resolvePublicationCandidatePage(string $siteId, ?string $slug = null): ?SeoPage
     {
         $query = SeoPage::query()
             ->where('site_id', $siteId)
@@ -1746,6 +1798,10 @@ class ClientSitesController extends Controller
                     ->where('status', 'published')
                     ->orWhereNotNull('published_at');
             });
+
+        if ($slug !== null && $slug !== '') {
+            $query->where('slug', $slug);
+        }
 
         if (Schema::hasColumn('seo_pages', 'published_live')) {
             $query->where(function ($builder): void {
@@ -1761,9 +1817,9 @@ class ClientSitesController extends Controller
             ->first();
     }
 
-    private function resolveImageCandidatePage(string $siteId): ?SeoPage
+    private function resolveImageCandidatePage(string $siteId, ?string $slug = null): ?SeoPage
     {
-        return SeoPage::query()
+        $query = SeoPage::query()
             ->where('site_id', $siteId)
             ->where(function (Builder $query): void {
                 $query
@@ -1771,7 +1827,15 @@ class ClientSitesController extends Controller
                     ->orWhere('image_path', '')
                     ->orWhereNull('image_status')
                     ->orWhere('image_status', '!=', 'approved');
-            })
+            });
+
+        if ($slug !== null && $slug !== '') {
+            return $query
+                ->where('slug', $slug)
+                ->first();
+        }
+
+        return $query
             ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
             ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
             ->orderByDesc('seo_score')
@@ -1782,8 +1846,35 @@ class ClientSitesController extends Controller
     /**
      * @return array{page:?SeoPage,suggestion:?SeoSuggestion}
      */
-    private function resolveInternalLinkingCandidate(string $siteId): array
+    private function resolveInternalLinkingCandidate(string $siteId, ?string $slug = null): array
     {
+        if ($slug !== null && $slug !== '') {
+            $page = SeoPage::query()
+                ->where('site_id', $siteId)
+                ->where('slug', $slug)
+                ->with('observedPage')
+                ->first();
+
+            if (! $page) {
+                return [
+                    'page' => null,
+                    'suggestion' => null,
+                ];
+            }
+
+            /** @var SeoSuggestion|null $pendingSuggestion */
+            $pendingSuggestion = $page->suggestions()
+                ->where('status', 'pending')
+                ->latest('created_at')
+                ->get()
+                ->first(fn (SeoSuggestion $suggestion): bool => $this->extractSuggestionInternalLinks($suggestion) !== []);
+
+            return [
+                'page' => $page,
+                'suggestion' => $pendingSuggestion,
+            ];
+        }
+
         /** @var SeoSuggestion|null $pendingSuggestion */
         $pendingSuggestion = SeoSuggestion::query()
             ->with('page')

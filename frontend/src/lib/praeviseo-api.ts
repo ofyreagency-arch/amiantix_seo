@@ -590,6 +590,14 @@ export type RemoteInstallationInput = {
   api_notes?: string;
 };
 
+export type PremiumPageTargetInput = {
+  slug?: string | null;
+};
+
+export type PremiumGenerationTargetInput = {
+  keyword?: string | null;
+};
+
 type SitesResponse = { sites: unknown[] };
 type SiteResponse = { site: unknown };
 type InstallationStatusResponse = { site: unknown; installation: unknown };
@@ -2205,13 +2213,19 @@ export async function getSites(): Promise<PraeviseoSite[]> {
     const token = await getSessionToken();
 
     if (!token) {
+      console.error("[praeviseo][api] getSites:no_token");
       return [];
     }
 
     const payload = await appFetch<SitesResponse>("/api/client/sites", undefined, token);
 
     return payload.sites.map(normaliseSite);
-  } catch {
+  } catch (error) {
+    console.error("[praeviseo][api] getSites:error", {
+      error_name: error instanceof Error ? error.name : typeof error,
+      error_message: error instanceof Error ? error.message : String(error),
+      error_stack: error instanceof Error ? error.stack ?? null : null,
+    });
     return [];
   }
 }
@@ -2225,6 +2239,9 @@ export async function getSite(siteId: string): Promise<PraeviseoSite | null> {
     const token = await getSessionToken();
 
     if (!token) {
+      console.error("[praeviseo][api] getSite:no_token", {
+        site_id: siteId,
+      });
       return null;
     }
 
@@ -2243,11 +2260,17 @@ export async function getSite(siteId: string): Promise<PraeviseoSite | null> {
       normalized_action_status_crawl: normalizedSite.action_statuses.crawl,
     });
 
-    return normalizedSite;
-  } catch {
-    return null;
+      return normalizedSite;
+    } catch (error) {
+      console.error("[praeviseo][api] getSite:error", {
+        site_id: siteId,
+        error_name: error instanceof Error ? error.name : typeof error,
+        error_message: error instanceof Error ? error.message : String(error),
+        error_stack: error instanceof Error ? error.stack ?? null : null,
+      });
+      return null;
+    }
   }
-}
 
 export async function getDashboard(): Promise<PraeviseoDashboard> {
   const sites = await getSites();
@@ -2984,7 +3007,10 @@ export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite
   }
 }
 
-export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSite> {
+export async function requestPremiumRewrite(
+  siteId: string,
+  target?: PremiumPageTargetInput | null
+): Promise<PraeviseoSite> {
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);
 
@@ -3005,6 +3031,12 @@ export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSi
     `/api/client/sites/${siteId}/rewrite`,
     {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        slug: target?.slug ?? null,
+      }),
     },
     token
   );
@@ -3012,7 +3044,10 @@ export async function requestPremiumRewrite(siteId: string): Promise<PraeviseoSi
   return normaliseSite(payload.site);
 }
 
-export async function requestPremiumGeneration(siteId: string): Promise<PraeviseoSite> {
+export async function requestPremiumGeneration(
+  siteId: string,
+  target?: PremiumGenerationTargetInput | null
+): Promise<PraeviseoSite> {
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);
 
@@ -3055,6 +3090,12 @@ export async function requestPremiumGeneration(siteId: string): Promise<Praevise
     `/api/client/sites/${siteId}/generate`,
     {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        keyword: target?.keyword ?? null,
+      }),
     },
     token
   );
@@ -3062,7 +3103,10 @@ export async function requestPremiumGeneration(siteId: string): Promise<Praevise
   return normaliseSite(payload.site);
 }
 
-export async function requestPremiumLinking(siteId: string): Promise<PraeviseoSite> {
+export async function requestPremiumLinking(
+  siteId: string,
+  target?: PremiumPageTargetInput | null
+): Promise<PraeviseoSite> {
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);
 
@@ -3089,6 +3133,12 @@ export async function requestPremiumLinking(siteId: string): Promise<PraeviseoSi
     `/api/client/sites/${siteId}/linking`,
     {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        slug: target?.slug ?? null,
+      }),
     },
     token
   );
@@ -3096,7 +3146,10 @@ export async function requestPremiumLinking(siteId: string): Promise<PraeviseoSi
   return normaliseSite(payload.site);
 }
 
-export async function requestPremiumImages(siteId: string): Promise<PraeviseoSite> {
+export async function requestPremiumImages(
+  siteId: string,
+  target?: PremiumPageTargetInput | null
+): Promise<PraeviseoSite> {
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);
 
@@ -3139,6 +3192,12 @@ export async function requestPremiumImages(siteId: string): Promise<PraeviseoSit
     `/api/client/sites/${siteId}/images`,
     {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        slug: target?.slug ?? null,
+      }),
     },
     token
   );
@@ -3146,7 +3205,10 @@ export async function requestPremiumImages(siteId: string): Promise<PraeviseoSit
   return normaliseSite(payload.site);
 }
 
-export async function requestPremiumPublication(siteId: string): Promise<PraeviseoSite> {
+export async function requestPremiumPublication(
+  siteId: string,
+  target?: PremiumPageTargetInput | null
+): Promise<PraeviseoSite> {
   if (!backendConfigured()) {
     const site = mockSites.find((entry) => entry.site_id === siteId);
 
@@ -3173,6 +3235,12 @@ export async function requestPremiumPublication(siteId: string): Promise<Praevis
     `/api/client/sites/${siteId}/publish`,
     {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        slug: target?.slug ?? null,
+      }),
     },
     token
   );

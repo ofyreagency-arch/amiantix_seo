@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/utils";
 import {
   launchPremiumCrawlAction,
   launchPremiumGenerationAction,
+  launchPremiumGenerationForKeywordAction,
   launchPremiumImageAction,
   launchPremiumLinkingAction,
   launchPremiumPublicationAction,
@@ -42,6 +43,22 @@ const ACTION_NEXT_PASSES: Record<string, string> = {
   images: "Relance dès qu’une page ou un article devient prêt à être enrichi visuellement.",
   monitoring: "Contrôle continu à chaque boucle premium et après chaque action importante.",
 };
+
+function slugFromUrl(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : null;
+  } catch {
+    const normalized = url.split("?")[0]?.split("#")[0] ?? "";
+    const segments = normalized.split("/").filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : null;
+  }
+}
 
 export default async function SiteAutomationPage({ params, searchParams }: SiteAutomationPageProps) {
   const { siteId } = await params;
@@ -566,6 +583,26 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const imageReady = Boolean(leadRisingPage || leadRefresh);
   const publicationContentReady = Boolean(leadRefresh || latestPublishedContent || hasPublishedPages);
   const publicationLaunchReady = publicationReady && publicationContentReady;
+  const crawlIssueLead = crawlReportIssues.find((issue) => Boolean(issue.url)) ?? null;
+  const leadIndexationSlug = slugFromUrl(leadIndexationAlert?.url);
+  const weakPageLead = site.summary.observed_weak_page_details[0] ?? null;
+  const weakPageSlug = weakPageLead?.slug || slugFromUrl(weakPageLead?.url);
+  const linkGapLead = site.summary.observed_link_gap_pages[0] ?? null;
+  const linkGapSlug = linkGapLead?.slug || slugFromUrl(linkGapLead?.url);
+  const crawlIssueSlug = slugFromUrl(crawlIssueLead?.url ?? null);
+  const risingPageSlug = leadRisingPage?.slug || slugFromUrl(leadRisingPage?.url ?? null);
+  const refreshPageSlug = leadRefresh?.slug || null;
+  const generationKeyword = site.summary.new_queries[0]?.query?.trim() || null;
+  const runCrawlAction = launchPremiumCrawlAction.bind(null, site.site_id);
+  const runGenerationAction = launchPremiumGenerationAction.bind(null, site.site_id);
+  const runGenerationKeywordAction = generationKeyword
+    ? launchPremiumGenerationForKeywordAction.bind(null, site.site_id, generationKeyword)
+    : runGenerationAction;
+  const runRewriteAction = (slug?: string | null) => launchPremiumRewriteAction.bind(null, site.site_id, slug ?? undefined);
+  const runLinkingAction = (slug?: string | null) => launchPremiumLinkingAction.bind(null, site.site_id, slug ?? undefined);
+  const runImageAction = (slug?: string | null) => launchPremiumImageAction.bind(null, site.site_id, slug ?? undefined);
+  const runPublicationAction = (slug?: string | null) =>
+    launchPremiumPublicationAction.bind(null, site.site_id, slug ?? undefined);
 
   const actionButtons = [
     {
@@ -582,7 +619,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       blockedReason: null,
       helperHref: `/sites/${site.site_id}/automation#suivi-crawl`,
       helperLabel: "Voir le suivi du crawl",
-      action: launchPremiumCrawlAction.bind(null, site.site_id),
+      action: runCrawlAction,
     },
     {
       key: "generation",
@@ -600,7 +637,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         : "PraeviSEO n’a pas encore trouvé une recherche Google assez utile et distincte pour ouvrir un article fiable.",
       helperHref: "/queries",
       helperLabel: "Voir les requêtes utiles",
-      action: launchPremiumGenerationAction.bind(null, site.site_id),
+      action: generationReady ? runGenerationKeywordAction : runGenerationAction,
     },
     {
       key: "rewrite",
@@ -617,15 +654,15 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         : "Aucune page n’a encore assez de matière ou de signal pour justifier une vraie réécriture utile.",
       helperHref: "/pages",
       helperLabel: "Voir les pages à retravailler",
-      action: launchPremiumRewriteAction.bind(null, site.site_id),
+      action: runRewriteAction(refreshPageSlug ?? risingPageSlug),
     },
     {
       key: "linking",
       label: "Renforcer le maillage",
       stage: linkingReady ? "now" : gscConnected || Boolean(lastSuccessfulCrawl) ? "soon" : "prep",
       ctaLabel: linkingReady ? "Lancer le maillage utile" : "Pas encore de cible nette",
-      description: site.summary.observed_link_gap_pages[0]
-        ? `Une page manque déjà de soutien interne : ${site.summary.observed_link_gap_pages[0].label}.`
+      description: linkGapLead
+        ? `Une page manque déjà de soutien interne : ${linkGapLead.label}.`
         : "Ouvrir des liens internes utiles dès que PraeviSEO voit une vraie cible à soutenir.",
       recommended: recommendedActionKey === "linking",
       available: linkingReady,
@@ -634,7 +671,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         : "PraeviSEO n’a pas encore trouvé assez de pages prioritaires avec assez de contexte pour ouvrir des liens internes utiles.",
       helperHref: "/pages",
       helperLabel: "Voir les pages sous-maillées",
-      action: launchPremiumLinkingAction.bind(null, site.site_id),
+      action: runLinkingAction(linkGapSlug),
     },
     {
       key: "images",
@@ -651,7 +688,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         : "PraeviSEO attend encore une page assez stable, assez utile et assez prioritaire avant de générer une image SEO propre.",
       helperHref: "/pages",
       helperLabel: "Voir les pages candidates",
-      action: launchPremiumImageAction.bind(null, site.site_id),
+      action: runImageAction(risingPageSlug ?? refreshPageSlug),
     },
     {
       key: "publication",
@@ -680,7 +717,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             : "Le bridge est prêt, mais aucun contenu assez propre n’est encore prêt à partir en live.",
       helperHref: !bridgeConnected ? `/sites/${site.site_id}/connect` : "/pages",
       helperLabel: !bridgeConnected ? "Ouvrir la santé technique" : "Voir les contenus prêts",
-      action: launchPremiumPublicationAction.bind(null, site.site_id),
+      action: runPublicationAction(latestPublishedContent?.slug ?? refreshPageSlug),
     },
   ] as const;
   const actionableNowButtons = actionButtons.filter((item) => item.stage === "now");
@@ -691,7 +728,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const executionHighlights = executionCenter.filter((item) =>
     ["crawl", "publication", "rewrite", "monitoring"].includes(item.key)
   );
-  const crawlIssueLead = crawlReportIssues.find((issue) => Boolean(issue.url)) ?? null;
   const problemActions = [
     leadIndexationAlert
       ? {
@@ -704,37 +740,37 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
               : leadIndexationAlert.detail || "Le signal d’indexation demande une vérification avant toute publication ou réécriture.",
           primaryHref: `/sites/${site.site_id}/search-console`,
           primaryLabel: "Voir l’indexation",
-          action: rewriteReady ? launchPremiumRewriteAction.bind(null, site.site_id) : null,
-          actionLabel: rewriteReady ? "Préparer la correction SEO" : null,
+          action: rewriteReady && leadIndexationSlug ? runRewriteAction(leadIndexationSlug) : null,
+          actionLabel: rewriteReady && leadIndexationSlug ? "Préparer la correction SEO" : null,
           secondaryHref: leadIndexationAlert.url || null,
           secondaryLabel: leadIndexationAlert.url ? "Ouvrir la page" : null,
         }
       : null,
-    site.summary.observed_weak_page_details[0]
+    weakPageLead
       ? {
           key: "weak-page",
           title: "Retravailler une page faible",
-          detail: `${site.summary.observed_weak_page_details[0].label} manque encore de force SEO visible.`,
+          detail: `${weakPageLead.label} manque encore de force SEO visible.`,
           whyNow: "Cette page existe déjà. Une reprise éditoriale propre peut produire un gain plus vite qu’un nouveau contenu.",
           primaryHref: "/pages",
           primaryLabel: "Voir les pages à retravailler",
-          action: rewriteReady ? launchPremiumRewriteAction.bind(null, site.site_id) : null,
-          actionLabel: rewriteReady ? "Lancer la réécriture" : null,
-          secondaryHref: site.summary.observed_weak_page_details[0].url,
+          action: rewriteReady && weakPageSlug ? runRewriteAction(weakPageSlug) : null,
+          actionLabel: rewriteReady && weakPageSlug ? "Lancer la réécriture" : null,
+          secondaryHref: weakPageLead.url,
           secondaryLabel: "Ouvrir la page",
         }
       : null,
-    site.summary.observed_link_gap_pages[0]
+    linkGapLead
       ? {
           key: "link-gap",
           title: "Renforcer une page sous-maillée",
-          detail: `${site.summary.observed_link_gap_pages[0].label} manque de soutien interne.`,
+          detail: `${linkGapLead.label} manque de soutien interne.`,
           whyNow: "Un meilleur maillage peut aider Google à recrawler et faire progresser une page déjà utile.",
           primaryHref: "/pages",
           primaryLabel: "Voir les pages sous-maillées",
-          action: linkingReady ? launchPremiumLinkingAction.bind(null, site.site_id) : null,
-          actionLabel: linkingReady ? "Lancer le maillage" : null,
-          secondaryHref: site.summary.observed_link_gap_pages[0].url,
+          action: linkingReady && linkGapSlug ? runLinkingAction(linkGapSlug) : null,
+          actionLabel: linkingReady && linkGapSlug ? "Lancer le maillage" : null,
+          secondaryHref: linkGapLead.url,
           secondaryLabel: "Ouvrir la cible",
         }
       : null,
@@ -748,14 +784,14 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           primaryLabel: "Ouvrir la page concernée",
           action:
             crawlIssueLead.type === "http_error"
-              ? launchPremiumCrawlAction.bind(null, site.site_id)
-              : crawlIssueLead.type === "missing_meta_description" || crawlIssueLead.type === "thin_content"
-                ? launchPremiumRewriteAction.bind(null, site.site_id)
+              ? runCrawlAction
+              : (crawlIssueLead.type === "missing_meta_description" || crawlIssueLead.type === "thin_content") && crawlIssueSlug
+                ? runRewriteAction(crawlIssueSlug)
                 : null,
           actionLabel:
             crawlIssueLead.type === "http_error"
               ? "Relancer un crawl propre"
-              : crawlIssueLead.type === "missing_meta_description" || crawlIssueLead.type === "thin_content"
+              : (crawlIssueLead.type === "missing_meta_description" || crawlIssueLead.type === "thin_content") && crawlIssueSlug
                 ? "Préparer la correction"
                 : null,
           secondaryHref: `/sites/${site.site_id}/automation#problemes-crawl`,
@@ -792,17 +828,17 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           ctaAction: null,
         }
       : null,
-    site.summary.observed_link_gap_pages[0]
+    linkGapLead
       ? {
           title: "Page à mieux relier ensuite",
-          detail: `${site.summary.observed_link_gap_pages[0].label} manque encore de soutien interne malgré son potentiel observé.`,
+          detail: `${linkGapLead.label} manque encore de soutien interne malgré son potentiel observé.`,
           impact: "Un meilleur maillage aide Google à recrawler, contextualiser puis renforcer la page plus vite.",
           action: "Ouvrir des liens internes utiles depuis les pages déjà fortes du site.",
-          targetLabel: site.summary.observed_link_gap_pages[0].label,
-          targetUrl: site.summary.observed_link_gap_pages[0].url,
+          targetLabel: linkGapLead.label,
+          targetUrl: linkGapLead.url,
           ctaLabel: "Renforcer le maillage",
           ctaHref: null,
-          ctaAction: launchPremiumLinkingAction.bind(null, site.site_id),
+          ctaAction: linkGapSlug ? runLinkingAction(linkGapSlug) : null,
         }
       : null,
     leadRisingPage
@@ -815,7 +851,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           targetUrl: leadRisingPage.url,
           ctaLabel: "Préparer une réécriture",
           ctaHref: null,
-          ctaAction: launchPremiumRewriteAction.bind(null, site.site_id),
+          ctaAction: risingPageSlug ? runRewriteAction(risingPageSlug) : null,
         }
       : null,
     leadRefresh
@@ -832,7 +868,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           targetUrl: leadRefresh.live_url || null,
           ctaLabel: leadRefresh.live_url ? "Voir la page live" : "Préparer une réécriture",
           ctaHref: leadRefresh.live_url || null,
-          ctaAction: leadRefresh.live_url ? null : launchPremiumRewriteAction.bind(null, site.site_id),
+          ctaAction: leadRefresh.live_url || !refreshPageSlug ? null : runRewriteAction(refreshPageSlug),
         }
       : null,
     site.summary.new_queries[0]
@@ -845,7 +881,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           targetUrl: null,
           ctaLabel: "Créer un article",
           ctaHref: null,
-          ctaAction: launchPremiumGenerationAction.bind(null, site.site_id),
+          ctaAction: runGenerationKeywordAction,
         }
       : null,
   ]
