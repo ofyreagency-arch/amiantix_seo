@@ -92,6 +92,14 @@ function studioActionSummary(action: string): string {
   );
 }
 
+function stageVariant(active: boolean, done: boolean): "success" | "warning" | "secondary" {
+  if (active) {
+    return "warning";
+  }
+
+  return done ? "success" : "secondary";
+}
+
 export default async function PublicationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const publications = await getPublications();
   const optimizations = await getOptimizations();
@@ -252,6 +260,34 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
           value: studioLead.latest_suggestion ? "Ouverte" : "Aucune",
           tone: studioLead.latest_suggestion ? "warning" : "secondary",
           detail: studioLead.latest_suggestion?.summary ?? "Le moteur n’a pas rouvert de nouvelle suggestion sur ce contenu.",
+        },
+      ]
+    : [];
+  const stageCards = studioLead
+    ? [
+        {
+          label: "Brouillon",
+          done: !!studioLead.preview_url,
+          active: focusAction === "rewrite" || (!focusAction && !studioLead.image_url),
+          detail: "Texte moteur prêt à être relu et enrichi.",
+        },
+        {
+          label: "Image",
+          done: !!studioLead.image_url,
+          active: focusAction === "image",
+          detail: "Visuel SEO à générer ou à regénérer.",
+        },
+        {
+          label: "Validation",
+          done: !!studioLead.preview_url,
+          active: focusAction === "preview",
+          detail: "Contrôle du rendu blog avant diffusion.",
+        },
+        {
+          label: "Publication",
+          done: !!studioLead.published_live,
+          active: focusAction === "publish",
+          detail: "Push final sur le site client.",
         },
       ]
     : [];
@@ -493,6 +529,98 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
               ) : (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
                   Dès qu’un contenu sera sélectionné, cette colonne montrera l’état du brouillon, de l’image, du live et des dernières recommandations.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
+          <div className="rounded-2xl border border-border bg-surface px-5 py-5">
+            <div className="text-sm font-semibold text-text">Étapes du workflow</div>
+            <p className="mt-2 text-sm leading-6 text-text-muted">
+              Le bon ordre pour transformer un brouillon moteur en contenu publiable sans se perdre.
+            </p>
+            <div className="mt-5 grid gap-3">
+              {stageCards.length > 0 ? (
+                stageCards.map((stage) => (
+                  <div key={stage.label} className="rounded-xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium text-text">{stage.label}</div>
+                      <Badge variant={stageVariant(stage.active, stage.done)}>
+                        {stage.active ? "à faire maintenant" : stage.done ? "prêt" : "en attente"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{stage.detail}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  Le prochain contenu utile affichera ici son workflow complet, du brouillon jusqu’au live.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+            <div className="border-b border-border bg-surface-2 px-5 py-4">
+              <div className="text-sm font-semibold text-text">Aperçu blog dans le style client</div>
+              <p className="mt-1 text-sm leading-6 text-text-muted">
+                Une lecture éditoriale plus proche d’un vrai article, pour vérifier vite si le contenu ressemble bien à une page publiable.
+              </p>
+            </div>
+            <div className="px-5 py-6">
+              {studioLead ? (
+                <article className="mx-auto max-w-3xl rounded-[28px] border border-border bg-[linear-gradient(180deg,hsl(var(--surface)),hsl(var(--surface-2)))] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.16)]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={publicationStateTone(studioLead.status, studioLead.published_live)}>
+                      {publicationStateLabel(studioLead.status, studioLead.published_live)}
+                    </Badge>
+                    {studioLead.cluster ? <Badge variant="secondary">{studioLead.cluster}</Badge> : null}
+                    {studioLead.image_url ? <Badge variant="secondary">visuel prêt</Badge> : null}
+                  </div>
+
+                  <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight text-text">
+                    {studioLead.title}
+                  </h2>
+
+                  <p className="mt-4 max-w-2xl text-base leading-8 text-text-muted">
+                    {studioLead.meta_description || studioLead.excerpt}
+                  </p>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-border bg-surface px-4 py-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Promesse</div>
+                      <p className="mt-3 text-sm leading-6 text-text-muted">
+                        {studioLead.excerpt}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-surface px-4 py-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Ce que Google voit</div>
+                      <p className="mt-3 text-sm leading-6 text-text-muted">
+                        {studioLead.gsc_metrics.impressions > 0
+                          ? `${studioLead.gsc_metrics.impressions} impression(s) et une position moyenne ${studioLead.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                          : "Le contenu est encore en préparation avant sa vraie traction organique."}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-surface px-4 py-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Préparation</div>
+                      <p className="mt-3 text-sm leading-6 text-text-muted">
+                        {focusAction ? studioActionSummary(focusAction) : "Le contenu peut être relu, imagé puis validé avant publication."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 border-t border-border pt-5">
+                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Extrait du corps</div>
+                    <p className="mt-3 text-[15px] leading-8 text-text-muted">
+                      {studioLead.excerpt}
+                    </p>
+                  </div>
+                </article>
+              ) : (
+                <div className="rounded-2xl border border-border bg-surface-2 px-5 py-6 text-sm leading-6 text-text-muted">
+                  Aucun brouillon n’est encore remonté. Dès qu’un article est généré, cette zone affichera une vraie lecture “blog” avant publication.
                 </div>
               )}
             </div>
