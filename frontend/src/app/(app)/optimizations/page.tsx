@@ -227,20 +227,24 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
 
     if (item.type === "emerging_query" && item.query) {
       actions.push({
-        label: "Voir les requêtes",
-        href: `/queries?focus=emerging&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.query)}`,
+        label: "Créer l’article ciblé",
+        href: `/publications?focus=query&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.query)}`,
         variant: "primary",
       });
     } else if (item.type === "near_top_10" || item.type === "sustained_drop") {
       actions.push({
-        label: "Voir les pages",
-        href: `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.label)}`,
+        label: item.slug ? "Ouvrir le studio ciblé" : "Voir les pages",
+        href: item.slug
+          ? `/publications?focus=content&site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
+          : `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.label)}`,
         variant: "primary",
       });
     } else if (item.type === "low_ctr") {
       actions.push({
-        label: "Voir l’indexation",
-        href: `/sites/${item.site_id}/search-console`,
+        label: item.slug ? "Ouvrir le studio ciblé" : "Voir l’indexation",
+        href: item.slug
+          ? `/publications?focus=content&site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
+          : `/sites/${item.site_id}/search-console`,
         variant: "primary",
       });
     } else {
@@ -251,30 +255,77 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       });
     }
 
-    actions.push({
-      label: "Ouvrir le site",
-      href: getSitePath(item.site_id),
-      variant: "secondary",
-    });
+    if (item.query) {
+      actions.push({
+        label: "Voir les requêtes",
+        href: `/queries?focus=query&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.query)}`,
+        variant: "secondary",
+      });
+    } else if (item.slug) {
+      actions.push({
+        label: "Voir les pages",
+        href: `/pages?focus=content&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.slug)}`,
+        variant: "secondary",
+      });
+    } else {
+      actions.push({
+        label: "Ouvrir le site",
+        href: getSitePath(item.site_id),
+        variant: "secondary",
+      });
+    }
 
     return actions;
   };
 
   const recommendationActions = (item: (typeof observedRecommendations)[number]) => {
-    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [
-      {
+    const suggestionText = `${item.title} ${item.suggested_action ?? ""} ${item.reasoning}`.toLowerCase();
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [];
+
+    if (item.type === "create_page" || suggestionText.includes("nouvelle page") || suggestionText.includes("nouveau contenu")) {
+      actions.push({
+        label: "Ouvrir le studio éditorial",
+        href: `/publications?focus=query&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.cluster ?? item.title)}`,
+        variant: "primary",
+      });
+      actions.push({
+        label: "Voir les requêtes",
+        href: `/queries?focus=query&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.cluster ?? item.title)}`,
+        variant: "secondary",
+      });
+    } else if (item.type === "refresh_page" || suggestionText.includes("réécri") || suggestionText.includes("rafraîch")) {
+      actions.push({
+        label: "Voir les pages à retravailler",
+        href: `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.title)}`,
+        variant: "primary",
+      });
+      actions.push({
+        label: "Ouvrir l’automatisation",
+        href: `/sites/${item.site_id}/automation`,
+        variant: "secondary",
+      });
+    } else if (item.type === "add_internal_links" || suggestionText.includes("maillage") || suggestionText.includes("lien")) {
+      actions.push({
+        label: "Voir les pages à relier",
+        href: `/pages?focus=linking&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.title)}`,
+        variant: "primary",
+      });
+      actions.push({
+        label: "Ouvrir l’automatisation",
+        href: `/sites/${item.site_id}/automation`,
+        variant: "secondary",
+      });
+    } else {
+      actions.push({
         label: "Ouvrir l’automatisation",
         href: `/sites/${item.site_id}/automation`,
         variant: "primary",
-      },
-    ];
-
-    if (item.title.toLowerCase().includes("requête") || item.title.toLowerCase().includes("query")) {
-      actions.push({ label: "Voir les requêtes", href: "/queries", variant: "secondary" });
-    } else if (item.title.toLowerCase().includes("maillage") || item.title.toLowerCase().includes("lien")) {
-      actions.push({ label: "Voir les pages", href: "/pages", variant: "secondary" });
-    } else {
-      actions.push({ label: "Voir les optimisations", href: "/optimizations", variant: "secondary" });
+      });
+      actions.push({
+        label: "Voir les optimisations",
+        href: "/optimizations",
+        variant: "secondary",
+      });
     }
 
     return actions;
@@ -283,8 +334,8 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
     focus === "query"
       ? {
           title: "Opportunité ouverte depuis une requête",
-          detail: `${focusQuery || "Cette requête"} a été envoyée ici pour décider si elle doit ouvrir un contenu, renforcer une page ou rester en veille.`,
-          href: "#requetes",
+          detail: `${focusQuery || "Cette requête"} a été envoyée ici pour décider si elle doit ouvrir un contenu, renforcer une page ou rester en veille. Si le sujet est assez net, ouvre maintenant le studio éditorial.`,
+          href: `/publications?focus=query&site=${encodeURIComponent(focusSite)}&query=${encodeURIComponent(focusQuery)}`,
         }
       : null;
 
@@ -766,9 +817,13 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                     <p className="text-sm text-text">
                       Action suggérée : <span className="font-medium">{item.action}</span>
                     </p>
-                    <Button href={`/sites/${item.site_id}`} variant="secondary" size="sm">
-                      Ouvrir le site
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      {opportunityActions(item).map((action) => (
+                        <Button key={`${item.site_id}-${item.slug}-${item.query}-${action.label}`} href={action.href} variant={action.variant ?? "secondary"} size="sm">
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))
