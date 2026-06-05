@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";

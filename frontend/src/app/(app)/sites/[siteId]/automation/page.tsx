@@ -603,6 +603,23 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const runImageAction = (slug?: string | null) => launchPremiumImageAction.bind(null, site.site_id, slug ?? undefined);
   const runPublicationAction = (slug?: string | null) =>
     launchPremiumPublicationAction.bind(null, site.site_id, slug ?? undefined);
+  const queryFocusHref = generationKeyword
+    ? `/queries?focus=${encodeURIComponent(generationKeyword)}`
+    : "/queries";
+  const rewriteFocusHref = refreshPageSlug
+    ? `/pages?focus=${encodeURIComponent(refreshPageSlug)}`
+    : "/pages";
+  const linkingFocusHref = linkGapSlug
+    ? `/pages?focus=${encodeURIComponent(linkGapSlug)}`
+    : "/pages";
+  const imageFocusTarget = risingPageSlug ?? refreshPageSlug;
+  const imageFocusHref = imageFocusTarget
+    ? `/pages?focus=${encodeURIComponent(imageFocusTarget)}`
+    : "/pages";
+  const publicationFocusTarget = latestPublishedContent?.slug ?? refreshPageSlug;
+  const publicationFocusHref = publicationFocusTarget
+    ? `/publications?focus=${encodeURIComponent(publicationFocusTarget)}`
+    : "/publications";
 
   const actionButtons = [
     {
@@ -635,7 +652,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       blockedReason: generationReady
         ? null
         : "PraeviSEO n’a pas encore trouvé une recherche Google assez utile et distincte pour ouvrir un article fiable.",
-      helperHref: "/queries",
+      helperHref: queryFocusHref,
       helperLabel: "Voir les requêtes utiles",
       action: generationReady ? runGenerationKeywordAction : runGenerationAction,
     },
@@ -652,7 +669,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       blockedReason: rewriteReady
         ? null
         : "Aucune page n’a encore assez de matière ou de signal pour justifier une vraie réécriture utile.",
-      helperHref: "/pages",
+      helperHref: rewriteFocusHref,
       helperLabel: "Voir les pages à retravailler",
       action: runRewriteAction(refreshPageSlug ?? risingPageSlug),
     },
@@ -669,7 +686,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       blockedReason: linkingReady
         ? null
         : "PraeviSEO n’a pas encore trouvé assez de pages prioritaires avec assez de contexte pour ouvrir des liens internes utiles.",
-      helperHref: "/pages",
+      helperHref: linkingFocusHref,
       helperLabel: "Voir les pages sous-maillées",
       action: runLinkingAction(linkGapSlug),
     },
@@ -686,7 +703,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       blockedReason: imageReady
         ? null
         : "PraeviSEO attend encore une page assez stable, assez utile et assez prioritaire avant de générer une image SEO propre.",
-      helperHref: "/pages",
+      helperHref: imageFocusHref,
       helperLabel: "Voir les pages candidates",
       action: runImageAction(risingPageSlug ?? refreshPageSlug),
     },
@@ -715,7 +732,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           : !publicationReady
             ? "Le bridge répond, mais PraeviSEO n’a pas encore validé une publication réellement actionnable."
             : "Le bridge est prêt, mais aucun contenu assez propre n’est encore prêt à partir en live.",
-      helperHref: !bridgeConnected ? `/sites/${site.site_id}/connect` : "/pages",
+      helperHref: !bridgeConnected ? `/sites/${site.site_id}/connect` : publicationFocusHref,
       helperLabel: !bridgeConnected ? "Ouvrir la santé technique" : "Voir les contenus prêts",
       action: runPublicationAction(latestPublishedContent?.slug ?? refreshPageSlug),
     },

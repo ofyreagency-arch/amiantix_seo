@@ -263,26 +263,62 @@ export async function launchPremiumRewriteAction(siteId: string, slug?: string |
   await requestPremiumRewrite(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
-  redirect(getSiteAutomationPath(siteId));
+  redirect(
+    buildAutomationFeedbackUrl(
+      siteId,
+      "success",
+      "Réécriture préparée",
+      slug
+        ? `PraeviSEO a relancé la réécriture de "${slug}" et a remis ce contenu dans la boucle de travail.`
+        : "PraeviSEO a relancé une réécriture utile sur le contenu le plus prioritaire du moment."
+    )
+  );
 }
 
 export async function launchPremiumLinkingAction(siteId: string, slug?: string | null): Promise<void> {
   await requestPremiumLinking(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
-  redirect(getSiteAutomationPath(siteId));
+  redirect(
+    buildAutomationFeedbackUrl(
+      siteId,
+      "success",
+      "Maillage relancé",
+      slug
+        ? `PraeviSEO a relancé le maillage autour de "${slug}" pour ouvrir des liens internes plus utiles.`
+        : "PraeviSEO a relancé le maillage interne sur la meilleure page à soutenir."
+    )
+  );
 }
 
 export async function launchPremiumImageAction(siteId: string, slug?: string | null): Promise<void> {
   await requestPremiumImages(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
-  redirect(getSiteAutomationPath(siteId));
+  redirect(
+    buildAutomationFeedbackUrl(
+      siteId,
+      "success",
+      "Image SEO préparée",
+      slug
+        ? `PraeviSEO a préparé l’image SEO de "${slug}".`
+        : "PraeviSEO a préparé une image SEO sur la page la plus utile du moment."
+    )
+  );
 }
 
 export async function launchPremiumPublicationAction(siteId: string, slug?: string | null): Promise<void> {
   await requestPremiumPublication(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
   revalidatePath(getSiteAutomationPath(siteId));
-  redirect(getSiteAutomationPath(siteId));
+  redirect(
+    buildAutomationFeedbackUrl(
+      siteId,
+      "success",
+      "Publication lancée",
+      slug
+        ? `PraeviSEO a poussé "${slug}" vers le site client.`
+        : "PraeviSEO a poussé le contenu prêt le plus prioritaire vers le site client."
+    )
+  );
 }
