@@ -5,13 +5,24 @@ import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import {
-  launchPremiumImageAction,
-  launchPremiumPublicationAction,
-  launchPremiumRewriteAction,
+  launchPremiumGenerationToStudioAction,
+  launchPremiumImageToStudioAction,
+  launchPremiumPublicationToStudioAction,
+  launchPremiumRewriteToStudioAction,
 } from "@/app/(app)/sites/[siteId]/connect/actions";
-import { getOptimizations, getPublications } from "@/lib/praeviseo-api";
+import { getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 import { Eye, ImagePlus, PenSquare, UploadCloud } from "lucide-react";
+
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getValue(value: string | string[] | undefined, fallback = ""): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
 
 function impactLabel(impact: string): string {
   return (
@@ -41,9 +52,17 @@ function contentProgressLabel(wordDelta: number | null | undefined): string {
   return wordDelta > 0 ? `+${wordDelta} mots depuis la dernière lecture` : "Contenu encore stable";
 }
 
-export default async function PublicationsPage() {
+export default async function PublicationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const publications = await getPublications();
   const optimizations = await getOptimizations();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const feedback = getValue(resolvedSearchParams.feedback);
+  const feedbackTitle = getValue(resolvedSearchParams.feedback_title);
+  const feedbackDetail = getValue(resolvedSearchParams.feedback_detail);
+  const focus = getValue(resolvedSearchParams.focus);
+  const focusSite = getValue(resolvedSearchParams.site);
+  const focusQuery = getValue(resolvedSearchParams.query);
+  const focusSlug = getValue(resolvedSearchParams.slug);
   const hasRealContent = publications.items.length > 0;
   const observedItems = publications.items.filter((item) => !!item.observed_content);
   const visibleItems = publications.items.filter((item) => item.published_live);
@@ -121,6 +140,31 @@ export default async function PublicationsPage() {
     .slice(0, 4);
   const leadContent = enrichmentItems[0] ?? risingItems[0] ?? publications.items[0] ?? null;
   const leadRecommendation = recommendationItems[0] ?? null;
+  const focusedContent =
+    publications.items.find(
+      (item) =>
+        (!!focusSlug && item.slug === focusSlug) &&
+        (!focusSite || item.site_id === focusSite)
+    ) ?? null;
+  const focusedSiteId = focusSite || focusedContent?.site_id || leadContent?.site_id || publications.items[0]?.site_id || "";
+  const queryStudioAction =
+    focus === "query" && focusedSiteId && focusQuery
+      ? launchPremiumGenerationToStudioAction.bind(null, focusedSiteId, focusQuery)
+      : null;
+  const focusMessage =
+    focus === "query" && focusQuery
+      ? {
+          title: "Sujet article ciblé",
+          detail: `PraeviSEO a ouvert le studio autour de "${focusQuery}". Lance d’abord ce brouillon ici, puis génère l’image et publie depuis la même vue.`,
+          href: focusedSiteId ? getSitePath(focusedSiteId) : null,
+        }
+      : focus === "content" && focusedContent
+        ? {
+            title: "Contenu ciblé dans le studio",
+            detail: `${focusedContent.title} est la cible du moment. Tu peux maintenant le réécrire, générer son image, le prévisualiser puis le publier au même endroit.`,
+            href: focusedContent.live_url || focusedContent.preview_url || null,
+          }
+        : null;
 
   return (
     <div className="min-h-screen">
@@ -133,6 +177,53 @@ export default async function PublicationsPage() {
         }
       />
       <div className="p-6 space-y-6">
+        {feedbackTitle ? (
+          <div
+            className={[
+              "rounded-2xl px-5 py-4",
+              feedback === "error"
+                ? "border border-danger/30 bg-danger/10"
+                : feedback === "warning"
+                  ? "border border-warning/30 bg-warning/10"
+                  : "border border-success/30 bg-success/10",
+            ].join(" ")}
+          >
+            <div className="text-sm font-semibold text-text">{feedbackTitle}</div>
+            {feedbackDetail ? (
+              <p className="mt-2 text-sm leading-6 text-text-muted">{feedbackDetail}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {focusMessage ? (
+          <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">
+                  {focusMessage.detail}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {queryStudioAction ? (
+                  <form action={queryStudioAction}>
+                    <Button size="sm">Créer l’article maintenant</Button>
+                  </form>
+                ) : null}
+                {focusMessage.href ? (
+                  <Button href={focusMessage.href} variant="secondary" size="sm" external={focusMessage.href.startsWith("http")}>
+                    Ouvrir la cible
+                  </Button>
+                ) : (
+                  <Button href="#prepares" variant="secondary" size="sm">
+                    Aller au studio
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <CockpitSectionNav
           items={[
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: publications.items.length, tone: "default" },
@@ -176,14 +267,20 @@ export default async function PublicationsPage() {
           {studioItems.length > 0 ? (
             <div className="grid gap-4 xl:grid-cols-2">
               {studioItems.map((item) => {
-                const rewriteAction = launchPremiumRewriteAction.bind(null, item.site_id, item.slug || undefined);
-                const imageAction = launchPremiumImageAction.bind(null, item.site_id, item.slug || undefined);
-                const publicationAction = launchPremiumPublicationAction.bind(null, item.site_id, item.slug || undefined);
+                const rewriteAction = launchPremiumRewriteToStudioAction.bind(null, item.site_id, item.slug || undefined);
+                const imageAction = launchPremiumImageToStudioAction.bind(null, item.site_id, item.slug || undefined);
+                const publicationAction = launchPremiumPublicationToStudioAction.bind(null, item.site_id, item.slug || undefined);
+                const isFocused =
+                  (focus === "content" && focusSlug && item.slug === focusSlug && (!focusSite || item.site_id === focusSite)) ||
+                  (focus === "query" && focusSite && item.site_id === focusSite);
 
                 return (
                   <article
                     key={`studio-${item.id}`}
-                    className="overflow-hidden rounded-2xl border border-border bg-surface-2"
+                    className={[
+                      "overflow-hidden rounded-2xl bg-surface-2",
+                      isFocused ? "border border-brand/40 ring-1 ring-brand/30" : "border border-border",
+                    ].join(" ")}
                   >
                     {item.image_url ? (
                       <img

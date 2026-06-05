@@ -6,7 +6,7 @@ import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
-import { getDashboard, getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
+import { getDashboard, getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -168,10 +168,10 @@ export default async function QueriesCockpitPage({ searchParams }: { searchParam
     const linkedPublication = findLinkedPublication(query, siteId);
     const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [
       {
-        label: linkedPublication ? "Ouvrir l’automatisation" : "Voir les optimisations",
-        href: linkedPublication
-          ? `/sites/${siteId}/automation?focus=query&query=${encodeURIComponent(query)}`
-          : `/optimizations?focus=query&site=${encodeURIComponent(siteId)}&query=${encodeURIComponent(query)}`,
+        label: linkedPublication ? "Ouvrir le studio ciblé" : "Créer l’article ciblé",
+        href: linkedPublication?.slug
+          ? `/publications?focus=content&site=${encodeURIComponent(siteId)}&slug=${encodeURIComponent(linkedPublication.slug)}`
+          : `/publications?focus=query&site=${encodeURIComponent(siteId)}&query=${encodeURIComponent(query)}`,
         variant: "primary",
       },
     ];
@@ -184,14 +184,14 @@ export default async function QueriesCockpitPage({ searchParams }: { searchParam
       });
     } else if (linkedPublication) {
       actions.push({
-        label: "Ouvrir le site",
-        href: getSitePath(siteId),
+        label: "Ouvrir l’automatisation",
+        href: `/sites/${siteId}/automation?focus=query&query=${encodeURIComponent(query)}`,
         variant: "secondary",
       });
     } else {
       actions.push({
-        label: "Voir les pages liées",
-        href: `/pages?focus=query&site=${encodeURIComponent(siteId)}&target=${encodeURIComponent(query)}`,
+        label: "Voir les optimisations",
+        href: `/optimizations?focus=query&site=${encodeURIComponent(siteId)}&query=${encodeURIComponent(query)}`,
         variant: "secondary",
       });
     }

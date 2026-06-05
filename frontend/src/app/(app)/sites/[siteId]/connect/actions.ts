@@ -101,6 +101,27 @@ function buildAutomationFeedbackUrl(
   return `${getSiteAutomationPath(siteId)}?${params.toString()}`;
 }
 
+function buildStudioFeedbackUrl(
+  type: "success" | "warning" | "error",
+  title: string,
+  detail: string,
+  extra: Record<string, string | null | undefined> = {}
+): string {
+  const params = new URLSearchParams({
+    feedback: type,
+    feedback_title: title,
+    feedback_detail: detail,
+  });
+
+  for (const [key, value] of Object.entries(extra)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  return `/publications?${params.toString()}`;
+}
+
 export async function submitRemoteInstallAction(
   siteId: string,
   _previousState: RemoteInstallActionState,
@@ -259,6 +280,25 @@ export async function launchPremiumGenerationForKeywordAction(siteId: string, ke
   }
 }
 
+export async function launchPremiumGenerationToStudioAction(siteId: string, keyword: string): Promise<void> {
+  await requestPremiumGeneration(siteId, { keyword });
+  revalidatePath("/publications");
+  revalidatePath(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(
+    buildStudioFeedbackUrl(
+      "success",
+      "Article ciblé lancé",
+      `PraeviSEO a bien démarré un nouvel article autour de "${keyword}". Retrouvez-le ici dès que le brouillon remonte dans le studio.`,
+      {
+        focus: "query",
+        site: siteId,
+        query: keyword,
+      }
+    )
+  );
+}
+
 export async function launchPremiumRewriteAction(siteId: string, slug?: string | null): Promise<void> {
   await requestPremiumRewrite(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
@@ -271,6 +311,27 @@ export async function launchPremiumRewriteAction(siteId: string, slug?: string |
       slug
         ? `PraeviSEO a relancé la réécriture de "${slug}" et a remis ce contenu dans la boucle de travail.`
         : "PraeviSEO a relancé une réécriture utile sur le contenu le plus prioritaire du moment."
+    )
+  );
+}
+
+export async function launchPremiumRewriteToStudioAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumRewrite(siteId, slug ? { slug } : undefined);
+  revalidatePath("/publications");
+  revalidatePath(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(
+    buildStudioFeedbackUrl(
+      "success",
+      "Réécriture préparée",
+      slug
+        ? `PraeviSEO a relancé la réécriture de "${slug}" et a remis ce contenu dans la boucle du studio éditorial.`
+        : "PraeviSEO a relancé une réécriture utile et la remontera ici dans le studio éditorial.",
+      {
+        focus: "content",
+        site: siteId,
+        slug: slug ?? undefined,
+      }
     )
   );
 }
@@ -307,6 +368,27 @@ export async function launchPremiumImageAction(siteId: string, slug?: string | n
   );
 }
 
+export async function launchPremiumImageToStudioAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumImages(siteId, slug ? { slug } : undefined);
+  revalidatePath("/publications");
+  revalidatePath(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(
+    buildStudioFeedbackUrl(
+      "success",
+      "Image SEO préparée",
+      slug
+        ? `PraeviSEO a préparé l’image SEO de "${slug}" et l’a renvoyée dans le studio.`
+        : "PraeviSEO a préparé une image SEO utile et la remontera ici dans le studio éditorial.",
+      {
+        focus: "content",
+        site: siteId,
+        slug: slug ?? undefined,
+      }
+    )
+  );
+}
+
 export async function launchPremiumPublicationAction(siteId: string, slug?: string | null): Promise<void> {
   await requestPremiumPublication(siteId, slug ? { slug } : undefined);
   revalidatePath(getSiteConnectPath(siteId));
@@ -319,6 +401,27 @@ export async function launchPremiumPublicationAction(siteId: string, slug?: stri
       slug
         ? `PraeviSEO a poussé "${slug}" vers le site client.`
         : "PraeviSEO a poussé le contenu prêt le plus prioritaire vers le site client."
+    )
+  );
+}
+
+export async function launchPremiumPublicationToStudioAction(siteId: string, slug?: string | null): Promise<void> {
+  await requestPremiumPublication(siteId, slug ? { slug } : undefined);
+  revalidatePath("/publications");
+  revalidatePath(getSiteConnectPath(siteId));
+  revalidatePath(getSiteAutomationPath(siteId));
+  redirect(
+    buildStudioFeedbackUrl(
+      "success",
+      "Publication lancée",
+      slug
+        ? `PraeviSEO a poussé "${slug}" vers le site client. Le studio garde maintenant son état live à jour.`
+        : "PraeviSEO a poussé le contenu prêt le plus prioritaire vers le site client.",
+      {
+        focus: "content",
+        site: siteId,
+        slug: slug ?? undefined,
+      }
     )
   );
 }
