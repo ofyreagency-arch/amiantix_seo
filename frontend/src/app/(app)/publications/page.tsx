@@ -1,10 +1,17 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
+import {
+  launchPremiumImageAction,
+  launchPremiumPublicationAction,
+  launchPremiumRewriteAction,
+} from "@/app/(app)/sites/[siteId]/connect/actions";
 import { getOptimizations, getPublications } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
+import { Eye, ImagePlus, PenSquare, UploadCloud } from "lucide-react";
 
 function impactLabel(impact: string): string {
   return (
@@ -41,6 +48,16 @@ export default async function PublicationsPage() {
   const observedItems = publications.items.filter((item) => !!item.observed_content);
   const visibleItems = publications.items.filter((item) => item.published_live);
   const draftItems = publications.items.filter((item) => !item.published_live);
+  const studioItems = [...publications.items]
+    .sort((a, b) => {
+      if (a.published_live !== b.published_live) {
+        return a.published_live ? -1 : 1;
+      }
+
+      return (b.published_at ? new Date(b.published_at).getTime() : 0)
+        - (a.published_at ? new Date(a.published_at).getTime() : 0);
+    })
+    .slice(0, 4);
   const risingItems = [...visibleItems]
     .sort((a, b) => b.gsc_metrics.impressions - a.gsc_metrics.impressions)
     .slice(0, 4);
@@ -148,6 +165,113 @@ export default async function PublicationsPage() {
           />
         </div>
 
+        <CockpitSignalListCard
+          id="prepares"
+          className="scroll-mt-24"
+          title="Studio éditorial"
+          description="Le bon endroit pour prévisualiser un article, lancer son image, préparer sa réécriture puis le publier sur le site client."
+          empty={studioItems.length === 0}
+          emptyMessage="Aucun contenu n’est encore disponible dans le moteur. Dès qu’un article est généré ou repéré, il apparaîtra ici avec ses vraies actions."
+        >
+          {studioItems.length > 0 ? (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {studioItems.map((item) => {
+                const rewriteAction = launchPremiumRewriteAction.bind(null, item.site_id, item.slug || undefined);
+                const imageAction = launchPremiumImageAction.bind(null, item.site_id, item.slug || undefined);
+                const publicationAction = launchPremiumPublicationAction.bind(null, item.site_id, item.slug || undefined);
+
+                return (
+                  <article
+                    key={`studio-${item.id}`}
+                    className="overflow-hidden rounded-2xl border border-border bg-surface-2"
+                  >
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.image_alt ?? item.title}
+                        className="h-52 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-52 items-center justify-center bg-[radial-gradient(circle_at_top,_hsl(var(--brand)/0.18),_transparent_55%),linear-gradient(180deg,hsl(var(--surface-2)),hsl(var(--surface)))] text-text-subtle">
+                        <div className="text-center">
+                          <ImagePlus className="mx-auto h-8 w-8" />
+                          <div className="mt-3 text-xs font-medium uppercase tracking-[0.24em]">
+                            Image à générer
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-4 px-4 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={item.published_live ? "success" : "secondary"}>
+                          {item.published_live ? "visible sur le site" : "préparé dans le moteur"}
+                        </Badge>
+                        <Badge variant={item.image_url ? "secondary" : "warning"}>
+                          {item.image_url ? "image prête" : "image manquante"}
+                        </Badge>
+                        {item.cluster ? <Badge variant="secondary">{item.cluster}</Badge> : null}
+                      </div>
+
+                      <div>
+                        <h3 className="text-base font-semibold text-text">{item.title}</h3>
+                        <p className="mt-1 text-xs text-text-subtle">
+                          {item.site_id} · /{item.slug || ""}
+                        </p>
+                      </div>
+
+                      <p className="text-sm leading-6 text-text-muted">
+                        {item.excerpt}
+                      </p>
+
+                      <div className="grid gap-2 text-xs text-text-subtle sm:grid-cols-2">
+                        <span>SEO : {item.seo_score ?? "n/a"}</span>
+                        <span>Position : {item.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
+                        <span>Impressions : {item.gsc_metrics.impressions}</span>
+                        <span>Image : {item.image_status ?? (item.image_url ? "ready" : "pending")}</span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {item.preview_url ? (
+                          <Button href={item.preview_url} external variant="secondary" size="sm">
+                            <Eye className="h-4 w-4" />
+                            Prévisualiser
+                          </Button>
+                        ) : null}
+                        {item.live_url ? (
+                          <Button href={item.live_url} external variant="secondary" size="sm">
+                            <UploadCloud className="h-4 w-4" />
+                            Voir le live
+                          </Button>
+                        ) : null}
+                        <form action={imageAction}>
+                          <Button variant="secondary" size="sm">
+                            <ImagePlus className="h-4 w-4" />
+                            {item.image_url ? "Regénérer l’image" : "Générer l’image"}
+                          </Button>
+                        </form>
+                        <form action={rewriteAction}>
+                          <Button variant="secondary" size="sm">
+                            <PenSquare className="h-4 w-4" />
+                            Réécrire
+                          </Button>
+                        </form>
+                        {!item.published_live ? (
+                          <form action={publicationAction}>
+                            <Button size="sm">
+                              <UploadCloud className="h-4 w-4" />
+                              Publier
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </CockpitSignalListCard>
+
         <div className="grid gap-6 xl:grid-cols-2">
           <CockpitSignalListCard
             title="Pourquoi enrichir ce contenu maintenant"
@@ -233,8 +357,6 @@ export default async function PublicationsPage() {
 
         <div className="grid gap-6 xl:grid-cols-2">
           <CockpitSignalListCard
-            id="prepares"
-            className="scroll-mt-24"
             title="Articles à suivre"
             description="Les contenus que PraeviSEO garde dans le radar SEO, qu’ils soient déjà visibles ou encore à pousser."
             empty={publications.items.length === 0}
