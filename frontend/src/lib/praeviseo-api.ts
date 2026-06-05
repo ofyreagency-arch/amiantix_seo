@@ -473,6 +473,12 @@ export type PraeviseoPublication = {
   published_live: boolean;
   published_live_at: string | null;
   live_url: string | null;
+  preview_url: string | null;
+  meta_description: string | null;
+  excerpt: string;
+  image_url: string | null;
+  image_alt: string | null;
+  image_status: string | null;
   seo_score: number | null;
   indexability_score: number | null;
   topical_score: number | null;
@@ -1301,17 +1307,23 @@ const mockOptimizations: PraeviseoOptimizations = {
 const mockPublications: PraeviseoPublications = {
   stats: { engine_published: 5, live_published: 3, with_live_url: 3 },
   items: [
-    {
-      id: 11,
-      site_id: "amiantix",
-      title: "Diagnostic amiante en copropriete",
-      slug: "diagnostic-amiante-copropriete",
-      status: "published",
-      published_at: new Date().toISOString(),
-      published_live: true,
-      published_live_at: new Date().toISOString(),
-      live_url: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
-      seo_score: 78,
+      {
+        id: 11,
+        site_id: "amiantix",
+        title: "Diagnostic amiante en copropriete",
+        slug: "diagnostic-amiante-copropriete",
+        status: "published",
+        published_at: new Date().toISOString(),
+        published_live: true,
+        published_live_at: new Date().toISOString(),
+        live_url: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
+        preview_url: "https://seo.amiantix.com/diagnostic-amiante-copropriete",
+        meta_description: "Comment anticiper un diagnostic amiante en copropriete, savoir quoi verifier et comment agir sans bloquer la suite.",
+        excerpt: "Un article deja solide pour expliquer le diagnostic amiante en copropriete, les points a verifier, les documents a reunir et la bonne suite a engager.",
+        image_url: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=1200&q=80",
+        image_alt: "Diagnostic amiante en copropriete",
+        image_status: "ready",
+        seo_score: 78,
       indexability_score: 84,
       topical_score: 81,
       quality_score: 77,
@@ -1354,17 +1366,23 @@ const mockPublications: PraeviseoPublications = {
         created_at: new Date().toISOString(),
       },
     },
-    {
-      id: 12,
-      site_id: "zamio",
-      title: "Guide estimation locale",
-      slug: "guide-estimation-locale",
-      status: "published",
-      published_at: new Date().toISOString(),
-      published_live: false,
-      published_live_at: null,
-      live_url: null,
-      seo_score: 72,
+      {
+        id: 12,
+        site_id: "zamio",
+        title: "Guide estimation locale",
+        slug: "guide-estimation-locale",
+        status: "published",
+        published_at: new Date().toISOString(),
+        published_live: false,
+        published_live_at: null,
+        live_url: null,
+        preview_url: "https://seo.amiantix.com/guide-estimation-locale",
+        meta_description: "Les premiers repères pour estimer un bien localement avec plus de contexte et moins d approximations.",
+        excerpt: "Ce brouillon est deja genere dans le moteur et attend encore une image propre puis une publication vers le site client.",
+        image_url: null,
+        image_alt: null,
+        image_status: "pending",
+        seo_score: 72,
       indexability_score: 70,
       topical_score: 74,
       quality_score: 69,

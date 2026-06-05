@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ClientWorkspaceController extends Controller
@@ -252,6 +253,12 @@ class ClientWorkspaceController extends Controller
                 'published_live' => $hasPublishedLiveColumn ? (bool) $page->published_live : false,
                 'published_live_at' => $hasPublishedLiveAtColumn ? $page->published_live_at : null,
                 'live_url' => $hasLiveUrlColumn ? $page->live_url : null,
+                'preview_url' => $this->publicationPreviewUrl($page),
+                'meta_description' => $page->meta_description ? (string) $page->meta_description : null,
+                'excerpt' => $this->publicationExcerpt($page),
+                'image_url' => $this->publicationImageUrl($page),
+                'image_alt' => $page->image_alt ? (string) $page->image_alt : null,
+                'image_status' => $page->image_status ? (string) $page->image_status : null,
                 'seo_score' => $page->seo_score,
                 'indexability_score' => $page->indexability_score,
                 'topical_score' => $page->topical_score,
@@ -391,6 +398,37 @@ class ClientWorkspaceController extends Controller
         return (float) $metric->impressions > 0.0
             || (float) $metric->clicks > 0.0
             || (float) $metric->position > 0.0;
+    }
+
+    private function publicationPreviewUrl(SeoPage $page): string
+    {
+        return rtrim((string) config('app.url'), '/').$page->canonicalPath();
+    }
+
+    private function publicationExcerpt(SeoPage $page): string
+    {
+        $fallback = $page->meta_description ?: $page->content ?: $page->title ?: $page->h1 ?: $page->keyword;
+
+        return (string) Str::of((string) $fallback)
+            ->replaceMatches('/[#>*_`-]+/u', ' ')
+            ->replaceMatches('/\s+/u', ' ')
+            ->trim()
+            ->limit(220);
+    }
+
+    private function publicationImageUrl(SeoPage $page): ?string
+    {
+        $imagePath = trim((string) ($page->image_path ?? ''));
+
+        if ($imagePath === '') {
+            return null;
+        }
+
+        if (Str::startsWith($imagePath, ['http://', 'https://', '/'])) {
+            return $imagePath;
+        }
+
+        return asset('storage/'.$imagePath);
     }
 
     /**

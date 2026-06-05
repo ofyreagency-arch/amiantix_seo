@@ -1,9 +1,15 @@
-import { notFound } from "next/navigation";
 import { Topbar } from "@/components/layout/topbar";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
+import { SiteAccessState } from "@/components/sites/site-access-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  launchPremiumGenerationForKeywordAction,
+  launchPremiumImageAction,
+  launchPremiumPublicationAction,
+  launchPremiumRewriteAction,
+} from "@/app/(app)/sites/[siteId]/connect/actions";
 import {
   formatGscStatus,
   getPraeviseoActivationLabel,
@@ -17,7 +23,7 @@ import {
   hasBackendConnection,
 } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
-import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, Globe, ImagePlus, PenSquare, SearchCheck, Sparkles, UploadCloud } from "lucide-react";
 
 interface SiteDetailPageProps {
   params: Promise<{ siteId: string }>;
@@ -28,7 +34,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const site = await getSite(siteId);
 
   if (!site) {
-    notFound();
+    return <SiteAccessState siteId={siteId} areaLabel="le cockpit du site" />;
   }
 
   const technicalPath = getSiteConnectPath(site.site_id);
@@ -74,6 +80,16 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const siteIndexationAlerts = site.summary.indexation_alerts.slice(0, 4);
   const siteRecommendations = optimizations.items.filter((item) => item.page.site_id === site.site_id).slice(0, 3);
   const siteContent = publications.items.filter((item) => item.site_id === site.site_id);
+  const contentPreviewItems = [...siteContent]
+    .sort((a, b) => {
+      if (a.published_live !== b.published_live) {
+        return a.published_live ? -1 : 1;
+      }
+
+      return (b.published_at ? new Date(b.published_at).getTime() : 0)
+        - (a.published_at ? new Date(a.published_at).getTime() : 0);
+    })
+    .slice(0, 3);
   const refreshContent = siteContent.filter((item) => !!item.latest_suggestion || (item.seo_score ?? 0) < 80).slice(0, 3);
   const observedContent = siteContent.filter((item) => !!item.observed_content);
   const observedQueryMatches = observedContent
@@ -126,6 +142,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       );
     })
     .slice(0, 3);
+  const articleCandidateQuery = risingQueries[0]?.query ?? newQueries[0]?.query ?? queryWatchlist[0]?.query ?? null;
+  const articleGenerationAction = articleCandidateQuery
+    ? launchPremiumGenerationForKeywordAction.bind(null, site.site_id, articleCandidateQuery)
+    : null;
   const progressMoments = [
     site.summary.gsc_delta_impressions > 0
       ? `La visibilité remonte avec +${new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impression(s) depuis la lecture précédente.`
@@ -736,110 +756,244 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
           </Card>
         </div>
 
-        <div id="blogs" className="grid gap-6 xl:grid-cols-3 scroll-mt-24">
+        <div id="blogs" className="space-y-6 scroll-mt-24">
           <Card>
-            <CardHeader>
-              <CardTitle>Contenus à enrichir</CardTitle>
-              <CardDescription>
-                Les pages qui ont déjà une vraie base SEO, mais qui peuvent gagner en profondeur ou en précision.
-              </CardDescription>
+            <CardHeader className="gap-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <CardTitle>Articles préparés, images et preview</CardTitle>
+                  <CardDescription>
+                    Le flux concret pour écrire un article, générer son image, le prévisualiser puis le pousser sur le site client.
+                  </CardDescription>
+                </div>
+                <div className="rounded-2xl border border-brand/20 bg-brand-muted px-4 py-4 lg:max-w-md">
+                  <div className="text-sm font-semibold text-text">Créer un nouvel article</div>
+                  <p className="mt-2 text-sm text-text-muted leading-6">
+                    {articleCandidateQuery
+                      ? `PraeviSEO a déjà un angle éditorial exploitable : "${articleCandidateQuery}".`
+                      : "PraeviSEO attend encore une requête assez nette pour ouvrir un nouvel article vraiment utile."}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {articleGenerationAction ? (
+                      <form action={articleGenerationAction}>
+                        <Button size="sm">Créer cet article</Button>
+                      </form>
+                    ) : (
+                      <Button href={`/sites/${site.site_id}/queries`} variant="secondary" size="sm">
+                        Voir les requêtes utiles
+                      </Button>
+                    )}
+                    <Button href="/publications" variant="secondary" size="sm">
+                      Ouvrir l’onglet contenus
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {enrichmentContent.length === 0 ? (
+            <CardContent className="space-y-4">
+              {contentPreviewItems.length === 0 ? (
                 <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun contenu à enrichir fortement pour le moment. PraeviSEO rouvrira ce bloc dès qu’un contenu commence à porter.
+                  Aucun article n’est encore prêt dans le moteur pour ce site. Dès qu’un contenu est généré, il apparaîtra ici avec son image, sa preview et ses boutons d’action.
                 </div>
               ) : (
-                enrichmentContent.map((item) => (
-                  <div key={`enrichment-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-text">{item.title}</div>
-                        <div className="text-xs text-text-subtle">{item.observed_content?.cluster_label ?? "contenu observé"}</div>
-                      </div>
-                      <Badge variant="secondary">
-                        Solidité {item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted leading-6">
-                      {item.latest_suggestion?.summary ??
-                        `${item.observed_content?.snapshot_word_count ?? 0} mots observés, ${item.observed_content?.query_match_count ?? 0} requête(s) déjà reliée(s) à cette page.`}
-                    </p>
-                  </div>
-                ))
+                <div className="grid gap-4 xl:grid-cols-3">
+                  {contentPreviewItems.map((item) => {
+                    const rewriteAction = launchPremiumRewriteAction.bind(null, site.site_id, item.slug || undefined);
+                    const imageAction = launchPremiumImageAction.bind(null, site.site_id, item.slug || undefined);
+                    const publicationAction = launchPremiumPublicationAction.bind(null, site.site_id, item.slug || undefined);
+
+                    return (
+                      <article
+                        key={`preview-${item.id}`}
+                        className="overflow-hidden rounded-2xl border border-border bg-surface-2"
+                      >
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.image_alt ?? item.title}
+                            className="h-48 w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-48 items-center justify-center bg-[radial-gradient(circle_at_top,_hsl(var(--brand)/0.18),_transparent_55%),linear-gradient(180deg,hsl(var(--surface-2)),hsl(var(--surface)))] text-text-subtle">
+                            <div className="text-center">
+                              <ImagePlus className="mx-auto h-8 w-8" />
+                              <div className="mt-3 text-xs font-medium uppercase tracking-[0.24em]">
+                                Image à générer
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="space-y-4 px-4 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={item.published_live ? "default" : "secondary"}>
+                              {item.published_live ? "visible sur le site" : "préparé dans le moteur"}
+                            </Badge>
+                            <Badge variant={item.image_url ? "secondary" : "warning"}>
+                              {item.image_url ? "image prête" : "image manquante"}
+                            </Badge>
+                            {item.cluster ? <Badge variant="secondary">{item.cluster}</Badge> : null}
+                          </div>
+                          <div>
+                            <h3 className="text-base font-semibold text-text">{item.title}</h3>
+                            <p className="mt-1 text-xs text-text-subtle">
+                              /{item.slug || ""} {item.live_url ? "· URL live prête" : "· en attente de publication"}
+                            </p>
+                          </div>
+                          <p className="text-sm leading-6 text-text-muted">{item.excerpt}</p>
+                          <div className="grid gap-2 text-xs text-text-subtle sm:grid-cols-2">
+                            <span>SEO : {item.seo_score ?? "n/a"}</span>
+                            <span>Position : {item.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
+                            <span>Impressions : {item.gsc_metrics.impressions}</span>
+                            <span>Image : {item.image_status ?? (item.image_url ? "ready" : "pending")}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {item.preview_url ? (
+                              <Button href={item.preview_url} external variant="secondary" size="sm">
+                                <Eye className="h-4 w-4" />
+                                Prévisualiser
+                              </Button>
+                            ) : null}
+                            {item.live_url ? (
+                              <Button href={item.live_url} external variant="secondary" size="sm">
+                                <UploadCloud className="h-4 w-4" />
+                                Voir sur le site
+                              </Button>
+                            ) : null}
+                            <form action={imageAction}>
+                              <Button variant="secondary" size="sm">
+                                <ImagePlus className="h-4 w-4" />
+                                {item.image_url ? "Regénérer l’image" : "Générer l’image"}
+                              </Button>
+                            </form>
+                            <form action={rewriteAction}>
+                              <Button variant="secondary" size="sm">
+                                <PenSquare className="h-4 w-4" />
+                                Préparer une réécriture
+                              </Button>
+                            </form>
+                            {!item.published_live ? (
+                              <form action={publicationAction}>
+                                <Button size="sm">
+                                  <UploadCloud className="h-4 w-4" />
+                                  Publier sur le site
+                                </Button>
+                              </form>
+                            ) : null}
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Maillage à renforcer</CardTitle>
-              <CardDescription>
-                Les contenus où PraeviSEO voit déjà des liens internes utiles à ouvrir pour mieux pousser la page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {linkingContent.length === 0 ? (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune page ne demande encore de gros effort de liaison pour le moment.
-                </div>
-              ) : (
-                linkingContent.map((item) => (
-                  <div key={`linking-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-text">{item.title}</div>
-                        <div className="text-xs text-text-subtle">{item.observed_content?.internal_inlinks ?? 0} lien(s) entrant(s) observé(s)</div>
-                      </div>
-                      <Badge variant="warning">
-                        {item.observed_content?.internal_link_suggestions_count ?? 0} piste(s)
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted leading-6">
-                      {item.observed_content?.top_internal_link_target
-                        ? `PraeviSEO suggère déjà de relier cette page à ${item.observed_content.top_internal_link_target}.`
-                        : "PraeviSEO voit déjà des occasions de mieux relier cette page au reste du site."}
-                    </p>
+          <div className="grid gap-6 xl:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Contenus à enrichir</CardTitle>
+                <CardDescription>
+                  Les pages qui ont déjà une vraie base SEO, mais qui peuvent gagner en profondeur ou en précision.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {enrichmentContent.length === 0 ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    Aucun contenu à enrichir fortement pour le moment. PraeviSEO rouvrira ce bloc dès qu’un contenu commence à porter.
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  enrichmentContent.map((item) => (
+                    <div key={`enrichment-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-text">{item.title}</div>
+                          <div className="text-xs text-text-subtle">{item.observed_content?.cluster_label ?? "contenu observé"}</div>
+                        </div>
+                        <Badge variant="secondary">
+                          Solidité {item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted leading-6">
+                        {item.latest_suggestion?.summary ??
+                          `${item.observed_content?.snapshot_word_count ?? 0} mots observés, ${item.observed_content?.query_match_count ?? 0} requête(s) déjà reliée(s) à cette page.`}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Sujets à clarifier</CardTitle>
-              <CardDescription>
-                Les sujets proches ou les recouvrements que PraeviSEO garde déjà sous contrôle.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {cannibalContent.length === 0 ? (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun sujet très proche à clarifier de toute urgence pour le moment.
-                </div>
-              ) : (
-                cannibalContent.map((item) => (
-                  <div key={`cannibal-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-text">{item.title}</div>
-                        <div className="text-xs text-text-subtle">Recouvrement estimé : {item.observed_content?.overlap_score ?? 0} / 100</div>
-                      </div>
-                      <Badge variant="warning">
-                        {(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} point(s) à clarifier
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-text-muted leading-6">
-                      {item.observed_content?.top_cannibalization_target
-                        ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}.`
-                        : "PraeviSEO voit déjà des recouvrements à clarifier sur ce contenu."}
-                    </p>
+            <Card>
+              <CardHeader>
+                <CardTitle>Maillage à renforcer</CardTitle>
+                <CardDescription>
+                  Les contenus où PraeviSEO voit déjà des liens internes utiles à ouvrir pour mieux pousser la page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {linkingContent.length === 0 ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    Aucune page ne demande encore de gros effort de liaison pour le moment.
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  linkingContent.map((item) => (
+                    <div key={`linking-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-text">{item.title}</div>
+                          <div className="text-xs text-text-subtle">{item.observed_content?.internal_inlinks ?? 0} lien(s) entrant(s) observé(s)</div>
+                        </div>
+                        <Badge variant="warning">
+                          {item.observed_content?.internal_link_suggestions_count ?? 0} piste(s)
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted leading-6">
+                        {item.observed_content?.top_internal_link_target
+                          ? `PraeviSEO suggère déjà de relier cette page à ${item.observed_content.top_internal_link_target}.`
+                          : "PraeviSEO voit déjà des occasions de mieux relier cette page au reste du site."}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Sujets à clarifier</CardTitle>
+                <CardDescription>
+                  Les sujets proches ou les recouvrements que PraeviSEO garde déjà sous contrôle.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {cannibalContent.length === 0 ? (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                    Aucun sujet très proche à clarifier de toute urgence pour le moment.
+                  </div>
+                ) : (
+                  cannibalContent.map((item) => (
+                    <div key={`cannibal-${item.id}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-text">{item.title}</div>
+                          <div className="text-xs text-text-subtle">Recouvrement estimé : {item.observed_content?.overlap_score ?? 0} / 100</div>
+                        </div>
+                        <Badge variant="warning">
+                          {(item.observed_content?.cannibalization_count ?? 0) + (item.observed_content?.overlap_count ?? 0)} point(s) à clarifier
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted leading-6">
+                        {item.observed_content?.top_cannibalization_target
+                          ? `Sujet à clarifier face à ${item.observed_content.top_cannibalization_target}.`
+                          : "PraeviSEO voit déjà des recouvrements à clarifier sur ce contenu."}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <div id="indexation" className="grid gap-6 xl:grid-cols-[1fr_0.9fr] scroll-mt-24">
