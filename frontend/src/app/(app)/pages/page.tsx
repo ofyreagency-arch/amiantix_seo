@@ -58,6 +58,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     ...observedPillarPages.map((item) => ({
       id: `${item.site_id}-${item.slug}-pillar-priority`,
       site_id: item.site_id,
+      slug: item.slug,
       title: item.label,
       site_name: item.site_name,
       badge: "Pilier potentiel",
@@ -69,6 +70,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     ...observedLinkGapPages.map((item) => ({
       id: `${item.site_id}-${item.slug}-link-gap-priority`,
       site_id: item.site_id,
+      slug: item.slug,
       title: item.label,
       site_name: item.site_name,
       badge: "Sous-maillée",
@@ -78,6 +80,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     ...observedOrphanAlerts.map((item) => ({
       id: `${item.site_id}-${item.slug}-orphan-priority`,
       site_id: item.site_id,
+      slug: item.slug,
       title: item.label,
       site_name: item.site_name,
       badge: "Orpheline",
@@ -87,6 +90,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     ...observedWeakPages.map((item) => ({
       id: `${item.site_id}-${item.slug}-weak-priority`,
       site_id: item.site_id,
+      slug: item.slug,
       title: item.label,
       site_name: item.site_name,
       badge: "Faible",
@@ -320,17 +324,49 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     ? `En traitant cette page, vous pouvez renforcer plus vite la structure du site : ${leadStructuralPage.description.toLowerCase()}`
     : "Une page mieux reliee, mieux enrichie ou mieux clarifiee aide Google a comprendre plus vite l'ensemble du site.";
   const siteIdByName = new Map(dashboard.sites.map((site) => [site.name, site.site_id]));
-  const siteActions = (
+  const studioHref = (
     siteId: string,
-    options?: { includeSearchConsole?: boolean; includeSite?: boolean }
+    slug: string,
+    action: "rewrite" | "image" | "publish" | "preview" | "linking"
+  ) =>
+    `/publications?focus=content&site=${encodeURIComponent(siteId)}&slug=${encodeURIComponent(slug)}&action=${encodeURIComponent(action)}`;
+  const pageActions = (
+    siteId: string,
+    options?: {
+      slug?: string | null;
+      preferredAction?: "rewrite" | "image" | "publish" | "preview" | "linking";
+      includeSearchConsole?: boolean;
+      includeSite?: boolean;
+    }
   ) => {
     if (!siteId) {
       return [];
     }
 
-    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [
-      { label: "Ouvrir l’automatisation", href: `/sites/${siteId}/automation`, variant: "primary" },
-    ];
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [];
+
+    if (options?.slug && options?.preferredAction) {
+      actions.push({
+        label:
+          options.preferredAction === "rewrite"
+            ? "Ouvrir la réécriture"
+            : options.preferredAction === "image"
+              ? "Ouvrir l’image SEO"
+              : options.preferredAction === "publish"
+                ? "Ouvrir la publication"
+                : options.preferredAction === "preview"
+                  ? "Ouvrir la preview"
+                  : "Ouvrir le maillage",
+        href: studioHref(siteId, options.slug, options.preferredAction),
+        variant: "primary",
+      });
+    } else {
+      actions.push({
+        label: "Ouvrir l’automatisation",
+        href: `/sites/${siteId}/automation`,
+        variant: "primary",
+      });
+    }
 
     if (options?.includeSearchConsole) {
       actions.push({
@@ -355,14 +391,18 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       ? {
           title: "Page à retravailler en priorité",
           detail: `${focusTarget || "Cette page"} est la cible ouverte depuis une opportunité de refresh. Commencez par la section Pages à refresh ou Pages à surveiller.`,
-          href: "#refresh",
+          href: focusSite && focusTarget
+            ? `/publications?focus=content&site=${encodeURIComponent(focusSite)}&slug=${encodeURIComponent(focusTarget)}&action=rewrite`
+            : "#refresh",
         }
       : focus === "linking"
         ? {
-            title: "Page à mieux relier maintenant",
-            detail: `${focusTarget || "Cette page"} a été ouverte comme cible de maillage. Commencez par les priorités structurelles et les pages importantes encore trop peu reliées.`,
-            href: "#priorites",
-          }
+          title: "Page à mieux relier maintenant",
+          detail: `${focusTarget || "Cette page"} a été ouverte comme cible de maillage. Commencez par les priorités structurelles et les pages importantes encore trop peu reliées.`,
+          href: focusSite && focusTarget
+            ? `/publications?focus=content&site=${encodeURIComponent(focusSite)}&slug=${encodeURIComponent(focusTarget)}&action=linking`
+            : "#priorites",
+        }
         : focus === "query"
           ? {
               title: "Page cible à vérifier pour cette requête",
@@ -534,7 +574,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                   <span className="font-medium">{leadPageSummary.whyNow}</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {siteActions(siteIdByName.get(leadPageSummary.site_name) ?? "", { includeSearchConsole: true }).map((action) => (
+                  {pageActions(siteIdByName.get(leadPageSummary.site_name) ?? "", { includeSearchConsole: true }).map((action) => (
                     <Button key={`${leadPageSummary.title}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
                       {action.label}
                     </Button>
@@ -594,7 +634,14 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 badge={item.badge}
                 badgeTone={item.badgeTone}
                 description={item.description}
-                actions={siteActions(item.site_id, { includeSite: true })}
+                actions={pageActions(item.site_id, {
+                  slug: item.slug,
+                  preferredAction:
+                    item.badge === "Sous-maillée" || item.badge === "Orpheline"
+                      ? "linking"
+                      : "rewrite",
+                  includeSite: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -617,7 +664,14 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     ? `Cette page peut devenir centrale sur son sujet. Solidité ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
                     : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Solidité actuelle ${item.authority_score}.`
                 }
-                actions={siteActions(item.site_id, { includeSite: true })}
+                actions={pageActions(item.site_id, {
+                  slug: item.slug,
+                  preferredAction:
+                    observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
+                      ? "rewrite"
+                      : "linking",
+                  includeSite: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -638,7 +692,11 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 badge="En hausse"
                 badgeTone="success"
                 description={`+${item.delta_impressions} affichage(s) dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
-                actions={siteActions(siteIdByName.get(item.site_name) ?? "", { includeSearchConsole: true })}
+                actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
+                  slug: item.slug,
+                  preferredAction: "preview",
+                  includeSearchConsole: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -659,7 +717,11 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 badge="En baisse"
                 badgeTone="danger"
                 description={`${Math.abs(item.delta_impressions)} affichage(s) de moins dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
-                actions={siteActions(siteIdByName.get(item.site_name) ?? "", { includeSearchConsole: true })}
+                actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
+                  slug: item.slug,
+                  preferredAction: "rewrite",
+                  includeSearchConsole: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -679,7 +741,11 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 subtitle={item.site_name}
                 badge={`${item.impressions} impressions`}
                 description={`${item.previous_impressions} affichage(s) observés auparavant, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
-                actions={siteActions(siteIdByName.get(item.site_name) ?? "", { includeSite: true })}
+                actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
+                  slug: item.slug,
+                  preferredAction: "preview",
+                  includeSite: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -708,7 +774,11 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
                     : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale."
                 }
-                actions={siteActions(item.site_id, { includeSite: true })}
+                actions={pageActions(item.site_id, {
+                  slug: "slug" in item ? item.slug : null,
+                  preferredAction: "rewrite",
+                  includeSite: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -736,7 +806,11 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     : `${item.gsc_metrics.impressions} impression(s) montrent deja un signal utile dans Google. Cette page peut encore etre renforcee.`
                   )
                 }
-                actions={siteActions(item.site_id, { includeSite: true })}
+                actions={pageActions(item.site_id, {
+                  slug: "slug" in item ? item.slug : null,
+                  preferredAction: "rewrite",
+                  includeSite: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>
@@ -756,7 +830,17 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 badge={item.priority_label}
                 badgeTone={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}
                 description={item.reason}
-                actions={siteActions(item.site_id, { includeSearchConsole: true, includeSite: true })}
+                actions={pageActions(item.site_id, {
+                  slug: item.slug,
+                  preferredAction:
+                    item.type === "observed_orphan" || item.type === "observed_link_gap"
+                      ? "linking"
+                      : item.type === "low_ctr"
+                        ? "preview"
+                        : "rewrite",
+                  includeSearchConsole: true,
+                  includeSite: true,
+                })}
               />
             ))}
           </CockpitSignalListCard>

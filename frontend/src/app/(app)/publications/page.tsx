@@ -63,6 +63,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
   const focusSite = getValue(resolvedSearchParams.site);
   const focusQuery = getValue(resolvedSearchParams.query);
   const focusSlug = getValue(resolvedSearchParams.slug);
+  const focusAction = getValue(resolvedSearchParams.action);
   const hasRealContent = publications.items.length > 0;
   const observedItems = publications.items.filter((item) => !!item.observed_content);
   const visibleItems = publications.items.filter((item) => item.published_live);
@@ -147,6 +148,14 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
         (!focusSite || item.site_id === focusSite)
     ) ?? null;
   const focusedSiteId = focusSite || focusedContent?.site_id || leadContent?.site_id || publications.items[0]?.site_id || "";
+  const focusActionLabel =
+    {
+      rewrite: "Réécriture",
+      image: "Image SEO",
+      publish: "Publication",
+      preview: "Prévisualisation",
+      linking: "Maillage",
+    }[focusAction] ?? null;
   const queryStudioAction =
     focus === "query" && focusedSiteId && focusQuery
       ? launchPremiumGenerationToStudioAction.bind(null, focusedSiteId, focusQuery)
@@ -161,7 +170,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
       : focus === "content" && focusedContent
         ? {
             title: "Contenu ciblé dans le studio",
-            detail: `${focusedContent.title} est la cible du moment. Tu peux maintenant le réécrire, générer son image, le prévisualiser puis le publier au même endroit.`,
+            detail: `${focusedContent.title} est la cible du moment.${focusActionLabel ? ` Priorité conseillée : ${focusActionLabel}.` : ""} Tu peux maintenant le réécrire, générer son image, le prévisualiser puis le publier au même endroit.`,
             href: focusedContent.live_url || focusedContent.preview_url || null,
           }
         : null;
@@ -273,6 +282,15 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 const isFocused =
                   (focus === "content" && focusSlug && item.slug === focusSlug && (!focusSite || item.site_id === focusSite)) ||
                   (focus === "query" && focusSite && item.site_id === focusSite);
+                const previewVariant = isFocused && focusAction === "preview" ? "primary" : "secondary";
+                const imageVariant = isFocused && focusAction === "image" ? "primary" : "secondary";
+                const rewriteVariant = isFocused && focusAction === "rewrite" ? "primary" : "secondary";
+                const publishVariant = isFocused && focusAction === "publish" ? "primary" : "secondary";
+                const linkingHref =
+                  item.slug
+                    ? `/pages?focus=linking&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.slug)}`
+                    : `/pages?focus=linking&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.title)}`;
+                const showLinkingShortcut = isFocused && focusAction === "linking";
 
                 return (
                   <article
@@ -307,6 +325,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                           {item.image_url ? "image prête" : "image manquante"}
                         </Badge>
                         {item.cluster ? <Badge variant="secondary">{item.cluster}</Badge> : null}
+                        {isFocused && focusActionLabel ? <Badge variant="warning">action conseillée : {focusActionLabel.toLowerCase()}</Badge> : null}
                       </div>
 
                       <div>
@@ -329,7 +348,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
 
                       <div className="flex flex-wrap gap-2">
                         {item.preview_url ? (
-                          <Button href={item.preview_url} external variant="secondary" size="sm">
+                          <Button href={item.preview_url} external variant={previewVariant} size="sm">
                             <Eye className="h-4 w-4" />
                             Prévisualiser
                           </Button>
@@ -341,20 +360,26 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                           </Button>
                         ) : null}
                         <form action={imageAction}>
-                          <Button variant="secondary" size="sm">
+                          <Button variant={imageVariant} size="sm">
                             <ImagePlus className="h-4 w-4" />
                             {item.image_url ? "Regénérer l’image" : "Générer l’image"}
                           </Button>
                         </form>
                         <form action={rewriteAction}>
-                          <Button variant="secondary" size="sm">
+                          <Button variant={rewriteVariant} size="sm">
                             <PenSquare className="h-4 w-4" />
                             Réécrire
                           </Button>
                         </form>
+                        {showLinkingShortcut ? (
+                          <Button href={linkingHref} variant="primary" size="sm">
+                            <UploadCloud className="h-4 w-4" />
+                            Ouvrir le maillage
+                          </Button>
+                        ) : null}
                         {!item.published_live ? (
                           <form action={publicationAction}>
-                            <Button size="sm">
+                            <Button size="sm" variant={publishVariant}>
                               <UploadCloud className="h-4 w-4" />
                               Publier
                             </Button>
