@@ -283,4 +283,84 @@ class ClientWorkspacePublicationsTest extends TestCase
         $response->assertJsonPath('items.0.observed_content.top_cannibalization_target', 'Diagnostic amiante');
         $response->assertJsonPath('items.0.observed_content.top_query_match', 'faq amiante');
     }
+
+    public function test_publications_endpoint_includes_draft_review_published_and_live_pages(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-publications-status-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'site-token'),
+            'is_active' => true,
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'blog amiante',
+            'slug' => 'blog-amiante',
+            'title' => 'Blog amiante',
+            'status' => 'draft',
+        ]);
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'guide dta',
+            'slug' => 'guide-dta',
+            'title' => 'Guide DTA',
+            'status' => 'review',
+        ]);
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'faq amiante',
+            'slug' => 'faq-amiante',
+            'title' => 'FAQ amiante',
+            'status' => 'published',
+            'published_at' => now()->subHour(),
+        ]);
+
+        SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'diagnostic amiante paris',
+            'slug' => 'diagnostic-amiante-paris',
+            'title' => 'Diagnostic amiante Paris',
+            'status' => 'published',
+            'published_at' => now()->subMinutes(30),
+            'published_live' => true,
+            'published_live_at' => now()->subMinutes(20),
+            'live_url' => 'https://amiantix.com/diagnostic-amiante-paris',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->getJson('/api/client/publications');
+
+        $response->assertOk();
+        $response->assertJsonPath('stats.draft', 1);
+        $response->assertJsonPath('stats.review', 1);
+        $response->assertJsonPath('stats.published', 2);
+        $response->assertJsonPath('stats.live_published', 1);
+        $response->assertJsonCount(4, 'items');
+
+        $items = collect($response->json('items'));
+
+        $this->assertTrue($items->contains(fn (array $item): bool => $item['slug'] === 'blog-amiante' && $item['status'] === 'draft'));
+        $this->assertTrue($items->contains(fn (array $item): bool => $item['slug'] === 'guide-dta' && $item['status'] === 'review'));
+        $this->assertTrue($items->contains(fn (array $item): bool => $item['slug'] === 'faq-amiante' && $item['status'] === 'published'));
+        $this->assertTrue($items->contains(fn (array $item): bool => $item['slug'] === 'diagnostic-amiante-paris' && $item['published_live'] === true));
+    }
 }

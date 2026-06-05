@@ -66,6 +66,7 @@ function publicationStateLabel(status: string, publishedLive: boolean): string {
   return (
     {
       published: "Brouillon prêt",
+      review: "En attente de validation",
       draft: "Brouillon en cours",
       pending: "En préparation",
     }[status] ?? "État à vérifier"
@@ -77,7 +78,11 @@ function publicationStateTone(status: string, publishedLive: boolean): "success"
     return "success";
   }
 
-  return status === "published" ? "warning" : "secondary";
+  if (status === "published") {
+    return "warning";
+  }
+
+  return status === "review" ? "warning" : "secondary";
 }
 
 function studioActionSummary(action: string): string {

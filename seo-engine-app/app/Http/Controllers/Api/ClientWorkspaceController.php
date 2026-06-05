@@ -177,7 +177,8 @@ class ClientWorkspaceController extends Controller
         $query = SeoPage::query()->whereIn('site_id', $siteIds);
 
         $query->where(function ($query) use ($hasPublishedLiveColumn, $hasLiveUrlColumn): void {
-            $query->whereNotNull('published_at');
+            $query->whereIn('status', ['draft', 'review', 'published'])
+                ->orWhereNotNull('published_at');
 
             if ($hasPublishedLiveColumn) {
                 $query->orWhere('published_live', true);
@@ -194,7 +195,9 @@ class ClientWorkspaceController extends Controller
 
         $pages = $query
             ->with('observedPage')
+            ->orderByRaw("case status when 'published' then 0 when 'review' then 1 when 'draft' then 2 else 3 end")
             ->orderByDesc('published_at')
+            ->orderByDesc('updated_at')
             ->limit(24)
             ->get();
         $siteUrls = SeoSite::query()
@@ -235,6 +238,9 @@ class ClientWorkspaceController extends Controller
 
         return response()->json([
             'stats' => [
+                'draft' => $pages->filter(fn (SeoPage $page): bool => (string) $page->status === 'draft')->count(),
+                'review' => $pages->filter(fn (SeoPage $page): bool => (string) $page->status === 'review')->count(),
+                'published' => $pages->filter(fn (SeoPage $page): bool => (string) $page->status === 'published')->count(),
                 'engine_published' => $pages->filter(fn (SeoPage $page): bool => $page->isPublishedInEngine())->count(),
                 'live_published' => $hasPublishedLiveColumn
                     ? $pages->filter(fn (SeoPage $page): bool => $page->isPublishedLive())->count()
