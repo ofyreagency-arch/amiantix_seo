@@ -46,6 +46,7 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
     Route::patch('/sites/{siteId}/gsc', [ClientSitesController::class, 'updateGsc']);
     Route::get('/optimizations', [ClientWorkspaceController::class, 'optimizations']);
     Route::get('/publications', [ClientWorkspaceController::class, 'publications']);
+    Route::delete('/publications/{pageId}', [ClientWorkspaceController::class, 'destroyPublication']);
     Route::get('/settings', [ClientWorkspaceController::class, 'settings']);
     Route::patch('/settings/profile', [ClientWorkspaceController::class, 'updateProfile']);
 });

@@ -2396,6 +2396,38 @@ export async function getPublications(): Promise<PraeviseoPublications> {
   }
 }
 
+export async function deletePublication(pageId: number): Promise<{
+  status: string;
+  deleted: {
+    page_id: number;
+    site_id: string;
+    slug: string | null;
+    title: string | null;
+    related: Record<string, number>;
+  };
+}> {
+  if (!backendConfigured()) {
+    throw new Error("La suppression réelle n’est pas disponible sans backend.");
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  return await appFetch<{
+    status: string;
+    deleted: {
+      page_id: number;
+      site_id: string;
+      slug: string | null;
+      title: string | null;
+      related: Record<string, number>;
+    };
+  }>(`/api/client/publications/${pageId}`, { method: "DELETE" }, token);
+}
+
 export async function getSettings(): Promise<PraeviseoSettings> {
   if (!backendConfigured()) {
     return mockSettings;

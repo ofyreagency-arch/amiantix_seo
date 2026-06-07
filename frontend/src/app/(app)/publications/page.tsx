@@ -8,12 +8,13 @@ import { Topbar } from "@/components/layout/topbar";
 import {
   launchPremiumGenerationToStudioAction,
   launchPremiumImageToStudioAction,
+  deletePublicationFromStudioAction,
   launchPremiumPublicationToStudioAction,
   launchPremiumRewriteToStudioAction,
 } from "@/app/(app)/sites/[siteId]/connect/actions";
 import { getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
-import { Eye, ImagePlus, PenSquare, UploadCloud } from "lucide-react";
+import { Eye, ImagePlus, PenSquare, Trash2, UploadCloud } from "lucide-react";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 type StudioTimelineStep = {
@@ -421,6 +422,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
     studioLead ? launchPremiumImageToStudioAction.bind(null, studioLead.site_id, studioLead.slug || undefined) : null;
   const studioLeadPublicationAction =
     studioLead ? launchPremiumPublicationToStudioAction.bind(null, studioLead.site_id, studioLead.slug || undefined) : null;
+  const studioLeadDeleteAction =
+    studioLead ? deletePublicationFromStudioAction.bind(null, studioLead.id, studioLead.site_id, studioLead.slug || undefined) : null;
   const studioTimeline: StudioTimelineStep[] = studioLead
     ? [
         {
@@ -734,6 +737,14 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                       </Button>
                     </form>
                   ) : null}
+                  {studioLeadDeleteAction ? (
+                    <form action={studioLeadDeleteAction}>
+                      <Button variant="destructive">
+                        <Trash2 className="h-4 w-4" />
+                        Supprimer l’article
+                      </Button>
+                    </form>
+                  ) : null}
                   {studioLead && !isLiveVisible(studioLead) && studioLeadPublicationAction ? (
                     <form action={studioLeadPublicationAction}>
                       <Button variant={focusAction === "publish" ? "primary" : "secondary"}>
@@ -882,6 +893,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 const rewriteAction = launchPremiumRewriteToStudioAction.bind(null, item.site_id, item.slug || undefined);
                 const imageAction = launchPremiumImageToStudioAction.bind(null, item.site_id, item.slug || undefined);
                 const publicationAction = launchPremiumPublicationToStudioAction.bind(null, item.site_id, item.slug || undefined);
+                const deleteAction = deletePublicationFromStudioAction.bind(null, item.id, item.site_id, item.slug || undefined);
                 const isFocused =
                   (focus === "content" && focusSlug && item.slug === focusSlug && (!focusSite || item.site_id === focusSite)) ||
                   (focus === "query" && focusSite && item.site_id === focusSite);
@@ -972,6 +984,12 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                           <Button variant={rewriteVariant} size="sm">
                             <PenSquare className="h-4 w-4" />
                             Réécrire
+                          </Button>
+                        </form>
+                        <form action={deleteAction}>
+                          <Button variant="destructive" size="sm">
+                            <Trash2 className="h-4 w-4" />
+                            Supprimer
                           </Button>
                         </form>
                         {showLinkingShortcut ? (

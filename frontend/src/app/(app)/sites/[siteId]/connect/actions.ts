@@ -7,6 +7,7 @@ import {
   getSiteConnectPath,
   requestRemoteInstallationPrecheck,
   type InstallationReadinessReport,
+  deletePublication,
   requestPremiumCrawl,
   requestPremiumGeneration,
   requestPremiumImages,
@@ -667,6 +668,49 @@ export async function launchPremiumPublicationToStudioAction(siteId: string, slu
           site: siteId,
           slug: slug ?? undefined,
           action: "publish",
+        }
+      )
+    );
+  }
+}
+
+export async function deletePublicationFromStudioAction(pageId: number, siteId: string, slug?: string | null): Promise<void> {
+  logActionStart("publication.delete", { page_id: pageId, site_id: siteId, slug: slug ?? null });
+
+  try {
+    const payload = await deletePublication(pageId);
+    logActionSuccess("publication.delete", {
+      page_id: pageId,
+      site_id: siteId,
+      slug: slug ?? null,
+      deleted_slug: payload.deleted.slug ?? null,
+    });
+    revalidatePath("/publications");
+    revalidatePath(getSiteConnectPath(siteId));
+    revalidatePath(getSiteAutomationPath(siteId));
+    redirect(
+      buildStudioFeedbackUrl(
+        "success",
+        "Article supprimé",
+        slug
+          ? `Le contenu "${slug}" a bien été supprimé du moteur et du studio.`
+          : "Le contenu a bien été supprimé du moteur et du studio."
+      )
+    );
+  } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
+    logActionError("publication.delete", { page_id: pageId, site_id: siteId, slug: slug ?? null }, error);
+    redirect(
+      buildStudioFeedbackUrl(
+        "error",
+        "Suppression bloquée",
+        errorMessage(error, "PraeviSEO n’a pas pu supprimer ce contenu pour le moment."),
+        {
+          site: siteId,
+          slug: slug ?? null,
         }
       )
     );

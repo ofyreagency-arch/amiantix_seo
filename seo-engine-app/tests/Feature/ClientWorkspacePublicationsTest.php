@@ -363,4 +363,47 @@ class ClientWorkspacePublicationsTest extends TestCase
         $this->assertTrue($items->contains(fn (array $item): bool => $item['slug'] === 'faq-amiante' && $item['status'] === 'published'));
         $this->assertTrue($items->contains(fn (array $item): bool => $item['slug'] === 'diagnostic-amiante-paris' && $item['published_live'] === true));
     }
+
+    public function test_client_can_delete_owned_publication_from_workspace(): void
+    {
+        $user = User::factory()->create();
+        $rawToken = 'frontend-publications-delete-token';
+
+        UserAccessToken::query()->create([
+            'user_id' => $user->id,
+            'name' => 'frontend',
+            'token_hash' => hash('sha256', $rawToken),
+            'abilities' => ['client:workspace'],
+        ]);
+
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'amiantix-api-token'),
+            'publication_mode' => 'laravel_bridge',
+        ]);
+
+        $user->seoSites()->attach($site->id, ['role' => 'owner']);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'guide amiante',
+            'slug' => 'guide-amiante',
+            'title' => 'Guide amiante',
+            'status' => 'draft',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$rawToken)
+            ->deleteJson('/api/client/publications/'.$page->id);
+
+        $response->assertOk();
+        $response->assertJsonPath('status', 'ok');
+        $response->assertJsonPath('deleted.slug', 'guide-amiante');
+        $this->assertDatabaseMissing('seo_pages', ['id' => $page->id]);
+    }
 }

@@ -289,6 +289,42 @@ class ClientWorkspaceController extends Controller
         ]);
     }
 
+    public function destroyPublication(Request $request, int $pageId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $siteIds = $user->seoSites()->pluck('seo_sites.site_id');
+
+        /** @var SeoPage $page */
+        $page = SeoPage::query()
+            ->whereIn('site_id', $siteIds)
+            ->findOrFail($pageId);
+
+        $deleted = [
+            'audits' => $page->audits()->count(),
+            'suggestions' => $page->suggestions()->count(),
+            'overrides' => $page->overrides()->count(),
+            'search_console_metrics' => $page->searchConsoleMetrics()->count(),
+        ];
+
+        $page->audits()->delete();
+        $page->suggestions()->delete();
+        $page->overrides()->delete();
+        $page->searchConsoleMetrics()->delete();
+        $page->delete();
+
+        return response()->json([
+            'status' => 'ok',
+            'deleted' => [
+                'page_id' => $pageId,
+                'site_id' => $page->site_id,
+                'slug' => $page->slug,
+                'title' => $page->title,
+                'related' => $deleted,
+            ],
+        ]);
+    }
+
     public function settings(Request $request): JsonResponse
     {
         /** @var User $user */
