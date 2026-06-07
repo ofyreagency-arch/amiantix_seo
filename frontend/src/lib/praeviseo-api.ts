@@ -474,9 +474,19 @@ export type PraeviseoPublication = {
   live_verified: boolean;
   published_live_at: string | null;
   live_url: string | null;
+  live_status: {
+    state: string;
+    label: string;
+    detail: string;
+    source: string;
+    http_status: number | null;
+    link: string | null;
+  };
   preview_url: string | null;
   meta_description: string | null;
   excerpt: string;
+  content_body: string;
+  content_word_count: number;
   image_url: string | null;
   image_alt: string | null;
   image_status: string | null;
@@ -1320,9 +1330,19 @@ const mockPublications: PraeviseoPublications = {
         live_verified: true,
         published_live_at: new Date().toISOString(),
         live_url: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
+        live_status: {
+          state: "visible",
+          label: "Visible sur le site",
+          detail: "PraeviSEO a trouvé l’URL live et la dernière lecture observée répond bien.",
+          source: "seo_pages.published_live + seo_site_pages.last_status_code",
+          http_status: 200,
+          link: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
+        },
         preview_url: "/publications?focus=content&site=amiantix&slug=diagnostic-amiante-copropriete&action=preview#apercu-blog",
         meta_description: "Comment anticiper un diagnostic amiante en copropriete, savoir quoi verifier et comment agir sans bloquer la suite.",
         excerpt: "Un article deja solide pour expliquer le diagnostic amiante en copropriete, les points a verifier, les documents a reunir et la bonne suite a engager.",
+        content_body: "<p>Le diagnostic amiante en copropriete n est pas une formalite administrative. Il sert d abord a savoir ou se trouvent les materiaux a risque, dans quel etat ils sont observes et quelles decisions doivent etre prises sans bloquer la gestion de l immeuble.</p><p>Avant toute intervention, il faut verifier les documents deja disponibles, clarifier les zones concernees, preparer les acces et encadrer la circulation des informations entre le syndic, les coproprietaires et les intervenants techniques.</p><h2>Ce qu il faut verifier</h2><p>Le point le plus utile est de partir des surfaces reellement concernees. Un diagnostic bien prepare evite les doublons, reduit les oublis et aide a prioriser les actions quand des travaux ou une maintenance sont envisages.</p><p>Ensuite, il faut garder une trace claire des observations, des limites de mission et des recommandations. Ce cadre documentaire est ce qui permet ensuite de passer proprement a la coordination, a la maitrise des risques et a la communication avec les donneurs d ordre.</p>",
+        content_word_count: 163,
         image_url: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=1200&q=80",
         image_alt: "Diagnostic amiante en copropriete",
         image_status: "ready",
@@ -1381,9 +1401,19 @@ const mockPublications: PraeviseoPublications = {
         live_verified: false,
         published_live_at: null,
         live_url: null,
+        live_status: {
+          state: "draft_only",
+          label: "Encore dans le moteur",
+          detail: "Le contenu existe dans seo_pages, mais aucune URL live vérifiée n’est encore confirmée.",
+          source: "seo_pages.status",
+          http_status: 200,
+          link: null,
+        },
         preview_url: "/publications?focus=content&site=amiantix&slug=guide-estimation-locale&action=preview#apercu-blog",
         meta_description: "Les premiers repères pour estimer un bien localement avec plus de contexte et moins d approximations.",
         excerpt: "Ce brouillon est deja genere dans le moteur et attend encore une image propre puis une publication vers le site client.",
+        content_body: "<p>Une estimation locale serieuse commence par le contexte. Il faut croiser la nature du bien, la zone exacte, les mouvements recents observes et les ecarts entre l image du secteur et la realite du micro marche.</p><p>Le bon contenu ne promet pas un prix magique. Il aide surtout a poser les bons reperes pour comprendre ce qui fait varier une estimation, ce qui peut la renforcer et ce qui doit etre verifie avant toute mise en vente.</p>",
+        content_word_count: 94,
         image_url: null,
         image_alt: null,
         image_status: "pending",

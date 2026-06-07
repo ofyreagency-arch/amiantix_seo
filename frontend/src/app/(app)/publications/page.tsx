@@ -22,6 +22,11 @@ type StudioTimelineStep = {
   detail: string;
 };
 
+type ArticleBlock = {
+  type: "heading" | "paragraph";
+  text: string;
+};
+
 function getValue(value: string | string[] | undefined, fallback = ""): string {
   if (Array.isArray(value)) {
     return value[0] ?? fallback;
@@ -247,6 +252,43 @@ function stageVariant(active: boolean, done: boolean): "success" | "warning" | "
   return done ? "success" : "secondary";
 }
 
+function articleBlocks(content: string): ArticleBlock[] {
+  const normalized = content
+    .replace(/<\/(p|div|section|article|blockquote|li)>/gi, "\n\n")
+    .replace(/<(br|br\/)\s*>/gi, "\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => ({
+      type: block.length <= 90 && !/[.!?]/.test(block) ? "heading" : "paragraph",
+      text: block,
+    }));
+}
+
+function liveStatusTone(state: string): "success" | "warning" | "secondary" {
+  if (state === "visible") {
+    return "success";
+  }
+
+  if (state === "to_verify") {
+    return "warning";
+  }
+
+  return "secondary";
+}
+
 export default async function PublicationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const publications = await getPublications();
   const optimizations = await getOptimizations();
@@ -442,6 +484,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
         },
       ]
     : [];
+  const studioArticleBlocks = studioLead ? articleBlocks(studioLead.content_body || "") : [];
+  const studioLiveLink = studioLead?.live_verified ? studioLead.live_url : null;
 
   return (
     <div className="min-h-screen">
@@ -576,10 +620,41 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                   </h2>
                   <p className="mt-2 text-sm leading-7 text-text-muted">
                     {studioLead
-                      ? studioLead.excerpt
+                      ? studioLead.meta_description || studioLead.excerpt
                       : "Dès qu’un contenu remonte du moteur, cette zone devient le poste central pour réécrire, imager, prévisualiser puis publier."}
                   </p>
                 </div>
+
+                {studioLead ? (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Statut réel</div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Badge variant={liveStatusTone(studioLead.live_status.state)}>{studioLead.live_status.label}</Badge>
+                        {studioLead.live_status.http_status ? (
+                          <span className="text-xs text-text-subtle">HTTP {studioLead.live_status.http_status}</span>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 leading-6">{studioLead.live_status.detail}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Donnée réelle utilisée</div>
+                      <p className="mt-2 leading-6">{studioLead.live_status.source}</p>
+                      <p className="mt-2 text-xs text-text-subtle">
+                        SQL moteur : seo_pages.status / published_live / live_url + seo_site_pages.last_status_code
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Lien réellement ouvert</div>
+                      <p className="mt-2 leading-6 break-all">
+                        {studioLead.preview_url ?? "Aucun preview interne"}
+                      </p>
+                      <p className="mt-2 text-xs text-text-subtle">
+                        Live : {studioLead.live_url ?? "aucune URL live enregistrée"}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 {studioLead ? (
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -635,11 +710,11 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                   {studioLead?.preview_url ? (
                     <Button href={studioLead.preview_url} variant={focusAction === "preview" ? "primary" : "secondary"}>
                       <Eye className="h-4 w-4" />
-                      Voir le preview ici
+                      Voir l’article complet
                     </Button>
                   ) : null}
                   {studioLeadImageAction ? (
@@ -666,8 +741,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                       </Button>
                     </form>
                   ) : null}
-                  {studioLead?.live_url && studioLead.live_verified ? (
-                    <Button href={studioLead.live_url} external variant="secondary">
+                  {studioLiveLink ? (
+                    <Button href={studioLiveLink} external variant="secondary">
                       <UploadCloud className="h-4 w-4" />
                       Voir le live
                     </Button>
@@ -779,10 +854,29 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                   </div>
 
                   <div className="mt-6 border-t border-border pt-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Extrait du corps</div>
-                    <p className="mt-3 text-[15px] leading-8 text-text-muted">
-                      {studioLead.excerpt}
-                    </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Article complet dans le moteur</div>
+                      <div className="text-xs text-text-subtle">{studioLead.content_word_count} mots</div>
+                    </div>
+                    <div className="mt-4 space-y-4">
+                      {studioArticleBlocks.length > 0 ? (
+                        studioArticleBlocks.map((block, index) =>
+                          block.type === "heading" ? (
+                            <h3 key={`${block.type}-${index}`} className="text-lg font-semibold text-text">
+                              {block.text}
+                            </h3>
+                          ) : (
+                            <p key={`${block.type}-${index}`} className="text-[15px] leading-8 text-text-muted">
+                              {block.text}
+                            </p>
+                          )
+                        )
+                      ) : (
+                        <p className="text-[15px] leading-8 text-text-muted">
+                          Aucun corps complet n’a encore été remonté par le moteur pour ce contenu.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </article>
               ) : (
@@ -879,10 +973,10 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                         {item.preview_url ? (
                           <Button href={item.preview_url} variant={previewVariant} size="sm">
                             <Eye className="h-4 w-4" />
-                            Voir le preview
+                            Voir l’article
                           </Button>
                         ) : null}
-                        {item.live_url && item.live_verified ? (
+                        {item.live_verified && item.live_url ? (
                           <Button href={item.live_url} external variant="secondary" size="sm">
                             <UploadCloud className="h-4 w-4" />
                             Voir le live

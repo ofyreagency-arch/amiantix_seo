@@ -260,9 +260,12 @@ class ClientWorkspaceController extends Controller
                 'live_verified' => $this->publicationLiveVerified($page),
                 'published_live_at' => $hasPublishedLiveAtColumn ? $page->published_live_at : null,
                 'live_url' => $hasLiveUrlColumn ? $page->live_url : null,
+                'live_status' => $this->publicationLiveStatus($page),
                 'preview_url' => $this->publicationPreviewUrl($page),
                 'meta_description' => $page->meta_description ? (string) $page->meta_description : null,
                 'excerpt' => $this->publicationExcerpt($page),
+                'content_body' => $this->publicationBody($page),
+                'content_word_count' => $this->publicationWordCount($page),
                 'image_url' => $this->publicationImageUrl($page),
                 'image_alt' => $page->image_alt ? (string) $page->image_alt : null,
                 'image_status' => $page->image_status ? (string) $page->image_status : null,
@@ -425,6 +428,21 @@ class ClientWorkspaceController extends Controller
             ->limit(220);
     }
 
+    private function publicationBody(SeoPage $page): string
+    {
+        return trim((string) ($page->content ?? ''));
+    }
+
+    private function publicationWordCount(SeoPage $page): int
+    {
+        return str_word_count(
+            (string) Str::of((string) ($page->content ?? ''))
+                ->replaceMatches('/<[^>]+>/u', ' ')
+                ->replaceMatches('/\s+/u', ' ')
+                ->trim()
+        );
+    }
+
     private function publicationImageUrl(SeoPage $page): ?string
     {
         $imagePath = trim((string) ($page->image_path ?? ''));
@@ -547,5 +565,47 @@ class ClientWorkspaceController extends Controller
         $statusCode = (int) ($observedPage->last_status_code ?? 0);
 
         return $statusCode > 0 && $statusCode < 400;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function publicationLiveStatus(SeoPage $page): array
+    {
+        $liveVerified = $this->publicationLiveVerified($page);
+        $observedPage = $page->observedPage;
+        $statusCode = $observedPage?->last_status_code !== null ? (int) $observedPage->last_status_code : null;
+        $liveUrl = blank($page->live_url) ? null : (string) $page->live_url;
+
+        if ($liveVerified) {
+            return [
+                'state' => 'visible',
+                'label' => 'Visible sur le site',
+                'detail' => 'PraeviSEO a trouvé l’URL live et la dernière lecture observée répond bien.',
+                'source' => 'seo_pages.published_live + seo_site_pages.last_status_code',
+                'http_status' => $statusCode,
+                'link' => $liveUrl,
+            ];
+        }
+
+        if ($page->isPublishedLive() && $liveUrl !== null) {
+            return [
+                'state' => 'to_verify',
+                'label' => 'Publication à vérifier',
+                'detail' => 'Une URL live est enregistrée, mais la dernière lecture observée ne confirme pas encore une réponse saine.',
+                'source' => 'seo_pages.live_url + seo_site_pages.last_status_code',
+                'http_status' => $statusCode,
+                'link' => $liveUrl,
+            ];
+        }
+
+        return [
+            'state' => 'draft_only',
+            'label' => 'Encore dans le moteur',
+            'detail' => 'Le contenu existe dans seo_pages, mais aucune URL live vérifiée n’est encore confirmée.',
+            'source' => 'seo_pages.status',
+            'http_status' => $statusCode,
+            'link' => $liveUrl,
+        ];
     }
 }
