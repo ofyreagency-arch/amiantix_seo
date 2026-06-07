@@ -186,6 +186,47 @@ function expectedGainForContent(item: {
   return "Transformer une présence encore faible en trafic plus visible.";
 }
 
+function hasReliableSeoSignal(item: {
+  gsc_metrics: { impressions: number };
+  observed_content: {
+    observed_http_status: number | null;
+    snapshot_word_count: number;
+    internal_inlinks: number;
+    query_match_count: number;
+  } | null;
+}) {
+  const observed = item.observed_content;
+
+  if (!observed) {
+    return (item.gsc_metrics.impressions ?? 0) > 0;
+  }
+
+  return (
+    (item.gsc_metrics.impressions ?? 0) > 0
+    || (observed.snapshot_word_count ?? 0) >= 300
+    || (observed.internal_inlinks ?? 0) > 0
+    || (observed.query_match_count ?? 0) > 0
+    || ((observed.observed_http_status ?? 0) >= 200 && (observed.observed_http_status ?? 0) < 400)
+  );
+}
+
+function seoSignalLabel(item: {
+  seo_score: number | null;
+  gsc_metrics: { impressions: number };
+  observed_content: {
+    observed_http_status: number | null;
+    snapshot_word_count: number;
+    internal_inlinks: number;
+    query_match_count: number;
+  } | null;
+}) {
+  if (!hasReliableSeoSignal(item)) {
+    return "Signal insuffisant";
+  }
+
+  return item.seo_score !== null ? `SEO observé : ${item.seo_score}` : "Score en calcul";
+}
+
 function studioActionSummary(action: string): string {
   return (
     {
@@ -239,8 +280,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
     .slice(0, 4);
   const strongestContent = [...publications.items]
     .sort((a, b) => {
-      const aScore = (a.seo_score ?? 0) + (a.topical_score ?? 0) + (a.quality_score ?? 0);
-      const bScore = (b.seo_score ?? 0) + (b.topical_score ?? 0) + (b.quality_score ?? 0);
+      const aScore = hasReliableSeoSignal(a) ? (a.seo_score ?? 0) + (a.topical_score ?? 0) + (a.quality_score ?? 0) : -1;
+      const bScore = hasReliableSeoSignal(b) ? (b.seo_score ?? 0) + (b.topical_score ?? 0) + (b.quality_score ?? 0) : -1;
 
       return bScore - aScore;
     })
@@ -274,7 +315,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
   const refreshItems = [
     ...draftItems,
     ...visibleItems.filter(
-        (item) => (item.seo_score ?? 0) < 80 || !!item.latest_suggestion || (item.gsc_metrics.position ?? 0) >= 8
+        (item) => (hasReliableSeoSignal(item) && (item.seo_score ?? 0) < 80) || !!item.latest_suggestion || (item.gsc_metrics.position ?? 0) >= 8
       ),
   ].slice(0, 4);
   const enrichmentItems = observedItems
@@ -828,7 +869,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                       </p>
 
                       <div className="grid gap-2 text-xs text-text-subtle sm:grid-cols-2">
-                        <span>SEO : {item.seo_score ?? "n/a"}</span>
+                        <span>{seoSignalLabel(item)}</span>
                         <span>Position : {item.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
                         <span>Impressions : {item.gsc_metrics.impressions}</span>
                         <span>Image : {item.image_status ?? (item.image_url ? "ready" : "pending")}</span>
@@ -902,8 +943,10 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={(leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? 0) >= 60 ? "success" : "secondary"}>
-                      Autorite {leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? "n/a"}
+                    <Badge variant={hasReliableSeoSignal(leadContent) && (leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? 0) >= 60 ? "success" : "secondary"}>
+                      {hasReliableSeoSignal(leadContent)
+                        ? `Autorité observée ${leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? "n/a"}`
+                        : "Signal léger"}
                     </Badge>
                     <Badge variant={leadContent.latest_suggestion ? "warning" : "secondary"}>
                       {leadContent.latest_suggestion ? "Reco ouverte" : "A enrichir"}
@@ -1009,8 +1052,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 description={
                   item.gsc_metrics.impressions > 0
                     ? `${item.gsc_metrics.impressions} affichage(s) dans Google et ${item.gsc_metrics.clicks} clic(s) déjà obtenus.`
-                    : item.seo_score
-                      ? `SEO score ${item.seo_score}. PraeviSEO peut aider à prolonger sa traction organique.`
+                    : hasReliableSeoSignal(item) && item.seo_score
+                      ? `SEO observé ${item.seo_score}. PraeviSEO peut aider à prolonger sa traction organique.`
                       : "Le contenu est déjà visible et reste une base exploitable pour le cockpit SEO."
                 }
               />
@@ -1032,8 +1075,12 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 key={`potential-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={`Solidité ${item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}`}
-                badgeTone={(item.observed_content?.authority_score ?? item.seo_score ?? 0) >= 60 ? "success" : "secondary"}
+                badge={
+                  hasReliableSeoSignal(item)
+                    ? `Solidité ${item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}`
+                    : "Signal léger"
+                }
+                badgeTone={hasReliableSeoSignal(item) && (item.observed_content?.authority_score ?? item.seo_score ?? 0) >= 60 ? "success" : "secondary"}
                 description={
                   item.latest_suggestion?.summary ??
                   `Sujet "${item.observed_content?.cluster_label ?? item.cluster ?? "principal"}", ${item.observed_content?.snapshot_word_count ?? "n/a"} mots observés, ${item.observed_content?.query_match_count ?? 0} recherche(s) déjà reliée(s). ${contentProgressLabel(item.observed_content?.snapshot_word_delta)}.`
@@ -1154,8 +1201,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={item.seo_score && item.seo_score >= 80 ? "success" : "warning"}>
-                    {item.seo_score && item.seo_score >= 80 ? "à consolider" : "refresh conseillé"}
+                  <Badge variant={hasReliableSeoSignal(item) ? (item.seo_score && item.seo_score >= 80 ? "success" : "warning") : "secondary"}>
+                    {hasReliableSeoSignal(item) ? (item.seo_score && item.seo_score >= 80 ? "à consolider" : "refresh conseillé") : "score à confirmer"}
                   </Badge>
                   <Badge variant={isLiveVisible(item) ? "secondary" : "warning"}>
                     {isLiveVisible(item) ? "déjà publié" : item.published_live ? "publication à vérifier" : "pas encore visible"}
@@ -1173,8 +1220,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 </div>
               </div>
               <div className="grid gap-2 md:grid-cols-4 text-xs text-text-subtle">
-                <span>SEO score : {item.seo_score ?? "n/a"}</span>
-                <span>Indexabilite : {item.indexability_score ?? "n/a"}</span>
+                <span>{seoSignalLabel(item)}</span>
+                <span>Indexabilité : {hasReliableSeoSignal(item) ? (item.indexability_score ?? "n/a") : "à confirmer"}</span>
                 <span>Cluster : {item.observed_content?.cluster_label ?? item.cluster ?? "n/a"}</span>
                 <span>Vu le : {item.published_at ? formatDate(item.published_at) : "n/a"}</span>
               </div>

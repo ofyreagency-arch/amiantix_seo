@@ -29,6 +29,48 @@ interface SiteDetailPageProps {
   params: Promise<{ siteId: string }>;
 }
 
+function hasReliableSeoSignal(item: {
+  seo_score: number | null;
+  gsc_metrics: { impressions: number };
+  observed_content: {
+    observed_http_status: number | null;
+    snapshot_word_count: number;
+    internal_inlinks: number;
+    query_match_count: number;
+  } | null;
+}) {
+  const observed = item.observed_content;
+
+  if (!observed) {
+    return (item.gsc_metrics.impressions ?? 0) > 0;
+  }
+
+  return (
+    (item.gsc_metrics.impressions ?? 0) > 0
+    || (observed.snapshot_word_count ?? 0) >= 300
+    || (observed.internal_inlinks ?? 0) > 0
+    || (observed.query_match_count ?? 0) > 0
+    || ((observed.observed_http_status ?? 0) >= 200 && (observed.observed_http_status ?? 0) < 400)
+  );
+}
+
+function seoSignalLabel(item: {
+  seo_score: number | null;
+  gsc_metrics: { impressions: number };
+  observed_content: {
+    observed_http_status: number | null;
+    snapshot_word_count: number;
+    internal_inlinks: number;
+    query_match_count: number;
+  } | null;
+}) {
+  if (!hasReliableSeoSignal(item)) {
+    return "Signal SEO insuffisant";
+  }
+
+  return item.seo_score !== null ? `SEO observé : ${item.seo_score}` : "Score en calcul";
+}
+
 export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const { siteId } = await params;
   const site = await getSite(siteId);
@@ -92,7 +134,9 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         - (a.published_at ? new Date(a.published_at).getTime() : 0);
     })
     .slice(0, 3);
-  const refreshContent = siteContent.filter((item) => !!item.latest_suggestion || (item.seo_score ?? 0) < 80).slice(0, 3);
+  const refreshContent = siteContent
+    .filter((item) => !!item.latest_suggestion || (hasReliableSeoSignal(item) && (item.seo_score ?? 0) < 80))
+    .slice(0, 3);
   const observedContent = siteContent.filter((item) => !!item.observed_content);
   const observedQueryMatches = observedContent
     .filter(
@@ -843,7 +887,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                           </div>
                           <p className="text-sm leading-6 text-text-muted">{item.excerpt}</p>
                           <div className="grid gap-2 text-xs text-text-subtle sm:grid-cols-2">
-                            <span>SEO : {item.seo_score ?? "n/a"}</span>
+                            <span>{seoSignalLabel(item)}</span>
                             <span>Position : {item.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
                             <span>Impressions : {item.gsc_metrics.impressions}</span>
                             <span>Image : {item.image_status ?? (item.image_url ? "ready" : "pending")}</span>
@@ -912,8 +956,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                           <div className="text-sm font-semibold text-text">{item.title}</div>
                           <div className="text-xs text-text-subtle">{item.observed_content?.cluster_label ?? "contenu observé"}</div>
                         </div>
-                        <Badge variant="secondary">
-                          Solidité {item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}
+                        <Badge variant={hasReliableSeoSignal(item) ? "secondary" : "warning"}>
+                          {hasReliableSeoSignal(item)
+                            ? `Solidité ${item.observed_content?.authority_score ?? item.seo_score ?? "n/a"}`
+                            : "Signal léger"}
                         </Badge>
                       </div>
                       <p className="mt-2 text-sm text-text-muted leading-6">
