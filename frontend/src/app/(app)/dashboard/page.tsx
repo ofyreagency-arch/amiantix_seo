@@ -26,6 +26,31 @@ import {
 import { formatDate } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles, Waves } from "lucide-react";
 
+function hasReliableSeoSignal(item: {
+  seo_score: number | null;
+  gsc_metrics: { impressions: number };
+  observed_content: {
+    observed_http_status: number | null;
+    snapshot_word_count: number;
+    internal_inlinks: number;
+    query_match_count: number;
+  } | null;
+}) {
+  const observed = item.observed_content;
+
+  if (!observed) {
+    return (item.gsc_metrics.impressions ?? 0) > 0;
+  }
+
+  return (
+    (item.gsc_metrics.impressions ?? 0) > 0
+    || (observed.snapshot_word_count ?? 0) >= 300
+    || (observed.internal_inlinks ?? 0) > 0
+    || (observed.query_match_count ?? 0) > 0
+    || (((observed.observed_http_status ?? 0) >= 200) && ((observed.observed_http_status ?? 0) < 400))
+  );
+}
+
 export default async function DashboardPage() {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
@@ -221,10 +246,12 @@ export default async function DashboardPage() {
       id: `publication-${item.id}`,
       title: item.title,
       detail: item.published_live
-        ? "Le contenu est déjà visible sur le site."
+        ? item.live_verified
+          ? "Le contenu est bien visible sur le site."
+          : "Le contenu a été envoyé, mais son URL live reste encore à vérifier."
         : "Le contenu reste prêt côté PraeviSEO en attendant la publication live.",
-      badge: item.published_live ? "visible" : "préparé",
-      badgeVariant: item.published_live ? "success" : "secondary",
+      badge: item.published_live ? (item.live_verified ? "visible" : "à vérifier") : "préparé",
+      badgeVariant: item.published_live ? (item.live_verified ? "success" : "warning") : "secondary",
       meta: `${item.site_id} · activité contenu`,
     })),
     ...contentRefreshFeed.slice(0, 2).map((item) => ({
@@ -1020,8 +1047,10 @@ export default async function DashboardPage() {
                             : "observation récente"}
                         </p>
                       </div>
-                      <Badge variant={site.summary.observed_site_health_score >= 70 ? "success" : "secondary"}>
-                        Santé {site.summary.observed_site_health_score || "n/a"}
+                      <Badge variant={site.summary.observed_site_health_score > 0 ? (site.summary.observed_site_health_score >= 70 ? "success" : "secondary") : "warning"}>
+                        {site.summary.observed_site_health_score > 0
+                          ? `Santé observée ${site.summary.observed_site_health_score}`
+                          : "Santé à confirmer"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">

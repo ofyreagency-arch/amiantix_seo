@@ -19,6 +19,49 @@ function getValue(value: string | string[] | undefined, fallback = ""): string {
   return value ?? fallback;
 }
 
+function hasReliableSeoSignal(item: {
+  seo_score: number | null;
+  gsc_metrics?: { impressions: number };
+  observed_content?: {
+    observed_http_status?: number | null;
+    snapshot_word_count?: number;
+    internal_inlinks?: number;
+    query_match_count?: number;
+  } | null;
+}) {
+  const observed = item.observed_content;
+  const impressions = item.gsc_metrics?.impressions ?? 0;
+
+  if (!observed) {
+    return impressions > 0;
+  }
+
+  return (
+    impressions > 0
+    || (observed.snapshot_word_count ?? 0) >= 300
+    || (observed.internal_inlinks ?? 0) > 0
+    || (observed.query_match_count ?? 0) > 0
+    || (((observed.observed_http_status ?? 0) >= 200) && ((observed.observed_http_status ?? 0) < 400))
+  );
+}
+
+function seoSignalLabel(item: {
+  seo_score: number | null;
+  gsc_metrics?: { impressions: number };
+  observed_content?: {
+    observed_http_status?: number | null;
+    snapshot_word_count?: number;
+    internal_inlinks?: number;
+    query_match_count?: number;
+  } | null;
+}) {
+  if (!hasReliableSeoSignal(item)) {
+    return "Signal SEO insuffisant";
+  }
+
+  return item.seo_score !== null ? `SEO observé : ${item.seo_score}` : "Score en calcul";
+}
+
 export default async function PagesCockpitPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
@@ -139,19 +182,19 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     .filter(
       (item) =>
         !!item.latest_suggestion ||
-        (item.seo_score ?? 0) < 80 ||
+        (hasReliableSeoSignal(item) && (item.seo_score ?? 0) < 80) ||
         (!item.published_live && item.status === "published") ||
         ((item.gsc_metrics.position ?? 99) >= 8 && item.gsc_metrics.impressions > 0)
     )
     .slice(0, 6);
   const scoredPages = [...publications.items]
     .sort((a, b) => {
-      const aScore = (a.seo_score ?? 0) + (a.topical_score ?? 0) + (a.quality_score ?? 0);
-      const bScore = (b.seo_score ?? 0) + (b.topical_score ?? 0) + (b.quality_score ?? 0);
+      const aScore = hasReliableSeoSignal(a) ? (a.seo_score ?? 0) + (a.topical_score ?? 0) + (a.quality_score ?? 0) : -1;
+      const bScore = hasReliableSeoSignal(b) ? (b.seo_score ?? 0) + (b.topical_score ?? 0) + (b.quality_score ?? 0) : -1;
 
       return bScore - aScore;
     })
-    .filter((item) => (item.seo_score ?? 0) > 0 || (item.topical_score ?? 0) > 0 || (item.quality_score ?? 0) > 0)
+    .filter((item) => hasReliableSeoSignal(item) && ((item.seo_score ?? 0) > 0 || (item.topical_score ?? 0) > 0 || (item.quality_score ?? 0) > 0))
     .slice(0, 6);
   const observedPotentialPages = [
     ...observedPillarPages.map((item) => ({
@@ -661,8 +704,8 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 badgeTone={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "success" : "warning"}
                 description={
                   observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
-                    ? `Cette page peut devenir centrale sur son sujet. Solidité ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
-                    : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Solidité actuelle ${item.authority_score}.`
+                    ? `Cette page peut devenir centrale sur son sujet. Signal structurel observé ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
+                    : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Signal structurel actuel ${item.authority_score}.`
                 }
                 actions={pageActions(item.site_id, {
                   slug: item.slug,
@@ -739,7 +782,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 key={`${item.site_name}-${item.slug}-best`}
                 title={item.label}
                 subtitle={item.site_name}
-                badge={`${item.impressions} impressions`}
+                badge={item.impressions > 0 ? `${item.impressions} impressions` : "Signal léger"}
                 description={`${item.previous_impressions} affichage(s) observés auparavant, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
                 actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
                   slug: item.slug,
@@ -767,10 +810,10 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 key={`${item.site_id}-${item.title}-score`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={item.seo_score ? `SEO ${item.seo_score}` : "À consolider"}
-                badgeTone={item.seo_score ? ((item.seo_score ?? 0) >= 80 ? "success" : "secondary") : "warning"}
+                badge={seoSignalLabel(item)}
+                badgeTone={hasReliableSeoSignal(item) ? ((item.seo_score ?? 0) >= 80 ? "success" : "secondary") : "warning"}
                 description={
-                  item.seo_score
+                  hasReliableSeoSignal(item)
                     ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
                     : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale."
                 }
@@ -797,8 +840,16 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 key={`${item.site_id}-${item.title}-refresh`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={item.latest_suggestion ? "refresh conseillé" : item.published_live ? "à consolider" : "à pousser"}
-                badgeTone={item.latest_suggestion ? "warning" : item.published_live ? "secondary" : "success"}
+                badge={
+                  item.latest_suggestion
+                    ? "refresh conseillé"
+                    : hasReliableSeoSignal(item)
+                      ? item.published_live
+                        ? "à consolider"
+                        : "à pousser"
+                      : "signal à confirmer"
+                }
+                badgeTone={item.latest_suggestion ? "warning" : hasReliableSeoSignal(item) ? (item.published_live ? "secondary" : "success") : "secondary"}
                 description={
                   item.latest_suggestion?.summary ??
                   ("reason" in item && typeof item.reason === "string" && item.reason.length > 0

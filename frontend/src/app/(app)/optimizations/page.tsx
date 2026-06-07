@@ -33,6 +33,10 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
   const position = Number(metrics.position ?? 0);
   const previousImpressions = Number(metrics.previous_impressions ?? 0);
 
+  if (impressions <= 0) {
+    return "Signal encore léger dans Google, position à confirmer.";
+  }
+
   if (previousImpressions > 0) {
     return `${new Intl.NumberFormat("fr-FR").format(impressions)} impressions recentes, ${new Intl.NumberFormat("fr-FR").format(previousImpressions)} avant, position ${position.toFixed(1)}`;
   }
@@ -182,7 +186,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
     .slice(0, 6);
   const optimizationDecisionBlocks = [
     {
-      title: "Impact estimé",
+      title: "Impact estimé moteur",
       items: [
         leadRecommendation
           ? `${impactLabel(leadRecommendation.estimated_impact)} sur l’action ${leadRecommendation.title}.`
@@ -193,7 +197,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       ],
     },
     {
-      title: "Difficulté",
+      title: "Effort estimé moteur",
       items: [
         leadRecommendation
           ? `${difficultyLabel(leadRecommendation.difficulty)} pour la meilleure action actuellement suggérée.`
