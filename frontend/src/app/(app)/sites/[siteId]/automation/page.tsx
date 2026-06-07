@@ -1074,53 +1074,63 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Activité récente</CardTitle>
-              <CardDescription>
-                Les derniers événements vraiment utiles sur ce site.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recentActivity.length > 0 ? (
-                recentActivity.map((entry, index) => (
-                  <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">{entry.label}</div>
-                      <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                  Aucune activité utile n’a encore été enregistrée sur ce site.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <details className="group rounded-3xl border border-border bg-surface/80">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold text-text">Détails de l’automatisation</p>
+              <p className="text-xs text-text-subtle">Activité récente, historique moteur et éléments secondaires du site.</p>
+            </div>
+            <span className="text-xs text-text-subtle transition group-open:rotate-180">▾</span>
+          </summary>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>État du moteur</CardTitle>
-              <CardDescription>
-                Ce qui tourne déjà sans t’obliger à lire 10 cartes différentes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {executionHighlights.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-text">{item.title}</div>
-                    <Badge variant="secondary">{item.status}</Badge>
+          <div className="grid gap-6 border-t border-border px-5 py-5 xl:grid-cols-[0.95fr_1.05fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle>Activité récente</CardTitle>
+                <CardDescription>
+                  Les derniers événements vraiment utiles sur ce site.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((entry, index) => (
+                    <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-text">{entry.label}</div>
+                        <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                    Aucune activité utile n’a encore été enregistrée sur ce site.
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.result}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>État du moteur</CardTitle>
+                <CardDescription>
+                  Ce qui tourne déjà sans t’obliger à lire 10 cartes différentes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {executionHighlights.map((item) => (
+                  <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{item.title}</div>
+                      <Badge variant="secondary">{item.status}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{item.result}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </details>
       </div>
     </div>
   );

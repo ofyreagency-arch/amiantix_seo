@@ -662,240 +662,252 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
           </CockpitSignalListCard>
         </div>
 
-        <div id="priorites" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <CockpitSignalListCard
-            title="Priorités structurelles"
-            description="Les pages que PraeviSEO priorise deja pour mieux organiser le site, renforcer les pages centrales et sortir les pages trop isolees."
-            empty={observedPriorityPages.length === 0}
-            emptyMessage="Aucune priorité structurelle forte pour le moment. Le cockpit reviendra ici dès que le moteur détecte un vrai besoin de fond."
-          >
-            {observedPriorityPages.map((item) => (
-              <CockpitSignalItem
-                key={item.id}
-                title={item.title}
-                subtitle={item.site_name}
-                badge={item.badge}
-                badgeTone={item.badgeTone}
-                description={item.description}
-                actions={pageActions(item.site_id, {
-                  slug: item.slug,
-                  preferredAction:
-                    item.badge === "Sous-maillée" || item.badge === "Orpheline"
-                      ? "linking"
-                      : "rewrite",
-                  includeSite: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
+        <details className="group rounded-3xl border border-border bg-surface/80">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold text-text">Analyses détaillées des pages</p>
+              <p className="text-xs text-text-subtle">Montées, chutes, priorités structurelles et contenus à relancer.</p>
+            </div>
+            <span className="text-xs text-text-subtle transition group-open:rotate-180">▾</span>
+          </summary>
 
-          <CockpitSignalListCard
-            title="Pages importantes et encore trop peu reliées"
-            description="Les pages qui peuvent devenir tres importantes, et celles qui manquent encore de soutien depuis le reste du site."
-            empty={observedPillarPages.length + observedLinkGapPages.length === 0}
-            emptyMessage="Aucune page très importante ou encore trop peu reliée ne ressort fortement pour le moment."
-          >
-            {[...observedPillarPages.slice(0, 3), ...observedLinkGapPages.slice(0, 3)].map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_id}-${item.slug}-pillar-gap`}
-                title={item.label}
-                subtitle={item.site_name}
-                badge={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "Pilier" : "Maillage"}
-                badgeTone={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "success" : "warning"}
+          <div className="space-y-6 border-t border-border px-5 py-5">
+            <div id="priorites" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+              <CockpitSignalListCard
+                title="Priorités structurelles"
+                description="Les pages que PraeviSEO priorise deja pour mieux organiser le site, renforcer les pages centrales et sortir les pages trop isolees."
+                empty={observedPriorityPages.length === 0}
+                emptyMessage="Aucune priorité structurelle forte pour le moment. Le cockpit reviendra ici dès que le moteur détecte un vrai besoin de fond."
+              >
+                {observedPriorityPages.map((item) => (
+                  <CockpitSignalItem
+                    key={item.id}
+                    title={item.title}
+                    subtitle={item.site_name}
+                    badge={item.badge}
+                    badgeTone={item.badgeTone}
+                    description={item.description}
+                    actions={pageActions(item.site_id, {
+                      slug: item.slug,
+                      preferredAction:
+                        item.badge === "Sous-maillée" || item.badge === "Orpheline"
+                          ? "linking"
+                          : "rewrite",
+                      includeSite: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+
+              <CockpitSignalListCard
+                title="Pages importantes et encore trop peu reliées"
+                description="Les pages qui peuvent devenir tres importantes, et celles qui manquent encore de soutien depuis le reste du site."
+                empty={observedPillarPages.length + observedLinkGapPages.length === 0}
+                emptyMessage="Aucune page très importante ou encore trop peu reliée ne ressort fortement pour le moment."
+              >
+                {[...observedPillarPages.slice(0, 3), ...observedLinkGapPages.slice(0, 3)].map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_id}-${item.slug}-pillar-gap`}
+                    title={item.label}
+                    subtitle={item.site_name}
+                    badge={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "Pilier" : "Maillage"}
+                    badgeTone={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "success" : "warning"}
+                    description={
+                      observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
+                        ? `Cette page peut devenir centrale sur son sujet. Signal structurel observé ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
+                        : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Signal structurel actuel ${item.authority_score}.`
+                    }
+                    actions={pageActions(item.site_id, {
+                      slug: item.slug,
+                      preferredAction:
+                        observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
+                          ? "rewrite"
+                          : "linking",
+                      includeSite: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+            </div>
+
+            <div id="montent" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+              <CockpitSignalListCard
+                title="Pages qui montent"
+                description="Les pages qui gagnent le plus de visibilité récemment dans Google."
+                empty={risingPages.length === 0}
+                emptyMessage="Aucune hausse forte n’est détectée pour le moment. Sur un petit site, plusieurs lectures peuvent rester stables avant la prochaine progression nette."
+              >
+                {risingPages.map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_name}-${item.slug}-up`}
+                    title={item.label}
+                    subtitle={item.site_name}
+                    badge="En hausse"
+                    badgeTone="success"
+                    description={`+${item.delta_impressions} affichage(s) dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
+                    actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
+                      slug: item.slug,
+                      preferredAction: "preview",
+                      includeSearchConsole: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+
+              <CockpitSignalListCard
+                id="chutent"
+                className="scroll-mt-24"
+                title="Pages qui chutent"
+                description="Les pages qui méritent une relance, un refresh ou une meilleure réponse SEO."
+                empty={fallingPages.length === 0}
+                emptyMessage="Aucune chute nette pour le moment. C’est sain : le cockpit surveille déjà les prochaines baisses vraiment utiles à traiter."
+              >
+                {fallingPages.map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_name}-${item.slug}-down`}
+                    title={item.label}
+                    subtitle={item.site_name}
+                    badge="En baisse"
+                    badgeTone="danger"
+                    description={`${Math.abs(item.delta_impressions)} affichage(s) de moins dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
+                    actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
+                      slug: item.slug,
+                      preferredAction: "rewrite",
+                      includeSearchConsole: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+            </div>
+
+            <div id="meilleures" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+              <CockpitSignalListCard
+                title="Meilleures pages"
+                description="Les pages déjà visibles qui portent le plus votre présence SEO."
+                empty={bestPages.length === 0}
+                emptyMessage="Les meilleures pages apparaîtront ici dès que davantage de signaux GSC remonteront. Avec peu de volume, il est normal que cette lecture prenne un peu de temps."
+              >
+                {bestPages.map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_name}-${item.slug}-best`}
+                    title={item.label}
+                    subtitle={item.site_name}
+                    badge={item.impressions > 0 ? `${item.impressions} impressions` : "Signal léger"}
+                    description={`${item.previous_impressions} affichage(s) observés auparavant, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
+                    actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
+                      slug: item.slug,
+                      preferredAction: "preview",
+                      includeSite: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+
+              <CockpitSignalListCard
+                id="potentiel"
+                className="scroll-mt-24"
+                title="Pages à fort potentiel SEO"
                 description={
-                  observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
-                    ? `Cette page peut devenir centrale sur son sujet. Signal structurel observé ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
-                    : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Signal structurel actuel ${item.authority_score}.`
+                  scoredPages.length > 0
+                    ? "Les pages déjà solides côté contenu ou qualité, donc les plus prometteuses à pousser ensuite."
+                    : "Même quand le scoring détaillé est encore léger, PraeviSEO garde ici les pages à consolider en priorité."
                 }
-                actions={pageActions(item.site_id, {
-                  slug: item.slug,
-                  preferredAction:
-                    observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
-                      ? "rewrite"
-                      : "linking",
-                  includeSite: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
-        </div>
+                empty={potentialPages.length === 0}
+                emptyMessage="Aucune page à fort potentiel pour le moment. PraeviSEO les affichera dès qu’une page combine assez de signaux pour mériter une vraie poussée."
+              >
+                {potentialPages.map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_id}-${item.title}-score`}
+                    title={item.title}
+                    subtitle={item.site_id}
+                    badge={seoSignalLabel(item)}
+                    badgeTone={hasReliableSeoSignal(item) ? ((item.seo_score ?? 0) >= 80 ? "success" : "secondary") : "warning"}
+                    description={
+                      hasReliableSeoSignal(item)
+                        ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
+                        : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale."
+                    }
+                    actions={pageActions(item.site_id, {
+                      slug: "slug" in item ? item.slug : null,
+                      preferredAction: "rewrite",
+                      includeSite: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+            </div>
 
-        <div id="montent" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <CockpitSignalListCard
-            title="Pages qui montent"
-            description="Les pages qui gagnent le plus de visibilité récemment dans Google."
-            empty={risingPages.length === 0}
-            emptyMessage="Aucune hausse forte n’est détectée pour le moment. Sur un petit site, plusieurs lectures peuvent rester stables avant la prochaine progression nette."
-          >
-            {risingPages.map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_name}-${item.slug}-up`}
-                title={item.label}
-                subtitle={item.site_name}
-                badge="En hausse"
-                badgeTone="success"
-                description={`+${item.delta_impressions} affichage(s) dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
-                actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
-                  slug: item.slug,
-                  preferredAction: "preview",
-                  includeSearchConsole: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
+            <div id="refresh" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+              <CockpitSignalListCard
+                id="refresh"
+                title="Pages à refresh"
+                description="Les contenus qui méritent une relance éditoriale, un enrichissement ou une meilleure exécution."
+                empty={refreshPages.length === 0}
+                emptyMessage="Aucune piste de refresh pour le moment. Cela peut simplement signifier que Google ne remonte pas encore assez de matière pour justifier une relance nette."
+              >
+                {refreshPages.map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_id}-${item.title}-refresh`}
+                    title={item.title}
+                    subtitle={item.site_id}
+                    badge={
+                      item.latest_suggestion
+                        ? "refresh conseillé"
+                        : hasReliableSeoSignal(item)
+                          ? item.published_live
+                            ? "à consolider"
+                            : "à pousser"
+                          : "signal à confirmer"
+                    }
+                    badgeTone={item.latest_suggestion ? "warning" : hasReliableSeoSignal(item) ? (item.published_live ? "secondary" : "success") : "secondary"}
+                    description={
+                      item.latest_suggestion?.summary ??
+                      ("reason" in item && typeof item.reason === "string" && item.reason.length > 0
+                        ? item.reason
+                        : `${item.gsc_metrics.impressions} impression(s) montrent deja un signal utile dans Google. Cette page peut encore etre renforcee.`
+                      )
+                    }
+                    actions={pageActions(item.site_id, {
+                      slug: "slug" in item ? item.slug : null,
+                      preferredAction: "rewrite",
+                      includeSite: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
 
-          <CockpitSignalListCard
-            id="chutent"
-            className="scroll-mt-24"
-            title="Pages qui chutent"
-            description="Les pages qui méritent une relance, un refresh ou une meilleure réponse SEO."
-            empty={fallingPages.length === 0}
-            emptyMessage="Aucune chute nette pour le moment. C’est sain : le cockpit surveille déjà les prochaines baisses vraiment utiles à traiter."
-          >
-            {fallingPages.map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_name}-${item.slug}-down`}
-                title={item.label}
-                subtitle={item.site_name}
-                badge="En baisse"
-                badgeTone="danger"
-                description={`${Math.abs(item.delta_impressions)} affichage(s) de moins dans Google, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
-                actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
-                  slug: item.slug,
-                  preferredAction: "rewrite",
-                  includeSearchConsole: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
-        </div>
-
-        <div id="meilleures" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <CockpitSignalListCard
-            title="Meilleures pages"
-            description="Les pages déjà visibles qui portent le plus votre présence SEO."
-            empty={bestPages.length === 0}
-            emptyMessage="Les meilleures pages apparaîtront ici dès que davantage de signaux GSC remonteront. Avec peu de volume, il est normal que cette lecture prenne un peu de temps."
-          >
-            {bestPages.map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_name}-${item.slug}-best`}
-                title={item.label}
-                subtitle={item.site_name}
-                badge={item.impressions > 0 ? `${item.impressions} impressions` : "Signal léger"}
-                description={`${item.previous_impressions} affichage(s) observés auparavant, avec une présence moyenne autour de la ${Math.round(item.position)}e place.`}
-                actions={pageActions(siteIdByName.get(item.site_name) ?? "", {
-                  slug: item.slug,
-                  preferredAction: "preview",
-                  includeSite: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
-
-          <CockpitSignalListCard
-            id="potentiel"
-            className="scroll-mt-24"
-            title="Pages à fort potentiel SEO"
-            description={
-              scoredPages.length > 0
-                ? "Les pages déjà solides côté contenu ou qualité, donc les plus prometteuses à pousser ensuite."
-                : "Même quand le scoring détaillé est encore léger, PraeviSEO garde ici les pages à consolider en priorité."
-            }
-            empty={potentialPages.length === 0}
-            emptyMessage="Aucune page à fort potentiel pour le moment. PraeviSEO les affichera dès qu’une page combine assez de signaux pour mériter une vraie poussée."
-          >
-            {potentialPages.map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_id}-${item.title}-score`}
-                title={item.title}
-                subtitle={item.site_id}
-                badge={seoSignalLabel(item)}
-                badgeTone={hasReliableSeoSignal(item) ? ((item.seo_score ?? 0) >= 80 ? "success" : "secondary") : "warning"}
-                description={
-                  hasReliableSeoSignal(item)
-                    ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
-                    : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale."
-                }
-                actions={pageActions(item.site_id, {
-                  slug: "slug" in item ? item.slug : null,
-                  preferredAction: "rewrite",
-                  includeSite: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
-        </div>
-
-        <div id="refresh" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <CockpitSignalListCard
-            id="refresh"
-            title="Pages à refresh"
-            description="Les contenus qui méritent une relance éditoriale, un enrichissement ou une meilleure exécution."
-            empty={refreshPages.length === 0}
-            emptyMessage="Aucune piste de refresh pour le moment. Cela peut simplement signifier que Google ne remonte pas encore assez de matière pour justifier une relance nette."
-          >
-            {refreshPages.map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_id}-${item.title}-refresh`}
-                title={item.title}
-                subtitle={item.site_id}
-                badge={
-                  item.latest_suggestion
-                    ? "refresh conseillé"
-                    : hasReliableSeoSignal(item)
-                      ? item.published_live
-                        ? "à consolider"
-                        : "à pousser"
-                      : "signal à confirmer"
-                }
-                badgeTone={item.latest_suggestion ? "warning" : hasReliableSeoSignal(item) ? (item.published_live ? "secondary" : "success") : "secondary"}
-                description={
-                  item.latest_suggestion?.summary ??
-                  ("reason" in item && typeof item.reason === "string" && item.reason.length > 0
-                    ? item.reason
-                    : `${item.gsc_metrics.impressions} impression(s) montrent deja un signal utile dans Google. Cette page peut encore etre renforcee.`
-                  )
-                }
-                actions={pageActions(item.site_id, {
-                  slug: "slug" in item ? item.slug : null,
-                  preferredAction: "rewrite",
-                  includeSite: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
-
-          <CockpitSignalListCard
-            id="surveiller"
-            title="Pages à surveiller"
-            description="Les pages où PraeviSEO voit déjà un potentiel SEO ou un signal à traiter vite."
-            empty={pagesToWatch.length === 0}
-            emptyMessage="Aucune page chaude pour le moment. Les prochaines opportunités viendront enrichir ce bloc dès qu’un signal dépasse le bruit naturel du site."
-          >
-            {pagesToWatch.map((item) => (
-              <CockpitSignalItem
-                key={`${item.site_id}-${item.slug}-${item.type}`}
-                title={item.label}
-                subtitle={item.site_name}
-                badge={item.priority_label}
-                badgeTone={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}
-                description={item.reason}
-                actions={pageActions(item.site_id, {
-                  slug: item.slug,
-                  preferredAction:
-                    item.type === "observed_orphan" || item.type === "observed_link_gap"
-                      ? "linking"
-                      : item.type === "low_ctr"
-                        ? "preview"
-                        : "rewrite",
-                  includeSearchConsole: true,
-                  includeSite: true,
-                })}
-              />
-            ))}
-          </CockpitSignalListCard>
-        </div>
+              <CockpitSignalListCard
+                id="surveiller"
+                title="Pages à surveiller"
+                description="Les pages où PraeviSEO voit déjà un potentiel SEO ou un signal à traiter vite."
+                empty={pagesToWatch.length === 0}
+                emptyMessage="Aucune page chaude pour le moment. Les prochaines opportunités viendront enrichir ce bloc dès qu’un signal dépasse le bruit naturel du site."
+              >
+                {pagesToWatch.map((item) => (
+                  <CockpitSignalItem
+                    key={`${item.site_id}-${item.slug}-${item.type}`}
+                    title={item.label}
+                    subtitle={item.site_name}
+                    badge={item.priority_label}
+                    badgeTone={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}
+                    description={item.reason}
+                    actions={pageActions(item.site_id, {
+                      slug: item.slug,
+                      preferredAction:
+                        item.type === "observed_orphan" || item.type === "observed_link_gap"
+                          ? "linking"
+                          : item.type === "low_ctr"
+                            ? "preview"
+                            : "rewrite",
+                      includeSearchConsole: true,
+                      includeSite: true,
+                    })}
+                  />
+                ))}
+              </CockpitSignalListCard>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   );

@@ -721,123 +721,133 @@ export default async function DashboardPage() {
           impactText={dashboardAssistantImpact}
         />
 
-        <div id="opportunites" className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sites suivis</CardTitle>
-              <CardDescription>
-                Vos sites, ce que Google comprend déjà, et les prochains gains visibles dans le cockpit.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {dashboard.sites.length === 0 ? (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun site n est encore rattaché à ce compte. Créez un nouveau site ou rejoignez un site existant.
-                </div>
-              ) : dashboard.sites.map((site) => (
-                <div
-                  key={site.site_id}
-                  className="rounded-2xl border border-border-subtle bg-surface-2/40 px-4 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
-                >
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-semibold text-text">{site.name}</h3>
-                      <Badge variant="secondary">Copilote SEO actif</Badge>
-                      <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
-                        {getPraeviseoClientStatus(site)}
-                      </Badge>
+        <details className="group rounded-3xl border border-border bg-surface/80">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold text-text">Analyses détaillées du cockpit</p>
+              <p className="text-xs text-text-subtle">Sites suivis, priorités, pages à surveiller et signaux Google détaillés.</p>
+            </div>
+            <span className="text-xs text-text-subtle transition group-open:rotate-180">▾</span>
+          </summary>
+
+          <div className="space-y-6 border-t border-border px-5 py-5">
+            <div id="opportunites" className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] scroll-mt-24">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Sites suivis</CardTitle>
+                  <CardDescription>
+                    Vos sites, ce que Google comprend déjà, et les prochains gains visibles dans le cockpit.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {dashboard.sites.length === 0 ? (
+                    <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                      Aucun site n est encore rattaché à ce compte. Créez un nouveau site ou rejoignez un site existant.
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">{site.url}</p>
-                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-subtle">
-                      <span>{site.summary.pages_total} page(s) suivie(s)</span>
-                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions GSC (28 j)</span>
-                      <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics GSC (28 j)</span>
-                      <span>
-                        {new Intl.NumberFormat("fr-FR", {
-                          style: "percent",
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
-                        }).format(site.summary.gsc_ctr)}{" "}
-                        Taux de clic
-                      </span>
-                      <span>
-                        {site.summary.gsc_indexation_synced
-                          ? `${site.summary.gsc_indexed_pages} page(s) déjà bien lue(s) dans Google`
-                          : "Lecture des pages Google encore en attente"}
-                      </span>
-                      <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
-                      <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
-                      <span>{site.summary.gsc_non_indexed_pages} page(s) à vérifier</span>
-                      <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
-                      <span>
-                        {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
-                        {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions vs avant
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button href={getSitePath(site.site_id)} variant="secondary" size="sm">
-                      Ouvrir
-                    </Button>
-                    <Button
-                      href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}
-                      size="sm"
+                  ) : dashboard.sites.map((site) => (
+                    <div
+                      key={site.site_id}
+                      className="rounded-2xl border border-border-subtle bg-surface-2/40 px-4 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
                     >
-                      {getPraeviseoActivationLabel(site)}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Priorités du moment</CardTitle>
-              <CardDescription>
-                Ce que PraeviSEO recommande en premier au client, sans jargon technique.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {freePriorityFeed.length === 0 ? (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucun point bloquant fort en ce moment. PraeviSEO continue de vérifier les prochains signaux utiles.
-                </div>
-              ) : (
-                freePriorityFeed.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">{item.title}</div>
-                      <Badge variant={item.tone}>
-                        {item.badge}
-                      </Badge>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base font-semibold text-text">{site.name}</h3>
+                          <Badge variant="secondary">Copilote SEO actif</Badge>
+                          <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
+                            {getPraeviseoClientStatus(site)}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-sm text-text-muted">{site.url}</p>
+                        <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-subtle">
+                          <span>{site.summary.pages_total} page(s) suivie(s)</span>
+                          <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_impressions)} impressions GSC (28 j)</span>
+                          <span>{new Intl.NumberFormat("fr-FR").format(site.summary.gsc_clicks)} clics GSC (28 j)</span>
+                          <span>
+                            {new Intl.NumberFormat("fr-FR", {
+                              style: "percent",
+                              minimumFractionDigits: 1,
+                              maximumFractionDigits: 1,
+                            }).format(site.summary.gsc_ctr)}{" "}
+                            Taux de clic
+                          </span>
+                          <span>
+                            {site.summary.gsc_indexation_synced
+                              ? `${site.summary.gsc_indexed_pages} page(s) déjà bien lue(s) dans Google`
+                              : "Lecture des pages Google encore en attente"}
+                          </span>
+                          <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
+                          <span>{site.summary.new_queries.length} nouvelle(s) requête(s)</span>
+                          <span>{site.summary.gsc_non_indexed_pages} page(s) à vérifier</span>
+                          <span>{site.readiness.gsc_connected ? "GSC reliée" : "GSC non reliée"}</span>
+                          <span>
+                            {site.summary.gsc_delta_impressions > 0 ? "+" : ""}
+                            {new Intl.NumberFormat("fr-FR").format(site.summary.gsc_delta_impressions)} impressions vs avant
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button href={getSitePath(site.site_id)} variant="secondary" size="sm">
+                          Ouvrir
+                        </Button>
+                        <Button
+                          href={site.readiness.gsc_connected ? getSiteConnectPath(site.site_id) : `/sites/${site.site_id}/search-console`}
+                          size="sm"
+                        >
+                          {getPraeviseoActivationLabel(site)}
+                        </Button>
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-text-subtle">{item.siteLabel}</p>
-                    <p className="mt-2 text-sm text-text-muted leading-6">{item.description}</p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  ))}
+                </CardContent>
+              </Card>
 
-        <div id="pages" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pages à suivre</CardTitle>
-              <CardDescription>
-                Un résumé rapide des pages à suivre. La décision page par page se prend dans la vue Pages.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {pageWatchlist.length === 0 ? (
-                <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune page sensible pour le moment. PraeviSEO remontera ici les prochaines hausses, chutes et zones
-                  à relancer.
-                </div>
-              ) : (
-                pageWatchlist.map((item) => (
-                  <div key={`${item.site_name}-${item.slug}-${item.trend}-page`} className="rounded-xl border border-border px-4 py-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Priorités du moment</CardTitle>
+                  <CardDescription>
+                    Ce que PraeviSEO recommande en premier au client, sans jargon technique.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {freePriorityFeed.length === 0 ? (
+                    <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                      Aucun point bloquant fort en ce moment. PraeviSEO continue de vérifier les prochains signaux utiles.
+                    </div>
+                  ) : (
+                    freePriorityFeed.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-text">{item.title}</div>
+                          <Badge variant={item.tone}>
+                            {item.badge}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-text-subtle">{item.siteLabel}</p>
+                        <p className="mt-2 text-sm text-text-muted leading-6">{item.description}</p>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div id="pages" className="grid gap-6 xl:grid-cols-2 scroll-mt-24">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pages à suivre</CardTitle>
+                  <CardDescription>
+                    Un résumé rapide des pages à suivre. La décision page par page se prend dans la vue Pages.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {pageWatchlist.length === 0 ? (
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
+                      Aucune page sensible pour le moment. PraeviSEO remontera ici les prochaines hausses, chutes et zones
+                      à relancer.
+                    </div>
+                  ) : (
+                    pageWatchlist.map((item) => (
+                      <div key={`${item.site_name}-${item.slug}-${item.trend}-page`} className="rounded-xl border border-border px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-text">{item.label}</p>
@@ -1256,6 +1266,8 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+    </details>
       </div>
     </div>
   );
