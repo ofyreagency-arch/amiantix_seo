@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ArticleBodyPreview } from "@/components/cockpit/article-body-preview";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
@@ -710,11 +711,11 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                   </div>
                 ) : null}
 
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                   {studioLead?.preview_url ? (
                     <Button href={studioLead.preview_url} variant={focusAction === "preview" ? "primary" : "secondary"}>
                       <Eye className="h-4 w-4" />
-                      Voir l’article complet
+                      Ouvrir le preview
                     </Button>
                   ) : null}
                   {studioLeadImageAction ? (
@@ -853,31 +854,10 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                     </div>
                   </div>
 
-                  <div className="mt-6 border-t border-border pt-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Article complet dans le moteur</div>
-                      <div className="text-xs text-text-subtle">{studioLead.content_word_count} mots</div>
-                    </div>
-                    <div className="mt-4 space-y-4">
-                      {studioArticleBlocks.length > 0 ? (
-                        studioArticleBlocks.map((block, index) =>
-                          block.type === "heading" ? (
-                            <h3 key={`${block.type}-${index}`} className="text-lg font-semibold text-text">
-                              {block.text}
-                            </h3>
-                          ) : (
-                            <p key={`${block.type}-${index}`} className="text-[15px] leading-8 text-text-muted">
-                              {block.text}
-                            </p>
-                          )
-                        )
-                      ) : (
-                        <p className="text-[15px] leading-8 text-text-muted">
-                          Aucun corps complet n’a encore été remonté par le moteur pour ce contenu.
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  <ArticleBodyPreview
+                    blocks={studioArticleBlocks}
+                    wordCount={studioLead.content_word_count}
+                  />
                 </article>
               ) : (
                 <div className="rounded-2xl border border-border bg-surface-2 px-5 py-6 text-sm leading-6 text-text-muted">
@@ -1017,92 +997,106 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
           ) : null}
         </CockpitSignalListCard>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <CockpitSignalListCard
-            title="Pourquoi enrichir ce contenu maintenant"
-            description="Le contenu qui peut débloquer le plus vite un gain SEO ou éditorial."
-            empty={!leadContent}
-            emptyMessage="Aucun contenu prioritaire clair pour le moment. PraeviSEO rouvrira ce bloc dès qu’un levier éditorial plus net remonte."
-          >
-            {leadContent ? (
-              <div className="rounded-xl border border-border p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{leadContent.title}</p>
-                    <p className="text-xs text-text-subtle">
-                      {leadContent.site_id}
-                      {leadContent.observed_content?.cluster_label ?? leadContent.cluster
-                        ? ` · ${leadContent.observed_content?.cluster_label ?? leadContent.cluster}`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={hasReliableSeoSignal(leadContent) && (leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? 0) >= 60 ? "success" : "secondary"}>
-                      {hasReliableSeoSignal(leadContent)
-                        ? `Autorité observée ${leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? "n/a"}`
-                        : "Signal léger"}
-                    </Badge>
-                    <Badge variant={leadContent.latest_suggestion ? "warning" : "secondary"}>
-                      {leadContent.latest_suggestion ? "Reco ouverte" : "A enrichir"}
-                    </Badge>
-                  </div>
-                </div>
-                <p className="text-sm text-text-muted">
-                  {leadContent.latest_suggestion?.summary ??
-                    `Ce contenu a deja ${leadContent.observed_content?.query_match_count ?? 0} requete(s) reliee(s), ${leadContent.observed_content?.snapshot_word_count ?? "n/a"} mots observes et un vrai potentiel a renforcer.`}
+        <details className="rounded-2xl border border-border bg-surface px-5 py-5">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-text">Analyses détaillées du moteur</div>
+                <p className="mt-1 text-sm leading-6 text-text-muted">
+                  Ouvre ce bloc seulement si tu veux voir les catégories secondaires, les regroupements et les signaux détaillés.
                 </p>
-                <div className="grid gap-2 md:grid-cols-4 text-xs text-text-subtle">
-                  <span>Impressions : {leadContent.gsc_metrics.impressions}</span>
-                  <span>CTR : {leadContent.gsc_metrics.ctr.toFixed(1)} %</span>
-                  <span>Position : {leadContent.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
-                  <span>Maillage : {leadContent.observed_content ? `${leadContent.observed_content.internal_inlinks} entrant(s)` : "n/a"}</span>
-                </div>
-                {leadContent.observed_content ? (
-                  <p className="text-sm text-text-muted">
-                    {leadContent.observed_content.snapshot_word_delta > 0
-                      ? `PraeviSEO voit déjà un enrichissement de +${leadContent.observed_content.snapshot_word_delta} mots depuis la lecture précédente.`
-                      : "PraeviSEO n’a pas encore vu de vrai changement de contenu entre les deux dernières lectures."}
-                  </p>
+              </div>
+              <Badge variant="secondary">ouvrir le détail</Badge>
+            </div>
+          </summary>
+
+          <div className="mt-6 space-y-6">
+            <div className="grid gap-6 xl:grid-cols-2">
+              <CockpitSignalListCard
+                title="Pourquoi enrichir ce contenu maintenant"
+                description="Le contenu qui peut débloquer le plus vite un gain SEO ou éditorial."
+                empty={!leadContent}
+                emptyMessage="Aucun contenu prioritaire clair pour le moment. PraeviSEO rouvrira ce bloc dès qu’un levier éditorial plus net remonte."
+              >
+                {leadContent ? (
+                  <div className="rounded-xl border border-border p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{leadContent.title}</p>
+                        <p className="text-xs text-text-subtle">
+                          {leadContent.site_id}
+                          {leadContent.observed_content?.cluster_label ?? leadContent.cluster
+                            ? ` · ${leadContent.observed_content?.cluster_label ?? leadContent.cluster}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant={hasReliableSeoSignal(leadContent) && (leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? 0) >= 60 ? "success" : "secondary"}>
+                          {hasReliableSeoSignal(leadContent)
+                            ? `Autorité observée ${leadContent.observed_content?.authority_score ?? leadContent.seo_score ?? "n/a"}`
+                            : "Signal léger"}
+                        </Badge>
+                        <Badge variant={leadContent.latest_suggestion ? "warning" : "secondary"}>
+                          {leadContent.latest_suggestion ? "Reco ouverte" : "A enrichir"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-text-muted">
+                      {leadContent.latest_suggestion?.summary ??
+                        `Ce contenu a deja ${leadContent.observed_content?.query_match_count ?? 0} requete(s) reliee(s), ${leadContent.observed_content?.snapshot_word_count ?? "n/a"} mots observes et un vrai potentiel a renforcer.`}
+                    </p>
+                    <div className="grid gap-2 md:grid-cols-4 text-xs text-text-subtle">
+                      <span>Impressions : {leadContent.gsc_metrics.impressions}</span>
+                      <span>CTR : {leadContent.gsc_metrics.ctr.toFixed(1)} %</span>
+                      <span>Position : {leadContent.gsc_metrics.position?.toFixed(1) ?? "n/a"}</span>
+                      <span>Maillage : {leadContent.observed_content ? `${leadContent.observed_content.internal_inlinks} entrant(s)` : "n/a"}</span>
+                    </div>
+                    {leadContent.observed_content ? (
+                      <p className="text-sm text-text-muted">
+                        {leadContent.observed_content.snapshot_word_delta > 0
+                          ? `PraeviSEO voit déjà un enrichissement de +${leadContent.observed_content.snapshot_word_delta} mots depuis la lecture précédente.`
+                          : "PraeviSEO n’a pas encore vu de vrai changement de contenu entre les deux dernières lectures."}
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
-              </div>
-            ) : null}
-          </CockpitSignalListCard>
+              </CockpitSignalListCard>
 
-          <CockpitSignalListCard
-            title="Action contenu a ouvrir"
-            description="La meilleure action moteur deja prete pour faire progresser le cockpit contenu."
-            empty={!leadRecommendation}
-            emptyMessage="Aucune action contenu prioritaire pour le moment. Le moteur enrichira ce bloc dès qu’un plan a bon ratio impact / effort remonte."
-          >
-            {leadRecommendation ? (
-              <div className="rounded-xl border border-border p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{leadRecommendation.title}</p>
-                    <p className="text-xs text-text-subtle">
-                      {leadRecommendation.site_id}
-                      {leadRecommendation.cluster ? ` · ${leadRecommendation.cluster}` : ""}
+              <CockpitSignalListCard
+                title="Action contenu a ouvrir"
+                description="La meilleure action moteur deja prete pour faire progresser le cockpit contenu."
+                empty={!leadRecommendation}
+                emptyMessage="Aucune action contenu prioritaire pour le moment. Le moteur enrichira ce bloc dès qu’un plan a bon ratio impact / effort remonte."
+              >
+                {leadRecommendation ? (
+                  <div className="rounded-xl border border-border p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{leadRecommendation.title}</p>
+                        <p className="text-xs text-text-subtle">
+                          {leadRecommendation.site_id}
+                          {leadRecommendation.cluster ? ` · ${leadRecommendation.cluster}` : ""}
+                        </p>
+                      </div>
+                      <Badge variant={leadRecommendation.priority <= 30 ? "warning" : "secondary"}>
+                        Priorite {leadRecommendation.priority}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">{impactLabel(leadRecommendation.estimated_impact)}</Badge>
+                      <Badge variant="secondary">{difficultyLabel(leadRecommendation.difficulty)}</Badge>
+                    </div>
+                    <p className="text-sm text-text-muted">{leadRecommendation.reasoning}</p>
+                    <p className="text-sm text-text">
+                      Action a ouvrir :{" "}
+                      <span className="font-medium">{leadRecommendation.suggested_action ?? "a preciser dans le moteur"}</span>
                     </p>
                   </div>
-                  <Badge variant={leadRecommendation.priority <= 30 ? "warning" : "secondary"}>
-                    Priorite {leadRecommendation.priority}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{impactLabel(leadRecommendation.estimated_impact)}</Badge>
-                  <Badge variant="secondary">{difficultyLabel(leadRecommendation.difficulty)}</Badge>
-                </div>
-                <p className="text-sm text-text-muted">{leadRecommendation.reasoning}</p>
-                <p className="text-sm text-text">
-                  Action a ouvrir :{" "}
-                  <span className="font-medium">{leadRecommendation.suggested_action ?? "a preciser dans le moteur"}</span>
-                </p>
-              </div>
-            ) : null}
-          </CockpitSignalListCard>
-        </div>
+                ) : null}
+              </CockpitSignalListCard>
+            </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+            <div className="grid gap-6 xl:grid-cols-2">
           <CockpitSignalListCard
             title="Articles à suivre"
             description="Les contenus que PraeviSEO garde dans le radar SEO, qu’ils soient déjà visibles ou encore à pousser."
@@ -1352,6 +1346,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
             </div>
           ))}
         </CockpitSignalListCard>
+          </div>
+        </details>
       </div>
     </div>
   );
