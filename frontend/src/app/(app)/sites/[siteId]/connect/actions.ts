@@ -86,6 +86,16 @@ function serializeActionError(error: unknown): Record<string, unknown> {
   };
 }
 
+function isNextRedirectError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const redirectError = error as Error & { digest?: string };
+
+  return typeof redirectError.digest === "string" && redirectError.digest.startsWith("NEXT_REDIRECT");
+}
+
 function logActionStart(action: string, context: Record<string, unknown>): void {
   console.info("[praeviseo][action] start", {
     action,
@@ -244,6 +254,10 @@ export async function launchPremiumCrawlAction(siteId: string): Promise<void> {
     revalidatePath(getSiteAutomationPath(siteId));
     redirect(redirectTo);
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("crawl", {
       site_id: siteId,
     }, error);
@@ -275,6 +289,10 @@ export async function launchPremiumGenerationAction(siteId: string): Promise<voi
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : "PraeviSEO n a pas pu démarrer la génération pour le moment.";
 
     if (message.includes("attend encore avant d ouvrir un nouveau sujet")) {
@@ -319,6 +337,10 @@ export async function launchPremiumGenerationForKeywordAction(siteId: string, ke
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("generation.keyword", { site_id: siteId, keyword }, error);
     redirect(
       buildAutomationFeedbackUrl(
@@ -353,6 +375,10 @@ export async function launchPremiumGenerationToStudioAction(siteId: string, keyw
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("generation.studio", { site_id: siteId, keyword }, error);
     redirect(
       buildStudioFeedbackUrl(
@@ -388,6 +414,10 @@ export async function launchPremiumRewriteAction(siteId: string, slug?: string |
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("rewrite", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildAutomationFeedbackUrl(
@@ -425,6 +455,10 @@ export async function launchPremiumRewriteToStudioAction(siteId: string, slug?: 
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("rewrite.studio", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildStudioFeedbackUrl(
@@ -461,6 +495,10 @@ export async function launchPremiumLinkingAction(siteId: string, slug?: string |
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("linking", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildAutomationFeedbackUrl(
@@ -492,6 +530,10 @@ export async function launchPremiumImageAction(siteId: string, slug?: string | n
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("image", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildAutomationFeedbackUrl(
@@ -529,6 +571,10 @@ export async function launchPremiumImageToStudioAction(siteId: string, slug?: st
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("image.studio", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildStudioFeedbackUrl(
@@ -565,6 +611,10 @@ export async function launchPremiumPublicationAction(siteId: string, slug?: stri
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("publication", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildAutomationFeedbackUrl(
@@ -602,6 +652,10 @@ export async function launchPremiumPublicationToStudioAction(siteId: string, slu
       )
     );
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logActionError("publication.studio", { site_id: siteId, slug: slug ?? null }, error);
     redirect(
       buildStudioFeedbackUrl(

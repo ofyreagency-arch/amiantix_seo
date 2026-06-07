@@ -338,11 +338,11 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       key: "publication",
       title: "Publication automatique",
       status: hasLivePages
-        ? "Active"
+        ? "Live vérifié"
         : publicationReady
           ? "Prête"
           : bridgeOperational
-            ? "Bridge actif"
+            ? "Bridge connecté"
             : idleActionLabel(site.action_statuses.publication.state, site.action_statuses.publication.label, "À préparer"),
       detail:
         (hasLivePages
@@ -495,6 +495,55 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             repeat_count: 1,
           },
         ];
+  const latestFailures = [
+    site.action_statuses.crawl.error
+      ? {
+          action: "Crawl",
+          detail: site.action_statuses.crawl.error,
+          at: site.action_statuses.crawl.updated_at,
+        }
+      : null,
+    site.action_statuses.generation.error
+      ? {
+          action: "Génération",
+          detail: site.action_statuses.generation.error,
+          at: site.action_statuses.generation.updated_at,
+        }
+      : null,
+    site.action_statuses.rewrite.error
+      ? {
+          action: "Réécriture",
+          detail: site.action_statuses.rewrite.error,
+          at: site.action_statuses.rewrite.updated_at,
+        }
+      : null,
+    site.action_statuses.linking.error
+      ? {
+          action: "Maillage",
+          detail: site.action_statuses.linking.error,
+          at: site.action_statuses.linking.updated_at,
+        }
+      : null,
+    site.action_statuses.images.error
+      ? {
+          action: "Image",
+          detail: site.action_statuses.images.error,
+          at: site.action_statuses.images.updated_at,
+        }
+      : null,
+    site.action_statuses.publication.error
+      ? {
+          action: "Publication",
+          detail: site.action_statuses.publication.error,
+          at: site.action_statuses.publication.updated_at,
+        }
+      : null,
+  ]
+    .filter(
+      (item): item is { action: string; detail: string; at: string | null } =>
+        Boolean(item)
+    )
+    .sort((left, right) => new Date(right.at ?? 0).getTime() - new Date(left.at ?? 0).getTime());
 
   const generationReady = site.summary.new_queries.length > 0;
   const rewriteReady = Boolean(leadRefresh || leadRisingPage);
@@ -790,6 +839,61 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             <p className="mt-2 text-sm leading-6 text-text-muted">{feedbackDetail}</p>
           </div>
         ) : null}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Historique réel des actions</CardTitle>
+            <CardDescription>
+              Ce qui a vraiment tourné, quand, avec quel résultat, sans lire les logs serveur.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-3">
+              {executionHistory.map((entry, index) => (
+                <div key={`${entry.at}-${entry.kind}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">{entry.label}</div>
+                    <Badge variant={entry.tone}>{formatDate(entry.at)}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
+                  {entry.repeat_count && entry.repeat_count > 1 ? (
+                    <p className="mt-2 text-xs text-text-subtle">Vu {entry.repeat_count} fois sur l’historique récent.</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="text-sm font-semibold text-text">Dernière erreur réelle</div>
+                <div className="mt-3 space-y-3">
+                  {latestFailures.length > 0 ? (
+                    latestFailures.slice(0, 3).map((item) => (
+                      <div key={`${item.action}-${item.at ?? "unknown"}`} className="rounded-xl border border-danger/20 bg-danger/10 px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-medium text-text">{item.action}</div>
+                          <Badge variant="danger">{item.at ? formatDate(item.at) : "à l’instant"}</Badge>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-border bg-surface-3 px-3 py-3 text-sm leading-6 text-text-muted">
+                      Aucune erreur active remontée sur les dernières actions visibles.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="text-sm font-semibold text-text">Vérité du moteur</div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">
+                  Les statuts “Terminé” ou “Actif” affichés plus bas ne valent que pour l’action moteur interne. Si une erreur existe ici ou si le live n’est pas vérifié, le système n’est pas considéré comme sain.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="border-brand/20 bg-brand-muted">
           <CardHeader>

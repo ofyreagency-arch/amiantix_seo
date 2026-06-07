@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
 import { Download, ShieldCheck, Stethoscope, TerminalSquare, Wrench } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
+import { SiteAccessState } from "@/components/sites/site-access-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,12 +54,31 @@ const ACTIVATION_STEPS = [
   },
 ] as const;
 
+type SystemTruthRow = {
+  feature: string;
+  state: "OK" | "KO" | "Partiel" | "À vérifier";
+  test: string;
+  result: string;
+};
+
+function truthTone(state: SystemTruthRow["state"]): "default" | "secondary" | "warning" | "danger" {
+  switch (state) {
+    case "OK":
+      return "default";
+    case "Partiel":
+    case "À vérifier":
+      return "warning";
+    default:
+      return "danger";
+  }
+}
+
 export default async function SiteConnectPage({ params }: SiteConnectPageProps) {
   const { siteId } = await params;
   const site = await getSite(siteId);
 
   if (!site) {
-    notFound();
+    return <SiteAccessState siteId={siteId} areaLabel="la santé technique" />;
   }
 
   const installationLabel = getPraeviseoInstallLabel(site);
@@ -68,6 +87,70 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
   const automationPath = `/sites/${site.site_id}/automation`;
   const cockpitPath = `/sites/${site.site_id}`;
   const readyForAutomation = site.publication_bridge_status === "connected";
+  const publicationOperational = site.publication_target.engine_actionable;
+  const publicationStatus = site.action_statuses.publication;
+  const generationStatus = site.action_statuses.generation;
+  const rewriteStatus = site.action_statuses.rewrite;
+  const linkingStatus = site.action_statuses.linking;
+  const imageStatus = site.action_statuses.images;
+  const crawlStatus = site.action_statuses.crawl;
+  const truthRows: SystemTruthRow[] = [
+    {
+      feature: "GSC",
+      state: site.readiness.gsc_connected ? "OK" : "KO",
+      test: "Connexion Search Console",
+      result: site.readiness.gsc_connected
+        ? "Lecture Google connectée."
+        : "Aucune lecture Google confirmée.",
+    },
+    {
+      feature: "Crawl",
+      state: site.last_successful_crawl ? "OK" : crawlStatus.state === "failed" ? "KO" : "À vérifier",
+      test: "Dernier crawl observé",
+      result: site.last_successful_crawl
+        ? `${site.last_successful_crawl.crawled_url_count} page(s) relues, ${site.last_successful_crawl.issues_count} point(s) remonté(s).`
+        : crawlStatus.error || crawlStatus.detail || "Aucune relecture complète confirmée.",
+    },
+    {
+      feature: "Génération article",
+      state: generationStatus.state === "completed" ? "Partiel" : generationStatus.state === "failed" ? "KO" : generationStatus.state === "running" ? "À vérifier" : "Partiel",
+      test: "Dernière action génération",
+      result: generationStatus.error || generationStatus.detail || "Le moteur sait ouvrir un brouillon, mais sa qualité éditoriale reste à confirmer.",
+    },
+    {
+      feature: "Publication",
+      state: publicationOperational ? "Partiel" : publicationStatus.state === "failed" ? "KO" : "À vérifier",
+      test: "Bridge + cible live",
+      result: publicationStatus.error || site.publication_target.detail,
+    },
+    {
+      feature: "Images",
+      state: imageStatus.state === "completed" ? "Partiel" : imageStatus.state === "failed" ? "KO" : "À vérifier",
+      test: "Dernière action image",
+      result: imageStatus.error || imageStatus.detail || "Aucune image validée de bout en bout n’est encore confirmée ici.",
+    },
+    {
+      feature: "Réécriture",
+      state: rewriteStatus.state === "completed" ? "Partiel" : rewriteStatus.state === "failed" ? "KO" : "À vérifier",
+      test: "Dernière action réécriture",
+      result: rewriteStatus.error || rewriteStatus.detail || "Aucune réécriture terminée n’est encore confirmée ici.",
+    },
+    {
+      feature: "Maillage",
+      state: linkingStatus.state === "completed" ? "Partiel" : linkingStatus.state === "failed" ? "KO" : "À vérifier",
+      test: "Dernière action maillage",
+      result: linkingStatus.error || linkingStatus.detail || "Aucun renfort de maillage terminé n’est encore confirmé ici.",
+    },
+  ];
+  const blockingItems = [
+    crawlStatus.error ? { label: "Erreur crawl", detail: crawlStatus.error } : null,
+    generationStatus.error ? { label: "Erreur génération", detail: generationStatus.error } : null,
+    rewriteStatus.error ? { label: "Erreur réécriture", detail: rewriteStatus.error } : null,
+    linkingStatus.error ? { label: "Erreur maillage", detail: linkingStatus.error } : null,
+    imageStatus.error ? { label: "Erreur image", detail: imageStatus.error } : null,
+    publicationStatus.error ? { label: "Erreur publication", detail: publicationStatus.error } : null,
+    !publicationOperational ? { label: "Publication live", detail: site.publication_target.detail } : null,
+  ].filter((item): item is { label: string; detail: string } => Boolean(item));
 
   return (
     <div className="min-h-screen">
@@ -123,6 +206,59 @@ export default async function SiteConnectPage({ params }: SiteConnectPageProps) 
             </div>
           </div>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Vérité du système</CardTitle>
+            <CardDescription>
+              Ce tableau dit seulement ce qui est réellement confirmé aujourd’hui, sans supposer que le reste fonctionne.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <table className="w-full text-left">
+                <thead className="bg-surface-2 text-xs uppercase tracking-[0.18em] text-text-subtle">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Fonction</th>
+                    <th className="px-4 py-3 font-medium">État</th>
+                    <th className="px-4 py-3 font-medium">Test réel</th>
+                    <th className="px-4 py-3 font-medium">Résultat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {truthRows.map((row) => (
+                    <tr key={row.feature} className="border-t border-border align-top">
+                      <td className="px-4 py-4 text-sm font-semibold text-text">{row.feature}</td>
+                      <td className="px-4 py-4">
+                        <Badge variant={truthTone(row.state)}>{row.state}</Badge>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-text-muted">{row.test}</td>
+                      <td className="px-4 py-4 text-sm leading-6 text-text-muted">{row.result}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+              <div className="text-sm font-semibold text-text">Ce qui casse maintenant</div>
+              <div className="mt-3 space-y-3">
+                {blockingItems.length > 0 ? (
+                  blockingItems.map((item) => (
+                    <div key={item.label} className="rounded-xl border border-danger/20 bg-danger/10 px-3 py-3">
+                      <div className="text-sm font-medium text-text">{item.label}</div>
+                      <p className="mt-1 text-sm leading-6 text-text-muted">{item.detail}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm leading-6 text-text-muted">
+                    Aucun blocage franc n’est remonté sur cette lecture. Les zones en “Partiel” demandent encore une validation réelle, pas une nouvelle feature.
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 xl:grid-cols-4">
           {[

@@ -305,10 +305,12 @@ export default async function DashboardPage() {
       id: `timeline-publication-${item.id}`,
       title: item.title,
       detail: item.published_live
-        ? "Le contenu est déjà visible sur le site."
+        ? item.live_verified
+          ? "Le contenu est bien visible sur le site."
+          : "Le contenu a été envoyé, mais l’URL live reste à vérifier."
         : "Le contenu reste prêt côté PraeviSEO.",
-      badge: item.published_live ? "Visible" : "Préparé",
-      badgeVariant: item.published_live ? "success" : "secondary",
+      badge: item.published_live ? (item.live_verified ? "Visible" : "À vérifier") : "Préparé",
+      badgeVariant: item.published_live ? (item.live_verified ? "success" : "warning") : "secondary",
       meta: item.published_at ? formatDate(item.published_at) : "Récemment",
       timestamp: item.published_at ? new Date(item.published_at).getTime() : 0,
     })),
@@ -1017,8 +1019,8 @@ export default async function DashboardPage() {
                         <p className="text-sm font-semibold text-text">{item.title}</p>
                         <p className="text-xs text-text-subtle">{item.site_id}</p>
                       </div>
-                      <Badge variant={item.published_live ? "success" : "secondary"}>
-                        {item.published_live ? "visible sur le site" : "en preparation"}
+                      <Badge variant={item.published_live ? (item.live_verified ? "success" : "warning") : "secondary"}>
+                        {item.published_live ? (item.live_verified ? "visible sur le site" : "publication à vérifier") : "en preparation"}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">

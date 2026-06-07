@@ -17,7 +17,7 @@ type ArticleBodyPreviewProps = {
 export function ArticleBodyPreview({
   blocks,
   wordCount,
-  previewCount = 4,
+  previewCount = 3,
 }: ArticleBodyPreviewProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -30,12 +30,13 @@ export function ArticleBodyPreview({
   }, [blocks, expanded, previewCount]);
 
   const hasMore = blocks.length > previewCount;
+  const hiddenCount = Math.max(0, blocks.length - visibleBlocks.length);
 
   return (
     <div className="mt-6 border-t border-border pt-5">
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">
-          Article dans le moteur
+          Article complet dans le moteur
         </div>
         <div className="text-xs text-text-subtle">{wordCount} mots</div>
       </div>
@@ -59,14 +60,19 @@ export function ArticleBodyPreview({
         )}
       </div>
       {hasMore ? (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          {!expanded ? (
+            <p className="text-xs text-text-subtle">
+              {hiddenCount} bloc(s) restent masqués pour garder la lecture simple.
+            </p>
+          ) : null}
           <Button
             type="button"
             variant="secondary"
             size="sm"
             onClick={() => setExpanded((value) => !value)}
           >
-            {expanded ? "Voir moins" : "Voir plus"}
+            {expanded ? "Voir moins" : "Voir l’article complet"}
           </Button>
         </div>
       ) : null}
