@@ -87,16 +87,20 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const leadRisingPage = site.summary.top_rising_pages[0] ?? null;
   const leadRefresh = sitePublications.find((item) => item.latest_suggestion || item.observed_content) ?? null;
   const leadIndexationAlert = site.summary.indexation_alerts[0] ?? null;
-  const livePublishedCount = Math.max(
-    sitePublications.filter((item) => item.published_live).length,
-    site.readiness.has_live_pages ? 1 : 0
-  );
+  const liveVerifiedCount = sitePublications.filter((item) => item.live_verified).length;
+  const publishedButUnverifiedCount = sitePublications.filter(
+    (item) => item.published_live && !item.live_verified
+  ).length;
   const monitoredContentCount = sitePublications.filter((item) => item.observed_content).length;
   const publicationReady = site.publication_target.engine_actionable;
   const bridgeOperational = bridgeConnected || publicationReady;
   const hasPublishedPages = site.readiness.has_published_pages || sitePublications.length > 0;
-  const hasLivePages = site.readiness.has_live_pages || livePublishedCount > 0;
-  const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
+  const hasVerifiedLivePages = liveVerifiedCount > 0;
+  const hasUnverifiedPublishedPages = publishedButUnverifiedCount > 0;
+  const latestPublishedContent =
+    sitePublications.find((item) => item.live_verified) ??
+    sitePublications.find((item) => item.published_live) ??
+    null;
   const currentCrawl = site.crawl;
   const lastSuccessfulCrawl = site.last_successful_crawl;
   const loopStatus =
@@ -337,16 +341,20 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "publication",
       title: "Publication automatique",
-      status: hasLivePages
+      status: hasVerifiedLivePages
         ? "Live vérifié"
+        : hasUnverifiedPublishedPages
+          ? "À vérifier"
         : publicationReady
           ? "Prête"
           : bridgeOperational
             ? "Bridge connecté"
             : idleActionLabel(site.action_statuses.publication.state, site.action_statuses.publication.label, "À préparer"),
       detail:
-        (hasLivePages
-          ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent être repris automatiquement.`
+        (hasVerifiedLivePages
+          ? `${liveVerifiedCount} contenu(s) live sont réellement confirmés et peuvent être repris automatiquement.`
+          : hasUnverifiedPublishedPages
+            ? `${publishedButUnverifiedCount} contenu(s) ont une URL live enregistrée, mais PraeviSEO n’a pas encore confirmé qu’elle répond correctement.`
           : publicationReady
             ? site.publication_target.detail || "Le bridge est prêt. PraeviSEO peut pousser le premier contenu utile dès qu’il est prêt."
             : bridgeOperational
@@ -356,14 +364,18 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                 "La publication démarrera juste après l’activation complète de la connexion premium."),
       updatedAt: site.action_statuses.publication.updated_at,
       nextPass: ACTION_NEXT_PASSES.publication,
-      result: hasLivePages
-        ? `Le site a déjà ${livePublishedCount} contenu(s) visible(s) en live.`
+      result: hasVerifiedLivePages
+        ? `Le site a déjà ${liveVerifiedCount} contenu(s) réellement visibles en live.`
+        : hasUnverifiedPublishedPages
+          ? `${publishedButUnverifiedCount} contenu(s) ont été poussés, mais restent à vérifier avant d’être considérés comme vraiment visibles.`
         : publicationReady
           ? "Le site peut déjà recevoir une première publication live."
           : describeResult(site.action_statuses.publication.state, site.action_statuses.publication.detail, site.action_statuses.publication.error),
       impact:
-        hasLivePages
-          ? `${livePublishedCount} contenu(s) sont déjà visibles et peuvent maintenant être suivis en conditions réelles.`
+        hasVerifiedLivePages
+          ? `${liveVerifiedCount} contenu(s) sont déjà visibles et peuvent maintenant être suivis en conditions réelles.`
+          : hasUnverifiedPublishedPages
+            ? "Évite de présenter comme visible un contenu dont l’URL live n’est pas encore confirmée."
           : "Transforme les contenus préparés en pages réellement visibles sur le site.",
     },
     {
@@ -684,8 +696,10 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         : !bridgeOperational
           ? "Bridge à connecter"
           : "Contenu encore à préparer",
-      description: hasLivePages
+      description: hasVerifiedLivePages
         ? "Pousser un nouveau contenu ou une mise à jour sur le site déjà connecté."
+        : hasUnverifiedPublishedPages
+          ? "Vérifier d’abord les URLs live déjà poussées avant de présenter le site comme vraiment publié."
         : publicationReady
           ? "Le bridge répond déjà : une première publication live peut partir."
           : bridgeOperational

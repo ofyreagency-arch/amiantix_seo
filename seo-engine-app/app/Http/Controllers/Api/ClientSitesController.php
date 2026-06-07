@@ -1391,6 +1391,7 @@ class ClientSitesController extends Controller
         $pages = collect();
         $issues = collect();
         $issueSummary = collect();
+        $issueRows = collect();
 
         if ($referenceCrawl) {
             $pages = SeoSitePage::query()
@@ -1446,7 +1447,7 @@ class ClientSitesController extends Controller
                 'link_gap_pages' => count((array) ($observedSnapshot['link_gap_pages'] ?? [])),
                 'pillar_candidates' => (int) ($observedSnapshot['pillar_candidates'] ?? 0),
                 'health_score' => (int) ($observedHealth['health_score'] ?? 0),
-                'crawl_issues' => (int) ($observedHealth['crawl_issues'] ?? 0),
+                'crawl_issues' => $issueRows->count(),
                 'indexed_pages' => (int) ($gscSnapshot['indexed_pages'] ?? 0),
                 'non_indexed_pages' => (int) ($gscSnapshot['non_indexed_pages'] ?? 0),
             ],
