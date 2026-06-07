@@ -32,6 +32,28 @@ type ExecutionHistoryEntry = {
   repeat_count?: number;
 };
 
+type GenerationAudit = {
+  status: "eligible" | "rejected" | "cooldown" | "no_data";
+  queries_analyzed_count: number;
+  eligible_queries_count: number;
+  rejected_queries_count: number;
+  limit_reason: string | null;
+  minimum_query_impressions: number;
+  maximum_query_position: number;
+  min_hours_between_articles: number;
+  max_articles_per_28_days: number;
+  best_query: {
+    query: string;
+    impressions: number;
+    previous_impressions: number;
+    position: number;
+    score: number;
+    eligible: boolean;
+    rejection_reason: string | null;
+  } | null;
+  rejection_breakdown: Record<string, number>;
+};
+
 const ACTION_NEXT_PASSES: Record<string, string> = {
   generation: "Relance lors du prochain passage premium si une nouvelle requête utile se confirme.",
   crawl: "Relance au prochain contrôle du site ou juste après une publication importante.",
@@ -55,6 +77,21 @@ function slugFromUrl(url: string | null | undefined): string | null {
     const normalized = url.split("?")[0]?.split("#")[0] ?? "";
     const segments = normalized.split("/").filter(Boolean);
     return segments.length > 0 ? segments[segments.length - 1] : null;
+  }
+}
+
+function describeGenerationReason(reason: string | null | undefined): string {
+  switch (reason) {
+    case "volume_trop_faible":
+      return "Le volume est encore trop faible par rapport au seuil minimum.";
+    case "position_inconnue":
+      return "La position Google est absente ou encore inutilisable.";
+    case "position_trop_lointaine":
+      return "La requête est encore trop loin dans Google pour ouvrir un article propre.";
+    case "deja_couverte":
+      return "Le sujet est déjà trop proche d’un contenu existant.";
+    default:
+      return "Aucun sujet assez net n’est encore retenu par le moteur.";
   }
 }
 
@@ -110,6 +147,14 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         ? "Active"
         : "En attente";
   const crawlReport = site.crawl_report;
+  const generationAudit = ((site.summary as { generation_audit?: GenerationAudit }).generation_audit ?? null);
+  const generationAuditReason =
+    generationAudit?.limit_reason ??
+    generationAudit?.best_query?.rejection_reason ??
+    null;
+  const generationAuditSummary = generationAudit
+    ? `Requêtes analysées : ${generationAudit.queries_analyzed_count}. Seuil minimum : ${generationAudit.minimum_query_impressions} impressions et position <= ${generationAudit.maximum_query_position}.`
+    : null;
   const displayCrawl =
     currentCrawl &&
     lastSuccessfulCrawl &&
@@ -631,7 +676,19 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       available: generationReady,
       blockedReason: generationReady
         ? null
-        : "PraeviSEO n’a pas encore trouvé une recherche Google assez utile et distincte pour ouvrir un article fiable.",
+        : gscConnected
+          ? [
+              generationAuditSummary,
+              generationAudit?.limit_reason
+                ? `Blocage actuel : ${generationAudit.limit_reason}.`
+                : `Motif principal de rejet : ${describeGenerationReason(generationAuditReason)}`,
+              generationAudit?.best_query
+                ? `Meilleure requête vue : ${generationAudit.best_query.query} (${generationAudit.best_query.impressions} impressions, position ${generationAudit.best_query.position}).`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : "Reliez d’abord Google Search Console pour laisser PraeviSEO détecter les vraies recherches montantes du site.",
       helperHref: queryFocusHref,
       helperLabel: "Voir les requêtes utiles",
       action: generationReady && runGenerationKeywordAction ? runGenerationKeywordAction : runCrawlAction,
@@ -726,6 +783,56 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const blockedActions = [...comingSoonButtons, ...preparationButtons].slice(0, 4);
   const recommendedActionButton =
     recommendedActionKey ? actionButtons.find((item) => item.key === recommendedActionKey) ?? null : null;
+  const priorityAction = (() => {
+    if (site.summary.indexation_alerts.length > 0) {
+      return {
+        title: `${site.summary.indexation_alerts.length} page(s) hors index à corriger`,
+        detail: "Google voit déjà des pages qui restent hors index. Tant que ce bloc n’est pas traité, le site perd du terrain visible.",
+        whyNow: "Impact estimé élevé : une page hors index ne peut pas produire de trafic organique propre.",
+        actionLabel: "Ouvrir l’indexation",
+        href: "/indexation",
+        source: `Source réelle : Search Console, ${site.summary.indexation_alerts.length} alerte(s) page-level encore non indexée(s).`,
+      };
+    }
+
+    if (site.summary.observed_link_gap_pages.length > 0) {
+      return {
+        title: `${site.summary.observed_link_gap_pages.length} page(s) sous-maillée(s)`,
+        detail: "Le crawl a trouvé des pages qui méritent plus de soutien interne avant de viser une vraie progression SEO.",
+        whyNow: "Impact estimé moyen à fort : le maillage aide Google à recrawler, contextualiser puis pousser la bonne page.",
+        actionLabel: "Lancer le maillage",
+        action: actionButtons.find((item) => item.key === "linking" && item.available)?.action ?? null,
+        helperHref: actionButtons.find((item) => item.key === "linking")?.helperHref ?? "/pages",
+        helperLabel: actionButtons.find((item) => item.key === "linking")?.helperLabel ?? "Voir les pages sous-maillées",
+        source: `Source réelle : crawl observé, ${site.summary.observed_link_gap_pages.length} page(s) avec manque de liens internes utiles.`,
+      };
+    }
+
+    if (generationAudit && !generationReady) {
+      return {
+        title: "Créer un article : aucune requête encore retenue",
+        detail: describeGenerationReason(generationAuditReason),
+        whyNow: generationAuditSummary ?? "Le moteur n’a pas encore trouvé un sujet article assez net.",
+        actionLabel: "Voir les requêtes utiles",
+        href: "/queries",
+        source: generationAudit.best_query
+          ? `Meilleure requête vue : ${generationAudit.best_query.query} (${generationAudit.best_query.impressions} impressions, position ${generationAudit.best_query.position}).`
+          : "Aucune requête exploitable n’a encore été confirmée sur la dernière fenêtre GSC.",
+      };
+    }
+
+    return {
+      title: site.next_action.label,
+      detail: site.next_action.detail,
+      whyNow: "C’est actuellement l’action la plus utile remontée par le moteur compte tenu du contexte du site.",
+      actionLabel: recommendedAction.label,
+      href: recommendedAction.href,
+      action: recommendedActionButton?.available ? recommendedActionButton.action : null,
+      helperHref: recommendedActionButton?.helperHref ?? null,
+      helperLabel: recommendedActionButton?.helperLabel ?? null,
+      source: `Source réelle : moteur runtime, next_action.kind = ${site.next_action.kind}.`,
+    };
+  })();
   const executionHighlights = executionCenter.filter((item) =>
     ["crawl", "publication", "rewrite", "monitoring"].includes(item.key)
   );
@@ -911,29 +1018,28 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
 
         <Card className="border-brand/20 bg-brand-muted">
           <CardHeader>
-            <CardTitle>Cap recommandé maintenant</CardTitle>
+            <CardTitle>Action prioritaire</CardTitle>
             <CardDescription>
-              L’action la plus utile à lancer tout de suite pour débloquer le site ou faire repartir la boucle.
+              La seule action à regarder en premier pour savoir quoi faire maintenant.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-base font-semibold text-text">{site.next_action.label}</div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">{site.next_action.detail}</p>
-              {recommendedActionButton?.blockedReason ? (
-                <p className="mt-3 text-xs leading-6 text-text-subtle">
-                  Pourquoi l’action ne part pas encore : {recommendedActionButton.blockedReason}
-                </p>
-              ) : null}
+              <div className="text-base font-semibold text-text">{priorityAction.title}</div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">{priorityAction.detail}</p>
+              <div className="mt-3 rounded-xl border border-border bg-surface/70 px-3 py-3 text-sm leading-6 text-text">
+                <span className="font-semibold">Pourquoi maintenant :</span> {priorityAction.whyNow}
+              </div>
+              <p className="mt-3 text-xs leading-6 text-text-subtle">{priorityAction.source}</p>
             </div>
-            {recommendedAction.href ? (
-              <Button href={recommendedAction.href}>{recommendedAction.label}</Button>
-            ) : recommendedActionButton?.available ? (
-              <form action={recommendedActionButton.action}>
-                <Button type="submit">{recommendedActionButton.ctaLabel}</Button>
+            {priorityAction.href ? (
+              <Button href={priorityAction.href}>{priorityAction.actionLabel}</Button>
+            ) : priorityAction.action ? (
+              <form action={priorityAction.action}>
+                <Button type="submit">{priorityAction.actionLabel}</Button>
               </form>
-            ) : recommendedActionButton?.helperHref ? (
-              <Button href={recommendedActionButton.helperHref}>{recommendedActionButton.helperLabel}</Button>
+            ) : priorityAction.helperHref ? (
+              <Button href={priorityAction.helperHref}>{priorityAction.helperLabel ?? priorityAction.actionLabel}</Button>
             ) : null}
           </CardContent>
         </Card>
@@ -1141,6 +1247,28 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
                         <Badge variant="secondary">{item.stage === "soon" ? "Bientôt prêt" : "En préparation"}</Badge>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-text-muted">{item.blockedReason ?? item.description}</p>
+                      {item.key === "generation" && generationAudit ? (
+                        <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3 text-xs leading-6 text-text-muted">
+                          <div>
+                            <span className="font-semibold text-text">Requêtes analysées :</span>{" "}
+                            {generationAudit.queries_analyzed_count}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-text">Seuil minimum :</span>{" "}
+                            {generationAudit.minimum_query_impressions} impressions et position ≤ {generationAudit.maximum_query_position}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-text">Rejet principal :</span>{" "}
+                            {describeGenerationReason(generationAuditReason)}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-text">Meilleure requête vue :</span>{" "}
+                            {generationAudit.best_query
+                              ? `${generationAudit.best_query.query} (${generationAudit.best_query.impressions} impressions, position ${generationAudit.best_query.position})`
+                              : "aucune requête exploitable pour le moment"}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>

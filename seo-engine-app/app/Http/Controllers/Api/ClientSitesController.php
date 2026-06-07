@@ -1296,6 +1296,7 @@ class ClientSitesController extends Controller
                 'top_rising_queries' => $gscSnapshot['top_rising_queries'],
                 'top_falling_queries' => $gscSnapshot['top_falling_queries'],
                 'new_queries' => $gscSnapshot['new_queries'],
+                'generation_audit' => $this->generationAudit($site),
                 'indexation_alerts' => $gscSnapshot['indexation_alerts'],
             ],
             'readiness' => [
@@ -2257,6 +2258,166 @@ class ClientSitesController extends Controller
      *     indexation_alerts:array<int,array<string,mixed>>
      * }
      */
+    /**
+     * @return array{
+     *     status:string,
+     *     queries_analyzed_count:int,
+     *     eligible_queries_count:int,
+     *     rejected_queries_count:int,
+     *     limit_reason:?string,
+     *     minimum_query_impressions:int,
+     *     maximum_query_position:float,
+     *     min_hours_between_articles:int,
+     *     max_articles_per_28_days:int,
+     *     best_query:?array{
+     *         query:string,
+     *         impressions:float,
+     *         previous_impressions:float,
+     *         position:float,
+     *         score:int,
+     *         eligible:bool,
+     *         rejection_reason:?string
+     *     },
+     *     rejection_breakdown:array<string,int>
+     * }
+     */
+    private function generationAudit(SeoSite $site): array
+    {
+        /** @var \App\Runtime\PremiumArticleGenerationService $service */
+        $service = app(\App\Runtime\PremiumArticleGenerationService::class);
+        $policy = $service->policyFor($site);
+        $limitReason = $service->limitReason($site, $policy);
+
+        $metrics = \App\Models\SeoSearchConsoleMetric::query()
+            ->where('site_id', $site->site_id)
+            ->whereNotNull('query')
+            ->where('window_days', 28)
+            ->orderByDesc('metric_date')
+            ->get(['query', 'metric_date', 'impressions', 'position']);
+
+        if ($metrics->isEmpty()) {
+            return [
+                'status' => $limitReason ? 'cooldown' : 'no_data',
+                'queries_analyzed_count' => 0,
+                'eligible_queries_count' => 0,
+                'rejected_queries_count' => 0,
+                'limit_reason' => $limitReason,
+                'minimum_query_impressions' => (int) $policy['minimum_query_impressions'],
+                'maximum_query_position' => (float) $policy['maximum_query_position'],
+                'min_hours_between_articles' => (int) $policy['min_hours_between_articles'],
+                'max_articles_per_28_days' => (int) $policy['max_articles_per_28_days'],
+                'best_query' => null,
+                'rejection_breakdown' => [],
+            ];
+        }
+
+        $latestMetricDate = (string) $metrics->max('metric_date');
+        $currentRows = $metrics
+            ->filter(fn ($row) => (string) $row->metric_date === $latestMetricDate)
+            ->values();
+
+        $previousImpressions = $metrics
+            ->filter(fn ($row) => (string) $row->metric_date !== $latestMetricDate)
+            ->groupBy(fn ($row) => trim(mb_strtolower((string) $row->query)))
+            ->map(fn ($rows) => (float) $rows->sum('impressions'));
+
+        $existingTokens = \App\Models\SeoPage::query()
+            ->where('site_id', $site->site_id)
+            ->get(['keyword', 'slug', 'title'])
+            ->flatMap(function ($page): array {
+                $values = [
+                    $page->keyword,
+                    $page->slug,
+                    $page->title,
+                ];
+
+                return array_values(array_filter(array_map(
+                    fn ($value) => trim(mb_strtolower((string) $value)),
+                    $values
+                )));
+            })
+            ->unique()
+            ->values();
+
+        $queriesAnalyzedCount = 0;
+        $eligibleQueriesCount = 0;
+        $rejectionBreakdown = [];
+        $bestQuery = null;
+
+        foreach ($currentRows as $row) {
+            $query = trim((string) $row->query);
+            if ($query === '') {
+                continue;
+            }
+
+            $queriesAnalyzedCount++;
+            $normalizedQuery = mb_strtolower($query);
+            $impressions = (float) $row->impressions;
+            $position = (float) $row->position;
+            $previous = (float) ($previousImpressions->get($normalizedQuery) ?? 0.0);
+            $score = ($previous <= 0.0 ? 300 : 0)
+                + (int) round($impressions * 100)
+                - (int) round($position * 5);
+
+            $rejectionReason = null;
+            if ($impressions < (float) $policy['minimum_query_impressions']) {
+                $rejectionReason = 'volume_trop_faible';
+            } elseif ($position <= 0.0) {
+                $rejectionReason = 'position_inconnue';
+            } elseif ($position > (float) $policy['maximum_query_position']) {
+                $rejectionReason = 'position_trop_lointaine';
+            } else {
+                $alreadyCovered = $existingTokens->contains(function (string $token) use ($normalizedQuery): bool {
+                    return $token === $normalizedQuery
+                        || str_contains($token, $normalizedQuery)
+                        || str_contains($normalizedQuery, $token);
+                });
+
+                if ($alreadyCovered) {
+                    $rejectionReason = 'deja_couverte';
+                }
+            }
+
+            $candidate = [
+                'query' => $query,
+                'impressions' => $impressions,
+                'previous_impressions' => $previous,
+                'position' => $position,
+                'score' => $score,
+                'eligible' => $rejectionReason === null && $limitReason === null,
+                'rejection_reason' => $rejectionReason,
+            ];
+
+            if ($rejectionReason === null) {
+                $eligibleQueriesCount++;
+            } else {
+                $rejectionBreakdown[$rejectionReason] = ($rejectionBreakdown[$rejectionReason] ?? 0) + 1;
+            }
+
+            if ($bestQuery === null || $candidate['score'] > $bestQuery['score']) {
+                $bestQuery = $candidate;
+            }
+        }
+
+        $status = $limitReason
+            ? 'cooldown'
+            : ($eligibleQueriesCount > 0 ? 'eligible' : ($queriesAnalyzedCount > 0 ? 'rejected' : 'no_data'));
+
+        return [
+            'status' => $status,
+            'queries_analyzed_count' => $queriesAnalyzedCount,
+            'eligible_queries_count' => $eligibleQueriesCount,
+            'rejected_queries_count' => max(0, $queriesAnalyzedCount - $eligibleQueriesCount),
+            'limit_reason' => $limitReason,
+            'minimum_query_impressions' => (int) $policy['minimum_query_impressions'],
+            'maximum_query_position' => (float) $policy['maximum_query_position'],
+            'min_hours_between_articles' => (int) $policy['min_hours_between_articles'],
+            'max_articles_per_28_days' => (int) $policy['max_articles_per_28_days'],
+            'best_query' => $bestQuery,
+            'rejection_breakdown' => $rejectionBreakdown,
+        ];
+    }
+
     private function searchConsoleSnapshot(string $siteId): array
     {
         $baseQuery = SeoSearchConsoleMetric::query()
