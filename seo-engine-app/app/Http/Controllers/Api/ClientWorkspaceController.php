@@ -257,6 +257,7 @@ class ClientWorkspaceController extends Controller
                 'status' => (string) $page->status,
                 'published_at' => $page->published_at,
                 'published_live' => $hasPublishedLiveColumn ? (bool) $page->published_live : false,
+                'live_verified' => $this->publicationLiveVerified($page),
                 'published_live_at' => $hasPublishedLiveAtColumn ? $page->published_live_at : null,
                 'live_url' => $hasLiveUrlColumn ? $page->live_url : null,
                 'preview_url' => $this->publicationPreviewUrl($page),
@@ -408,7 +409,9 @@ class ClientWorkspaceController extends Controller
 
     private function publicationPreviewUrl(SeoPage $page): string
     {
-        return rtrim((string) config('app.url'), '/').$page->canonicalPath();
+        return '/publications?focus=content&site='.urlencode((string) $page->site_id)
+            .'&slug='.urlencode((string) $page->slug)
+            .'&action=preview#apercu-blog';
     }
 
     private function publicationExcerpt(SeoPage $page): string
@@ -510,6 +513,7 @@ class ClientWorkspaceController extends Controller
             'pillar_likelihood' => (int) round((float) $observedPage->pillar_likelihood * 100),
             'cluster_label' => $observedPage->cluster_label ? (string) $observedPage->cluster_label : null,
             'indexability_state' => (string) $observedPage->indexability_state,
+            'observed_http_status' => $observedPage->last_status_code !== null ? (int) $observedPage->last_status_code : null,
             'internal_inlinks' => (int) $observedPage->internal_inlinks,
             'internal_outlinks' => (int) $observedPage->internal_outlinks,
             'snapshot_word_count' => $currentWordCount,
@@ -526,5 +530,22 @@ class ClientWorkspaceController extends Controller
             'top_cannibalization_target' => $cannibalizationLinks->first()?->label,
             'top_query_match' => $queryMatches->first()?->label,
         ];
+    }
+
+    private function publicationLiveVerified(SeoPage $page): bool
+    {
+        if (! $page->isPublishedLive() || blank($page->live_url)) {
+            return false;
+        }
+
+        $observedPage = $page->observedPage;
+
+        if (! $observedPage) {
+            return false;
+        }
+
+        $statusCode = (int) ($observedPage->last_status_code ?? 0);
+
+        return $statusCode > 0 && $statusCode < 400;
     }
 }

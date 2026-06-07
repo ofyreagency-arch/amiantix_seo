@@ -3,7 +3,6 @@ import { SiteAccessState } from "@/components/sites/site-access-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getPublications,
   getSettings,
@@ -100,7 +99,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const latestPublishedContent = sitePublications.find((item) => item.published_live) ?? null;
   const currentCrawl = site.crawl;
   const lastSuccessfulCrawl = site.last_successful_crawl;
-  const recentCrawls = site.recent_crawls;
   const loopStatus =
     site.action_statuses.monitoring.state === "failed"
       ? "À revoir"
@@ -116,10 +114,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     lastSuccessfulCrawl.status === "completed"
       ? lastSuccessfulCrawl
       : currentCrawl;
-  const crawlReportPages = crawlReport?.pages ?? [];
   const crawlReportIssues = crawlReport?.issues ?? [];
-  const crawlReportIssueSummary = crawlReport?.issue_summary ?? [];
-  const crawlReportChanges = crawlReport?.changes ?? [];
   const crawlReportProducedData = crawlReport?.produced_data ?? {
     observed_pages: 0,
     weak_pages: 0,
@@ -415,59 +410,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     },
   ] as const;
 
-  const automationOverview = [
-    {
-      title: "Boucle premium",
-      status: loopStatus,
-      detail:
-        loopStatus === "Active"
-          ? "PraeviSEO surveille déjà le site et peut relancer les prochaines actions utiles."
-          : loopStatus === "À revoir"
-            ? "La dernière boucle a remonté un blocage. Regardez l’historique et les points à revoir."
-            : "La boucle premium redémarrera dès que les prochaines actions deviendront utiles.",
-    },
-    {
-      title: "Lecture Google",
-      status: gscConnected ? "Active" : "À reconnecter",
-      detail: gscConnected
-        ? "Les signaux Search Console guident déjà les prochaines pages et requêtes à traiter."
-        : "Sans lecture Google, PraeviSEO perd une partie de sa capacité à prioriser les gains visibles.",
-    },
-    {
-      title: "Contenus suivis",
-      status: `${monitoredContentCount} page(s)`,
-      detail:
-        monitoredContentCount > 0
-          ? "PraeviSEO relit déjà ces pages pour comparer les gains, repérer les liens utiles et préparer les relances."
-          : "Les premiers contenus suivis apparaîtront après les prochains crawls et publications utiles.",
-    },
-    {
-      title: "Publications live",
-      status: `${livePublishedCount} live`,
-      detail:
-        latestPublishedContent
-          ? `Dernier contenu visible : ${latestPublishedContent.title}. PraeviSEO peut maintenant le suivre, le relier et le faire évoluer.`
-          : publicationReady
-            ? `${site.publication_target.detail} La première publication live visible apparaîtra ici.`
-            : bridgeOperational
-              ? "Le bridge est actif, mais aucun contenu n’a encore été poussé en live depuis cette vue."
-              : "Aucun contenu premium n’est encore visible en ligne. Les prochaines publications apparaîtront ici.",
-    },
-    {
-      title: "Prochain passage",
-      status: nextPassStatus,
-      detail: nextPassDetail || "PraeviSEO attend la prochaine priorité assez claire pour relancer la boucle.",
-    },
-    {
-      title: "Parc actif",
-      status: totalConnectedSites > 1 ? `${totalConnectedSites} sites` : "1 site",
-      detail:
-        totalConnectedSites > 1
-          ? `La même logique d’automatisation tourne déjà sur ${totalConnectedSites} sites suivis dans votre espace.`
-          : "Ce site sert de base active. Les prochains sites pourront reprendre la même couche d’automatisation.",
-    },
-  ] as const;
-
   const rawCrawlDerivedHistory: Array<ExecutionHistoryEntry | null> = currentCrawl
     ? [
         currentCrawl.requested_at
@@ -553,28 +495,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
             repeat_count: 1,
           },
         ];
-
-  const executionIssues = Object.entries(site.action_statuses)
-    .filter(([, status]) => status.state === "failed" && status.error)
-    .map(([key, status]) => ({
-      key,
-      title:
-        key === "crawl"
-          ? "Crawl à vérifier"
-          : key === "generation"
-            ? "Nouvel article à vérifier"
-            : key === "rewrite"
-              ? "Réécriture à vérifier"
-              : key === "linking"
-                ? "Maillage à vérifier"
-                : key === "images"
-                  ? "Image SEO à vérifier"
-                  : key === "publication"
-                    ? "Publication à vérifier"
-                    : "Monitoring à vérifier",
-      detail: status.error as string,
-      updatedAt: status.updated_at,
-    }));
 
   const generationReady = site.summary.new_queries.length > 0;
   const rewriteReady = Boolean(leadRefresh || leadRisingPage);
@@ -739,11 +659,14 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const actionableNowButtons = actionButtons.filter((item) => item.stage === "now");
   const comingSoonButtons = actionButtons.filter((item) => item.stage === "soon");
   const preparationButtons = actionButtons.filter((item) => item.stage === "prep");
+  const readyNowActions = actionableNowButtons.slice(0, 4);
+  const blockedActions = [...comingSoonButtons, ...preparationButtons].slice(0, 4);
   const recommendedActionButton =
     recommendedActionKey ? actionButtons.find((item) => item.key === recommendedActionKey) ?? null : null;
   const executionHighlights = executionCenter.filter((item) =>
     ["crawl", "publication", "rewrite", "monitoring"].includes(item.key)
   );
+  const recentActivity = executionHistory.slice(0, 4);
   const problemActions = [
     leadIndexationAlert
       ? {
@@ -826,93 +749,6 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     secondaryHref: string | null;
     secondaryLabel: string | null;
   }>;
-
-  const starterPlan = [
-    leadIndexationAlert
-      ? {
-          title: "Page non indexée à débloquer",
-          detail: `${leadIndexationAlert.label} reste en dehors de l’index Google : ${leadIndexationAlert.state}.`,
-          impact: "La remettre dans un état indexable peut rouvrir une vraie porte d’entrée SEO sur le site.",
-          action:
-            leadIndexationAlert.state === "URL is unknown to Google"
-              ? "Vérifier qu’elle renvoie bien 200, qu’elle est liée depuis le site et qu’elle est visible dans le sitemap."
-              : leadIndexationAlert.detail || "Vérifier le statut HTTP, le canonique, le robots et le maillage interne avant republication.",
-          targetLabel: leadIndexationAlert.label,
-          targetUrl: leadIndexationAlert.url,
-          ctaLabel: "Voir la page Search Console",
-          ctaHref: `/sites/${site.site_id}/search-console`,
-          ctaAction: null,
-        }
-      : null,
-    linkGapLead
-      ? {
-          title: "Page à mieux relier ensuite",
-          detail: `${linkGapLead.label} manque encore de soutien interne malgré son potentiel observé.`,
-          impact: "Un meilleur maillage aide Google à recrawler, contextualiser puis renforcer la page plus vite.",
-          action: "Ouvrir des liens internes utiles depuis les pages déjà fortes du site.",
-          targetLabel: linkGapLead.label,
-          targetUrl: linkGapLead.url,
-          ctaLabel: "Renforcer le maillage",
-          ctaHref: null,
-          ctaAction: linkGapSlug ? runLinkingAction(linkGapSlug) : null,
-        }
-      : null,
-    leadRisingPage
-      ? {
-          title: "Page déjà proche d’un gain visible",
-          detail: `${leadRisingPage.label} commence déjà à gagner du terrain dans Google et peut être renforcée automatiquement.`,
-          impact: "Une page déjà visible peut progresser plus vite si PraeviSEO la relit, l’enrichit puis relance sa publication.",
-          action: "Choisir cette page comme priorité, clarifier son angle utile puis relancer une version enrichie.",
-          targetLabel: leadRisingPage.label,
-          targetUrl: leadRisingPage.url,
-          ctaLabel: "Préparer une réécriture",
-          ctaHref: null,
-          ctaAction: risingPageSlug ? runRewriteAction(risingPageSlug) : null,
-        }
-      : null,
-    leadRefresh
-      ? {
-          title: "Contenu à enrichir ensuite",
-          detail:
-            leadRefresh.latest_suggestion?.summary ??
-            "PraeviSEO pourra reprendre ce contenu, l’enrichir puis le republier si vous activez l’automatisation.",
-          impact:
-            leadRefresh.latest_suggestion?.impact_expected ??
-            "Un contenu plus clair, plus solide et plus facile à faire progresser dans Google.",
-          action: "Préparer une réécriture ciblée puis republier la version enrichie quand le sujet est prêt.",
-          targetLabel: leadRefresh.title,
-          targetUrl: leadRefresh.live_url || null,
-          ctaLabel: leadRefresh.live_url ? "Voir la page live" : "Préparer une réécriture",
-          ctaHref: leadRefresh.live_url || null,
-          ctaAction: leadRefresh.live_url || !refreshPageSlug ? null : runRewriteAction(refreshPageSlug),
-        }
-      : null,
-    site.summary.new_queries[0]
-      ? {
-          title: "Nouvelle requête à transformer",
-          detail: `La requête "${site.summary.new_queries[0].query}" commence à émerger et peut ouvrir un nouveau contenu utile.`,
-          impact: "Transformer vite une requête montante en page claire aide à capter les premières impressions avant les concurrents.",
-          action: "Créer un premier contenu dédié ou enrichir une page existante qui répond exactement à cette intention.",
-          targetLabel: site.summary.new_queries[0].query,
-          targetUrl: null,
-          ctaLabel: "Créer un article",
-          ctaHref: null,
-          ctaAction: runGenerationKeywordAction,
-        }
-      : null,
-  ]
-    .filter(Boolean)
-    .slice(0, 3) as Array<{
-      title: string;
-      detail: string;
-      impact: string;
-      action: string;
-      targetLabel: string;
-      targetUrl: string | null;
-      ctaLabel: string;
-      ctaHref: string | null;
-      ctaAction: ((formData: FormData) => void | Promise<void>) | null;
-    }>;
 
   return (
     <div className="min-h-screen">
@@ -1103,220 +939,25 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pages relues par le crawl</CardTitle>
-              <CardDescription>
-                Les pages réellement relues lors du dernier crawl de référence, pour comprendre ce que PraeviSEO a observé.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {crawlReportPages.length > 0 ? (
-                crawlReportPages.map((page) => (
-                  <div key={page.url} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">{page.label}</div>
-                      <Badge variant="secondary">{page.indexability_state}</Badge>
-                    </div>
-                    <p className="mt-2 break-all text-xs text-text-subtle">{page.url}</p>
-                    <div className="mt-3 grid gap-3 text-sm text-text-muted sm:grid-cols-2 xl:grid-cols-4">
-                      <div>
-                        <span className="font-semibold text-text">Mots :</span> {page.latest_word_count}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Autorité :</span> {page.authority_score}/100
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Orphelinage :</span> {page.orphan_score}/100
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Inlinks :</span> {page.internal_inlinks}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                  Les pages relues apparaîtront ici dès qu’un crawl complet aura fini d’analyser le site.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card id="problemes-crawl">
-            <CardHeader>
-              <CardTitle>Problèmes trouvés</CardTitle>
-              <CardDescription>
-                Les points réellement remontés par le crawl, sans passer par les logs ou la base.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {crawlReportIssueSummary.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {crawlReportIssueSummary.map((issue) => (
-                    <div key={`${issue.type}-${issue.count}`} className="rounded-xl border border-border bg-surface-2 px-3 py-3 text-sm text-text">
-                      <span className="font-semibold">{issue.type}</span> : {issue.count}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {crawlReportIssues.length > 0 ? (
-                <div className="space-y-3">
-                  {crawlReportIssues.map((issue, index) => (
-                    <div key={`${issue.type}-${issue.url ?? index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-text">{issue.type}</div>
-                        <Badge variant={issue.severity === "critical" || issue.severity === "high" ? "danger" : "secondary"}>
-                          {issue.severity}
-                        </Badge>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-text-muted">{issue.details}</p>
-                      {issue.url ? <p className="mt-2 break-all text-xs text-text-subtle">{issue.url}</p> : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                  Aucun problème concret n’a encore été remonté par le crawl de référence.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Données produites par le crawl</CardTitle>
-              <CardDescription>
-                Ce que PraeviSEO a réellement ajouté ou mis à jour après la lecture du site. Les chiffres d indexation
-                ci-dessous portent sur les {site.summary.gsc_indexation_scope_label.toLowerCase()}, pas sur le rapport
-                Pages complet de Google Search Console.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {[
-                ["Pages observées", crawlReportProducedData.observed_pages],
-                ["Pages faibles", crawlReportProducedData.weak_pages],
-                ["Pages orphelines", crawlReportProducedData.orphan_pages],
-                ["Pages à mieux relier", crawlReportProducedData.link_gap_pages],
-                ["Piliers candidats", crawlReportProducedData.pillar_candidates],
-                ["Score santé", crawlReportProducedData.health_score],
-                ["Issues crawl", crawlReportProducedData.crawl_issues],
-                ["URLs inspectées indexées", crawlReportProducedData.indexed_pages],
-                ["URLs inspectées non indexées", crawlReportProducedData.non_indexed_pages],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                  <div className="text-xs uppercase tracking-[0.22em] text-text-subtle">{label}</div>
-                  <div className="mt-2 text-2xl font-semibold text-text">{value}</div>
-                </div>
-              ))}
-            </CardContent>
-            <CardContent className="pt-0">
-              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                {site.summary.gsc_indexation_scope_hint}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Ce qui a changé depuis le crawl précédent</CardTitle>
-              <CardDescription>
-                La différence avant / après pour voir si le nouveau passage a réellement produit quelque chose.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {crawlReportChanges.length > 0 ? (
-                crawlReportChanges.map((change) => (
-                  <div key={change.label} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">{change.label}</div>
-                      <Badge variant={change.delta > 0 ? "default" : change.delta < 0 ? "danger" : "secondary"}>
-                        {change.delta > 0 ? `+${change.delta}` : `${change.delta}`}
-                      </Badge>
-                    </div>
-                    <div className="mt-3 grid gap-3 text-sm text-text-muted sm:grid-cols-3">
-                      <div>
-                        <span className="font-semibold text-text">Avant :</span> {change.previous}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Après :</span> {change.current}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Écart :</span> {change.delta > 0 ? `+${change.delta}` : change.delta}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                  PraeviSEO affichera ici les différences dès qu’il pourra comparer ce crawl à un précédent crawl terminé.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
         <Card>
           <CardHeader>
-            <CardTitle>Historique des 10 derniers crawls</CardTitle>
+            <CardTitle>Vue simple du site</CardTitle>
             <CardDescription>
-              Les derniers passages du moteur pour que l’utilisateur voie immédiatement ce que PraeviSEO a réellement fait.
+              Les 4 chiffres qui servent vraiment à décider quoi faire ensuite.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {recentCrawls.length > 0 ? (
-              recentCrawls.map((crawl) => {
-                const durationSeconds =
-                  crawl.started_at && crawl.completed_at
-                    ? Math.max(0, Math.round((new Date(crawl.completed_at).getTime() - new Date(crawl.started_at).getTime()) / 1000))
-                    : null;
-
-                return (
-                  <div key={crawl.id} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-text">Crawl #{crawl.id}</div>
-                      <Badge variant="secondary">{crawl.status}</Badge>
-                    </div>
-                    <div className="mt-3 grid gap-3 text-sm text-text-muted sm:grid-cols-2 xl:grid-cols-5">
-                      <div>
-                        <span className="font-semibold text-text">Date :</span>{" "}
-                        {crawl.requested_at ? formatDate(crawl.requested_at) : "indisponible"}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Pages analysées :</span>{" "}
-                        {crawl.crawled_url_count}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Pages découvertes :</span>{" "}
-                        {crawl.discovered_url_count}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Durée :</span>{" "}
-                        {durationSeconds !== null ? `${durationSeconds} sec` : "indisponible"}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-text">Résultat :</span>{" "}
-                        {crawl.status === "completed"
-                          ? `${crawl.issues_count} point(s)`
-                          : crawl.status === "pending"
-                            ? "En attente"
-                            : crawl.status === "running"
-                              ? "En cours"
-                              : crawl.error ?? "À vérifier"}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                Aucun crawl n’a encore été enregistré pour ce site.
+          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Pages suivies", crawlReportProducedData.observed_pages],
+              ["Problèmes de crawl", crawlReportProducedData.crawl_issues],
+              ["Pages hors index", crawlReportProducedData.non_indexed_pages],
+              ["Pages à relier", crawlReportProducedData.link_gap_pages],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-text-subtle">{label}</div>
+                <div className="mt-2 text-2xl font-semibold text-text">{value}</div>
               </div>
-            )}
+            ))}
           </CardContent>
         </Card>
 
@@ -1324,136 +965,77 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           <CardHeader>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <CardTitle>Actions à lancer maintenant</CardTitle>
+                <CardTitle>Actions à faire maintenant</CardTitle>
                 <CardDescription>
-                  Toutes les actions SEO sont ici, rangées par niveau réel de disponibilité pour éviter les faux espoirs.
+                  Les seules actions utiles tout de suite. Le reste attendra.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs defaultValue="now" className="space-y-4">
-              <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="now">Disponible maintenant ({actionableNowButtons.length})</TabsTrigger>
-                <TabsTrigger value="soon">Bientôt prêt ({comingSoonButtons.length})</TabsTrigger>
-                <TabsTrigger value="prep">Encore en préparation ({preparationButtons.length})</TabsTrigger>
-              </TabsList>
-
-              {[
-                {
-                  value: "now",
-                  items: actionableNowButtons,
-                  empty: "Aucune action n’est encore assez prête pour partir tout de suite. Commencez par relancer un crawl propre.",
-                },
-                {
-                  value: "soon",
-                  items: comingSoonButtons,
-                  empty: "Aucune action intermédiaire n’attend encore de petit déblocage sur ce site.",
-                },
-                {
-                  value: "prep",
-                  items: preparationButtons,
-                  empty: "Tout le reste est déjà branché ou bientôt prêt.",
-                },
-              ].map((group) => (
-                <TabsContent key={group.value} value={group.value} className="mt-0">
-                  {group.items.length > 0 ? (
-                    <div className="grid gap-3 xl:grid-cols-3">
-                      {group.items.map((item) => (
-                        <div
-                          key={item.key}
-                          className={
-                            item.recommended
-                              ? "rounded-2xl border border-brand/30 bg-brand-muted px-4 py-4"
-                              : "rounded-2xl border border-border bg-surface-2 px-4 py-4"
-                          }
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-semibold text-text">{item.label}</div>
-                            <Badge
-                              variant={
-                                item.stage === "now"
-                                  ? item.recommended
-                                    ? "default"
-                                    : "secondary"
-                                  : item.stage === "soon"
-                                    ? "warning"
-                                    : "secondary"
-                              }
-                            >
-                              {item.stage === "now"
-                                ? item.recommended
-                                  ? "Recommandé"
-                                  : "Disponible"
-                                : item.stage === "soon"
-                                  ? "Bientôt prêt"
-                                  : "En préparation"}
-                            </Badge>
-                          </div>
-                          <p className="mt-2 text-sm leading-6 text-text-muted">{item.description}</p>
-                          {item.blockedReason ? (
-                            <p className="mt-3 text-xs leading-6 text-text-subtle">{item.blockedReason}</p>
-                          ) : null}
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {item.available ? (
-                              <form action={item.action} className="grow">
-                                <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
-                                  {item.ctaLabel}
-                                </Button>
-                              </form>
-                            ) : null}
-                            {item.helperHref ? (
-                              <Button href={item.helperHref} variant={item.available ? "secondary" : "primary"} className="grow">
-                                {item.helperLabel}
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
+            {readyNowActions.length > 0 ? (
+              <div className="grid gap-3 xl:grid-cols-2">
+                {readyNowActions.map((item) => (
+                  <div
+                    key={item.key}
+                    className={
+                      item.recommended
+                        ? "rounded-2xl border border-brand/30 bg-brand-muted px-4 py-4"
+                        : "rounded-2xl border border-border bg-surface-2 px-4 py-4"
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{item.label}</div>
+                      <Badge variant={item.recommended ? "default" : "secondary"}>
+                        {item.recommended ? "À lancer" : "Disponible"}
+                      </Badge>
                     </div>
-                  ) : (
-                    <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                      {group.empty}
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{item.description}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <form action={item.action} className="grow">
+                        <Button type="submit" variant={item.recommended ? "primary" : "secondary"} className="w-full">
+                          {item.ctaLabel}
+                        </Button>
+                      </form>
+                      {item.helperHref ? (
+                        <Button href={item.helperHref} variant="secondary" className="grow">
+                          {item.helperLabel}
+                        </Button>
+                      ) : null}
                     </div>
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                Aucune action n’est encore assez prête pour partir tout de suite. Commencez par relancer un crawl propre.
+              </div>
+            )}
 
-            <div className="grid gap-4 xl:grid-cols-4">
-            {executionHighlights.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-text">{item.title}</div>
-                  <Badge variant="secondary">{item.status}</Badge>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-text-muted">{item.detail}</p>
-                <div className="mt-4 space-y-3 text-xs leading-6 text-text-subtle">
-                  <div>
-                    <span className="font-semibold text-text">Dernière exécution :</span>{" "}
-                    {item.updatedAt ? formatDate(item.updatedAt) : "pas encore de passage visible"}
-                  </div>
-                  <div>
-                    <span className="font-semibold text-text">Prochain passage :</span> {item.nextPass}
-                  </div>
-                  <div>
-                    <span className="font-semibold text-text">Résultat :</span> {item.result}
-                  </div>
-                  <div>
-                    <span className="font-semibold text-text">Impact généré :</span> {item.impact}
-                  </div>
+            {blockedActions.length > 0 ? (
+              <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                <div className="text-sm font-semibold text-text">Ce qui attend encore</div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                  {blockedActions.map((item) => (
+                    <div key={item.key} className="rounded-xl border border-border bg-surface-3 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-text">{item.label}</div>
+                        <Badge variant="secondary">{item.stage === "soon" ? "Bientôt prêt" : "En préparation"}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-text-muted">{item.blockedReason ?? item.description}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-            </div>
+            ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Actions SEO par problème</CardTitle>
+            <CardTitle>Problèmes concrets à traiter</CardTitle>
             <CardDescription>
-              Les prochains vrais sujets à traiter sur le site, avec un point d’entrée clair pour agir dessus.
+              Pas de théorie : juste les vrais blocages détectés et quoi faire dessus.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 xl:grid-cols-2">
@@ -1495,128 +1077,50 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <Card>
             <CardHeader>
-              <CardTitle>Rythme d’automatisation</CardTitle>
+              <CardTitle>Activité récente</CardTitle>
               <CardDescription>
-                La vue synthétique du moteur : ce qui tourne déjà, ce qui nourrit les priorités et ce qui repartira ensuite.
+                Les derniers événements vraiment utiles sur ce site.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {automationOverview.map((item) => (
+              {recentActivity.length > 0 ? (
+                recentActivity.map((entry, index) => (
+                  <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-text">{entry.label}</div>
+                      <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  Aucune activité utile n’a encore été enregistrée sur ce site.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>État du moteur</CardTitle>
+              <CardDescription>
+                Ce qui tourne déjà sans t’obliger à lire 10 cartes différentes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {executionHighlights.map((item) => (
                 <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-text">{item.title}</div>
                     <Badge variant="secondary">{item.status}</Badge>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Historique d’exécution</CardTitle>
-              <CardDescription>
-                Ce que PraeviSEO a déjà lancé, confirmé ou relancé sur ce site.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {executionHistory.map((entry, index) => (
-                <div key={`${entry.at}-${index}`} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-text">
-                      {entry.label}
-                      {(entry.repeat_count ?? 1) > 1 ? ` (${entry.repeat_count} fois)` : ""}
-                    </div>
-                    <Badge variant={entry.tone}>{entry.at.slice(0, 10)}</Badge>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{entry.detail}</p>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.result}</p>
                 </div>
               ))}
             </CardContent>
           </Card>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Prochaines opportunités automatiques</CardTitle>
-            <CardDescription>
-              Les pages et contenus que PraeviSEO pourra traiter en premier si vous laissez tourner l’automatisation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-3">
-            {starterPlan.length > 0 ? (
-              starterPlan.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-border bg-surface-2 px-4 py-4">
-                  <div className="text-sm font-semibold text-text">{item.title}</div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
-                  <div className="mt-3 rounded-xl border border-border bg-surface-3 px-3 py-3 text-sm text-text-muted">
-                    <span className="font-semibold text-text">Action recommandée :</span> {item.action}
-                  </div>
-                  <div className="mt-3 text-xs leading-6 text-text-subtle">
-                    <span className="font-semibold text-text">Cible :</span>{" "}
-                    {item.targetUrl ? (
-                      <a href={item.targetUrl} className="text-[hsl(var(--brand))] underline underline-offset-4">
-                        {item.targetLabel}
-                      </a>
-                    ) : (
-                      item.targetLabel
-                    )}
-                  </div>
-                  <div className="mt-3 rounded-xl border border-brand/20 bg-brand-muted px-3 py-3 text-sm text-text">
-                    <span className="font-semibold">Gain attendu :</span> {item.impact}
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {item.ctaHref ? (
-                      <Button href={item.ctaHref} size="sm">
-                        {item.ctaLabel}
-                      </Button>
-                    ) : item.ctaAction ? (
-                      <form action={item.ctaAction}>
-                        <Button type="submit" size="sm">
-                          {item.ctaLabel}
-                        </Button>
-                      </form>
-                    ) : null}
-                    {item.targetUrl ? (
-                      <Button href={item.targetUrl} variant="secondary" size="sm">
-                        Ouvrir la cible
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="xl:col-span-3 rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
-                PraeviSEO préparera d’abord un crawl, un repérage des pages utiles et une première séquence d’actions automatiques
-                dès qu’une première opportunité claire sera confirmée sur ce site.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {executionIssues.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Erreurs à revoir</CardTitle>
-              <CardDescription>
-                Les derniers points bloquants rencontrés par les automatisations. La santé technique reste disponible séparément.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 xl:grid-cols-2">
-              {executionIssues.map((issue) => (
-                <div key={issue.key} className="rounded-2xl border border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.06)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-text">{issue.title}</div>
-                    <Badge variant="danger">{issue.updatedAt ? issue.updatedAt.slice(0, 10) : "À revoir"}</Badge>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-text-muted">{issue.detail}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
-
       </div>
     </div>
   );

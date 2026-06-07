@@ -58,9 +58,17 @@ function contentProgressLabel(wordDelta: number | null | undefined): string {
   return wordDelta > 0 ? `+${wordDelta} mots depuis la dernière lecture` : "Contenu encore stable";
 }
 
-function publicationStateLabel(status: string, publishedLive: boolean): string {
+function isLiveVisible(item: { published_live: boolean; live_verified: boolean; live_url: string | null }) {
+  return item.published_live && item.live_verified && !!item.live_url;
+}
+
+function publicationStateLabel(status: string, publishedLive: boolean, liveVerified = false): string {
+  if (publishedLive && liveVerified) {
+    return "Visible sur le site";
+  }
+
   if (publishedLive) {
-    return "Live sur le site";
+    return "Publication envoyée";
   }
 
   return (
@@ -73,9 +81,13 @@ function publicationStateLabel(status: string, publishedLive: boolean): string {
   );
 }
 
-function publicationStateTone(status: string, publishedLive: boolean): "success" | "warning" | "secondary" {
-  if (publishedLive) {
+function publicationStateTone(status: string, publishedLive: boolean, liveVerified = false): "success" | "warning" | "secondary" {
+  if (publishedLive && liveVerified) {
     return "success";
+  }
+
+  if (publishedLive) {
+    return "warning";
   }
 
   if (status === "published") {
@@ -83,6 +95,95 @@ function publicationStateTone(status: string, publishedLive: boolean): "success"
   }
 
   return status === "review" ? "warning" : "secondary";
+}
+
+function mainProblemForContent(item: {
+  published_live: boolean;
+  live_verified: boolean;
+  gsc_metrics: { impressions: number; position: number | null };
+  latest_suggestion: { summary: string } | null;
+  observed_content: { internal_inlinks: number; query_match_count: number } | null;
+}) {
+  if (item.published_live && !item.live_verified) {
+    return "Le contenu est marqué publié, mais PraeviSEO n’a pas encore vérifié qu’il répond bien sur le site.";
+  }
+
+  if ((item.gsc_metrics.impressions ?? 0) <= 0) {
+    return "Google ne montre pas encore ce contenu.";
+  }
+
+  if ((item.observed_content?.internal_inlinks ?? 0) <= 0) {
+    return "Le contenu manque de soutien interne.";
+  }
+
+  if (item.latest_suggestion) {
+    return item.latest_suggestion.summary;
+  }
+
+  return "Le contenu peut encore être renforcé avant d’aller chercher plus de trafic.";
+}
+
+function whyProblemForContent(item: {
+  published_live: boolean;
+  live_verified: boolean;
+  gsc_metrics: { impressions: number };
+  observed_content: { internal_inlinks: number; query_match_count: number } | null;
+}) {
+  if (item.published_live && !item.live_verified) {
+    return "Le lien live actuel n’est pas encore confirmé par la lecture réelle du site. Tant qu’il n’est pas vérifié, PraeviSEO ne doit pas le présenter comme une page visible.";
+  }
+
+  if ((item.gsc_metrics.impressions ?? 0) <= 0) {
+    return "Sans impressions ni requête utile reliée, Google n’a pas encore assez de signaux pour considérer ce contenu comme réellement présent dans ses résultats.";
+  }
+
+  if ((item.observed_content?.internal_inlinks ?? 0) <= 0) {
+    return "Une page sans liens entrants reste plus difficile à trouver et à comprendre pour Google.";
+  }
+
+  return "Le contenu est encore trop léger ou trop peu relié pour transformer son potentiel en gain visible.";
+}
+
+function recommendedActionForContent(item: {
+  published_live: boolean;
+  live_verified: boolean;
+  image_url: string | null;
+  gsc_metrics: { impressions: number };
+  observed_content: { internal_inlinks: number } | null;
+}) {
+  if (item.published_live && !item.live_verified) {
+    return "Vérifier le lien live avant toute autre action";
+  }
+
+  if (!item.image_url) {
+    return "Générer l’image";
+  }
+
+  if ((item.gsc_metrics.impressions ?? 0) <= 0) {
+    return "Réécrire le contenu";
+  }
+
+  if ((item.observed_content?.internal_inlinks ?? 0) <= 0) {
+    return "Ouvrir le maillage";
+  }
+
+  return "Publier ou consolider";
+}
+
+function expectedGainForContent(item: {
+  published_live: boolean;
+  live_verified: boolean;
+  gsc_metrics: { impressions: number };
+}) {
+  if (item.published_live && !item.live_verified) {
+    return "Éviter de travailler sur une fausse URL live et repartir sur une base propre.";
+  }
+
+  if ((item.gsc_metrics.impressions ?? 0) <= 0) {
+    return "Obtenir les premiers vrais signaux Google sur ce contenu.";
+  }
+
+  return "Transformer une présence encore faible en trafic plus visible.";
 }
 
 function studioActionSummary(action: string): string {
@@ -119,12 +220,14 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
   const focusAction = getValue(resolvedSearchParams.action);
   const hasRealContent = publications.items.length > 0;
   const observedItems = publications.items.filter((item) => !!item.observed_content);
-  const visibleItems = publications.items.filter((item) => item.published_live);
-  const draftItems = publications.items.filter((item) => !item.published_live);
+  const visibleItems = publications.items.filter((item) => isLiveVisible(item));
+  const draftItems = publications.items.filter((item) => !isLiveVisible(item));
   const studioItems = [...publications.items]
     .sort((a, b) => {
-      if (a.published_live !== b.published_live) {
-        return a.published_live ? -1 : 1;
+      const aVisible = isLiveVisible(a);
+      const bVisible = isLiveVisible(b);
+      if (aVisible !== bVisible) {
+        return aVisible ? -1 : 1;
       }
 
       return (b.published_at ? new Date(b.published_at).getTime() : 0)
@@ -225,7 +328,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
         ? {
             title: "Contenu ciblé dans le studio",
             detail: `${focusedContent.title} est la cible du moment.${focusActionLabel ? ` Priorité conseillée : ${focusActionLabel}.` : ""} Tu peux maintenant le réécrire, générer son image, le prévisualiser puis le publier au même endroit.`,
-            href: focusedContent.live_url || focusedContent.preview_url || null,
+            href: focusedContent.live_verified && focusedContent.live_url ? focusedContent.live_url : "#apercu-blog",
           }
         : null;
   const studioLeadRewriteAction =
@@ -238,8 +341,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
     ? [
         {
           label: "Brouillon moteur",
-          value: publicationStateLabel(studioLead.status, studioLead.published_live),
-          tone: publicationStateTone(studioLead.status, studioLead.published_live),
+          value: publicationStateLabel(studioLead.status, studioLead.published_live, studioLead.live_verified),
+          tone: publicationStateTone(studioLead.status, studioLead.published_live, studioLead.live_verified),
           detail:
             studioLead.published_at
               ? `Dernière mise à jour moteur le ${formatDate(studioLead.published_at)}`
@@ -253,12 +356,14 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
         },
         {
           label: "Publication live",
-          value: studioLead.published_live ? "Visible" : "En attente",
-          tone: studioLead.published_live ? "success" : "secondary",
+          value: isLiveVisible(studioLead) ? "Visible" : studioLead.published_live ? "À vérifier" : "En attente",
+          tone: isLiveVisible(studioLead) ? "success" : studioLead.published_live ? "warning" : "secondary",
           detail:
-            studioLead.live_url
-              ? "Le contenu a déjà une URL visible sur le site client."
-              : "Le contenu reste encore dans le studio tant qu’il n’est pas poussé.",
+            isLiveVisible(studioLead)
+              ? "Le contenu répond bien sur le site client."
+              : studioLead.live_url
+                ? "Une URL live existe, mais elle n’est pas encore confirmée comme saine."
+                : "Le contenu reste encore dans le studio tant qu’il n’est pas poussé.",
         },
         {
           label: "Dernière reco",
@@ -272,7 +377,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
     ? [
         {
           label: "Brouillon",
-          done: !!studioLead.preview_url,
+          done: !!studioLead,
           active: focusAction === "rewrite" || (!focusAction && !studioLead.image_url),
           detail: "Texte moteur prêt à être relu et enrichi.",
         },
@@ -284,13 +389,13 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
         },
         {
           label: "Validation",
-          done: !!studioLead.preview_url,
+          done: !!studioLead,
           active: focusAction === "preview",
           detail: "Contrôle du rendu blog avant diffusion.",
         },
         {
           label: "Publication",
-          done: !!studioLead.published_live,
+          done: isLiveVisible(studioLead),
           active: focusAction === "publish",
           detail: "Push final sur le site client.",
         },
@@ -380,7 +485,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
             columnsClassName="grid gap-4 md:grid-cols-3"
             items={[
               { label: "Contenus suivis", value: publications.items.length },
-              { label: "Contenus déjà visibles", value: publications.stats.live_published, tone: "success" },
+              { label: "Contenus déjà visibles", value: visibleItems.length, tone: "success" },
               { label: "Pages à mieux relier", value: linkingItems.length, tone: linkingItems.length > 0 ? "warning" : "secondary" },
               { label: "Contenus à relancer", value: refreshItems.length, tone: refreshItems.length > 0 ? "warning" : "secondary" },
             ]}
@@ -388,7 +493,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-          <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          <div id="apercu-blog" className="overflow-hidden rounded-2xl border border-border bg-surface">
             <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
               <div className="min-h-[320px] bg-[radial-gradient(circle_at_top,_hsl(var(--brand)/0.18),_transparent_55%),linear-gradient(180deg,hsl(var(--surface-2)),hsl(var(--surface)))]">
                 {studioLead?.image_url ? (
@@ -416,8 +521,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
 
               <div className="space-y-5 px-5 py-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={studioLead ? publicationStateTone(studioLead.status, studioLead.published_live) : "secondary"}>
-                    {studioLead ? publicationStateLabel(studioLead.status, studioLead.published_live) : "Studio en veille"}
+                  <Badge variant={studioLead ? publicationStateTone(studioLead.status, studioLead.published_live, studioLead.live_verified) : "secondary"}>
+                    {studioLead ? publicationStateLabel(studioLead.status, studioLead.published_live, studioLead.live_verified) : "Studio en veille"}
                   </Badge>
                   {studioLead?.image_url ? <Badge variant="secondary">image prête</Badge> : <Badge variant="warning">image à générer</Badge>}
                   {focusActionLabel ? <Badge variant="warning">priorité : {focusActionLabel.toLowerCase()}</Badge> : null}
@@ -438,46 +543,62 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 {studioLead ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Ce qu’on fait maintenant</div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">1. Quel est le problème ?</div>
+                      <p className="mt-2 leading-6">{mainProblemForContent(studioLead)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">2. Pourquoi c’est un problème ?</div>
+                      <p className="mt-2 leading-6">{whyProblemForContent(studioLead)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">3. Quelle action faire ?</div>
                       <p className="mt-2 leading-6">
-                        {focusAction ? studioActionSummary(focusAction) : "Prévisualiser le brouillon, vérifier l’image puis pousser la publication quand le contenu est propre."}
+                        {focusAction ? studioActionSummary(focusAction) : recommendedActionForContent(studioLead)}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Signal SEO actuel</div>
-                      <p className="mt-2 leading-6">
-                        {studioLead.gsc_metrics.impressions > 0
-                          ? `${studioLead.gsc_metrics.impressions} impression(s), CTR ${studioLead.gsc_metrics.ctr.toFixed(1)} %, position moyenne ${studioLead.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
-                          : "Ce contenu n’a pas encore de traction visible dans Google, donc le studio sert d’abord à le préparer proprement."}
-                      </p>
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">4. Quel gain attendre ?</div>
+                      <p className="mt-2 leading-6">{expectedGainForContent(studioLead)}</p>
                     </div>
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">SEO</div>
-                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.seo_score ?? "n/a"}</div>
+                {studioLead ? (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Google</div>
+                      <div className="mt-2 text-sm font-semibold text-text">
+                        {studioLead.gsc_metrics.impressions > 0
+                          ? `${studioLead.gsc_metrics.impressions} impression(s)`
+                          : "Pas encore de visibilité utile"}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Maillage</div>
+                      <div className="mt-2 text-sm font-semibold text-text">
+                        {studioLead.observed_content?.internal_inlinks
+                          ? `${studioLead.observed_content.internal_inlinks} lien(s) entrant(s)`
+                          : "Pas assez de soutien interne"}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Publication</div>
+                      <div className="mt-2 text-sm font-semibold text-text">
+                        {isLiveVisible(studioLead)
+                          ? "URL live vérifiée"
+                          : studioLead.published_live
+                            ? "URL à vérifier"
+                            : "Encore dans le moteur"}
+                      </div>
+                    </div>
                   </div>
-                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Impressions</div>
-                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.gsc_metrics.impressions ?? 0}</div>
-                  </div>
-                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Position</div>
-                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.gsc_metrics.position?.toFixed(1) ?? "n/a"}</div>
-                  </div>
-                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Maillage</div>
-                    <div className="mt-2 text-xl font-semibold text-text">{studioLead?.observed_content?.internal_inlinks ?? "n/a"}</div>
-                  </div>
-                </div>
+                ) : null}
 
                 <div className="flex flex-wrap gap-2">
                   {studioLead?.preview_url ? (
-                    <Button href={studioLead.preview_url} external variant={focusAction === "preview" ? "primary" : "secondary"}>
+                    <Button href={studioLead.preview_url} variant={focusAction === "preview" ? "primary" : "secondary"}>
                       <Eye className="h-4 w-4" />
-                      Ouvrir la preview
+                      Voir le preview ici
                     </Button>
                   ) : null}
                   {studioLeadImageAction ? (
@@ -496,7 +617,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                       </Button>
                     </form>
                   ) : null}
-                  {studioLead && !studioLead.published_live && studioLeadPublicationAction ? (
+                  {studioLead && !isLiveVisible(studioLead) && studioLeadPublicationAction ? (
                     <form action={studioLeadPublicationAction}>
                       <Button variant={focusAction === "publish" ? "primary" : "secondary"}>
                         <UploadCloud className="h-4 w-4" />
@@ -504,7 +625,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                       </Button>
                     </form>
                   ) : null}
-                  {studioLead?.live_url ? (
+                  {studioLead?.live_url && studioLead.live_verified ? (
                     <Button href={studioLead.live_url} external variant="secondary">
                       <UploadCloud className="h-4 w-4" />
                       Voir le live
@@ -578,8 +699,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
               {studioLead ? (
                 <article className="mx-auto max-w-3xl rounded-[28px] border border-border bg-[linear-gradient(180deg,hsl(var(--surface)),hsl(var(--surface-2)))] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.16)]">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={publicationStateTone(studioLead.status, studioLead.published_live)}>
-                      {publicationStateLabel(studioLead.status, studioLead.published_live)}
+                    <Badge variant={publicationStateTone(studioLead.status, studioLead.published_live, studioLead.live_verified)}>
+                      {publicationStateLabel(studioLead.status, studioLead.published_live, studioLead.live_verified)}
                     </Badge>
                     {studioLead.cluster ? <Badge variant="secondary">{studioLead.cluster}</Badge> : null}
                     {studioLead.image_url ? <Badge variant="secondary">visuel prêt</Badge> : null}
@@ -685,8 +806,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                     )}
                     <div className="space-y-4 px-4 py-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={item.published_live ? "success" : "secondary"}>
-                          {item.published_live ? "visible sur le site" : "préparé dans le moteur"}
+                        <Badge variant={isLiveVisible(item) ? "success" : item.published_live ? "warning" : "secondary"}>
+                          {isLiveVisible(item) ? "visible sur le site" : item.published_live ? "publication à vérifier" : "préparé dans le moteur"}
                         </Badge>
                         <Badge variant={item.image_url ? "secondary" : "warning"}>
                           {item.image_url ? "image prête" : "image manquante"}
@@ -715,12 +836,12 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
 
                       <div className="flex flex-wrap gap-2">
                         {item.preview_url ? (
-                          <Button href={item.preview_url} external variant={previewVariant} size="sm">
+                          <Button href={item.preview_url} variant={previewVariant} size="sm">
                             <Eye className="h-4 w-4" />
-                            Prévisualiser
+                            Voir le preview
                           </Button>
                         ) : null}
-                        {item.live_url ? (
+                        {item.live_url && item.live_verified ? (
                           <Button href={item.live_url} external variant="secondary" size="sm">
                             <UploadCloud className="h-4 w-4" />
                             Voir le live
@@ -744,7 +865,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                             Ouvrir le maillage
                           </Button>
                         ) : null}
-                        {!item.published_live ? (
+                        {!isLiveVisible(item) ? (
                           <form action={publicationAction}>
                             <Button size="sm" variant={publishVariant}>
                               <UploadCloud className="h-4 w-4" />
@@ -856,10 +977,10 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 key={`draft-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge={item.published_live ? "déjà visible" : "à développer"}
-                badgeTone={item.published_live ? "success" : "secondary"}
+                badge={isLiveVisible(item) ? "déjà visible" : item.published_live ? "publication à vérifier" : "à développer"}
+                badgeTone={isLiveVisible(item) ? "success" : item.published_live ? "warning" : "secondary"}
                 description={
-                    item.published_live
+                    isLiveVisible(item)
                       ? `${item.gsc_metrics.impressions} affichage(s) dans Google, avec une présence moyenne autour de la ${item.gsc_metrics.position ? Math.round(item.gsc_metrics.position) : "?"}e place.`
                       : item.latest_suggestion?.summary ??
                         (item.observed_content?.snapshot_word_count
@@ -883,7 +1004,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                 key={`live-${item.id}`}
                 title={item.title}
                 subtitle={item.site_id}
-                badge="à développer"
+                badge="déjà visible"
                 badgeTone="success"
                 description={
                   item.gsc_metrics.impressions > 0
@@ -1036,8 +1157,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                   <Badge variant={item.seo_score && item.seo_score >= 80 ? "success" : "warning"}>
                     {item.seo_score && item.seo_score >= 80 ? "à consolider" : "refresh conseillé"}
                   </Badge>
-                  <Badge variant={item.published_live ? "secondary" : "warning"}>
-                    {item.published_live ? "déjà publié" : "pas encore visible"}
+                  <Badge variant={isLiveVisible(item) ? "secondary" : "warning"}>
+                    {isLiveVisible(item) ? "déjà publié" : item.published_live ? "publication à vérifier" : "pas encore visible"}
                   </Badge>
                   {item.observed_content && (
                     <Badge variant="secondary">
@@ -1077,7 +1198,7 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
               {item.latest_suggestion && (
                 <p className="text-sm text-text-muted">{item.latest_suggestion.summary}</p>
               )}
-              {item.live_url && (
+              {item.live_url && item.live_verified && (
                 <a
                   href={item.live_url}
                   target="_blank"

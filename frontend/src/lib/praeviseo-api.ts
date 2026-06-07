@@ -471,6 +471,7 @@ export type PraeviseoPublication = {
   status: string;
   published_at: string | null;
   published_live: boolean;
+  live_verified: boolean;
   published_live_at: string | null;
   live_url: string | null;
   preview_url: string | null;
@@ -497,6 +498,7 @@ export type PraeviseoPublication = {
     pillar_likelihood: number;
     cluster_label: string | null;
     indexability_state: string;
+    observed_http_status: number | null;
     internal_inlinks: number;
     internal_outlinks: number;
     snapshot_word_count: number;
@@ -1315,9 +1317,10 @@ const mockPublications: PraeviseoPublications = {
         status: "published",
         published_at: new Date().toISOString(),
         published_live: true,
+        live_verified: true,
         published_live_at: new Date().toISOString(),
         live_url: "https://amiantix.com/ressources/diagnostic-amiante-copropriete",
-        preview_url: "https://seo.amiantix.com/diagnostic-amiante-copropriete",
+        preview_url: "/publications?focus=content&site=amiantix&slug=diagnostic-amiante-copropriete&action=preview#apercu-blog",
         meta_description: "Comment anticiper un diagnostic amiante en copropriete, savoir quoi verifier et comment agir sans bloquer la suite.",
         excerpt: "Un article deja solide pour expliquer le diagnostic amiante en copropriete, les points a verifier, les documents a reunir et la bonne suite a engager.",
         image_url: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=1200&q=80",
@@ -1341,6 +1344,7 @@ const mockPublications: PraeviseoPublications = {
           pillar_likelihood: 82,
           cluster_label: "diagnostic amiante",
           indexability_state: "indexable",
+          observed_http_status: 200,
           internal_inlinks: 2,
           internal_outlinks: 7,
           snapshot_word_count: 1240,
@@ -1374,9 +1378,10 @@ const mockPublications: PraeviseoPublications = {
         status: "published",
         published_at: new Date().toISOString(),
         published_live: false,
+        live_verified: false,
         published_live_at: null,
         live_url: null,
-        preview_url: "https://seo.amiantix.com/guide-estimation-locale",
+        preview_url: "/publications?focus=content&site=amiantix&slug=guide-estimation-locale&action=preview#apercu-blog",
         meta_description: "Les premiers repères pour estimer un bien localement avec plus de contexte et moins d approximations.",
         excerpt: "Ce brouillon est deja genere dans le moteur et attend encore une image propre puis une publication vers le site client.",
         image_url: null,
@@ -1400,6 +1405,7 @@ const mockPublications: PraeviseoPublications = {
           pillar_likelihood: 44,
           cluster_label: "estimation locale",
           indexability_state: "indexable",
+          observed_http_status: 200,
           internal_inlinks: 1,
           internal_outlinks: 3,
           snapshot_word_count: 640,

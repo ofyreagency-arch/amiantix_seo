@@ -82,8 +82,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   const siteContent = publications.items.filter((item) => item.site_id === site.site_id);
   const contentPreviewItems = [...siteContent]
     .sort((a, b) => {
-      if (a.published_live !== b.published_live) {
-        return a.published_live ? -1 : 1;
+      const aVisible = a.published_live && a.live_verified && !!a.live_url;
+      const bVisible = b.published_live && b.live_verified && !!b.live_url;
+      if (aVisible !== bVisible) {
+        return aVisible ? -1 : 1;
       }
 
       return (b.published_at ? new Date(b.published_at).getTime() : 0)
@@ -825,8 +827,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                         )}
                         <div className="space-y-4 px-4 py-4">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant={item.published_live ? "default" : "secondary"}>
-                              {item.published_live ? "visible sur le site" : "préparé dans le moteur"}
+                            <Badge variant={item.published_live && item.live_verified ? "default" : item.published_live ? "warning" : "secondary"}>
+                              {item.published_live && item.live_verified ? "visible sur le site" : item.published_live ? "publication à vérifier" : "préparé dans le moteur"}
                             </Badge>
                             <Badge variant={item.image_url ? "secondary" : "warning"}>
                               {item.image_url ? "image prête" : "image manquante"}
@@ -836,7 +838,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                           <div>
                             <h3 className="text-base font-semibold text-text">{item.title}</h3>
                             <p className="mt-1 text-xs text-text-subtle">
-                              /{item.slug || ""} {item.live_url ? "· URL live prête" : "· en attente de publication"}
+                              /{item.slug || ""} {item.live_url && item.live_verified ? "· URL live vérifiée" : item.published_live ? "· URL à vérifier" : "· en attente de publication"}
                             </p>
                           </div>
                           <p className="text-sm leading-6 text-text-muted">{item.excerpt}</p>
@@ -848,12 +850,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {item.preview_url ? (
-                              <Button href={item.preview_url} external variant="secondary" size="sm">
+                              <Button href={item.preview_url} variant="secondary" size="sm">
                                 <Eye className="h-4 w-4" />
                                 Prévisualiser
                               </Button>
                             ) : null}
-                            {item.live_url ? (
+                            {item.live_url && item.live_verified ? (
                               <Button href={item.live_url} external variant="secondary" size="sm">
                                 <UploadCloud className="h-4 w-4" />
                                 Voir sur le site
@@ -871,7 +873,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                                 Préparer une réécriture
                               </Button>
                             </form>
-                            {!item.published_live ? (
+                            {!(item.published_live && item.live_verified) ? (
                               <form action={publicationAction}>
                                 <Button size="sm">
                                   <UploadCloud className="h-4 w-4" />
