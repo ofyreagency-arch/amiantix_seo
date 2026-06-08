@@ -13,7 +13,7 @@ class SymfonyBridgeRemoteCommandTest extends TestCase
     {
         $command = RemoteCommand::installSymfonyBridge('/var/www/client');
 
-        self::assertStringContainsString('composer require praeviseo/symfony-bridge', $command->command);
+        self::assertStringContainsString('composer require praeviseo/symfony-bridge:^0.1.3', $command->command);
         self::assertStringNotContainsString('--no-scripts', $command->command);
     }
 

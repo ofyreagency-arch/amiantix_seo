@@ -298,7 +298,7 @@ SH;
     {
         return new self(
             'install_symfony_bridge',
-            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge --no-interaction --no-progress')),
+            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge:^0.1.3 --no-interaction --no-progress')),
         );
     }
 
