@@ -24,6 +24,13 @@ class SymfonyBridgeRemoteCommandTest extends TestCase
         self::assertStringContainsString('allow-plugins.praeviseo/symfony-bridge true', $command->command);
     }
 
+    public function test_install_symfony_doctrine_runs_orm_pack(): void
+    {
+        $command = RemoteCommand::installSymfonyDoctrine('/var/www/client');
+
+        self::assertStringContainsString('composer require symfony/orm-pack', $command->command);
+    }
+
     public function test_connect_symfony_passes_praeviseo_url_and_prefix(): void
     {
         $command = RemoteCommand::connectSymfony(

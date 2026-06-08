@@ -5,8 +5,9 @@ Official lightweight bridge to connect a Symfony site to PraeviSEO without copyi
 ## Client flow
 
 ```bash
+composer require symfony/orm-pack
 composer require praeviseo/symfony-bridge
-php bin/console praeviseo:connect PRV-8X92-LKQ1
+php bin/console praeviseo:connect PRV-8X92-LKQ1 --praeviseo-url=https://votre-cockpit.praeviseo.com
 ```
 
 The install auto-enables the Symfony bundle. The client should not edit `config/bundles.php` by hand.
@@ -44,8 +45,9 @@ PRAEVISEO_BRIDGE_PREFIX=ressources
 The expected client install flow is:
 
 ```bash
+composer require symfony/orm-pack
 composer require praeviseo/symfony-bridge
-php bin/console praeviseo:connect PRV-8X92-LKQ1
+php bin/console praeviseo:connect PRV-8X92-LKQ1 --praeviseo-url=https://votre-cockpit.praeviseo.com
 ```
 
 No copied files.

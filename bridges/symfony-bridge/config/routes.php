@@ -9,14 +9,6 @@ return static function (RoutingConfigurator $routes): void {
         ->controller('praeviseo_symfony_bridge.controller.publish')
         ->methods(['POST']);
 
-    $routes->add('praeviseo_bridge_public_page', '/{prefix}/{slug}')
-        ->controller('praeviseo_symfony_bridge.controller.page')
-        ->methods(['GET'])
-        ->requirements([
-            'prefix' => '.+',
-            'slug' => '[^/]+',
-        ]);
-
     $routes->add('praeviseo_bridge_public_sitemap', '/{sitemapPath}')
         ->controller('praeviseo_symfony_bridge.controller.sitemap')
         ->methods(['GET'])
@@ -29,5 +21,13 @@ return static function (RoutingConfigurator $routes): void {
         ->methods(['GET'])
         ->requirements([
             'prefix' => '.+',
+        ]);
+
+    $routes->add('praeviseo_bridge_public_page', '/{prefix}/{slug}')
+        ->controller('praeviseo_symfony_bridge.controller.page')
+        ->methods(['GET'])
+        ->requirements([
+            'prefix' => '.+',
+            'slug' => '^(?!sitemap\.xml$)[^/]+$',
         ]);
 };

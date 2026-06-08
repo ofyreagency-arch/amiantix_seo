@@ -28,6 +28,14 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             throw RemoteInstallationException::execution('Composer n autorise pas encore le plugin officiel du bridge Symfony.');
         }
 
+        if (! $connector->fileExists($environment->projectPath.'/vendor/doctrine/orm')) {
+            $doctrineResult = $connector->run(RemoteCommand::installSymfonyDoctrine($environment->projectPath), 300);
+
+            if (! $doctrineResult->successful) {
+                throw RemoteInstallationException::execution('Doctrine ORM n a pas pu être préparé sur le site Symfony avant l installation du bridge.');
+            }
+        }
+
         $result = $connector->run(RemoteCommand::installSymfonyBridge($environment->projectPath), 240);
 
         if (! $result->successful) {

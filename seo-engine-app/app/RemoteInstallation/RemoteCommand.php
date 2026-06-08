@@ -263,6 +263,14 @@ final class RemoteCommand
         );
     }
 
+    public static function installSymfonyDoctrine(string $projectPath): self
+    {
+        return new self(
+            'install_symfony_doctrine',
+            self::withinProject($projectPath, 'composer require symfony/orm-pack --no-interaction --no-progress'),
+        );
+    }
+
     public static function installSymfonyBridge(string $projectPath): self
     {
         return new self(
