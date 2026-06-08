@@ -58,6 +58,14 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             }
         }
 
+        if (! $connector->fileExists($environment->projectPath.'/vendor/symfony/twig-bundle')) {
+            $twigResult = $connector->run(RemoteCommand::installSymfonyTwig($environment->projectPath), 240);
+
+            if (! $twigResult->successful) {
+                throw RemoteInstallationException::execution('Twig n a pas pu être préparé sur le site Symfony avant l installation du bridge.');
+            }
+        }
+
         $result = $connector->run(RemoteCommand::installSymfonyBridge($environment->projectPath), 240);
 
         if (! $result->successful) {

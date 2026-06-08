@@ -95,10 +95,21 @@ install_symfony_doctrine() {
   ensure_symfony_database_url
 }
 
+install_symfony_twig() {
+  if [ -d vendor/symfony/twig-bundle ]; then
+    ok "Twig détecté"
+    return
+  fi
+
+  say "Installation de Twig…"
+  composer require symfony/twig-pack
+}
+
 install_symfony_bridge() {
   composer config --no-plugins allow-plugins.praeviseo/symfony-bridge true >/dev/null 2>&1 || true
   ensure_symfony_database_url
   install_symfony_doctrine
+  install_symfony_twig
 
   if composer show praeviseo/symfony-bridge >/dev/null 2>&1; then
     say "Mise à jour du bridge Symfony…"

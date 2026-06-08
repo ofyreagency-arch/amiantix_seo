@@ -207,7 +207,7 @@ final class RemoteCommand
     {
         $command = match ($framework) {
             'laravel' => 'php artisan list --raw | grep -E "^praeviseo:connect$" >/dev/null 2>&1 && echo present || echo missing',
-            'symfony' => 'php bin/console list --raw | grep -E "^praeviseo:connect$" >/dev/null 2>&1 && echo present || echo missing',
+            'symfony' => 'php bin/console list --raw 2>/dev/null | grep -E "^praeviseo:connect(\\s|$)" >/dev/null 2>&1 && echo present || echo missing',
             default => 'echo unknown',
         };
 
@@ -319,6 +319,14 @@ SH;
         );
     }
 
+    public static function installSymfonyTwig(string $projectPath): self
+    {
+        return new self(
+            'install_symfony_twig',
+            self::withinProject($projectPath, self::composer('require symfony/twig-pack --no-interaction --no-progress')),
+        );
+    }
+
     public static function installSymfonyDoctrine(string $projectPath): self
     {
         return new self(
@@ -331,7 +339,7 @@ SH;
     {
         return new self(
             'install_symfony_bridge',
-            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge:^0.1.5 --no-interaction --no-progress')),
+            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge:^0.1.6 --no-interaction --no-progress')),
         );
     }
 
@@ -378,7 +386,7 @@ SH;
     {
         return new self(
             'count_symfony_published_pages',
-            self::withinProject($projectPath, 'php bin/console dbal:run-sql "SELECT COUNT(*) AS count FROM praeviseo_published_pages" --quiet 2>/dev/null | tail -n 1 || echo missing'),
+            self::withinProject($projectPath, 'php bin/console dbal:run-sql "SELECT COUNT(*) AS count FROM praeviseo_published_pages" --quiet 2>/dev/null | grep -Eo "[0-9]+" | tail -n 1 || echo missing'),
         );
     }
 
