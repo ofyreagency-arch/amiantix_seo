@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Praeviseo\SymfonyBridge\Controller\PraeviseoPublishedSitemapController;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
 return static function (RoutingConfigurator $routes): void {
@@ -17,7 +18,7 @@ return static function (RoutingConfigurator $routes): void {
         ]);
 
     $routes->add('praeviseo_bridge_public_sitemap_under_prefix', '/{prefix}/sitemap.xml')
-        ->controller('praeviseo_symfony_bridge.controller.sitemap_under_prefix')
+        ->controller([PraeviseoPublishedSitemapController::class, 'underPrefix'])
         ->methods(['GET'])
         ->requirements([
             'prefix' => '.+',

@@ -1,6 +1,6 @@
 {
     "name": "praeviseo/symfony-bridge",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "description": "Official lightweight Symfony bridge for connecting a client site to PraeviSEO.",
     "type": "composer-plugin",
     "license": "proprietary",
