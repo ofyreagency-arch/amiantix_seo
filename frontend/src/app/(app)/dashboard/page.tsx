@@ -208,23 +208,27 @@ export default async function DashboardPage() {
     .slice(0, 6);
   const progressMoments = [
     totalDeltaImpressions > 0
-      ? `La visibilité remonte avec ${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) supplémentaires sur la période.`
+      ? `Google Search Console : +${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) vs la période précédente.`
       : totalDeltaImpressions < 0
-        ? `La visibilité recule de ${new Intl.NumberFormat("fr-FR").format(Math.abs(totalDeltaImpressions))} impression(s) sur la période suivie.`
-        : "La visibilité reste stable sur la dernière lecture GSC.",
+        ? `Google Search Console : ${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)} impression(s) vs la période précédente.`
+        : gscConnectedSites > 0
+          ? "Google Search Console : impressions stables sur la dernière période suivie."
+          : null,
     linkedQueryWatchlist.length > 0
-      ? `${linkedQueryWatchlist.length} requête(s) sont déjà reliée(s) à une page observée, ce qui clarifie où agir.`
-      : "PraeviSEO attend encore le prochain lien net entre requête et page pour ouvrir une cible éditoriale plus claire.",
+      ? `Requêtes Google : ${linkedQueryWatchlist.length} recherche(s) déjà reliée(s) à une page observée.`
+      : null,
     actionPlan.length > 0
-      ? `${actionPlan.length} action(s) moteur sont déjà prêtes à être traitées en priorité.`
-      : "Le moteur continue de préparer les prochains plans d’action utiles.",
+      ? `Actions moteur : ${actionPlan.length} recommandation(s) ouverte(s) à traiter en priorité.`
+      : null,
     contentRefreshFeed.length > 0
-      ? `${contentRefreshFeed.length} contenu(s) méritent déjà un refresh ou un enrichissement.`
-      : "Aucun refresh chaud n’est remonté pour le moment sur les contenus suivis.",
+      ? `Contenus suivis : ${contentRefreshFeed.length} page(s) avec un refresh éditorial recommandé.`
+      : null,
     progressingHealthSites.length > 0
-      ? `${progressingHealthSites.length} site(s) gagnent déjà en solidité sur les dernières lectures observées.`
-      : "La solidité globale du site reste stable sur les dernières lectures observées.",
-  ];
+      ? `Lecture du site : ${progressingHealthSites.length} site(s) gagnent en solidité interne depuis la dernière observation.`
+      : totalHealthDelta !== 0 && healthTrackedSites.length > 0
+        ? `Lecture du site : solidité interne ${totalHealthDelta > 0 ? "+" : ""}${totalHealthDelta} point(s) sur les sites observés.`
+        : null,
+  ].filter((item): item is string => item !== null);
   const activityFeed = [
     ...optimizations.gsc_opportunities.items.slice(0, 3).map((item) => ({
       id: `opportunity-${item.site_id}-${item.slug}-${item.type}`,
@@ -387,9 +391,9 @@ export default async function DashboardPage() {
       tone: risingSitesCount > 0 ? "success" : "secondary",
     },
     {
-      label: "Points à vérifier",
+      label: "Alertes visibilité Google",
       value: activeAlerts + slippingSitesCount,
-      detail: "moins de clics, recul durable ou visibilité qui faiblit",
+      detail: `${activeAlerts} alerte(s) page GSC (CTR faible ou recul durable) · ${slippingSitesCount} site(s) avec impressions en baisse`,
       tone: activeAlerts + slippingSitesCount > 0 ? "warning" : "secondary",
     },
     {
@@ -604,14 +608,20 @@ export default async function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {progressMoments.slice(0, 4).map((item) => (
-                <div
-                  key={item}
-                  className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted"
-                >
-                  {item}
+              {progressMoments.length === 0 ? (
+                <div className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted">
+                  Aucun fait nouveau à résumer pour le moment. Les prochains imports Google ou lectures du site rempliront ce bloc.
                 </div>
-              ))}
+              ) : (
+                progressMoments.slice(0, 4).map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-border bg-surface-2 px-4 py-4 text-sm leading-6 text-text-muted"
+                  >
+                    {item}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
@@ -647,11 +657,11 @@ export default async function DashboardPage() {
               hint: "actions SEO retenues par le moteur après qualification et priorisation",
             },
             {
-              label: "URLs relues",
+              label: "Pages suivies dans Google",
               value: indexedPagesValue,
               icon: CheckCircle2,
               hint: dashboard.totals.indexedPagesSynced
-                ? "pages déjà bien relues par PraeviSEO dans Google"
+                ? "pages que PraeviSEO suit dans Google Search Console, pas l’index Google complet"
                 : "lecture des pages Google encore en attente dans PraeviSEO",
             },
             {
@@ -754,7 +764,9 @@ export default async function DashboardPage() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base font-semibold text-text">{site.name}</h3>
-                          <Badge variant="secondary">Copilote SEO actif</Badge>
+                          {site.readiness.gsc_connected ? (
+                            <Badge variant="secondary">Google relié</Badge>
+                          ) : null}
                           <Badge variant={site.publication_bridge_status === "connected" ? "default" : "secondary"}>
                             {getPraeviseoClientStatus(site)}
                           </Badge>
@@ -774,7 +786,7 @@ export default async function DashboardPage() {
                           </span>
                           <span>
                             {site.summary.gsc_indexation_synced
-                              ? `${site.summary.gsc_indexed_pages} page(s) déjà bien lue(s) dans Google`
+                              ? `${site.summary.gsc_indexed_pages} page(s) suivie(s) dans Google`
                               : "Lecture des pages Google encore en attente"}
                           </span>
                           <span>{site.summary.pending_suggestions} recommandation(s) ouverte(s)</span>
@@ -1067,7 +1079,7 @@ export default async function DashboardPage() {
                     </div>
                     <p className="mt-2 text-sm text-text-muted">
                       {site.summary.observed_weak_pages} page(s) encore fragile(s), {site.summary.observed_orphan_pages} page(s) trop isolée(s),
-                      {` ${site.summary.observed_crawl_issues}`} point(s) technique(s), niveau moyen de solidité du site {site.summary.observed_avg_authority}
+                      {` ${site.summary.observed_crawl_issues}`} point(s) technique(s), solidité interne moyenne {site.summary.observed_avg_authority}
                       {site.summary.observed_health_delta > 0
                         ? ` et une progression de +${site.summary.observed_health_delta} point(s) depuis la lecture précédente.`
                         : site.summary.observed_health_delta < 0
@@ -1099,7 +1111,7 @@ export default async function DashboardPage() {
                     site.summary.observed_link_gap_pages.slice(0, 1).map((item) => ({
                       siteName: site.name,
                       label: item.label,
-                      detail: `${item.internal_inlinks} lien(s) déjà reçus, niveau de solidité ${item.authority_score}, sujet principal "${item.cluster_label ?? "général"}".`,
+                      detail: `${item.internal_inlinks} lien(s) déjà reçus, solidité interne ${item.authority_score}, sujet principal "${item.cluster_label ?? "général"}".`,
                       badge: "À mieux relier",
                       variant: "warning" as const,
                     }))
@@ -1108,7 +1120,7 @@ export default async function DashboardPage() {
                     site.summary.observed_orphan_alerts.slice(0, 1).map((item) => ({
                       siteName: site.name,
                       label: item.label,
-                      detail: `Cette page reste trop isolée pour être bien comprise. Niveau de solidité ${item.authority_score}, et Google la lit encore comme "${item.indexability_state}".`,
+                      detail: `Cette page reste trop isolée pour être bien comprise. Solidité interne ${item.authority_score}, et Google la lit encore comme "${item.indexability_state}".`,
                       badge: "Trop isolée",
                       variant: "secondary" as const,
                     }))
