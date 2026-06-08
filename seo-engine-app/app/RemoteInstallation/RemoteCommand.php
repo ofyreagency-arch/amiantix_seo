@@ -263,6 +263,39 @@ final class RemoteCommand
         );
     }
 
+    public static function detectPhpSqliteExtension(string $projectPath): self
+    {
+        return new self(
+            'detect_php_sqlite',
+            self::withinProject($projectPath, "php -m | grep -i '^pdo_sqlite$' >/dev/null 2>&1 && echo present || echo missing"),
+        );
+    }
+
+    public static function installPhpSqliteExtension(string $projectPath): self
+    {
+        $command = <<<'SH'
+if php -m | grep -i '^pdo_sqlite$' >/dev/null 2>&1; then
+  echo present
+else
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    php_mm="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "php${php_mm}-sqlite3" php-sqlite3 >/dev/null 2>&1 || true
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y php-pdo >/dev/null 2>&1 || true
+  elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache php-pdo_sqlite >/dev/null 2>&1 || true
+  fi
+  php -m | grep -i '^pdo_sqlite$' >/dev/null 2>&1 && echo installed || echo missing
+fi
+SH;
+
+        return new self(
+            'install_php_sqlite',
+            self::withinProject($projectPath, $command),
+        );
+    }
+
     public static function ensureSymfonyDatabaseUrl(string $projectPath): self
     {
         $sqliteUrl = 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/data.db"';

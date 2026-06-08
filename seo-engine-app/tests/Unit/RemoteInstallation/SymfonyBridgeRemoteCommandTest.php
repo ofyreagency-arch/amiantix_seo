@@ -31,6 +31,14 @@ class SymfonyBridgeRemoteCommandTest extends TestCase
         self::assertStringContainsString('COMPOSER_ALLOW_SUPERUSER=1 composer require symfony/orm-pack', $command->command);
     }
 
+    public function test_install_php_sqlite_extension_targets_pdo_sqlite(): void
+    {
+        $command = RemoteCommand::installPhpSqliteExtension('/var/www/client');
+
+        self::assertStringContainsString('pdo_sqlite', $command->command);
+        self::assertStringContainsString('php-sqlite3', $command->command);
+    }
+
     public function test_ensure_symfony_database_url_writes_sqlite_default(): void
     {
         $command = RemoteCommand::ensureSymfonyDatabaseUrl('/var/www/client');

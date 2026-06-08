@@ -22,6 +22,16 @@ class SymfonyInstallerStrategy implements InstallerStrategy
      */
     public function install(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
+        $sqliteDetection = $connector->run(RemoteCommand::detectPhpSqliteExtension($environment->projectPath), 30);
+
+        if (trim($sqliteDetection->output) !== 'present') {
+            $sqliteInstall = $connector->run(RemoteCommand::installPhpSqliteExtension($environment->projectPath), 180);
+
+            if (! $sqliteInstall->successful || ! in_array(trim($sqliteInstall->output), ['present', 'installed'], true)) {
+                throw RemoteInstallationException::execution('L extension PHP pdo_sqlite est requise pour le stockage bridge Symfony.');
+            }
+        }
+
         $databaseUrlResult = $connector->run(RemoteCommand::ensureSymfonyDatabaseUrl($environment->projectPath), 60);
 
         if (! $databaseUrlResult->successful) {
