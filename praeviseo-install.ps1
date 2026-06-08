@@ -82,8 +82,37 @@ function Ensure-AppUrl {
     Write-Ok "APP_URL configuré"
 }
 
+function Ensure-SymfonyDatabaseUrl {
+    if (-not (Test-Path "var")) {
+        New-Item -ItemType Directory -Path "var" | Out-Null
+    }
+
+    if (Test-Path ".env") {
+        $match = Select-String -Path ".env" -Pattern "^DATABASE_URL=" | Select-Object -First 1
+        if ($match) {
+            Write-Ok "DATABASE_URL détecté"
+            return
+        }
+    }
+
+    Add-Content -Path ".env" -Value 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/data.db"'
+    Write-Ok "DATABASE_URL configuré"
+}
+
+function Install-SymfonyDoctrine {
+    if (Test-Path "vendor/doctrine/orm") {
+        Write-Ok "Doctrine ORM détecté"
+        return
+    }
+
+    Write-Host "Installation de Doctrine ORM…"
+    & composer require symfony/orm-pack
+}
+
 function Install-SymfonyBridge {
     & composer config --no-plugins allow-plugins.praeviseo/symfony-bridge true | Out-Null
+    Ensure-SymfonyDatabaseUrl
+    Install-SymfonyDoctrine
 
     & composer show praeviseo/symfony-bridge *> $null
     if ($LASTEXITCODE -eq 0) {

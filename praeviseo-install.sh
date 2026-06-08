@@ -72,8 +72,31 @@ PY
   fi
 }
 
+ensure_symfony_database_url() {
+  mkdir -p var
+  if grep -E '^DATABASE_URL=' .env >/dev/null 2>&1; then
+    ok "DATABASE_URL détecté"
+    return
+  fi
+
+  printf '%s\n' 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/data.db"' >> .env
+  ok "DATABASE_URL configuré"
+}
+
+install_symfony_doctrine() {
+  if [ -d vendor/doctrine/orm ]; then
+    ok "Doctrine ORM détecté"
+    return
+  fi
+
+  say "Installation de Doctrine ORM…"
+  composer require symfony/orm-pack
+}
+
 install_symfony_bridge() {
   composer config --no-plugins allow-plugins.praeviseo/symfony-bridge true >/dev/null 2>&1 || true
+  ensure_symfony_database_url
+  install_symfony_doctrine
 
   if composer show praeviseo/symfony-bridge >/dev/null 2>&1; then
     say "Mise à jour du bridge Symfony…"

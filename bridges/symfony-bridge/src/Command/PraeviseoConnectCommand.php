@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Praeviseo\SymfonyBridge\Command;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Tools\SchemaTool;
+use Praeviseo\SymfonyBridge\Entity\PraeviseoPublishedPage;
 use Praeviseo\SymfonyBridge\Service\PraeviseoBridgeConfig;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,6 +24,7 @@ final class PraeviseoConnectCommand extends Command
         private readonly HttpClientInterface $httpClient,
         private readonly PraeviseoBridgeConfig $config,
         private readonly string $projectDir,
+        private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
     }
@@ -66,6 +70,8 @@ final class PraeviseoConnectCommand extends Command
             'PRAEVISEO_BRIDGE_PREFIX' => (string) (($payload['publication_prefix'] ?? '') ?: 'ressources'),
         ]);
 
+        $this->ensureBridgeStorage($output);
+
         $output->writeln('Site connecté ✅');
         $output->writeln('Publication active ✅');
         $output->writeln('Monitoring actif ✅');
@@ -104,5 +110,21 @@ final class PraeviseoConnectCommand extends Command
         }
 
         return $value;
+    }
+
+    private function ensureBridgeStorage(OutputInterface $output): void
+    {
+        $connection = $this->entityManager->getConnection();
+        $schemaManager = $connection->createSchemaManager();
+
+        if ($schemaManager->tablesExist(['praeviseo_published_pages'])) {
+            return;
+        }
+
+        $output->writeln('Préparation du stockage bridge…');
+
+        $metadata = $this->entityManager->getClassMetadata(PraeviseoPublishedPage::class);
+        $tool = new SchemaTool($this->entityManager);
+        $tool->updateSchema([$metadata], true);
     }
 }

@@ -22,6 +22,12 @@ class SymfonyInstallerStrategy implements InstallerStrategy
      */
     public function install(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
+        $databaseUrlResult = $connector->run(RemoteCommand::ensureSymfonyDatabaseUrl($environment->projectPath), 60);
+
+        if (! $databaseUrlResult->successful) {
+            throw RemoteInstallationException::execution('PraeviSEO n a pas pu préparer DATABASE_URL sur le site Symfony avant l installation.');
+        }
+
         $allowPluginResult = $connector->run(RemoteCommand::allowSymfonyBridgePlugin($environment->projectPath), 60);
 
         if (! $allowPluginResult->successful) {
@@ -158,6 +164,12 @@ class SymfonyInstallerStrategy implements InstallerStrategy
 
     public function activate(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
+        $schemaResult = $connector->run(RemoteCommand::updateSymfonyDoctrineSchema($environment->projectPath), 180);
+
+        if (! $schemaResult->successful) {
+            throw RemoteInstallationException::execution('PraeviSEO a été installé mais la table praeviseo_published_pages n a pas pu être préparée.');
+        }
+
         $result = $connector->run(RemoteCommand::clearSymfonyCache($environment->projectPath), 180);
 
         if (! $result->successful) {

@@ -259,7 +259,17 @@ final class RemoteCommand
     {
         return new self(
             'allow_symfony_bridge_plugin',
-            self::withinProject($projectPath, 'composer config --no-plugins allow-plugins.praeviseo/symfony-bridge true'),
+            self::withinProject($projectPath, self::composer('config --no-plugins allow-plugins.praeviseo/symfony-bridge true')),
+        );
+    }
+
+    public static function ensureSymfonyDatabaseUrl(string $projectPath): self
+    {
+        $command = "mkdir -p var && if [ -f .env ] && grep -E '^DATABASE_URL=' .env >/dev/null 2>&1; then echo present; else printf '%s\n' 'DATABASE_URL=\"sqlite:///%kernel.project_dir%/var/data.db\"' >> .env && echo configured; fi";
+
+        return new self(
+            'ensure_symfony_database_url',
+            self::withinProject($projectPath, $command),
         );
     }
 
@@ -267,7 +277,7 @@ final class RemoteCommand
     {
         return new self(
             'install_symfony_doctrine',
-            self::withinProject($projectPath, 'composer require symfony/orm-pack --no-interaction --no-progress'),
+            self::withinProject($projectPath, self::composer('require symfony/orm-pack --no-interaction --no-progress')),
         );
     }
 
@@ -275,7 +285,7 @@ final class RemoteCommand
     {
         return new self(
             'install_symfony_bridge',
-            self::withinProject($projectPath, 'composer require praeviseo/symfony-bridge --no-interaction --no-progress'),
+            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge --no-interaction --no-progress')),
         );
     }
 
@@ -283,7 +293,23 @@ final class RemoteCommand
     {
         return new self(
             'dump_symfony_autoload',
-            self::withinProject($projectPath, 'composer dump-autoload --no-interaction'),
+            self::withinProject($projectPath, self::composer('dump-autoload --no-interaction')),
+        );
+    }
+
+    public static function updateSymfonyDoctrineSchema(string $projectPath): self
+    {
+        return new self(
+            'update_symfony_doctrine_schema',
+            self::withinProject($projectPath, 'php bin/console doctrine:schema:update --force --complete'),
+        );
+    }
+
+    public static function countSymfonyPublishedPages(string $projectPath): self
+    {
+        return new self(
+            'count_symfony_published_pages',
+            self::withinProject($projectPath, 'php bin/console dbal:run-sql "SELECT COUNT(*) AS count FROM praeviseo_published_pages" --quiet 2>/dev/null | tail -n 1 || echo missing'),
         );
     }
 
@@ -325,6 +351,11 @@ final class RemoteCommand
             'connect_symfony',
             self::withinProject($projectPath, 'php bin/console praeviseo:connect '.self::quote($code).$options),
         );
+    }
+
+    private static function composer(string $command): string
+    {
+        return 'COMPOSER_ALLOW_SUPERUSER=1 composer '.$command;
     }
 
     private static function withinProject(string $path, string $command): string

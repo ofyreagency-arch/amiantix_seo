@@ -28,7 +28,22 @@ class SymfonyBridgeRemoteCommandTest extends TestCase
     {
         $command = RemoteCommand::installSymfonyDoctrine('/var/www/client');
 
-        self::assertStringContainsString('composer require symfony/orm-pack', $command->command);
+        self::assertStringContainsString('COMPOSER_ALLOW_SUPERUSER=1 composer require symfony/orm-pack', $command->command);
+    }
+
+    public function test_ensure_symfony_database_url_writes_sqlite_default(): void
+    {
+        $command = RemoteCommand::ensureSymfonyDatabaseUrl('/var/www/client');
+
+        self::assertStringContainsString('DATABASE_URL=', $command->command);
+        self::assertStringContainsString('sqlite:///%kernel.project_dir%/var/data.db', $command->command);
+    }
+
+    public function test_update_symfony_doctrine_schema_runs_schema_update(): void
+    {
+        $command = RemoteCommand::updateSymfonyDoctrineSchema('/var/www/client');
+
+        self::assertStringContainsString('doctrine:schema:update --force --complete', $command->command);
     }
 
     public function test_connect_symfony_passes_praeviseo_url_and_prefix(): void
