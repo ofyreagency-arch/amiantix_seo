@@ -49,6 +49,7 @@ interface CockpitSignalItemProps {
   badge?: string;
   badgeTone?: BadgeTone;
   description: string;
+  result?: string;
   chips?: string[];
   actions?: Array<{
     label: string;
@@ -63,6 +64,7 @@ export function CockpitSignalItem({
   badge,
   badgeTone = "secondary",
   description,
+  result,
   chips = [],
   actions = [],
 }: CockpitSignalItemProps) {
@@ -76,6 +78,7 @@ export function CockpitSignalItem({
         {badge ? <Badge variant={badgeTone}>{badge}</Badge> : null}
       </div>
       <p className="mt-2 text-sm text-text-muted">{description}</p>
+      {result ? <p className="mt-2 text-sm text-text">{result}</p> : null}
       {chips.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-subtle">
           {chips.map((chip) => (

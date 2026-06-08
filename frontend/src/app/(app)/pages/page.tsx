@@ -6,10 +6,16 @@ import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { CockpitSignalItem, CockpitSignalListCard } from "@/components/cockpit/signal-list";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
-import { getDashboard, getOptimizations, getPublications, getSitePath } from "@/lib/praeviseo-api";
+import { getDashboard, getOptimizations, getPublications, getSitePath, type PraeviseoSite } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+type ExecutionHistoryEntry = PraeviseoSite["execution_history"][number];
+type PublicationLookup = {
+  published_live: boolean;
+  live_url: string | null;
+  published_live_at: string | null;
+};
 
 function getValue(value: string | string[] | undefined, fallback = ""): string {
   if (Array.isArray(value)) {
@@ -20,7 +26,7 @@ function getValue(value: string | string[] | undefined, fallback = ""): string {
 }
 
 function hasReliableSeoSignal(item: {
-  seo_score: number | null;
+  seo_score?: number | null;
   gsc_metrics?: { impressions: number };
   observed_content?: {
     observed_http_status?: number | null;
@@ -45,21 +51,65 @@ function hasReliableSeoSignal(item: {
   );
 }
 
-function seoSignalLabel(item: {
-  seo_score: number | null;
-  gsc_metrics?: { impressions: number };
-  observed_content?: {
-    observed_http_status?: number | null;
-    snapshot_word_count?: number;
-    internal_inlinks?: number;
-    query_match_count?: number;
-  } | null;
-}) {
-  if (!hasReliableSeoSignal(item)) {
-    return "Signal SEO insuffisant";
+function formatLatestExecutionResult(entry: ExecutionHistoryEntry | null | undefined): string | null {
+  if (!entry?.label) {
+    return null;
   }
 
-  return item.seo_score !== null ? `SEO observé : ${item.seo_score}` : "Score en calcul";
+  const dateSuffix = entry.at ? ` le ${formatDate(entry.at)}` : "";
+
+  return `Dernier résultat : ${entry.label}${dateSuffix}.`;
+}
+
+function preferredStructuralAction(badge: string): "rewrite" | "linking" {
+  return badge === "Page sous-maillée" || badge === "Page orpheline" ? "linking" : "rewrite";
+}
+
+function structuralBadgeTone(badge: string): "default" | "brand-subtle" | "secondary" | "success" | "warning" | "danger" {
+  if (badge === "Page pilier") {
+    return "success";
+  }
+
+  if (badge === "Page sous-maillée") {
+    return "warning";
+  }
+
+  if (badge === "Page orpheline") {
+    return "danger";
+  }
+
+  return "secondary";
+}
+
+function pageResultLine(
+  siteId: string,
+  slug: string | null | undefined,
+  sitesById: Map<string, PraeviseoSite>,
+  publicationsByKey: Map<string, PublicationLookup>
+): string {
+  const normalizedSlug = slug?.trim() ?? "";
+
+  if (normalizedSlug) {
+    const publication = publicationsByKey.get(`${siteId}:${normalizedSlug}`);
+
+    if (publication?.published_live && publication.live_url) {
+      return `Résultat : page visible en live sur ${publication.live_url}.`;
+    }
+
+    if (publication?.published_live) {
+      const dateSuffix = publication.published_live_at ? ` le ${formatDate(publication.published_live_at)}` : "";
+
+      return `Résultat : page publiée en live${dateSuffix}.`;
+    }
+  }
+
+  const executionResult = formatLatestExecutionResult(sitesById.get(siteId)?.execution_history[0]);
+
+  if (executionResult) {
+    return executionResult;
+  }
+
+  return "Dernier résultat : aucune action PraeviSEO enregistrée pour cette page.";
 }
 
 export default async function PagesCockpitPage({ searchParams }: { searchParams?: PageSearchParams }) {
@@ -80,6 +130,18 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
+  const sitesById = new Map(dashboard.sites.map((site) => [site.site_id, site]));
+  const siteIdByName = new Map(dashboard.sites.map((site) => [site.name, site.site_id]));
+  const publicationsByKey = new Map(
+    publications.items.map((item) => [
+      `${item.site_id}:${item.slug}`,
+      {
+        published_live: item.published_live,
+        live_url: item.live_url,
+        published_live_at: item.published_live_at,
+      },
+    ])
+  );
 
   const pageSignals = dashboard.sites.flatMap((site) => [
     ...site.summary.top_rising_pages.map((item) => ({ ...item, site_name: site.name, trend: "up" as const })),
@@ -104,7 +166,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       slug: item.slug,
       title: item.label,
       site_name: item.site_name,
-      badge: "Pilier potentiel",
+      badge: "Page pilier",
       badgeTone: "success" as const,
       description: item.cluster_label
         ? `Cette page porte deja bien le sujet "${item.cluster_label}" et recoit ${item.internal_inlinks} lien(s) depuis le reste du site.`
@@ -116,7 +178,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       slug: item.slug,
       title: item.label,
       site_name: item.site_name,
-      badge: "Sous-maillée",
+      badge: "Page sous-maillée",
       badgeTone: "warning" as const,
       description: `Cette page utile reste encore trop peu soutenue par le reste du site avec seulement ${item.internal_inlinks} lien(s) recus.`,
     })),
@@ -126,7 +188,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       slug: item.slug,
       title: item.label,
       site_name: item.site_name,
-      badge: "Orpheline",
+      badge: "Page orpheline",
       badgeTone: "danger" as const,
       description: "Cette page est trop isolee dans le site et Google la comprend encore mal sans meilleur contexte autour d elle.",
     })),
@@ -158,7 +220,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       slug: item.slug,
       label: item.label,
       type: "observed_orphan",
-      priority_label: "Sous-maillée",
+      priority_label: "Page orpheline",
       priority_level: "medium" as const,
       reason: "Cette page recoit encore trop peu de liens utiles depuis vos autres pages, donc elle reste isolee.",
     })),
@@ -168,7 +230,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       slug: item.slug,
       label: item.label,
       type: "observed_link_gap",
-      priority_label: "Maillage faible",
+      priority_label: "Page sous-maillée",
       priority_level: "medium" as const,
       reason: `Page indexable mais encore sous-maillée avec ${item.internal_inlinks} lien(s) interne(s).`,
     })),
@@ -201,10 +263,8 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       id: `${item.site_id}-${item.slug}-pillar`,
       title: item.label,
       site_id: item.site_id,
-      seo_score: item.authority_score,
-      topical_score: item.pillar_likelihood,
-      quality_score: item.internal_outlinks,
-      indexability_score: item.indexability_state === "indexable" ? 100 : 40,
+      slug: item.slug,
+      badge: "Page pilier" as const,
       reason: item.cluster_label
         ? `Cette page peut devenir la page principale autour du sujet "${item.cluster_label}".`
         : "Cette page peut devenir un point d appui important sur votre site.",
@@ -213,10 +273,8 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       id: `${item.site_id}-${item.slug}-link-gap`,
       title: item.label,
       site_id: item.site_id,
-      seo_score: item.authority_score,
-      topical_score: item.pillar_likelihood,
-      quality_score: item.internal_inlinks,
-      indexability_score: item.indexability_state === "indexable" ? 100 : 40,
+      slug: item.slug,
+      badge: "Page sous-maillée" as const,
       reason: `Page déjà utile mais encore sous-maillée avec ${item.internal_inlinks} lien(s) interne(s).`,
     })),
   ]
@@ -226,17 +284,24 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     observedPotentialPages.length > 0
       ? observedPotentialPages
       : scoredPages.length > 0
-        ? scoredPages
+        ? scoredPages.map((item) => ({
+            id: `${item.site_id}-${item.slug}`,
+            title: item.title,
+            site_id: item.site_id,
+            slug: item.slug,
+            badge: hasReliableSeoSignal(item) ? ("Solidité interne" as const) : ("Signal à confirmer" as const),
+            reason: hasReliableSeoSignal(item)
+              ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
+              : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale.",
+          }))
       : pagesToWatch
           .filter((item) => item.type === "near_top_10" || item.type === "low_ctr")
           .map((item) => ({
             id: `${item.site_id}-${item.slug}`,
             title: item.label,
             site_id: item.site_id,
-            seo_score: null,
-            topical_score: null,
-            quality_score: null,
-            indexability_score: null,
+            slug: item.slug,
+            badge: "Solidité interne" as const,
             reason: item.reason,
           }))
           .slice(0, 6);
@@ -244,6 +309,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     id: `${item.site_id}-${item.slug}-weak`,
     title: item.label,
     site_id: item.site_id,
+    slug: item.slug,
     latest_suggestion: null,
     published_live: item.indexability_state === "indexable",
     gsc_metrics: {
@@ -251,7 +317,6 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       ctr: 0,
       position: 0,
     },
-    seo_score: item.authority_score,
     reason:
       item.indexability_state !== "indexable"
         ? "Google ne confirme pas encore clairement cette page."
@@ -285,7 +350,6 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
   const observedPagesTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_pages, 0);
   const observedWeakTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_weak_pages, 0);
   const observedOrphanTotal = dashboard.sites.reduce((sum, site) => sum + site.summary.observed_orphan_pages, 0);
-  const totalDeltaImpressions = pageSignals.reduce((sum, item) => sum + item.delta_impressions, 0);
   const leadWatchPage = pagesToWatch[0] ?? null;
   const leadPriorityPage = observedPriorityPages[0] ?? null;
   const leadRisingPage = risingPages[0] ?? null;
@@ -294,6 +358,8 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     ? {
         title: leadWatchPage.label,
         site_name: leadWatchPage.site_name,
+        site_id: leadWatchPage.site_id,
+        slug: leadWatchPage.slug,
         badge: leadWatchPage.priority_label,
         reason: leadWatchPage.reason,
         whyNow:
@@ -309,12 +375,14 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       ? {
           title: leadPriorityPage.title,
           site_name: leadPriorityPage.site_name,
+          site_id: leadPriorityPage.site_id,
+          slug: leadPriorityPage.slug,
           badge: leadPriorityPage.badge,
           reason: leadPriorityPage.description,
           whyNow:
-            leadPriorityPage.badge === "Orpheline"
+            leadPriorityPage.badge === "Page orpheline"
               ? "la structure du site la laisse encore trop seule"
-              : leadPriorityPage.badge === "Sous-maillée"
+              : leadPriorityPage.badge === "Page sous-maillée"
                 ? "elle a déjà de la valeur mais manque encore de soutien interne"
                 : "elle peut devenir un vrai appui SEO si on l’ouvre dans le bon ordre",
         }
@@ -322,6 +390,8 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
         ? {
             title: leadRisingPage.label,
             site_name: leadRisingPage.site_name,
+            site_id: siteIdByName.get(leadRisingPage.site_name) ?? "",
+            slug: leadRisingPage.slug,
             badge: "En hausse",
             reason: `La page gagne deja ${leadRisingPage.delta_impressions} impression(s) et commence a remonter dans Google.`,
             whyNow: "la page gagne déjà du terrain et mérite d’être consolidée pendant qu’elle monte",
@@ -330,24 +400,32 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
           ? {
               title: leadBestPage.label,
               site_name: leadBestPage.site_name,
+              site_id: siteIdByName.get(leadBestPage.site_name) ?? "",
+              slug: leadBestPage.slug,
               badge: `${leadBestPage.impressions} impressions`,
               reason: "Cette page est deja visible dans Google et peut encore attirer plus de visites si on la renforce.",
               whyNow: "c’est déjà un appui visible qui peut encore être renforcé",
             }
           : null;
-  const leadStructuralPage =
-    observedPriorityPages[0] ??
-    observedPillarPages[0]
+  const leadStructuralPage = observedPriorityPages[0]
+    ? {
+        title: observedPriorityPages[0].title,
+        site_name: observedPriorityPages[0].site_name,
+        site_id: observedPriorityPages[0].site_id,
+        slug: observedPriorityPages[0].slug,
+        badge: observedPriorityPages[0].badge,
+        badgeTone: observedPriorityPages[0].badgeTone,
+        description: observedPriorityPages[0].description,
+      }
+    : observedPillarPages[0]
       ? {
-          title: observedPriorityPages[0]?.title ?? observedPillarPages[0]?.label ?? "",
-          site_name: observedPriorityPages[0]?.site_name ?? observedPillarPages[0]?.site_name ?? "",
-          badge: observedPriorityPages[0]?.badge ?? "Pilier potentiel",
-          badgeTone: observedPriorityPages[0]?.badgeTone ?? ("success" as const),
-          description:
-            observedPriorityPages[0]?.description ??
-            (observedPillarPages[0]
-              ? `Cette page peut devenir la plus forte sur le sujet "${observedPillarPages[0].cluster_label ?? "principal"}".`
-              : ""),
+          title: observedPillarPages[0].label,
+          site_name: observedPillarPages[0].site_name,
+          site_id: observedPillarPages[0].site_id,
+          slug: observedPillarPages[0].slug,
+          badge: "Page pilier" as const,
+          badgeTone: "success" as const,
+          description: `Cette page peut devenir la plus forte sur le sujet "${observedPillarPages[0].cluster_label ?? "principal"}".`,
         }
       : null;
   const pagesAssistantWhat = leadPageSummary
@@ -366,7 +444,6 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
   const pagesAssistantImpact = leadStructuralPage
     ? `En traitant cette page, vous pouvez renforcer plus vite la structure du site : ${leadStructuralPage.description.toLowerCase()}`
     : "Une page mieux reliee, mieux enrichie ou mieux clarifiee aide Google a comprendre plus vite l'ensemble du site.";
-  const siteIdByName = new Map(dashboard.sites.map((site) => [site.name, site.site_id]));
   const studioHref = (
     siteId: string,
     slug: string,
@@ -584,8 +661,8 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
               },
               {
                 label: "Pages trop isolees",
-                value: observedOrphanTotal > 0 ? observedOrphanTotal : `${totalDeltaImpressions > 0 ? "+" : ""}${new Intl.NumberFormat("fr-FR").format(totalDeltaImpressions)}`,
-                tone: observedOrphanTotal > 0 ? "danger" : totalDeltaImpressions < 0 ? "danger" : totalDeltaImpressions > 0 ? "success" : "secondary",
+                value: observedOrphanTotal,
+                tone: observedOrphanTotal > 0 ? "danger" : "secondary",
               },
             ]}
           />
@@ -616,8 +693,18 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                   Pourquoi maintenant :{" "}
                   <span className="font-medium">{leadPageSummary.whyNow}</span>
                 </p>
+                <p className="text-sm text-text">
+                  {pageResultLine(leadPageSummary.site_id, leadPageSummary.slug, sitesById, publicationsByKey)}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {pageActions(siteIdByName.get(leadPageSummary.site_name) ?? "", { includeSearchConsole: true }).map((action) => (
+                  {pageActions(leadPageSummary.site_id, {
+                    slug: leadPageSummary.slug,
+                    preferredAction:
+                      leadPageSummary.badge === "Page orpheline" || leadPageSummary.badge === "Page sous-maillée"
+                        ? "linking"
+                        : "rewrite",
+                    includeSearchConsole: true,
+                  }).map((action) => (
                     <Button key={`${leadPageSummary.title}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
                       {action.label}
                     </Button>
@@ -648,15 +735,32 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 <p className="text-sm text-text">
                   Ce que ça débloque :{" "}
                   <span className="font-medium">
-                    {leadStructuralPage.badge === "Pilier potentiel"
+                    {leadStructuralPage.badge === "Page pilier"
                       ? "une page plus forte pour porter un sujet entier"
-                      : leadStructuralPage.badge === "Sous-maillée"
+                      : leadStructuralPage.badge === "Page sous-maillée"
                         ? "un meilleur soutien depuis le reste du site"
-                        : leadStructuralPage.badge === "Orpheline"
+                        : leadStructuralPage.badge === "Page orpheline"
                           ? "une page enfin reliée à la structure réelle du site"
                           : "une base plus saine avant les prochaines optimisations éditoriales"}
                   </span>
                 </p>
+                <p className="text-sm text-text">
+                  {pageResultLine(leadStructuralPage.site_id, leadStructuralPage.slug, sitesById, publicationsByKey)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {pageActions(leadStructuralPage.site_id, {
+                    slug: leadStructuralPage.slug,
+                    preferredAction:
+                      leadStructuralPage.badge === "Page sous-maillée" || leadStructuralPage.badge === "Page orpheline"
+                        ? "linking"
+                        : "rewrite",
+                    includeSite: true,
+                  }).map((action) => (
+                    <Button key={`${leadStructuralPage.title}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                      {action.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             ) : null}
           </CockpitSignalListCard>
@@ -687,10 +791,11 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     badge={item.badge}
                     badgeTone={item.badgeTone}
                     description={item.description}
+                    result={pageResultLine(item.site_id, item.slug, sitesById, publicationsByKey)}
                     actions={pageActions(item.site_id, {
                       slug: item.slug,
                       preferredAction:
-                        item.badge === "Sous-maillée" || item.badge === "Orpheline"
+                        item.badge === "Page sous-maillée" || item.badge === "Page orpheline"
                           ? "linking"
                           : "rewrite",
                       includeSite: true,
@@ -710,12 +815,12 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     key={`${item.site_id}-${item.slug}-pillar-gap`}
                     title={item.label}
                     subtitle={item.site_name}
-                    badge={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "Pilier" : "Maillage"}
+                    badge={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "Page pilier" : "Page sous-maillée"}
                     badgeTone={observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug) ? "success" : "warning"}
                     description={
                       observedPillarPages.some((candidate) => candidate.site_id === item.site_id && candidate.slug === item.slug)
-                        ? `Cette page peut devenir centrale sur son sujet. Signal structurel observé ${item.authority_score}, sujet "${item.cluster_label ?? "principal"}".`
-                        : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile. Signal structurel actuel ${item.authority_score}.`
+                        ? `Cette page peut devenir centrale sur son sujet "${item.cluster_label ?? "principal"}".`
+                        : `Seulement ${item.internal_inlinks} lien(s) reçus pour une page déjà utile — elle reste sous-maillée.`
                     }
                     actions={pageActions(item.site_id, {
                       slug: item.slug,
@@ -807,11 +912,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                 id="potentiel"
                 className="scroll-mt-24"
                 title="Pages à fort potentiel SEO"
-                description={
-                  scoredPages.length > 0
-                    ? "Les pages déjà solides côté contenu ou qualité, donc les plus prometteuses à pousser ensuite."
-                    : "Même quand le scoring détaillé est encore léger, PraeviSEO garde ici les pages à consolider en priorité."
-                }
+                description="Les pages déjà solides côté structure interne, donc les plus prometteuses à pousser ensuite."
                 empty={potentialPages.length === 0}
                 emptyMessage="Aucune page à fort potentiel pour le moment. PraeviSEO les affichera dès qu’une page combine assez de signaux pour mériter une vraie poussée."
               >
@@ -820,16 +921,12 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     key={`${item.site_id}-${item.title}-score`}
                     title={item.title}
                     subtitle={item.site_id}
-                    badge={seoSignalLabel(item)}
-                    badgeTone={hasReliableSeoSignal(item) ? ((item.seo_score ?? 0) >= 80 ? "success" : "secondary") : "warning"}
-                    description={
-                      hasReliableSeoSignal(item)
-                        ? "Cette page a deja de bonnes bases et peut encore devenir plus forte sur son sujet."
-                        : "Cette page montre déjà un signal utile dans Google et mérite une consolidation éditoriale."
-                    }
+                    badge={"badge" in item ? item.badge : "Solidité interne"}
+                    badgeTone={structuralBadgeTone("badge" in item ? item.badge : "Solidité interne")}
+                    description={item.reason}
                     actions={pageActions(item.site_id, {
                       slug: "slug" in item ? item.slug : null,
-                      preferredAction: "rewrite",
+                      preferredAction: preferredStructuralAction("badge" in item ? item.badge : "Solidité interne"),
                       includeSite: true,
                     })}
                   />
@@ -867,6 +964,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                         : `${item.gsc_metrics.impressions} impression(s) montrent deja un signal utile dans Google. Cette page peut encore etre renforcee.`
                       )
                     }
+                    result={pageResultLine(item.site_id, "slug" in item ? item.slug : null, sitesById, publicationsByKey)}
                     actions={pageActions(item.site_id, {
                       slug: "slug" in item ? item.slug : null,
                       preferredAction: "rewrite",
@@ -891,6 +989,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     badge={item.priority_label}
                     badgeTone={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}
                     description={item.reason}
+                    result={pageResultLine(item.site_id, item.slug, sitesById, publicationsByKey)}
                     actions={pageActions(item.site_id, {
                       slug: item.slug,
                       preferredAction:
