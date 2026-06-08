@@ -386,7 +386,7 @@ SH;
     {
         return new self(
             'count_symfony_published_pages',
-            self::withinProject($projectPath, 'php bin/console dbal:run-sql "SELECT COUNT(*) AS count FROM praeviseo_published_pages" --quiet 2>/dev/null | grep -Eo "[0-9]+" | tail -n 1 || echo missing'),
+            self::withinProject($projectPath, 'php bin/console dbal:run-sql "SELECT COUNT(*) FROM praeviseo_published_pages" 2>/dev/null | grep -Eo "[0-9]+" | head -n 1 || echo missing'),
         );
     }
 
