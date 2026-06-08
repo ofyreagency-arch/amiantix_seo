@@ -30,6 +30,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias('praeviseo_symfony_bridge.controller.page', PraeviseoPublishedPageController::class)->public();
     $services->set(PraeviseoPublishedSitemapController::class)->public();
     $services->alias('praeviseo_symfony_bridge.controller.sitemap', PraeviseoPublishedSitemapController::class)->public();
+    $services->alias('praeviseo_symfony_bridge.controller.sitemap_under_prefix', PraeviseoPublishedSitemapController::class.'::underPrefix')->public();
     $services->set(PraeviseoConnectCommand::class)
         ->arg('$projectDir', '%kernel.project_dir%')
         ->tag('console.command');

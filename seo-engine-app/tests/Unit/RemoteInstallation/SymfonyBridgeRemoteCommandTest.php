@@ -17,6 +17,13 @@ class SymfonyBridgeRemoteCommandTest extends TestCase
         self::assertStringNotContainsString('--no-scripts', $command->command);
     }
 
+    public function test_allow_symfony_bridge_plugin_enables_composer_plugin(): void
+    {
+        $command = RemoteCommand::allowSymfonyBridgePlugin('/var/www/client');
+
+        self::assertStringContainsString('allow-plugins.praeviseo/symfony-bridge true', $command->command);
+    }
+
     public function test_connect_symfony_passes_praeviseo_url_and_prefix(): void
     {
         $command = RemoteCommand::connectSymfony(

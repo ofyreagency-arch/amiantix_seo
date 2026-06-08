@@ -255,6 +255,14 @@ final class RemoteCommand
         );
     }
 
+    public static function allowSymfonyBridgePlugin(string $projectPath): self
+    {
+        return new self(
+            'allow_symfony_bridge_plugin',
+            self::withinProject($projectPath, 'composer config --no-plugins allow-plugins.praeviseo/symfony-bridge true'),
+        );
+    }
+
     public static function installSymfonyBridge(string $projectPath): self
     {
         return new self(

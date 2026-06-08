@@ -23,6 +23,20 @@ final class PraeviseoPublishedSitemapController extends AbstractController
             throw $this->createNotFoundException();
         }
 
+        return $this->renderSitemap();
+    }
+
+    public function underPrefix(string $prefix): Response
+    {
+        if ($prefix !== $this->config->bridgePrefix()) {
+            throw $this->createNotFoundException();
+        }
+
+        return $this->renderSitemap();
+    }
+
+    private function renderSitemap(): Response
+    {
         $pages = $this->entityManager
             ->getRepository(PraeviseoPublishedPage::class)
             ->findBy(

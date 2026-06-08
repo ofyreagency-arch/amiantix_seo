@@ -22,6 +22,12 @@ class SymfonyInstallerStrategy implements InstallerStrategy
      */
     public function install(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
+        $allowPluginResult = $connector->run(RemoteCommand::allowSymfonyBridgePlugin($environment->projectPath), 60);
+
+        if (! $allowPluginResult->successful) {
+            throw RemoteInstallationException::execution('Composer n autorise pas encore le plugin officiel du bridge Symfony.');
+        }
+
         $result = $connector->run(RemoteCommand::installSymfonyBridge($environment->projectPath), 240);
 
         if (! $result->successful) {
