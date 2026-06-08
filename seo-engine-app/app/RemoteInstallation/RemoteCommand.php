@@ -259,7 +259,29 @@ final class RemoteCommand
     {
         return new self(
             'install_symfony_bridge',
-            self::withinProject($projectPath, 'composer require praeviseo/symfony-bridge --no-interaction --no-progress --no-scripts'),
+            self::withinProject($projectPath, 'composer require praeviseo/symfony-bridge --no-interaction --no-progress'),
+        );
+    }
+
+    public static function dumpSymfonyAutoload(string $projectPath): self
+    {
+        return new self(
+            'dump_symfony_autoload',
+            self::withinProject($projectPath, 'composer dump-autoload --no-interaction'),
+        );
+    }
+
+    public static function ensureSymfonyAppUrl(string $projectPath, string $appUrl): self
+    {
+        $command = sprintf(
+            "if [ -f .env ] && grep -q '^APP_URL=' .env; then sed -i 's|^APP_URL=.*|APP_URL=%s|' .env; else echo 'APP_URL=%s' >> .env; fi",
+            $appUrl,
+            $appUrl,
+        );
+
+        return new self(
+            'ensure_symfony_app_url',
+            self::withinProject($projectPath, $command),
         );
     }
 
@@ -271,11 +293,21 @@ final class RemoteCommand
         );
     }
 
-    public static function connectSymfony(string $projectPath, string $code): self
-    {
+    public static function connectSymfony(
+        string $projectPath,
+        string $code,
+        string $praeviseoUrl,
+        ?string $prefix = null,
+    ): self {
+        $options = ' --praeviseo-url='.self::quote(rtrim($praeviseoUrl, '/'));
+
+        if ($prefix !== null && trim($prefix) !== '') {
+            $options .= ' --prefix='.self::quote(trim($prefix, '/'));
+        }
+
         return new self(
             'connect_symfony',
-            self::withinProject($projectPath, 'php bin/console praeviseo:connect '.self::quote($code)),
+            self::withinProject($projectPath, 'php bin/console praeviseo:connect '.self::quote($code).$options),
         );
     }
 

@@ -19,6 +19,7 @@ Then the bridge automatically:
 - enables remote publication
 - exposes the publish endpoint
 - exposes the public page route
+- exposes `{prefix}-sitemap.xml` for published pages
 
 The client should then see in PraeviSEO:
 

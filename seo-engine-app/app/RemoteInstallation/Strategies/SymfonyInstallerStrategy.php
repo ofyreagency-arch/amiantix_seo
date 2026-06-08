@@ -28,6 +28,21 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             throw RemoteInstallationException::execution('Composer n est pas disponible ou l installation PraeviSEO a échoué sur le site Symfony.');
         }
 
+        $autoloadResult = $connector->run(RemoteCommand::dumpSymfonyAutoload($environment->projectPath), 180);
+
+        if (! $autoloadResult->successful) {
+            $this->logCommandFailure(
+                phase: 'dump_symfony_autoload',
+                installation: $installation,
+                site: $site,
+                environment: $environment,
+                command: RemoteCommand::dumpSymfonyAutoload($environment->projectPath),
+                result: $autoloadResult,
+            );
+
+            throw RemoteInstallationException::execution('Le bridge Symfony a été installé mais son auto-enregistrement Composer a échoué.');
+        }
+
         $installation->markProgress(RemoteInstallation::STATUS_INSTALLING, 'package_installed', 55, 'Package PraeviSEO installé sur Symfony.');
     }
 
@@ -37,6 +52,25 @@ class SymfonyInstallerStrategy implements InstallerStrategy
 
         if (! $code) {
             throw RemoteInstallationException::execution('Code de connexion PraeviSEO introuvable pour ce site.');
+        }
+
+        $siteUrl = rtrim((string) $site->url, '/');
+
+        if ($siteUrl !== '') {
+            $appUrlResult = $connector->run(RemoteCommand::ensureSymfonyAppUrl($environment->projectPath, $siteUrl), 60);
+
+            if (! $appUrlResult->successful) {
+                $this->logCommandFailure(
+                    phase: 'ensure_symfony_app_url',
+                    installation: $installation,
+                    site: $site,
+                    environment: $environment,
+                    command: RemoteCommand::ensureSymfonyAppUrl($environment->projectPath, $siteUrl),
+                    result: $appUrlResult,
+                );
+
+                throw RemoteInstallationException::execution('PraeviSEO n a pas pu aligner APP_URL sur le site Symfony avant la connexion.');
+            }
         }
 
         $clearCommand = RemoteCommand::clearSymfonyCache($environment->projectPath);
@@ -55,7 +89,18 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             throw RemoteInstallationException::execution('Le cache Symfony n a pas pu être préparé avant la connexion PraeviSEO.');
         }
 
-        $connectCommand = RemoteCommand::connectSymfony($environment->projectPath, $code);
+        $praeviseoUrl = rtrim((string) config('app.url'), '/');
+
+        if ($praeviseoUrl === '') {
+            throw RemoteInstallationException::execution('L URL du cockpit PraeviSEO n est pas configurée côté moteur.');
+        }
+
+        $connectCommand = RemoteCommand::connectSymfony(
+            $environment->projectPath,
+            $code,
+            $praeviseoUrl,
+            $site->publicationPathPrefix() ?? 'ressources',
+        );
         $connectResult = $connector->run($connectCommand, 180);
 
         if (! $connectResult->successful) {

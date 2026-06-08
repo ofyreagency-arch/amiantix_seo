@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Praeviseo\SymfonyBridge\Command\PraeviseoConnectCommand;
 use Praeviseo\SymfonyBridge\Controller\PraeviseoBridgeController;
 use Praeviseo\SymfonyBridge\Controller\PraeviseoPublishedPageController;
+use Praeviseo\SymfonyBridge\Controller\PraeviseoPublishedSitemapController;
 use Praeviseo\SymfonyBridge\Service\PraeviseoBridgeConfig;
 use Praeviseo\SymfonyBridge\Service\PraeviseoBridgeService;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -27,6 +28,8 @@ return static function (ContainerConfigurator $container): void {
     $services->alias('praeviseo_symfony_bridge.controller.publish', PraeviseoBridgeController::class)->public();
     $services->set(PraeviseoPublishedPageController::class)->public();
     $services->alias('praeviseo_symfony_bridge.controller.page', PraeviseoPublishedPageController::class)->public();
+    $services->set(PraeviseoPublishedSitemapController::class)->public();
+    $services->alias('praeviseo_symfony_bridge.controller.sitemap', PraeviseoPublishedSitemapController::class)->public();
     $services->set(PraeviseoConnectCommand::class)
         ->arg('$projectDir', '%kernel.project_dir%')
         ->tag('console.command');

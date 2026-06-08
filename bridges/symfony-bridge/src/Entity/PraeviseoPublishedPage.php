@@ -77,6 +77,7 @@ class PraeviseoPublishedPage
     public function getCanonicalUrl(): ?string { return $this->canonicalUrl; }
     public function isNoindex(): bool { return $this->isNoindex; }
     public function getLiveUrl(): ?string { return $this->liveUrl; }
+    public function getLastPublishedAt(): ?\DateTimeImmutable { return $this->lastPublishedAt; }
     public function setPraeviseoSiteId(string $praeviseoSiteId): void { $this->praeviseoSiteId = $praeviseoSiteId; }
     public function setExternalPageId(int $externalPageId): void { $this->externalPageId = $externalPageId; }
     public function setSlug(string $slug): void { $this->slug = $slug; }

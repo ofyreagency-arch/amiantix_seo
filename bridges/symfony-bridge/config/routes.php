@@ -16,4 +16,11 @@ return static function (RoutingConfigurator $routes): void {
             'prefix' => '.+',
             'slug' => '[^/]+',
         ]);
+
+    $routes->add('praeviseo_bridge_public_sitemap', '/{sitemapPath}')
+        ->controller('praeviseo_symfony_bridge.controller.sitemap')
+        ->methods(['GET'])
+        ->requirements([
+            'sitemapPath' => '.+-sitemap\.xml',
+        ]);
 };

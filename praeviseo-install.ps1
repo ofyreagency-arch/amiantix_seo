@@ -88,11 +88,13 @@ function Install-SymfonyBridge {
     & composer show praeviseo/symfony-bridge *> $null
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Mise à jour du bridge Symfony…"
-        & composer update praeviseo/symfony-bridge --no-scripts
+        & composer update praeviseo/symfony-bridge
     } else {
         Write-Host "Installation du bridge Symfony…"
-        & composer require praeviseo/symfony-bridge --no-scripts
+        & composer require praeviseo/symfony-bridge
     }
+
+    & composer dump-autoload --no-interaction
 }
 
 function Install-LaravelBridge {
@@ -145,7 +147,7 @@ if ($framework -eq "symfony") {
     Install-SymfonyBridge
     Write-Ok "Bridge Symfony installé"
     & php bin/console cache:clear
-    & php bin/console praeviseo:connect $ConnectionCode
+    & php bin/console praeviseo:connect $ConnectionCode --praeviseo-url=$PraeviseoUrl
     & php bin/console praeviseo:connect --help *> $null
 } else {
     Install-LaravelBridge

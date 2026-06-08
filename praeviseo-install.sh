@@ -77,11 +77,13 @@ install_symfony_bridge() {
 
   if composer show praeviseo/symfony-bridge >/dev/null 2>&1; then
     say "Mise à jour du bridge Symfony…"
-    composer update praeviseo/symfony-bridge --no-scripts
+    composer update praeviseo/symfony-bridge
   else
     say "Installation du bridge Symfony…"
-    composer require praeviseo/symfony-bridge --no-scripts
+    composer require praeviseo/symfony-bridge
   fi
+
+  composer dump-autoload --no-interaction
 }
 
 install_laravel_bridge() {
@@ -118,7 +120,7 @@ ensure_app_url() {
 
 connect_symfony() {
   php bin/console cache:clear
-  php bin/console praeviseo:connect "$CONNECTION_CODE"
+  php bin/console praeviseo:connect "$CONNECTION_CODE" --praeviseo-url="$PRAEVISEO_URL"
 }
 
 connect_laravel() {
