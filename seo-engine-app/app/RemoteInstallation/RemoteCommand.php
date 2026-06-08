@@ -331,7 +331,7 @@ SH;
     {
         return new self(
             'install_symfony_bridge',
-            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge:^0.1.4 --no-interaction --no-progress')),
+            self::withinProject($projectPath, self::composer('require praeviseo/symfony-bridge:^0.1.5 --no-interaction --no-progress')),
         );
     }
 
@@ -340,6 +340,29 @@ SH;
         return new self(
             'dump_symfony_autoload',
             self::withinProject($projectPath, self::composer('dump-autoload --no-interaction')),
+        );
+    }
+
+    public static function ensureSymfonyBridgeRoutes(string $projectPath): self
+    {
+        $command = <<<'SH'
+routes_file="config/routes/praeviseo_bridge.yaml"
+if [ -f "$routes_file" ]; then
+  echo present
+else
+  mkdir -p config/routes
+  cat > "$routes_file" <<'YAML'
+praeviseo_symfony_bridge:
+    resource: '@PraeviseoSymfonyBridge/config/routes.php'
+    type: php
+YAML
+  echo configured
+fi
+SH;
+
+        return new self(
+            'ensure_symfony_bridge_routes',
+            self::withinProject($projectPath, $command),
         );
     }
 

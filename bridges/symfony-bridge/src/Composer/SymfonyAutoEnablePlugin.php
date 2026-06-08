@@ -44,6 +44,12 @@ final class SymfonyAutoEnablePlugin implements PluginInterface, EventSubscriberI
     public function syncBundleRegistration(Event $event): void
     {
         $projectRoot = dirname((string) $this->composer->getConfig()->get('vendor-dir'));
+        $this->syncBundlesPhp($projectRoot);
+        $this->syncRoutesYaml($projectRoot);
+    }
+
+    private function syncBundlesPhp(string $projectRoot): void
+    {
         $bundlesPath = $projectRoot.'/config/bundles.php';
 
         if (! is_file($bundlesPath)) {
@@ -66,5 +72,30 @@ final class SymfonyAutoEnablePlugin implements PluginInterface, EventSubscriberI
         file_put_contents($bundlesPath, $updated);
 
         $this->io->write('<info>PraeviSEO Symfony Bridge active automatiquement dans config/bundles.php.</info>');
+    }
+
+    private function syncRoutesYaml(string $projectRoot): void
+    {
+        $routesDir = $projectRoot.'/config/routes';
+        $routesPath = $routesDir.'/praeviseo_bridge.yaml';
+
+        if (is_file($routesPath)) {
+            return;
+        }
+
+        if (! is_dir($routesDir) && ! mkdir($routesDir, 0775, true) && ! is_dir($routesDir)) {
+            return;
+        }
+
+        $contents = <<<'YAML'
+praeviseo_symfony_bridge:
+    resource: '@PraeviseoSymfonyBridge/config/routes.php'
+    type: php
+
+YAML;
+
+        file_put_contents($routesPath, $contents);
+
+        $this->io->write('<info>PraeviSEO Symfony Bridge routes enregistrées dans config/routes/praeviseo_bridge.yaml.</info>');
     }
 }

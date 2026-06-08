@@ -180,6 +180,12 @@ class SymfonyInstallerStrategy implements InstallerStrategy
 
     public function activate(RemoteConnector $connector, RemoteInstallation $installation, SeoSite $site, RemoteEnvironment $environment): void
     {
+        $routesResult = $connector->run(RemoteCommand::ensureSymfonyBridgeRoutes($environment->projectPath), 60);
+
+        if (! $routesResult->successful) {
+            throw RemoteInstallationException::execution('PraeviSEO n a pas pu enregistrer les routes bridge Symfony.');
+        }
+
         $schemaResult = $connector->run(RemoteCommand::updateSymfonyDoctrineSchema($environment->projectPath), 180);
 
         if (! $schemaResult->successful) {

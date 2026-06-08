@@ -1,0 +1,3 @@
+praeviseo_symfony_bridge:
+    resource: routes.php
+    type: php
