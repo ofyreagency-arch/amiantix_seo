@@ -127,6 +127,8 @@ export type PraeviseoSite = {
     engine_actionable: boolean;
     manual_required: boolean;
     target: string | null;
+    live_gap: string | null;
+    live_gap_detail: string | null;
   };
   execution_history: Array<{
     at: string;
@@ -731,6 +733,8 @@ const mockSites: PraeviseoSite[] = [
       engine_actionable: true,
       manual_required: false,
       target: "https://amiantix.com/_praeviseo/publish",
+      live_gap: null,
+      live_gap_detail: null,
     },
     execution_history: [
       {
@@ -1073,6 +1077,8 @@ const mockSites: PraeviseoSite[] = [
       engine_actionable: false,
       manual_required: true,
       target: null,
+      live_gap: null,
+      live_gap_detail: null,
     },
     execution_history: [],
     action_statuses: {
@@ -1795,6 +1801,12 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       ),
       target: (site.publication_target as Record<string, unknown> | undefined)?.target
         ? String((site.publication_target as Record<string, unknown> | undefined)?.target)
+        : null,
+      live_gap: (site.publication_target as Record<string, unknown> | undefined)?.live_gap
+        ? String((site.publication_target as Record<string, unknown> | undefined)?.live_gap)
+        : null,
+      live_gap_detail: (site.publication_target as Record<string, unknown> | undefined)?.live_gap_detail
+        ? String((site.publication_target as Record<string, unknown> | undefined)?.live_gap_detail)
         : null,
     },
     execution_history: Array.isArray(site.execution_history)
@@ -2648,6 +2660,8 @@ export async function createSite(input: CreateSiteInput): Promise<PraeviseoSite>
         engine_actionable: false,
         manual_required: true,
         target: null,
+        live_gap: null,
+        live_gap_detail: null,
       },
       execution_history: [],
       action_statuses: {

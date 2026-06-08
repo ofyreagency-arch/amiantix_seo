@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Models\SeoSiteCrawl;
 use App\Models\SeoSiteCrawlIssue;
 use App\Models\SeoSiteGoogleConnection;
 use App\Models\SeoSitePage;
@@ -534,9 +535,20 @@ class ClientSitesDashboardMetricsTest extends TestCase
             'snapshot_date' => '2026-05-26',
         ]);
 
+        $crawl = SeoSiteCrawl::query()->create([
+            'site_id' => $site->site_id,
+            'status' => 'completed',
+            'base_url' => 'https://amiantix.com',
+            'max_pages' => 50,
+            'discovered_url_count' => 10,
+            'crawled_url_count' => 10,
+            'started_at' => now()->subHour(),
+            'completed_at' => now()->subMinutes(30),
+        ]);
+
         SeoSiteCrawlIssue::query()->create([
             'site_id' => $site->site_id,
-            'site_crawl_id' => 1,
+            'site_crawl_id' => $crawl->id,
             'site_page_id' => null,
             'issue_type' => 'missing_title',
             'severity' => 'warning',

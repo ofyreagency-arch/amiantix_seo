@@ -1161,9 +1161,6 @@ class ClientSitesController extends Controller
         $hasPublishedLiveColumn = Schema::hasColumn('seo_pages', 'published_live');
         $gscSnapshot = $this->searchConsoleSnapshot($site->site_id);
         $observedSnapshot = $this->observedSiteSnapshot($site->site_id);
-        $observedHealth = $this->observedSiteHealthSnapshot($site->site_id);
-        $observedHealthHistory = $this->observedSiteHealthHistory($site->site_id);
-        $observedHealthDelta = $this->observedSiteHealthDelta($observedHealthHistory);
         $installation = $site->relationLoaded('latestRemoteInstallation')
             ? $site->getRelation('latestRemoteInstallation')
             : $site->latestRemoteInstallation()->first();
@@ -1176,6 +1173,10 @@ class ClientSitesController extends Controller
             ->latest('completed_at')
             ->latest('id')
             ->first();
+        $lastCrawlIssuesCount = $this->lastCrawlIssuesCount($site->site_id, $lastSuccessfulCrawl);
+        $observedHealth = $this->observedSiteHealthSnapshot($site->site_id, $lastCrawlIssuesCount);
+        $observedHealthHistory = $this->observedSiteHealthHistory($site->site_id);
+        $observedHealthDelta = $this->observedSiteHealthDelta($observedHealthHistory);
         $recentCrawls = SeoSiteCrawl::query()
             ->where('site_id', $site->site_id)
             ->latest('created_at')
@@ -1218,6 +1219,8 @@ class ClientSitesController extends Controller
         $gscConnected = in_array($gscStatus, ['configured', 'connected', 'connected_empty'], true);
         $bridgeConnected = $site->publicationBridgeStatus() === 'connected';
 
+        $this->reconcileStaleActionStatuses($site);
+
         return [
             'id' => $site->id,
             'site_id' => $site->site_id,
@@ -1248,7 +1251,7 @@ class ClientSitesController extends Controller
                 ->values()
                 ->all(),
             'crawl_report' => $crawlReport,
-            'publication_target' => $this->publicationTargetStatus($site),
+            'publication_target' => $this->publicationTargetStatus($site, $pagesPublished, $pagesLive),
             'execution_history' => $this->executionHistory($site),
             'action_statuses' => $this->actionStatuses($site, $crawl),
             'created_at' => $site->created_at,
@@ -1319,13 +1322,12 @@ class ClientSitesController extends Controller
     /**
      * @return array<string,mixed>
      */
-    private function publicationTargetStatus(SeoSite $site): array
+    private function publicationTargetStatus(SeoSite $site, int $pagesPublished = 0, int $pagesLive = 0): array
     {
         /** @var SeoLivePublicationService $service */
         $service = app(SeoLivePublicationService::class);
         $target = $service->targetStatusForSite($site);
-
-        return [
+        $payload = [
             'mode' => (string) ($target['mode'] ?? 'runtime'),
             'label' => (string) ($target['label'] ?? 'Publication live'),
             'state' => (string) ($target['state'] ?? 'warning'),
@@ -1333,6 +1335,56 @@ class ClientSitesController extends Controller
             'engine_actionable' => (bool) ($target['engine_actionable'] ?? false),
             'manual_required' => (bool) ($target['manual_required'] ?? true),
             'target' => isset($target['target']) ? (string) $target['target'] : null,
+            'live_gap' => null,
+            'live_gap_detail' => null,
+        ];
+
+        if ($pagesPublished > 0 && $pagesLive === 0) {
+            $gap = $this->publicationLiveGap($site, $payload);
+            $payload['live_gap'] = $gap['live_gap'];
+            $payload['live_gap_detail'] = $gap['live_gap_detail'];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string,mixed>  $targetStatus
+     * @return array{live_gap:string,live_gap_detail:string}
+     */
+    private function publicationLiveGap(SeoSite $site, array $targetStatus): array
+    {
+        $publicationSettings = data_get($site->settings_json, 'publication', []);
+        $lastError = is_array($publicationSettings) && filled($publicationSettings['last_error'] ?? null)
+            ? (string) $publicationSettings['last_error']
+            : null;
+        $publicationAction = data_get($site->settings_json, 'automation.actions.publication', []);
+        $actionState = is_array($publicationAction) ? (string) ($publicationAction['state'] ?? '') : '';
+
+        if (! (bool) ($targetStatus['engine_actionable'] ?? false)) {
+            return [
+                'live_gap' => 'bridge_not_ready',
+                'live_gap_detail' => 'Des pages existent côté moteur (seo_pages publiées), mais publishPageIfActionable() ne peut pas pousser : le bridge n est pas actionnable (webhook ou secret manquant, ou bridge_status non connecté).',
+            ];
+        }
+
+        if ($lastError !== null) {
+            return [
+                'live_gap' => 'last_push_failed',
+                'live_gap_detail' => 'Le dernier push bridge a échoué avant live_url : '.$lastError,
+            ];
+        }
+
+        if (in_array($actionState, ['running', 'pending'], true)) {
+            return [
+                'live_gap' => 'publication_pending',
+                'live_gap_detail' => 'Une publication live est encore marquée en cours sans URL live confirmée. Vérifiez si le statut publication est bloqué.',
+            ];
+        }
+
+        return [
+            'live_gap' => 'awaiting_publish',
+            'live_gap_detail' => 'La génération crée des seo_pages publiées côté moteur sans push live automatique. Il manque un POST /publish ou une réécriture/image republiable via publishPageIfActionable().',
         ];
     }
 
@@ -1448,7 +1500,7 @@ class ClientSitesController extends Controller
                 'link_gap_pages' => count((array) ($observedSnapshot['link_gap_pages'] ?? [])),
                 'pillar_candidates' => (int) ($observedSnapshot['pillar_candidates'] ?? 0),
                 'health_score' => (int) ($observedHealth['health_score'] ?? 0),
-                'crawl_issues' => $issueRows->count(),
+                'crawl_issues' => $this->lastCrawlIssuesCount($site->site_id, $lastSuccessfulCrawl),
                 'indexed_pages' => (int) ($gscSnapshot['indexed_pages'] ?? 0),
                 'non_indexed_pages' => (int) ($gscSnapshot['non_indexed_pages'] ?? 0),
             ],
@@ -1701,6 +1753,107 @@ class ClientSitesController extends Controller
         $settings['automation'] = $automation;
         $site->forceFill(['settings_json' => $settings])->save();
         $site->refresh();
+    }
+
+    private function reconcileStaleActionStatuses(SeoSite $site): void
+    {
+        $settings = $site->settings_json ?? [];
+        $automation = is_array($settings['automation'] ?? null) ? $settings['automation'] : [];
+        $actions = is_array($automation['actions'] ?? null) ? $automation['actions'] : [];
+        $changed = false;
+
+        foreach (['generation', 'rewrite', 'linking', 'images', 'publication'] as $action) {
+            $payload = is_array($actions[$action] ?? null) ? $actions[$action] : null;
+
+            if ($payload === null) {
+                continue;
+            }
+
+            $state = (string) ($payload['state'] ?? 'idle');
+
+            if (! in_array($state, ['running', 'pending'], true)) {
+                continue;
+            }
+
+            $updatedAt = isset($payload['updated_at']) && filled($payload['updated_at'])
+                ? Carbon::parse((string) $payload['updated_at'])
+                : null;
+
+            if (! $updatedAt instanceof Carbon || $updatedAt->greaterThan(now()->subMinutes(15))) {
+                continue;
+            }
+
+            $knownError = isset($payload['error']) && filled($payload['error']) ? (string) $payload['error'] : null;
+
+            if ($knownError !== null) {
+                $actions[$action] = [
+                    'state' => 'failed',
+                    'detail' => 'L action a été interrompue avant la fin.',
+                    'updated_at' => now()->toIso8601String(),
+                    'error' => $knownError,
+                ];
+            } else {
+                $actions[$action] = [
+                    'state' => 'completed',
+                    'detail' => sprintf(
+                        'PraeviSEO a clôturé automatiquement cette action restée en %s sans activité récente.',
+                        $state === 'pending' ? 'attente' : 'cours'
+                    ),
+                    'updated_at' => now()->toIso8601String(),
+                    'error' => null,
+                ];
+            }
+
+            $changed = true;
+        }
+
+        if ($changed) {
+            $automation['actions'] = $actions;
+            $settings['automation'] = $automation;
+            $site->forceFill(['settings_json' => $settings])->save();
+            $site->refresh();
+        }
+    }
+
+    private function hasRecentPremiumActionSuccess(SeoSite $site, int $days = 7): bool
+    {
+        $history = data_get($site->settings_json, 'automation.history', []);
+
+        if (! is_array($history)) {
+            return false;
+        }
+
+        $successKinds = [
+            'article_generated',
+            'rewrite_applied',
+            'rewrite_published',
+            'linking_applied',
+            'image_generated',
+            'image_published',
+            'publication_sent',
+            'auto_article_generated',
+            'auto_rewrite_applied',
+            'auto_rewrite_published',
+            'auto_linking_applied',
+            'auto_image_generated',
+            'auto_publication_sent',
+        ];
+
+        return collect($history)->contains(function (mixed $entry) use ($successKinds, $days): bool {
+            if (! is_array($entry)) {
+                return false;
+            }
+
+            $kind = (string) ($entry['kind'] ?? '');
+
+            if (! in_array($kind, $successKinds, true)) {
+                return false;
+            }
+
+            $at = isset($entry['at']) && filled($entry['at']) ? Carbon::parse((string) $entry['at']) : null;
+
+            return $at instanceof Carbon && $at->greaterThan(now()->subDays($days));
+        });
     }
 
     /**
@@ -2134,7 +2287,7 @@ class ClientSitesController extends Controller
      *     crawl_issues:int
      * }
      */
-    private function observedSiteHealthSnapshot(string $siteId): array
+    private function observedSiteHealthSnapshot(string $siteId, int $lastCrawlIssuesCount): array
     {
         $snapshot = SeoSiteSnapshot::query()
             ->where('site_id', $siteId)
@@ -2154,8 +2307,27 @@ class ClientSitesController extends Controller
             'avg_seo_score' => $snapshot ? (int) round((float) $snapshot->avg_seo_score) : 0,
             'avg_quality_score' => $snapshot ? (int) round((float) $snapshot->avg_quality_score) : 0,
             'avg_topical_score' => $snapshot ? (int) round((float) $snapshot->avg_topical_score) : 0,
-            'crawl_issues' => SeoSiteCrawlIssue::query()->where('site_id', $siteId)->count(),
+            'crawl_issues' => $lastCrawlIssuesCount,
         ];
+    }
+
+    private function lastCrawlIssuesCount(string $siteId, ?SeoSiteCrawl $lastSuccessfulCrawl = null): int
+    {
+        $crawl = $lastSuccessfulCrawl ?? SeoSiteCrawl::query()
+            ->where('site_id', $siteId)
+            ->where('status', 'completed')
+            ->latest('completed_at')
+            ->latest('id')
+            ->first();
+
+        if (! $crawl) {
+            return 0;
+        }
+
+        return SeoSiteCrawlIssue::query()
+            ->where('site_id', $siteId)
+            ->where('site_crawl_id', $crawl->id)
+            ->count();
     }
 
     /**
@@ -2856,12 +3028,16 @@ class ClientSitesController extends Controller
         int $pagesLive,
         int $pendingSuggestions,
     ): array {
-        $latestInstallation = $site->relationLoaded('latestRemoteInstallation')
-            ? $site->getRelation('latestRemoteInstallation')
-            : $site->latestRemoteInstallation()->first();
+        $bridgeStatus = $site->publicationBridgeStatus();
+        $premiumRecentlySucceeded = $this->hasRecentPremiumActionSuccess($site);
+        $installationSignalsStale = $bridgeStatus !== 'connected' && ! $premiumRecentlySucceeded;
 
-        if ($latestInstallation && ! $bridgeConnected) {
-            if ($latestInstallation->status === RemoteInstallation::STATUS_FAILED) {
+        if ($installationSignalsStale) {
+            $latestInstallation = $site->relationLoaded('latestRemoteInstallation')
+                ? $site->getRelation('latestRemoteInstallation')
+                : $site->latestRemoteInstallation()->first();
+
+            if ($latestInstallation && $latestInstallation->status === RemoteInstallation::STATUS_FAILED) {
                 return [
                     'kind' => 'installation_failed',
                     'label' => 'Installation PraeviSEO à relancer',
@@ -2870,7 +3046,7 @@ class ClientSitesController extends Controller
                 ];
             }
 
-            if ($latestInstallation->status !== RemoteInstallation::STATUS_COMPLETED) {
+            if ($latestInstallation && $latestInstallation->status !== RemoteInstallation::STATUS_COMPLETED) {
                 return [
                     'kind' => 'installation_requested',
                     'label' => 'PraeviSEO prépare votre installation',
@@ -2878,15 +3054,15 @@ class ClientSitesController extends Controller
                     'priority' => 'medium',
                 ];
             }
-        }
 
-        if ($site->publicationBridgeStatus() === 'requested' && ! $bridgeConnected) {
-            return [
-                'kind' => 'installation_requested',
-                'label' => 'PraeviSEO prépare votre installation',
-                'detail' => 'Vos accès ont bien été enregistrés. PraeviSEO travaille maintenant automatiquement sur votre site.',
-                'priority' => 'medium',
-            ];
+            if ($bridgeStatus === 'requested') {
+                return [
+                    'kind' => 'installation_requested',
+                    'label' => 'PraeviSEO prépare votre installation',
+                    'detail' => 'Vos accès ont bien été enregistrés. PraeviSEO travaille maintenant automatiquement sur votre site.',
+                    'priority' => 'medium',
+                ];
+            }
         }
 
         if (! $bridgeConnected) {

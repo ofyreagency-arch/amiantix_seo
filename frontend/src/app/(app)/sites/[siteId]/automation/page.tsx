@@ -400,6 +400,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
           ? `${liveVerifiedCount} contenu(s) live sont réellement confirmés et peuvent être repris automatiquement.`
           : hasUnverifiedPublishedPages
             ? `${publishedButUnverifiedCount} contenu(s) ont une URL live enregistrée, mais PraeviSEO n’a pas encore confirmé qu’elle répond correctement.`
+          : site.publication_target.live_gap_detail
+            ? site.publication_target.live_gap_detail
           : publicationReady
             ? site.publication_target.detail || "Le bridge est prêt. PraeviSEO peut pousser le premier contenu utile dès qu’il est prêt."
             : bridgeOperational
