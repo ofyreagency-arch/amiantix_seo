@@ -265,7 +265,20 @@ final class RemoteCommand
 
     public static function ensureSymfonyDatabaseUrl(string $projectPath): self
     {
-        $command = "mkdir -p var && if [ -f .env ] && grep -E '^DATABASE_URL=' .env >/dev/null 2>&1; then echo present; else printf '%s\n' 'DATABASE_URL=\"sqlite:///%kernel.project_dir%/var/data.db\"' >> .env && echo configured; fi";
+        $sqliteUrl = 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/data.db"';
+        $command = <<<SH
+mkdir -p var
+if [ ! -f .env ]; then
+  echo 'APP_ENV=dev' > .env
+fi
+if grep -E '^DATABASE_URL=' .env >/dev/null 2>&1 && ! grep -E '^DATABASE_URL=.*(postgresql://app:!ChangeMe!|postgresql://127\\.0\\.0\\.1)' .env >/dev/null 2>&1; then
+  echo present
+else
+  sed -i '/^DATABASE_URL=/d' .env
+  printf '%s\n' '{$sqliteUrl}' >> .env
+  echo configured
+fi
+SH;
 
         return new self(
             'ensure_symfony_database_url',
@@ -301,7 +314,7 @@ final class RemoteCommand
     {
         return new self(
             'update_symfony_doctrine_schema',
-            self::withinProject($projectPath, 'php bin/console doctrine:schema:update --force --complete'),
+            self::withinProject($projectPath, 'php bin/console doctrine:schema:update --force'),
         );
     }
 

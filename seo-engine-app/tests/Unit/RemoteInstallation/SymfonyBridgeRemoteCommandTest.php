@@ -43,7 +43,8 @@ class SymfonyBridgeRemoteCommandTest extends TestCase
     {
         $command = RemoteCommand::updateSymfonyDoctrineSchema('/var/www/client');
 
-        self::assertStringContainsString('doctrine:schema:update --force --complete', $command->command);
+        self::assertStringContainsString('doctrine:schema:update --force', $command->command);
+        self::assertStringNotContainsString('--complete', $command->command);
     }
 
     public function test_connect_symfony_passes_praeviseo_url_and_prefix(): void

@@ -40,6 +40,12 @@ class SymfonyInstallerStrategy implements InstallerStrategy
             if (! $doctrineResult->successful) {
                 throw RemoteInstallationException::execution('Doctrine ORM n a pas pu être préparé sur le site Symfony avant l installation du bridge.');
             }
+
+            $databaseUrlResult = $connector->run(RemoteCommand::ensureSymfonyDatabaseUrl($environment->projectPath), 60);
+
+            if (! $databaseUrlResult->successful) {
+                throw RemoteInstallationException::execution('PraeviSEO n a pas pu aligner DATABASE_URL après l installation Doctrine.');
+            }
         }
 
         $result = $connector->run(RemoteCommand::installSymfonyBridge($environment->projectPath), 240);

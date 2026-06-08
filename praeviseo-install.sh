@@ -74,11 +74,12 @@ PY
 
 ensure_symfony_database_url() {
   mkdir -p var
-  if grep -E '^DATABASE_URL=' .env >/dev/null 2>&1; then
+  if grep -E '^DATABASE_URL=' .env >/dev/null 2>&1 && ! grep -E '^DATABASE_URL=.*(postgresql://app:!ChangeMe!|postgresql://127\.0\.0\.1)' .env >/dev/null 2>&1; then
     ok "DATABASE_URL détecté"
     return
   fi
 
+  sed -i '/^DATABASE_URL=/d' .env
   printf '%s\n' 'DATABASE_URL="sqlite:///%kernel.project_dir%/var/data.db"' >> .env
   ok "DATABASE_URL configuré"
 }
@@ -91,6 +92,7 @@ install_symfony_doctrine() {
 
   say "Installation de Doctrine ORM…"
   composer require symfony/orm-pack
+  ensure_symfony_database_url
 }
 
 install_symfony_bridge() {
