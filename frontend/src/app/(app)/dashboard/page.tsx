@@ -22,6 +22,7 @@ import {
   getSiteConnectPath,
   getSitePath,
   hasBackendConnection,
+  type PraeviseoSite,
 } from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Globe, SearchCheck, Sparkles, Waves } from "lucide-react";
@@ -49,6 +50,32 @@ function hasReliableSeoSignal(item: {
     || (observed.query_match_count ?? 0) > 0
     || (((observed.observed_http_status ?? 0) >= 200) && ((observed.observed_http_status ?? 0) < 400))
   );
+}
+
+type ExecutionHistoryEntry = PraeviseoSite["execution_history"][number];
+
+function formatLatestExecutionResult(entry: ExecutionHistoryEntry | null | undefined): string | null {
+  if (!entry?.label) {
+    return null;
+  }
+
+  const dateSuffix = entry.at ? ` le ${formatDate(entry.at)}` : "";
+
+  return `Dernier résultat : ${entry.label}${dateSuffix}.`;
+}
+
+function latestSuccessExecutionEntry(sites: PraeviseoSite[]): (ExecutionHistoryEntry & { siteName: string }) | null {
+  const entry = sites
+    .flatMap((site) =>
+      site.execution_history.map((historyEntry) => ({
+        ...historyEntry,
+        siteName: site.name,
+      }))
+    )
+    .filter((historyEntry) => historyEntry.tone !== "danger")
+    .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())[0];
+
+  return entry ?? null;
 }
 
 export default async function DashboardPage() {
@@ -463,8 +490,69 @@ export default async function DashboardPage() {
       pendingSuggestions: site.summary.pending_suggestions,
       crawlIssues: site.summary.observed_crawl_issues,
       nonIndexedPages: site.summary.gsc_non_indexed_pages,
+      lastResult:
+        formatLatestExecutionResult(site.execution_history[0]) ??
+        "Dernier résultat : aucune action PraeviSEO enregistrée pour ce site.",
     };
   });
+
+  const nearTop10Count = optimizations.gsc_opportunities.summary.near_top_10;
+  const lowCtrCount = optimizations.gsc_opportunities.summary.low_ctr;
+  const sustainedDropCount = optimizations.gsc_opportunities.summary.sustained_drop;
+  const latestSuccessEvent = latestSuccessExecutionEntry(dashboard.sites);
+  const latestSuccessResult =
+    formatLatestExecutionResult(latestSuccessEvent) ??
+    "Dernier résultat : aucune action premium récente n'est encore enregistrée.";
+  const firstUnconnectedGscSite = dashboard.sites.find((site) => !site.readiness.gsc_connected);
+  const overviewProductLoops = [
+    {
+      key: "near-top-10",
+      title: "Pages proches du top 10",
+      value: nearTop10Count,
+      problem:
+        nearTop10Count > 0
+          ? `${nearTop10Count} page(s) reçoivent déjà des impressions Google sans atteindre le top 10.`
+          : "Aucune page proche du top 10 n'est encore repérée sur vos sites connectés.",
+      gain: "Un refresh ciblé du title, du H1 ou du contenu peut faire basculer ces pages dans les premiers résultats.",
+      actionHref: "/optimizations",
+      actionLabel: "Voir les opportunités",
+      result: latestSuccessResult,
+    },
+    {
+      key: "visibility-alerts",
+      title: "Alertes visibilité Google",
+      value: activeAlerts,
+      problem:
+        activeAlerts > 0
+          ? `${lowCtrCount} page(s) avec CTR faible et ${sustainedDropCount} recul durable repéré(s) dans Google.`
+          : "Aucune alerte forte de visibilité Google sur la période suivie.",
+      gain: "Traiter tôt ces signaux évite de perdre des impressions déjà acquises.",
+      actionHref: "/optimizations",
+      actionLabel: "Traiter les alertes",
+      result: freshestDataAsOf
+        ? `Dernière lecture Google utilisée : ${formatDate(freshestDataAsOf)}.`
+        : "Dernière lecture Google : en attente de synchronisation.",
+    },
+    {
+      key: "gsc-sites",
+      title: "Sites GSC actifs",
+      value: gscConnectedSites,
+      problem:
+        dashboard.sites.length === 0
+          ? "Aucun site n'est encore rattaché à ce compte."
+          : gscConnectedSites < dashboard.sites.length
+            ? `${dashboard.sites.length - gscConnectedSites} site(s) n'ont pas encore de données Google fiables.`
+            : "Tous vos sites suivis sont déjà alimentés par Google Search Console.",
+      gain: "Des données GSC fiables permettent de prioriser les vraies opportunités éditoriales.",
+      actionHref: firstUnconnectedGscSite
+        ? `/sites/${firstUnconnectedGscSite.site_id}/search-console`
+        : "/sites",
+      actionLabel: firstUnconnectedGscSite ? "Connecter Google" : "Voir mes sites",
+      result: freshestSyncAt
+        ? `Dernière synchro GSC : ${formatDate(freshestSyncAt)}.`
+        : "Dernière synchro GSC : en attente.",
+    },
+  ];
 
   const indexedPagesValue = dashboard.totals.indexedPagesSynced
     ? dashboard.totals.indexedPages
@@ -576,8 +664,9 @@ export default async function DashboardPage() {
                         {item.priority === "high" ? "Priorité haute" : "Priorité utile"}
                       </Badge>
                     </div>
-                    <p className="mt-3 text-sm font-medium text-text">{item.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+                    <p className="mt-3 text-sm font-medium text-text">Problème : {item.title}</p>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">Gain possible : {item.detail}</p>
+                    <p className="mt-2 text-sm leading-6 text-text">{item.lastResult}</p>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-text-subtle">
                       <span>{item.gscConnected ? "GSC reliée" : "GSC à connecter"}</span>
                       <span>{item.bridgeReady ? "Publication prête" : "Publication à brancher"}</span>
@@ -585,7 +674,8 @@ export default async function DashboardPage() {
                       <span>{item.nonIndexedPages} page(s) non indexée(s)</span>
                       <span>{item.crawlIssues} point(s) crawl à revoir</span>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <p className="mt-4 text-sm font-medium text-text">Action</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
                       <Button href={item.primaryCtaHref} size="sm">
                         {item.primaryCtaLabel}
                         <ArrowRight className="w-4 h-4" />
@@ -693,29 +783,37 @@ export default async function DashboardPage() {
         </div>
 
         <div id="vue-ensemble" className="grid gap-4 md:grid-cols-3 scroll-mt-24">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pages proches du top 10</CardTitle>
-              <CardDescription>Levier le plus rapide à pousser dans Google en ce moment.</CardDescription>
-            </CardHeader>
-            <CardContent className="text-3xl font-black text-text">
-              {optimizations.gsc_opportunities.summary.near_top_10}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Alertes simples</CardTitle>
-              <CardDescription>Les points qui méritent une vérification rapide pour éviter de perdre en visibilité.</CardDescription>
-            </CardHeader>
-            <CardContent className="text-3xl font-black text-text">{activeAlerts}</CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Sites GSC actifs</CardTitle>
-              <CardDescription>Sites déjà alimentés en données Google dans le cockpit free.</CardDescription>
-            </CardHeader>
-            <CardContent className="text-3xl font-black text-text">{gscConnectedSites}</CardContent>
-          </Card>
+          {overviewProductLoops.map((item) => (
+            <Card key={item.key}>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle>{item.title}</CardTitle>
+                  <span className="text-3xl font-black text-text">{item.value}</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm leading-6">
+                <p>
+                  <span className="font-medium text-text">Problème : </span>
+                  <span className="text-text-muted">{item.problem}</span>
+                </p>
+                <p>
+                  <span className="font-medium text-text">Gain : </span>
+                  <span className="text-text-muted">{item.gain}</span>
+                </p>
+                <p>
+                  <span className="font-medium text-text">Résultat : </span>
+                  <span className="text-text-muted">{item.result}</span>
+                </p>
+                <div>
+                  <p className="font-medium text-text">Action</p>
+                  <Button href={item.actionHref} variant="secondary" size="sm" className="mt-2">
+                    {item.actionLabel}
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         <p className="text-xs text-text-subtle">
