@@ -838,6 +838,27 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   );
   const recentActivity = executionHistory.slice(0, 4);
   const problemActions = [
+    generationKeyword || generationAudit
+      ? {
+          key: "generation",
+          title: generationReady ? "Créer un article utile" : "Comprendre pourquoi aucun article ne part",
+          detail: generationReady
+            ? `Une requête montante est déjà visible : ${generationKeyword}.`
+            : generationAudit?.best_query
+              ? `Aucune requête n’est encore retenue. La meilleure vue pour l’instant est ${generationAudit.best_query.query}.`
+              : "Aucune requête assez nette n’est encore retenue pour ouvrir un article fiable.",
+          whyNow: generationReady
+            ? "Le moteur a déjà trouvé un sujet exploitable. C’est maintenant qu’il faut ouvrir le brouillon avant que le signal retombe."
+            : generationAuditSummary ??
+              "Le moteur lit bien les requêtes Google, mais aucune n’a encore passé les seuils utiles ou les règles anti-doublon.",
+          primaryHref: queryFocusHref,
+          primaryLabel: "Voir les requêtes utiles",
+          action: generationReady && runGenerationKeywordAction ? runGenerationKeywordAction : null,
+          actionLabel: generationReady ? "Créer l’article ciblé" : null,
+          secondaryHref: generationReady ? `/publications?focus=query&site=${encodeURIComponent(site.site_id)}&query=${encodeURIComponent(generationKeyword ?? "")}` : null,
+          secondaryLabel: generationReady ? "Ouvrir le studio" : null,
+        }
+      : null,
     leadIndexationAlert
       ? {
           key: "indexation",
