@@ -43,6 +43,8 @@ Route::middleware('client.auth')->prefix('client')->group(function (): void {
         ->middleware('throttle:6,1');
     Route::post('/sites/{siteId}/publish', [ClientSitesController::class, 'startPremiumPublication'])
         ->middleware('throttle:6,1');
+    Route::post('/sites/{siteId}/confirm-preview', [ClientSitesController::class, 'confirmPreviewPublish'])
+        ->middleware('throttle:6,1');
     Route::patch('/sites/{siteId}/gsc', [ClientSitesController::class, 'updateGsc']);
     Route::get('/optimizations', [ClientWorkspaceController::class, 'optimizations']);
     Route::get('/action-preview', [ClientWorkspaceController::class, 'actionPreview']);

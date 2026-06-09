@@ -508,6 +508,11 @@ export type PraeviseoActionPreview = {
   apply_ready: boolean;
   apply_workflow: "rewrite" | "generate" | "linking";
   apply_href: string | null;
+  can_confirm_publish: boolean;
+  confirm_publish_blocked_reason: string | null;
+  confirm_publish_detail: string | null;
+  confirm_publish_button_label: string;
+  requires_manual_validation: boolean;
   current: PraeviseoActionPreviewState;
   proposed: PraeviseoActionPreviewProposed;
   diff: PraeviseoActionPreviewDiff;
@@ -3493,6 +3498,42 @@ export async function requestPremiumCrawl(siteId: string): Promise<PraeviseoSite
 
     throw error;
   }
+}
+
+export async function requestConfirmPreviewPublish(
+  siteId: string,
+  slug: string,
+  query?: string | null
+): Promise<{ site: PraeviseoSite; publication: Record<string, unknown> }> {
+  if (!backendConfigured()) {
+    throw new Error("Backend PraeviSEO non configuré.");
+  }
+
+  const token = await getSessionToken();
+
+  if (!token) {
+    throw new Error("Session client manquante.");
+  }
+
+  const payload = await appFetch<{ site: SiteResponse; publication: Record<string, unknown> }>(
+    `/api/client/sites/${siteId}/confirm-preview`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        slug,
+        query: query ?? null,
+      }),
+    },
+    token
+  );
+
+  return {
+    site: normaliseSite(payload.site),
+    publication: payload.publication,
+  };
 }
 
 export async function requestPremiumRewrite(

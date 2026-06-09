@@ -7,9 +7,14 @@ namespace App\Copilot;
 use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
+use App\Services\Publication\ObservedNativePublicationGuard;
 
 final class ActionApplyContextService
 {
+    public function __construct(
+        private readonly ObservedNativePublicationGuard $nativeGuard,
+    ) {}
+
     public function canAutoApply(string $workflow, string $siteId, mixed $pageId, string $slug): bool
     {
         return match ($workflow) {
@@ -317,14 +322,11 @@ final class ActionApplyContextService
 
     private function hasObservedPage(string $siteId, string $slug): bool
     {
-        if ($siteId === '' || $slug === '') {
+        if ($siteId === '') {
             return false;
         }
 
-        return SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->where('path', '/'.ltrim($slug, '/'))
-            ->exists();
+        return $this->nativeGuard->resolveObservedPageBySlug($siteId, $slug) !== null;
     }
 
     private function pageResolvableForApply(string $siteId, mixed $pageId, string $slug): bool
@@ -345,15 +347,13 @@ final class ActionApplyContextService
             return true;
         }
 
-        $path = '/'.ltrim($slug, '/');
-        $observedId = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->where('path', $path)
-            ->value('id');
+        $observed = $this->nativeGuard->resolveObservedPageBySlug($siteId, $slug);
 
-        if (! $observedId) {
+        if (! $observed) {
             return false;
         }
+
+        $observedId = $observed->id;
 
         return SeoPage::query()
             ->where('site_id', $siteId)

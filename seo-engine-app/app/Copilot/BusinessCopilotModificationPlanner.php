@@ -10,6 +10,7 @@ use App\Models\SeoSitePage;
 use App\Models\SeoSuggestion;
 use App\ObservedSite\ObservedPageHealthService;
 use App\ObservedSite\ObservedRewriteBridgeService;
+use App\Services\Publication\ObservedNativePublicationGuard;
 
 final class BusinessCopilotModificationPlanner
 {
@@ -17,6 +18,7 @@ final class BusinessCopilotModificationPlanner
         private readonly ObservedRewriteBridgeService $observedRewrite,
         private readonly ObservedPageHealthService $pageHealth,
         private readonly PageModificationEvidenceService $pageEvidence,
+        private readonly ObservedNativePublicationGuard $nativeGuard,
     ) {}
 
     /**
@@ -212,11 +214,7 @@ final class BusinessCopilotModificationPlanner
             return ['sections' => [], 'faq' => [], 'flags' => [], 'rationale' => []];
         }
 
-        $observedPage = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->where('path', '/'.ltrim($slug, '/'))
-            ->orderByDesc('last_seen_at')
-            ->first();
+        $observedPage = $this->nativeGuard->resolveObservedPageBySlug($siteId, $slug);
 
         if (! $observedPage) {
             return ['sections' => [], 'faq' => [], 'flags' => [], 'rationale' => []];

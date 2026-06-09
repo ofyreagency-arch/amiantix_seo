@@ -8,6 +8,8 @@ use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
+use App\Services\Publication\ObservedNativePublicationGuard;
+use App\Services\Publication\PreviewPublicationEligibility;
 
 final class ActionPreviewService
 {
@@ -15,6 +17,8 @@ final class ActionPreviewService
         private readonly BusinessCopilotModificationPlanner $modificationPlanner,
         private readonly ActionApplyContextService $applyContext,
         private readonly PageModificationEvidenceService $pageEvidence,
+        private readonly PreviewPublicationEligibility $confirmPublishEligibility,
+        private readonly ObservedNativePublicationGuard $nativeGuard,
     ) {}
 
     /**
@@ -89,7 +93,7 @@ final class ActionPreviewService
         $current = $this->currentState($observedPage, $snapshot, $seoPage, $evidence);
         $proposed = $this->proposedState($modificationPlan, $current);
 
-        return [
+        $preview = [
             'site_id' => $siteId,
             'site_name' => (string) $site->name,
             'slug' => $slug,
@@ -105,6 +109,8 @@ final class ActionPreviewService
             'proposed' => $proposed,
             'diff' => $this->diffSummary($current, $proposed),
         ];
+
+        return array_merge($preview, $this->confirmPublishEligibility->forPreview($site, $preview));
     }
 
     private function resolveObservedPage(string $siteId, string $slug, ?SeoPage $seoPage): ?SeoSitePage
@@ -116,11 +122,7 @@ final class ActionPreviewService
                 ->first();
         }
 
-        return SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->where('path', '/'.$slug)
-            ->orderByDesc('last_seen_at')
-            ->first();
+        return $this->nativeGuard->resolveObservedPageBySlug($siteId, $slug);
     }
 
     private function latestSnapshot(?SeoSitePage $observedPage): ?SeoSitePageSnapshot

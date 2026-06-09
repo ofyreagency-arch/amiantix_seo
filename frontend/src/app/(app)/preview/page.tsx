@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { ActionApplyContextPanel } from "@/components/cockpit/action-apply-context-panel";
 import { BusinessCopilotApplyButton } from "@/components/cockpit/business-copilot-apply-button";
+import { ConfirmPreviewPublishButton } from "@/components/cockpit/confirm-preview-publish-button";
 import { ModificationPreviewDiff } from "@/components/cockpit/modification-preview-diff";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
@@ -75,9 +76,13 @@ export default async function ActionPreviewPage({ searchParams }: { searchParams
               <CardHeader>
                 <CardTitle>Étape suivante</CardTitle>
                 <CardDescription>
-                  {preview.apply_context.will_modify_live_site
+                  {preview.apply_ready
                     ? "Vous pouvez appliquer depuis le studio si cette page est déjà gérée par PraeviSEO."
-                    : "Pour l’instant, cette prévisualisation sert à valider le plan avant toute publication native sur votre site."}
+                    : preview.requires_manual_validation
+                      ? "La page d’accueil reste en validation obligatoire : comparez le plan ici, puis finalisez la publication avec votre référent."
+                      : preview.can_confirm_publish
+                        ? "Validez le plan puis publiez directement sur l’URL native de votre site."
+                        : "Cette prévisualisation sert à valider le plan avant toute publication native sur votre site."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -99,7 +104,9 @@ export default async function ActionPreviewPage({ searchParams }: { searchParams
                   ) : null}
                 </div>
 
-                {preview.apply_ready ? (
+                {preview.can_confirm_publish ? (
+                  <ConfirmPreviewPublishButton preview={preview} returnTo={returnTo} />
+                ) : preview.apply_ready ? (
                   <BusinessCopilotApplyButton
                     action={{
                       rank: 1,
@@ -139,13 +146,7 @@ export default async function ActionPreviewPage({ searchParams }: { searchParams
                     returnTo={returnTo}
                   />
                 ) : (
-                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted max-w-xl">
-                    <p className="font-medium text-text">Application automatique non activée pour cette page</p>
-                    <p className="mt-2 leading-6">
-                      PraeviSEO affiche ici le plan exact à appliquer. La publication directe sur l’URL native de votre site
-                      arrivera dans une prochaine étape, une fois cette prévisualisation validée.
-                    </p>
-                  </div>
+                  <ConfirmPreviewPublishButton preview={preview} returnTo={returnTo} />
                 )}
               </CardContent>
             </Card>

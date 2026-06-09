@@ -209,8 +209,39 @@ class SeoLivePublicationService
         }
     }
 
+    public function publicationScopeFor(SeoPage $page, SeoSite $site): string
+    {
+        $observed = $page->relationLoaded('observedPage')
+            ? $page->observedPage
+            : $page->observedPage()->first();
+
+        if (! $observed) {
+            return 'bridge_article';
+        }
+
+        $prefix = trim((string) $site->publicationPathPrefix(), '/');
+        $observedPath = ltrim((string) $observed->path, '/');
+
+        if ($prefix !== '' && ($observedPath === $prefix || str_starts_with($observedPath, $prefix.'/'))) {
+            return 'bridge_article';
+        }
+
+        return 'native_update';
+    }
+
     public function liveUrlFor(SeoPage $page, SeoSite $site): string
     {
+        if ($this->publicationScopeFor($page, $site) === 'native_update') {
+            $observed = $page->relationLoaded('observedPage')
+                ? $page->observedPage
+                : $page->observedPage()->first();
+            $nativeUrl = trim((string) ($observed?->normalized_url ?? ''));
+
+            if ($nativeUrl !== '') {
+                return $nativeUrl;
+            }
+        }
+
         $baseUrl = rtrim((string) $site->url, '/');
         $prefix = $site->publicationPathPrefix();
 
@@ -261,6 +292,11 @@ class SeoLivePublicationService
      */
     private function webhookPayload(SeoPage $page, SeoSite $site): array
     {
+        $scope = $this->publicationScopeFor($page, $site);
+        $observed = $page->relationLoaded('observedPage')
+            ? $page->observedPage
+            : $page->observedPage()->first();
+
         return [
             'source' => 'praeviseo',
             'site' => [
@@ -269,6 +305,15 @@ class SeoLivePublicationService
                 'url' => $site->url,
                 'locale' => $site->locale,
                 'preset' => $site->resolvedPreset(),
+            ],
+            'publication' => [
+                'scope' => $scope,
+                'target_path' => $scope === 'native_update'
+                    ? (string) ($observed?->path ?? $page->canonicalPath())
+                    : null,
+                'target_url' => $scope === 'native_update'
+                    ? $this->liveUrlFor($page, $site)
+                    : null,
             ],
             'page' => [
                 'id' => $page->id,

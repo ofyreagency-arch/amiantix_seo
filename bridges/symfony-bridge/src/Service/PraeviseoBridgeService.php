@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Praeviseo\SymfonyBridge\Service;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Praeviseo\SymfonyBridge\Entity\PraeviseoNativePagePatch;
 use Praeviseo\SymfonyBridge\Entity\PraeviseoPublishedPage;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,9 +32,14 @@ final class PraeviseoBridgeService
 
         $siteId = trim((string) ($payload['site']['site_id'] ?? ''));
         $pageData = $payload['page'] ?? null;
+        $publication = is_array($payload['publication'] ?? null) ? $payload['publication'] : [];
 
         if ($siteId === '' || ! is_array($pageData) || empty($pageData['id']) || empty($pageData['slug']) || empty($pageData['title'])) {
             throw new RuntimeException('Payload PraeviSEO incomplet.');
+        }
+
+        if (($publication['scope'] ?? 'bridge_article') === 'native_update') {
+            return $this->publishNativeUpdate($siteId, $pageData, $publication);
         }
 
         $slug = trim((string) $pageData['slug'], '/');
@@ -74,6 +80,52 @@ final class PraeviseoBridgeService
             'updated' => true,
             'slug' => $page->getSlug(),
             'live_url' => $page->getLiveUrl() ?: $liveUrl,
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $pageData
+     * @param  array<string,mixed>  $publication
+     * @return array<string,mixed>
+     */
+    private function publishNativeUpdate(string $siteId, array $pageData, array $publication): array
+    {
+        $targetPath = '/'.trim((string) ($publication['target_path'] ?? ''), '/');
+        $targetUrl = trim((string) ($publication['target_url'] ?? ''));
+        $liveUrl = $targetUrl !== '' ? $targetUrl : $this->config->normalizedAppUrl().$targetPath;
+
+        $patch = $this->entityManager
+            ->getRepository(PraeviseoNativePagePatch::class)
+            ->findOneBy([
+                'praeviseoSiteId' => $siteId,
+                'targetPath' => $targetPath,
+            ]) ?? new PraeviseoNativePagePatch();
+
+        $patch->setPraeviseoSiteId($siteId);
+        $patch->setExternalPageId((int) $pageData['id']);
+        $patch->setTargetPath($targetPath);
+        $patch->setTitle((string) $pageData['title']);
+        $patch->setH1(isset($pageData['h1']) ? (string) $pageData['h1'] : null);
+        $patch->setMetaDescription(isset($pageData['meta_description']) ? (string) $pageData['meta_description'] : null);
+        $patch->setContentHtml((string) ($pageData['content'] ?? ''));
+        $patch->setFaqJson(is_array($pageData['faq'] ?? null) ? $pageData['faq'] : []);
+        $patch->setSchemaJson(is_array($pageData['schema'] ?? null) ? $pageData['schema'] : []);
+        $patch->setInternalLinksJson(is_array($pageData['internal_links'] ?? null) ? $pageData['internal_links'] : []);
+        $patch->setCanonicalUrl(! empty($pageData['canonical_url']) ? (string) $pageData['canonical_url'] : $liveUrl);
+        $patch->setLiveUrl(! empty($pageData['suggested_live_url']) ? (string) $pageData['suggested_live_url'] : $liveUrl);
+        $patch->setPublicationState('published');
+        $patch->setLastPublishedAt(new \DateTimeImmutable());
+
+        $this->entityManager->persist($patch);
+        $this->entityManager->flush();
+
+        return [
+            'status' => 'ok',
+            'updated' => true,
+            'scope' => 'native_update',
+            'target_path' => $patch->getTargetPath(),
+            'live_url' => $patch->getLiveUrl() ?: $liveUrl,
+            'sitemap_url' => $this->config->normalizedAppUrl().'/sitemap.xml',
         ];
     }
 

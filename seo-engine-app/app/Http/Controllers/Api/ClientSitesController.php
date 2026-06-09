@@ -19,6 +19,7 @@ use App\Models\SeoSitePage;
 use App\Models\SeoSiteSnapshot;
 use App\Models\SeoSuggestion;
 use App\Services\Media\SeoPageImageGenerator;
+use App\Services\Publication\ConfirmPreviewPublicationService;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
 use App\ObservedSite\BusinessPageRelevanceFilter;
@@ -479,6 +480,84 @@ class ClientSitesController extends Controller
             return response()->json([
                 'message' => 'PraeviSEO n a pas pu préparer la réécriture pour le moment.',
             ], 500);
+        }
+    }
+
+    public function confirmPreviewPublish(
+        Request $request,
+        string $siteId,
+        ConfirmPreviewPublicationService $confirmPreview,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var SeoSite $site */
+        $site = $user->seoSites()
+            ->with(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl'])
+            ->where('site_id', $siteId)
+            ->firstOrFail();
+
+        $data = $request->validate([
+            'slug' => ['required', 'string', 'max:255'],
+            'query' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $slug = ltrim(trim((string) $data['slug']), '/');
+        $query = trim((string) ($data['query'] ?? '')) ?: null;
+
+        try {
+            $this->logPremiumAction('preview_publish.start', $site, [
+                'slug_requested' => $slug,
+                'query_requested' => $query,
+            ]);
+            $this->markActionState($site, 'publication', 'running', 'PraeviSEO prépare la publication native validée depuis la prévisualisation.');
+
+            $result = $confirmPreview->confirm($site, $slug, $query);
+
+            $this->appendExecutionHistory(
+                $site,
+                'Publication native confirmée',
+                sprintf('PraeviSEO a publié les enrichissements validés sur "%s".', (string) ($result['title'] ?? $slug)),
+                'default',
+                'native_preview_published',
+            );
+            $this->markActionState(
+                $site,
+                'publication',
+                'completed',
+                sprintf('La page "%s" a été publiée sur son URL native.', (string) ($result['title'] ?? $slug)),
+            );
+            $this->logPremiumAction('preview_publish.success', $site, $result);
+            $this->scheduleObservedCrawlIfIdle($site, 'after_publication');
+            $site = $site->fresh(['googleConnection', 'latestRemoteInstallation', 'latestObservedCrawl']);
+
+            return response()->json([
+                'site' => $this->serializeSite($site),
+                'publication' => $result,
+            ], 202);
+        } catch (Throwable $e) {
+            $this->logPremiumActionError('preview_publish.failed', $site, $e, [
+                'slug_requested' => $slug,
+                'query_requested' => $query,
+            ]);
+            $this->markActionState(
+                $site,
+                'publication',
+                'failed',
+                'La publication native depuis la prévisualisation a échoué.',
+                $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu publier cette page sur son URL native pour le moment.'),
+            );
+            $this->appendExecutionHistory(
+                $site,
+                'Publication native bloquée',
+                $e->getMessage(),
+                'danger',
+                'native_preview_publish_failed',
+            );
+
+            return response()->json([
+                'message' => $this->premiumActionErrorMessage($e, 'PraeviSEO n a pas pu confirmer la publication native pour le moment.'),
+            ], 422);
         }
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Praeviseo\LaravelBridge\Services;
 
 use Illuminate\Http\Request;
+use Praeviseo\LaravelBridge\Models\PraeviseoNativePagePatch;
 use Praeviseo\LaravelBridge\Models\PraeviseoPublishedPage;
 use RuntimeException;
 
@@ -20,6 +21,9 @@ final class PraeviseoBridgeService
         $payload = $request->validate([
             'source' => ['required', 'string'],
             'site.site_id' => ['required', 'string'],
+            'publication.scope' => ['nullable', 'string'],
+            'publication.target_path' => ['nullable', 'string'],
+            'publication.target_url' => ['nullable', 'string'],
             'page.id' => ['required', 'integer'],
             'page.slug' => ['required', 'string'],
             'page.title' => ['required', 'string'],
@@ -36,6 +40,10 @@ final class PraeviseoBridgeService
             'page.image.path' => ['nullable', 'string'],
             'page.image.alt' => ['nullable', 'string'],
         ]);
+
+        if ((string) data_get($payload, 'publication.scope', 'bridge_article') === 'native_update') {
+            return $this->publishNativeUpdate($payload);
+        }
 
         $siteId = (string) data_get($payload, 'site.site_id');
         $prefix = trim((string) config('praeviseo-bridge.prefix', 'ressources'), '/');
@@ -73,6 +81,49 @@ final class PraeviseoBridgeService
             'slug' => $page->slug,
             'live_url' => $page->live_url ?: $liveUrl,
             'sitemap_url' => rtrim((string) config('app.url'), '/').'/'.$prefix.'-sitemap.xml',
+        ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $payload
+     * @return array<string,mixed>
+     */
+    private function publishNativeUpdate(array $payload): array
+    {
+        $siteId = (string) data_get($payload, 'site.site_id');
+        $targetPath = '/'.trim((string) data_get($payload, 'publication.target_path', ''), '/');
+        $targetUrl = trim((string) data_get($payload, 'publication.target_url', ''));
+        $baseUrl = rtrim((string) config('app.url'), '/');
+        $liveUrl = $targetUrl !== '' ? $targetUrl : $baseUrl.$targetPath;
+
+        $patch = PraeviseoNativePagePatch::query()->updateOrCreate(
+            [
+                'praeviseo_site_id' => $siteId,
+                'target_path' => $targetPath,
+            ],
+            [
+                'external_page_id' => (int) data_get($payload, 'page.id'),
+                'title' => (string) data_get($payload, 'page.title'),
+                'h1' => data_get($payload, 'page.h1'),
+                'meta_description' => data_get($payload, 'page.meta_description'),
+                'content_html' => (string) data_get($payload, 'page.content'),
+                'faq_json' => data_get($payload, 'page.faq', []),
+                'schema_json' => data_get($payload, 'page.schema', []),
+                'internal_links_json' => data_get($payload, 'page.internal_links', []),
+                'canonical_url' => data_get($payload, 'page.canonical_url') ?: $liveUrl,
+                'live_url' => data_get($payload, 'page.suggested_live_url') ?: $liveUrl,
+                'publication_state' => 'published',
+                'last_published_at' => now(),
+            ],
+        );
+
+        return [
+            'status' => 'ok',
+            'updated' => true,
+            'scope' => 'native_update',
+            'target_path' => $patch->target_path,
+            'live_url' => $patch->live_url ?: $liveUrl,
+            'sitemap_url' => $baseUrl.'/sitemap.xml',
         ];
     }
 
