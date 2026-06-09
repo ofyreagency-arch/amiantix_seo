@@ -529,7 +529,14 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
               detail: `${focusTarget || "La cible sélectionnée"} vient d’une requête ou d’une optimisation. Vérifiez d’abord si la bonne page existe déjà et si elle mérite un refresh ou un meilleur maillage.`,
               href: "#surveiller",
             }
-          : null;
+          : focus === "content" && focusTarget
+            ? {
+                title: `Page « ${focusTarget} » observée sur votre site`,
+                detail:
+                  "PraeviSEO voit cette page dans Google. Elle n’est pas encore dans le studio éditorial : consultez ici ce que le crawl observe et les actions recommandées depuis Optimisations.",
+                href: "#surveiller",
+              }
+            : null;
 
   return (
     <div className="min-h-screen">

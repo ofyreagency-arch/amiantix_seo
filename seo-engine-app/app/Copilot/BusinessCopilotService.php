@@ -580,14 +580,40 @@ final class BusinessCopilotService
                 'target' => $slug !== '' ? $slug : $query,
             ])),
             default => $slug !== ''
-                ? '/publications?'.http_build_query([
-                    'focus' => 'content',
-                    'site' => $siteId,
-                    'slug' => $slug,
-                ])
+                ? ($this->hasStudioPage($siteId, $slug, $pageId)
+                    ? '/publications?'.http_build_query([
+                        'focus' => 'content',
+                        'site' => $siteId,
+                        'slug' => $slug,
+                    ])
+                    : '/pages?'.http_build_query([
+                        'focus' => 'content',
+                        'site' => $siteId,
+                        'target' => $slug,
+                    ]))
                 : ($pageId
                     ? '/sites/'.$siteId.'/automation?'.http_build_query(['site' => $siteId])
                     : '/pages?'.http_build_query(['focus' => 'content', 'site' => $siteId])),
         };
+    }
+
+    private function hasStudioPage(string $siteId, string $slug, mixed $pageId): bool
+    {
+        if ($siteId === '') {
+            return false;
+        }
+
+        if ($pageId) {
+            return SeoPage::query()->where('site_id', $siteId)->whereKey($pageId)->exists();
+        }
+
+        if ($slug === '') {
+            return false;
+        }
+
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where('slug', $slug)
+            ->exists();
     }
 }

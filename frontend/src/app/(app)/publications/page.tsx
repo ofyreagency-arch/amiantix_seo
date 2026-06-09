@@ -401,7 +401,8 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
     focus === "query" && focusedSiteId && focusQuery
       ? launchPremiumGenerationToStudioAction.bind(null, focusedSiteId, focusQuery)
       : null;
-  const studioLead = focusedContent ?? studioItems[0] ?? null;
+  const missingFocusedContent = focus === "content" && focusSlug !== "" && !focusedContent;
+  const studioLead = focusedContent ?? (missingFocusedContent ? null : studioItems[0] ?? null);
   const focusMessage =
     focus === "query" && focusQuery
       ? {
@@ -409,6 +410,13 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
           detail: `PraeviSEO a ouvert le studio autour de "${focusQuery}". Lance d’abord ce brouillon ici, puis génère l’image et publie depuis la même vue.`,
           href: focusedSiteId ? getSitePath(focusedSiteId) : null,
         }
+      : missingFocusedContent
+        ? {
+            title: `La page « ${focusSlug} » n’est pas encore dans le studio`,
+            detail:
+              "PraeviSEO la voit déjà dans Google, mais elle n’a pas encore été importée comme article éditorial. Ouvrez la page observée pour voir ce que le crawl remonte et ce qu’il faut renforcer.",
+            href: `/pages?focus=content&site=${encodeURIComponent(focusSite || focusedSiteId)}&target=${encodeURIComponent(focusSlug)}`,
+          }
       : focus === "content" && focusedContent
         ? {
             title: "Contenu ciblé dans le studio",
@@ -642,19 +650,17 @@ export default async function PublicationsPage({ searchParams }: { searchParams?
                       <p className="mt-2 leading-6">{studioLead.live_status.detail}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Donnée réelle utilisée</div>
-                      <p className="mt-2 leading-6">{studioLead.live_status.source}</p>
-                      <p className="mt-2 text-xs text-text-subtle">
-                        SQL moteur : seo_pages.status / published_live / live_url + seo_site_pages.last_status_code
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Visibilité Google</div>
+                      <p className="mt-2 leading-6">
+                        {studioLead.gsc_metrics.impressions > 0
+                          ? `${studioLead.gsc_metrics.impressions} affichage(s), position moyenne ${studioLead.gsc_metrics.position?.toFixed(1) ?? "n/a"}.`
+                          : "Pas encore de visibilité utile dans Google."}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
-                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">Lien réellement ouvert</div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-text-subtle">URL sur le site</div>
                       <p className="mt-2 leading-6 break-all">
-                        {studioLead.preview_url ?? "Aucun preview interne"}
-                      </p>
-                      <p className="mt-2 text-xs text-text-subtle">
-                        Live : {studioLead.live_url ?? "aucune URL live enregistrée"}
+                        {studioLead.live_url ?? "Aucune URL live confirmée pour le moment."}
                       </p>
                     </div>
                   </div>

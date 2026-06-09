@@ -326,7 +326,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
             title: `Action ouverte pour « ${focusSlug} »`,
             detail:
               "PraeviSEO a préparé un plan de modification pour cette page. Ouvrez le studio pour voir le contenu et appliquer les changements proposés.",
-            href: `/publications?focus=content&site=${encodeURIComponent(focusSite)}&slug=${encodeURIComponent(focusSlug)}`,
+            href: `/pages?focus=content&site=${encodeURIComponent(focusSite)}&target=${encodeURIComponent(focusSlug)}`,
           }
         : null;
 

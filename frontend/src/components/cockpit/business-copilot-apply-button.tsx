@@ -39,9 +39,11 @@ export function BusinessCopilotApplyButton({
   returnTo: string;
 }) {
   if (!action.apply_ready) {
+    const manualLabel = action.apply_href.includes("/pages") ? "Voir la page concernée" : "Ouvrir dans le studio";
+
     return (
       <Button href={action.apply_href} variant={featured ? "primary" : "secondary"} className="shrink-0">
-        Ouvrir dans le studio
+        {manualLabel}
         <ArrowRight className="h-4 w-4" />
       </Button>
     );
