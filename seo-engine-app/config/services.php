@@ -43,6 +43,7 @@ return [
         'connect_timeout' => env('OPENAI_CONNECT_TIMEOUT', 30),
         'retry_attempts' => env('OPENAI_RETRY_ATTEMPTS', 3),
         'retry_delay_ms' => env('OPENAI_RETRY_DELAY_MS', 2000),
+        'max_output_tokens' => env('OPENAI_MAX_OUTPUT_TOKENS', 8192),
     ],
 
     'google_search_console' => [

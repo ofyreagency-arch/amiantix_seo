@@ -168,11 +168,16 @@ final class FieldExpertWritingDirectives
             }
         }
 
-        $wordCount = str_word_count($plain);
-
-        if ($wordCount < 900) {
+        if (self::wordCount($plain) < 900) {
             throw new \RuntimeException('Le contenu est trop court pour une expertise terrain crédible.');
         }
+    }
+
+    private static function wordCount(string $plain): int
+    {
+        preg_match_all('/[\p{L}\p{N}\']+/u', $plain, $matches);
+
+        return count($matches[0] ?? []);
     }
 
     public static function assertFieldExpertMeta(string $title, string $metaDescription, string $h1): void

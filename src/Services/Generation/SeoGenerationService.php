@@ -374,6 +374,7 @@ class SeoGenerationService
                 ->post('https://api.openai.com/v1/responses', [
                     'model' => config('services.openai.model', 'gpt-4o-mini'),
                     'input' => $prompt,
+                    'max_output_tokens' => (int) config('services.openai.max_output_tokens', 8192),
                     'text' => [
                         'format' => [
                             'type' => 'json_object',

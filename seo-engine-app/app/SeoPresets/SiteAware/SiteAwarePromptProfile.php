@@ -39,7 +39,6 @@ final class SiteAwarePromptProfile implements PromptProfileProvider
             .'Erreurs fréquentes à traiter : '.json_encode($blueprint['mistakes'] ?? [], JSON_UNESCAPED_UNICODE)."\n"
             .'Scénarios chantier / intervention : '.json_encode($blueprint['field_scenarios'] ?? [], JSON_UNESCAPED_UNICODE)."\n"
             .'Arbitrages client à expliciter : '.json_encode($blueprint['arbitrages'] ?? [], JSON_UNESCAPED_UNICODE)."\n"
-            .'Services du site à mentionner seulement si utile au récit : '.json_encode($blueprint['services'] ?? [], JSON_UNESCAPED_UNICODE)."\n"
             ."Forme attendue :\n"
             ."- un seul article continu, voix d'expert terrain\n"
             ."- H2/H3 avec titres métier concrets (jamais numérotés, jamais \"Zoom terrain\", jamais \"Guide\")\n"
