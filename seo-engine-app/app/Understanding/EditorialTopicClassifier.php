@@ -76,7 +76,28 @@ final class EditorialTopicClassifier
     ];
 
     /** @var array<int,string> */
+    /** @var array<int,string> */
+    private const WEAK_VOCABULARY_TERMS = [
+        'souvent', 'besoin', 'question', 'code', 'liens', 'notes', 'textes', 'references',
+        'pilotee', 'pilotée', 'accelerer', 'accélérer', 'prochains', 'structurent', 'utile',
+        'cadrer', 'veille', 'terrain', 'logiciel', 'amiantix', 'newsletter', 'blog', 'contact',
+        'demo', 'démo', 'gratuit', 'souvent', 'ingenierie', 'ingénierie', 'dossiers', 'dossier',
+        'droits', 'donnees', 'données', 'confidentialite', 'confidentialité', 'mentions',
+    ];
+
+    /** @var array<int,string> */
+    private const SUBSTANTIVE_SIGNALS = [
+        'diagnostic', 'repérage', 'reperage', 'desamiant', 'désamiant', 'ss3', 'ss4', 'dta',
+        'retrait', 'confinement', 'empoussièrement', 'empoussierement', 'chantier', 'conformit',
+        'fuite', 'canalisation', 'chauffe-eau', 'plomberie', 'amiante', 'avocat', 'comptab',
+        'immobilier', 'recrutement', 'obligation', 'coordination', 'erreur', 'surcoût', 'surcout',
+        'délai', 'delai', 'coût', 'cout', 'budget', 'travaux', 'intervention',
+    ];
+
     private const NON_SEO_PATH_SEGMENTS = [
+        'ressources',
+        'articles',
+        'blog',
         'contact',
         'devis',
         'demo',
@@ -112,6 +133,10 @@ final class EditorialTopicClassifier
             return false;
         }
 
+        if (str_starts_with($normalized, '/')) {
+            $normalized = ltrim($normalized, '/');
+        }
+
         $segments = array_values(array_filter(explode('/', $normalized)));
 
         foreach ($segments as $segment) {
@@ -121,6 +146,17 @@ final class EditorialTopicClassifier
         }
 
         return false;
+    }
+
+    public function isGeneratedOrInternalPath(?string $path): bool
+    {
+        $normalized = strtolower(trim((string) $path, '/'));
+
+        return $normalized !== '' && (
+            str_starts_with($normalized, 'ressources/')
+            || str_starts_with($normalized, '/ressources/')
+            || str_contains($normalized, '/ressources/')
+        );
     }
 
     public function isSearchableEditorialTopic(string $text): bool
@@ -155,10 +191,27 @@ final class EditorialTopicClassifier
             return false;
         }
 
-        preg_match_all('/[\p{L}\p{N}\']+/u', $normalized, $matches);
-        $wordCount = count($matches[0] ?? []);
+        if (str_starts_with(trim($text), '/')) {
+            return false;
+        }
 
-        return $wordCount >= 2;
+        if (! $this->hasSubstantiveSignal($normalized)) {
+            return false;
+        }
+
+        preg_match_all('/[\p{L}\p{N}\']+/u', $normalized, $matches);
+        $words = $matches[0] ?? [];
+        $wordCount = count($words);
+
+        if ($wordCount < 2) {
+            return false;
+        }
+
+        if ($wordCount === 2 && ! $this->isSubstantiveVocabularyTerm($normalized)) {
+            return false;
+        }
+
+        return true;
     }
 
     public function isSearchableVocabularyTerm(string $term): bool
@@ -173,17 +226,39 @@ final class EditorialTopicClassifier
             self::CTA_PHRASES,
             self::LEGAL_PHRASES,
             self::SUPPORT_PHRASES,
+            self::WEAK_VOCABULARY_TERMS,
             ['amiantix', 'newsletter', 'blog', 'contact', 'demo', 'gratuit', 'logiciel', 'saas'],
         ))) {
             return false;
         }
 
-        return true;
+        return $this->hasSubstantiveSignal($normalized) || mb_strlen($normalized) >= 10;
+    }
+
+    public function isSubstantiveVocabularyTerm(string $term): bool
+    {
+        $normalized = mb_strtolower(trim($term));
+
+        if (! $this->isSearchableVocabularyTerm($normalized)) {
+            return false;
+        }
+
+        if ($this->hasSubstantiveSignal($normalized)) {
+            return true;
+        }
+
+        preg_match_all('/[\p{L}\p{N}\']+/u', $normalized, $matches);
+
+        return count($matches[0] ?? []) >= 2 && mb_strlen($normalized) >= 10;
     }
 
     public function isExcludedServiceName(string $name, string $intentType = '', ?string $path = null): bool
     {
-        if ($path !== null && $this->isNonSeoPath($path)) {
+        if ($path !== null && ($this->isNonSeoPath($path) || $this->isGeneratedOrInternalPath($path))) {
+            return true;
+        }
+
+        if (str_starts_with(trim($name), '/')) {
             return true;
         }
 
@@ -208,15 +283,17 @@ final class EditorialTopicClassifier
 
         foreach ($terms as $term) {
             $term = trim((string) $term);
-            if (! $this->isSearchableVocabularyTerm($term)) {
+            if (! $this->isSubstantiveVocabularyTerm($term)) {
                 continue;
             }
 
             $topics[] = $term;
 
             if ($industry !== '' && ! str_contains(mb_strtolower($term), mb_strtolower($industry))) {
-                $topics[] = trim($industry.' '.$term);
-                $topics[] = trim($term.' '.$industry);
+                $compound = trim($industry.' '.$term);
+                if ($this->isSearchableEditorialTopic($compound)) {
+                    $topics[] = $compound;
+                }
             }
         }
 
@@ -245,10 +322,78 @@ final class EditorialTopicClassifier
             $topics[] = $topic;
         }
 
-        return array_values(array_unique(array_filter(
+        $filtered = array_values(array_unique(array_filter(
             $topics,
             fn (string $topic): bool => $this->isSearchableEditorialTopic($topic),
         )));
+
+        return array_slice($this->rankEditorialTopics($filtered), 0, 30);
+    }
+
+    /**
+     * @param  array<int,string>  $topics
+     * @return array<int,string>
+     */
+    public function rankEditorialTopics(array $topics): array
+    {
+        $ranked = [];
+
+        foreach ($topics as $topic) {
+            $ranked[] = ['topic' => $topic, 'score' => $this->topicScore($topic)];
+        }
+
+        usort($ranked, static fn (array $left, array $right): int => $right['score'] <=> $left['score']);
+
+        return array_values(array_map(
+            static fn (array $item): string => (string) $item['topic'],
+            array_filter($ranked, static fn (array $item): bool => $item['score'] > 0),
+        ));
+    }
+
+    private function topicScore(string $topic): int
+    {
+        $normalized = mb_strtolower(trim($topic));
+        $score = 0;
+
+        preg_match_all('/[\p{L}\p{N}\']+/u', $normalized, $matches);
+        $wordCount = count($matches[0] ?? []);
+
+        if ($wordCount >= 4) {
+            $score += 25;
+        } elseif ($wordCount >= 3) {
+            $score += 15;
+        }
+
+        foreach (['avant travaux', 'diagnostic', 'repérage', 'reperage', 'erreurs', 'coordination', 'obligation', 'conformit', 'chantier', 'surcoût', 'surcout'] as $signal) {
+            if (str_contains($normalized, $signal)) {
+                $score += 20;
+            }
+        }
+
+        if (preg_match('/^(délai|delai|coût|cout|erreurs|obligation)\s+/u', $normalized) === 1 && $this->hasSubstantiveSignal($normalized)) {
+            $score += 10;
+        }
+
+        if ($this->containsAny($normalized, self::WEAK_VOCABULARY_TERMS)) {
+            $score -= 40;
+        }
+
+        if ($this->hasSubstantiveSignal($normalized)) {
+            $score += 10;
+        }
+
+        return $score;
+    }
+
+    private function hasSubstantiveSignal(string $normalized): bool
+    {
+        foreach (self::SUBSTANTIVE_SIGNALS as $signal) {
+            if (str_contains($normalized, mb_strtolower($signal))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -261,7 +406,7 @@ final class EditorialTopicClassifier
         $anchors = array_values(array_filter(array_map(
             fn (mixed $term): string => trim((string) $term),
             $terms,
-        ), fn (string $term): bool => $this->isSearchableVocabularyTerm($term)));
+        ), fn (string $term): bool => $this->isSubstantiveVocabularyTerm($term)));
 
         foreach (array_slice($anchors, 0, 6) as $anchor) {
             if (mb_strlen($anchor) < 5) {

@@ -132,6 +132,10 @@ final class SiteProfileBuilder
         $services = [];
 
         foreach ($pages as $page) {
+            if ($this->topics->isGeneratedOrInternalPath((string) $page->path)) {
+                continue;
+            }
+
             $snapshot = $snapshots->get($page->last_snapshot_id);
             $payload = $this->pagePayload($page, $snapshot);
             $intent = $this->businessIntent->classify($payload);
@@ -223,7 +227,7 @@ final class SiteProfileBuilder
         $terms = [];
 
         foreach ($pages as $page) {
-            if ($this->topics->isNonSeoPath((string) $page->path)) {
+            if ($this->topics->isNonSeoPath((string) $page->path) || $this->topics->isGeneratedOrInternalPath((string) $page->path)) {
                 continue;
             }
 

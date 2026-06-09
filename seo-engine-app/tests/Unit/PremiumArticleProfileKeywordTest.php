@@ -79,7 +79,7 @@ class PremiumArticleProfileKeywordTest extends TestCase
         $keyword = $service->resolveProfileKeyword($site);
 
         $this->assertNotNull($keyword);
-        $this->assertStringContainsString('fuite', mb_strtolower((string) $keyword));
+        $this->assertStringContainsString('plomberie', mb_strtolower((string) $keyword));
         $this->assertNotSame('Dépannage urgence 24h', $keyword);
         $this->assertSame($keyword, $service->resolveCandidateKeyword($site));
     }

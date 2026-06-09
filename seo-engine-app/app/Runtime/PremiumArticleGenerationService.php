@@ -174,6 +174,8 @@ class PremiumArticleGenerationService
 
         if ($editorialTopics === []) {
             $editorialTopics = $this->topics->buildEditorialTopics($profile);
+        } else {
+            $editorialTopics = $this->topics->rankEditorialTopics($editorialTopics);
         }
 
         $candidates = [];

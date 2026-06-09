@@ -47,9 +47,9 @@ class EditorialTopicClassifierTest extends TestCase
 
         $joined = implode("\n", $topics);
 
-        $this->assertStringContainsString('diagnostic amiante', $joined);
-        $this->assertStringContainsString('repérage amiante', $joined);
         $this->assertStringContainsString('diagnostic amiante avant travaux', $joined);
+        $this->assertStringContainsString('repérage avant travaux', $joined);
+        $this->assertStringContainsString('erreurs courantes amiante', $joined);
         $this->assertNotContains('Parlons de vos dossiers techniques', $topics);
         $this->assertFalse(collect($topics)->contains(fn (string $topic): bool => str_contains(mb_strtolower($topic), 'newsletter')));
     }
