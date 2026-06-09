@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { Topbar } from "@/components/layout/topbar";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { BusinessCopilotPriority } from "@/components/cockpit/business-copilot";
+import { CopilotFeedbackBanner } from "@/components/cockpit/copilot-feedback-banner";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,21 @@ function latestSuccessExecutionEntry(sites: PraeviseoSite[]): (ExecutionHistoryE
   return entry ?? null;
 }
 
-export default async function DashboardPage() {
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function getValue(value: string | string[] | undefined, fallback = ""): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams?: PageSearchParams }) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const copilotFeedback = getValue(resolvedSearchParams.copilot_feedback) || null;
+  const copilotFeedbackTitle = getValue(resolvedSearchParams.copilot_title) || null;
+  const copilotFeedbackDetail = getValue(resolvedSearchParams.copilot_detail) || null;
   const dashboard = await getDashboard();
   const optimizations = await getOptimizations();
   const publications = await getPublications();
@@ -631,8 +646,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        <CopilotFeedbackBanner
+          feedback={copilotFeedback}
+          title={copilotFeedbackTitle}
+          detail={copilotFeedbackDetail}
+        />
+
         <div id="priorite-jour" className="scroll-mt-24">
-          <BusinessCopilotPriority copilot={optimizations.business_copilot} />
+          <BusinessCopilotPriority copilot={optimizations.business_copilot} returnTo="/dashboard" />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

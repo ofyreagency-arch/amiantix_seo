@@ -464,6 +464,7 @@ export type PraeviseoBusinessCopilotAction = {
   effort_minutes: number;
   effort_display: string;
   apply_mode: string;
+  apply_workflow: "rewrite" | "generate" | "linking";
   apply_ready: boolean;
   apply_href: string;
 };
@@ -1228,6 +1229,7 @@ const mockBusinessCopilot: PraeviseoBusinessCopilot = {
     effort_minutes: 30,
     effort_display: "🟠 Moyen — 30 min — +120 visiteurs/mois",
     apply_mode: "rafraichir la page",
+    apply_workflow: "rewrite",
     apply_ready: true,
     apply_href: "/sites/amiantix/automation?site=amiantix&slug=diagnostic-amiante-avant-travaux&focus=rafraichir+la+page",
   },
@@ -1261,6 +1263,7 @@ const mockBusinessCopilot: PraeviseoBusinessCopilot = {
       effort_minutes: 30,
       effort_display: "🟠 Moyen — 30 min — +120 visiteurs/mois",
       apply_mode: "rafraichir la page",
+      apply_workflow: "rewrite",
       apply_ready: true,
       apply_href: "/sites/amiantix/automation?site=amiantix&slug=diagnostic-amiante-avant-travaux&focus=rafraichir+la+page",
     },
@@ -1292,6 +1295,7 @@ const mockBusinessCopilot: PraeviseoBusinessCopilot = {
       effort_minutes: 5,
       effort_display: "🟢 Facile — 5 min — +40 visiteurs/mois",
       apply_mode: "relancer le CTR",
+      apply_workflow: "rewrite",
       apply_ready: true,
       apply_href: "/optimizations?site=amiantix&slug=qui-sommes-nous&focus=relancer+le+CTR",
     },
@@ -1323,6 +1327,7 @@ const mockBusinessCopilot: PraeviseoBusinessCopilot = {
       effort_minutes: 30,
       effort_display: "🟠 Moyen — 30 min — +60 visiteurs/mois",
       apply_mode: "créer une page",
+      apply_workflow: "generate",
       apply_ready: true,
       apply_href: "/optimizations?site=amiantix&focus=cr%C3%A9er+une+page",
     },

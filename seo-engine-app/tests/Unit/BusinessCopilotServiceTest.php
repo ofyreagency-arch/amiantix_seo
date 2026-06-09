@@ -6,10 +6,13 @@ namespace Tests\Unit;
 
 use App\Copilot\BusinessCopilotService;
 use App\Models\SeoRecommendation;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class BusinessCopilotServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_ranks_gsc_opportunity_in_business_language(): void
     {
         $payload = app(BusinessCopilotService::class)->build(collect([
@@ -114,5 +117,30 @@ class BusinessCopilotServiceTest extends TestCase
 
         $this->assertSame('Créer ce contenu', $payload['top_action']['headline'] ?? null);
         $this->assertTrue($payload['top_action']['apply_ready'] ?? false);
+        $this->assertSame('generate', $payload['top_action']['apply_workflow'] ?? null);
+    }
+
+    public function test_marks_unmapped_gsc_page_as_manual_apply(): void
+    {
+        $payload = app(BusinessCopilotService::class)->build(collect([
+            [
+                'site_id' => 'amiantix',
+                'site_name' => 'Amiantix',
+                'type' => 'near_top_10',
+                'label' => 'Faq',
+                'slug' => 'faq',
+                'page_id' => null,
+                'query' => null,
+                'reason' => '',
+                'action' => 'rafraichir la page',
+                'priority_score' => 500,
+                'action_state' => 'ready',
+                'pending_suggestion' => false,
+                'metrics' => ['impressions' => 23, 'ctr' => 1.2, 'position' => 9],
+            ],
+        ]), collect());
+
+        $this->assertSame('rewrite', $payload['top_action']['apply_workflow'] ?? null);
+        $this->assertFalse($payload['top_action']['apply_ready'] ?? true);
     }
 }

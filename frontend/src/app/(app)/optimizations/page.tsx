@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { BusinessCopilotPriority } from "@/components/cockpit/business-copilot";
+import { CopilotFeedbackBanner } from "@/components/cockpit/copilot-feedback-banner";
 import { Badge } from "@/components/ui/badge";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Topbar } from "@/components/layout/topbar";
@@ -91,6 +92,9 @@ function opportunityStateLabel(stateLabel: string): string {
 export default async function OptimizationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
   const optimizations = await getOptimizations();
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  const copilotFeedback = getValue(resolvedSearchParams.copilot_feedback) || null;
+  const copilotFeedbackTitle = getValue(resolvedSearchParams.copilot_title) || null;
+  const copilotFeedbackDetail = getValue(resolvedSearchParams.copilot_detail) || null;
   const focus = getValue(resolvedSearchParams.focus);
   const focusSite = getValue(resolvedSearchParams.site);
   const focusQuery = getValue(resolvedSearchParams.query);
@@ -380,8 +384,14 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
           ]}
         />
 
+        <CopilotFeedbackBanner
+          feedback={copilotFeedback}
+          title={copilotFeedbackTitle}
+          detail={copilotFeedbackDetail}
+        />
+
         <div id="priorite-jour" className="scroll-mt-24">
-          <BusinessCopilotPriority copilot={optimizations.business_copilot} />
+          <BusinessCopilotPriority copilot={optimizations.business_copilot} returnTo="/optimizations" />
         </div>
 
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">

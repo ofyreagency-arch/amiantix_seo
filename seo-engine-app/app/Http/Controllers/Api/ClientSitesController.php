@@ -2027,7 +2027,33 @@ class ClientSitesController extends Controller
         if ($slug !== null && $slug !== '') {
             $page = $query->where('slug', $slug)->first();
 
-            return $page && $this->businessPages->isRelevantSeoPage($page) ? $page : null;
+            if ($page && $this->businessPages->isRelevantSeoPage($page)) {
+                return $page;
+            }
+
+            $path = '/'.ltrim($slug, '/');
+            $observed = SeoSitePage::query()
+                ->where('site_id', $siteId)
+                ->where('path', $path)
+                ->businessRelevant()
+                ->orderByDesc('last_seen_at')
+                ->first();
+
+            if ($observed) {
+                $linkedPage = SeoPage::query()
+                    ->where('site_id', $siteId)
+                    ->where('observed_site_page_id', $observed->id)
+                    ->withCount([
+                        'suggestions as pending_suggestions_count' => fn ($builder) => $builder->where('status', 'pending'),
+                    ])
+                    ->first();
+
+                if ($linkedPage && $this->businessPages->isRelevantSeoPage($linkedPage)) {
+                    return $linkedPage;
+                }
+            }
+
+            return null;
         }
 
         return $this->businessPages->firstRelevantSeoPage(

@@ -1,8 +1,9 @@
+import { BusinessCopilotApplyButton } from "@/components/cockpit/business-copilot-apply-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PraeviseoBusinessCopilot, PraeviseoBusinessCopilotAction } from "@/lib/praeviseo-api";
-import { ArrowRight, Sparkles, Zap } from "lucide-react";
+import { Sparkles, Zap } from "lucide-react";
 
 function effortBadgeVariant(level: PraeviseoBusinessCopilotAction["effort_level"]) {
   return level === "easy" ? "success" : level === "important" ? "danger" : "warning";
@@ -11,9 +12,11 @@ function effortBadgeVariant(level: PraeviseoBusinessCopilotAction["effort_level"
 function BusinessCopilotActionCard({
   action,
   featured = false,
+  returnTo,
 }: {
   action: PraeviseoBusinessCopilotAction;
   featured?: boolean;
+  returnTo: string;
 }) {
   return (
     <div
@@ -65,10 +68,7 @@ function BusinessCopilotActionCard({
             ) : null}
           </div>
         </div>
-        <Button href={action.apply_href} variant={featured ? "primary" : "secondary"} className="shrink-0">
-          {action.apply_ready ? "Appliquer automatiquement" : "Voir comment l’appliquer"}
-          <ArrowRight className="h-4 w-4" />
-        </Button>
+        <BusinessCopilotApplyButton action={action} featured={featured} returnTo={returnTo} />
       </div>
     </div>
   );
@@ -77,9 +77,11 @@ function BusinessCopilotActionCard({
 export function BusinessCopilotPriority({
   copilot,
   compact = false,
+  returnTo = "/dashboard",
 }: {
   copilot: PraeviseoBusinessCopilot;
   compact?: boolean;
+  returnTo?: string;
 }) {
   const actions = copilot.daily_priority ?? [];
   const top = copilot.top_action;
@@ -141,7 +143,7 @@ export function BusinessCopilotPriority({
         </CardHeader>
         {top ? (
           <CardContent>
-            <BusinessCopilotActionCard action={top} featured />
+            <BusinessCopilotActionCard action={top} featured returnTo={returnTo} />
           </CardContent>
         ) : null}
       </Card>
@@ -154,7 +156,7 @@ export function BusinessCopilotPriority({
           </CardHeader>
           <CardContent className="space-y-3">
             {rest.map((action) => (
-              <BusinessCopilotActionCard key={action.source_id} action={action} />
+              <BusinessCopilotActionCard key={action.source_id} action={action} returnTo={returnTo} />
             ))}
           </CardContent>
         </Card>

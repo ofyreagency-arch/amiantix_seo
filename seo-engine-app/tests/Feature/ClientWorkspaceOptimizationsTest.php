@@ -97,9 +97,13 @@ class ClientWorkspaceOptimizationsTest extends TestCase
                 'headline',
                 'subheadline',
                 'daily_priority',
-                'top_action',
+                'top_action' => [
+                    'apply_workflow',
+                    'apply_ready',
+                ],
             ],
         ]);
+        $response->assertJsonPath('business_copilot.top_action.apply_workflow', 'rewrite');
         $response->assertJsonPath('business_copilot.daily_priority.0.rank', 1);
         $response->assertJsonPath('business_copilot.daily_priority.0.site_id', 'amiantix');
         $response->assertJsonPath('business_copilot.top_action.rank', 1);

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Copilot;
 
+use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
+use App\Models\SeoSitePage;
 use App\Recommendations\ImpactEstimatorService;
 use Illuminate\Support\Collection;
 
@@ -78,6 +80,8 @@ final class BusinessCopilotService
         $profile = $this->gscBusinessProfile($type, $subject, $label, $impressions, $position, $ctr);
         $gain = $this->estimateGain($profile['action_key'], $impressions, $position, $ctr);
         $effort = $this->effortProfile($profile['effort_key']);
+        $workflow = $this->workflowForGscType($type);
+        $signalReady = ($item['action_state'] ?? '') === 'ready' && ! ($item['pending_suggestion'] ?? false);
 
         return $this->composeAction([
             'source' => 'gsc_opportunity',
@@ -104,7 +108,8 @@ final class BusinessCopilotService
             'effort_minutes' => $effort['minutes'],
             'effort_display' => $effort['display'],
             'apply_mode' => (string) ($item['action'] ?? $profile['apply_mode']),
-            'apply_ready' => ($item['action_state'] ?? '') === 'ready' && ! ($item['pending_suggestion'] ?? false),
+            'apply_workflow' => $workflow,
+            'apply_ready' => $signalReady && $this->canAutoApply($workflow, $siteId, $pageId, $slug, $query !== '' ? $query : null),
             'apply_href' => $this->applyHref($siteId, $slug, $pageId, (string) ($item['action'] ?? '')),
             'priority_score' => (int) ($item['priority_score'] ?? 0),
             'sort_score' => $gain['visitors'] * 10 + (int) ($item['priority_score'] ?? 0),
@@ -160,7 +165,14 @@ final class BusinessCopilotService
             'effort_minutes' => $effort['minutes'],
             'effort_display' => $this->formatEffortDisplay($effort, max($visitors, (int) ($impact['monthly_gain_min'] ?? 0))),
             'apply_mode' => $profile['apply_mode'],
-            'apply_ready' => true,
+            'apply_workflow' => $this->workflowForRecommendationType((string) $recommendation->type),
+            'apply_ready' => $this->canAutoApply(
+                $this->workflowForRecommendationType((string) $recommendation->type),
+                (string) $recommendation->site_id,
+                $recommendation->site_page_id,
+                (string) data_get($meta, 'path', ''),
+                $subject,
+            ),
             'apply_href' => $this->applyHref((string) $recommendation->site_id, '', $recommendation->site_page_id, $profile['apply_mode']),
             'priority_score' => max(0, 100 - (int) $recommendation->priority),
             'sort_score' => max($visitors, (int) ($impact['monthly_gain_min'] ?? 0)) * 10 + max(0, 100 - (int) $recommendation->priority),
@@ -432,6 +444,66 @@ final class BusinessCopilotService
         );
 
         return $payload;
+    }
+
+    private function workflowForGscType(string $type): string
+    {
+        return match ($type) {
+            'emerging_query' => 'generate',
+            default => 'rewrite',
+        };
+    }
+
+    private function workflowForRecommendationType(string $type): string
+    {
+        return match ($type) {
+            'create_page', 'expand_cluster' => 'generate',
+            'add_internal_links' => 'linking',
+            default => 'rewrite',
+        };
+    }
+
+    private function canAutoApply(string $workflow, string $siteId, mixed $pageId, string $slug, ?string $keyword = null): bool
+    {
+        return match ($workflow) {
+            'generate' => $siteId !== '',
+            'linking', 'rewrite' => $this->pageResolvableForApply($siteId, $pageId, $slug),
+            default => false,
+        };
+    }
+
+    private function pageResolvableForApply(string $siteId, mixed $pageId, string $slug): bool
+    {
+        if ($siteId === '') {
+            return false;
+        }
+
+        if ($pageId) {
+            return true;
+        }
+
+        if ($slug === '') {
+            return true;
+        }
+
+        if (SeoPage::query()->where('site_id', $siteId)->where('slug', $slug)->exists()) {
+            return true;
+        }
+
+        $path = '/'.ltrim($slug, '/');
+        $observedId = SeoSitePage::query()
+            ->where('site_id', $siteId)
+            ->where('path', $path)
+            ->value('id');
+
+        if (! $observedId) {
+            return false;
+        }
+
+        return SeoPage::query()
+            ->where('site_id', $siteId)
+            ->where('observed_site_page_id', (int) $observedId)
+            ->exists();
     }
 
     private function applyHref(string $siteId, string $slug, mixed $pageId, string $mode): string
