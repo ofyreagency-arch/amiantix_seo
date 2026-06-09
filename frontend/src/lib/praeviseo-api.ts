@@ -461,8 +461,8 @@ export type PraeviseoBusinessCopilotAction = {
   why_plain: string;
   action_label: string;
   action_detail: string;
-  modification_plan: PraeviseoBusinessCopilotModificationPlan;
-  gain_basis: string;
+  modification_plan?: PraeviseoBusinessCopilotModificationPlan;
+  gain_basis?: string;
   monthly_gain_visitors: number;
   monthly_gain_min: number;
   monthly_gain_max: number;
@@ -1345,7 +1345,7 @@ const mockBusinessCopilot: PraeviseoBusinessCopilot = {
 };
 
 const mockOptimizations: PraeviseoOptimizations = {
-  business_copilot: mockBusinessCopilot,
+  business_copilot: normalizeBusinessCopilot(mockBusinessCopilot),
   stats: { pending: 2, applied: 3, rejected: 1, total: 6 },
   gsc_opportunities: {
     summary: {
