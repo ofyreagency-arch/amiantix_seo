@@ -49,7 +49,8 @@ final class SiteProfilePromptContext
 
         $lines[] = '- Une seule voix rédactionnelle : pas de blocs collés, pas de sections template SEO, pas d enrichissement post-rédaction.';
         $lines[] = '- Interdiction de sections génériques type SaaS, "Field example", "Zoom terrain N", checklist fictive ou contenu hors métier.';
-        $lines[] = '- Raconter des situations terrain avec chiffres, erreurs fréquentes et arbitrages client.';
+        $lines[] = '- Voix institutionnelle du site : troisième personne ou « on » métier — jamais de narrateur « je » inventé.';
+        $lines[] = '- Profondeur métier avant anecdote : cadre, acteurs, documents, cas d\'usage pertinents, arbitrages.';
         $lines[] = '- Mentionner les services du site seulement quand le récit métier le justifie.';
         $lines[] = '- Ne jamais traiter un titre de page contact, CTA, légale ou support comme sujet principal.';
         $topics = array_slice((array) ($profile['editorial_topics'] ?? []), 0, 8);

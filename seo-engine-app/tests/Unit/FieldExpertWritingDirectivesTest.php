@@ -96,10 +96,22 @@ class FieldExpertWritingDirectivesTest extends TestCase
         );
 
         $this->assertNotEmpty($blueprint['cases']);
-        $this->assertStringContainsString('ouverture narrative', strtolower(implode(' ', $blueprint['composition'])));
-        $this->assertStringContainsString('une seule voix', strtolower($prompt));
+        $this->assertStringContainsString('cadrage', strtolower(implode(' ', $blueprint['composition'])));
+        $this->assertSame('plomberie', $blueprint['niche'] ?? null);
+        $this->assertStringContainsString('institutionnelle', strtolower($prompt));
+        $this->assertStringContainsString('interdit je', strtolower($prompt));
         $this->assertStringContainsString('pas de tableau', strtolower($prompt));
         $this->assertStringContainsString('ne pas copier ces intitulés', strtolower($prompt));
+    }
+
+    public function test_rejects_first_person_narrator_voice(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        FieldExpertWritingDirectives::assertFieldExpertContent(
+            $this->sampleNarrativeContent()
+                .'<p>Je me souviens d une intervention similaire où mon équipe a subi un retard de deux semaines.</p>'
+        );
     }
 
     private function sampleNarrativeContent(): string
@@ -114,8 +126,9 @@ class FieldExpertWritingDirectivesTest extends TestCase
             .'qu un arrêt complet de 24 h mal anticipé.</p>'
             .str_repeat(
                 '<p>Le technicien documente chaque étape : pression initiale à 3,2 bars, zone impactée sur 9 m², pièces changées, et heure de remise en service. '
-                .'Cette trace évite les contestations quand un voisin signale encore de l humidité 72 h plus tard, surtout dans les 18 lots concernés.</p>',
-                24,
+                .'Cette trace évite les contestations quand un voisin signale encore de l humidité 72 h plus tard, surtout dans les 18 lots concernés. '
+                .'Le syndic arbitre entre coupure partielle et arrêt complet selon l état des canalisations communes et le planning des entreprises.</p>',
+                42,
             );
     }
 }

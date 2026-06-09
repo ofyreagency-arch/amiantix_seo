@@ -929,10 +929,12 @@ class SeoGenerationService
             return [$payload, null];
         }
 
+        $minWords = max(1200, (int) config('seo-engine.quality.min_word_count', 1300));
+
         $prompt = "Approfondis cet article métier sans changer de voix ni ajouter de sections template.\n"
-            ."Objectif : au moins 1000 mots, HTML avec <h2> et <p>, une seule narration continue.\n"
-            ."Ajoute situations terrain, chiffres crédibles, erreurs fréquentes et arbitrages client.\n"
-            ."Interdit : checklist opérationnelle, ressources à croiser, phrases de consigne interne, blocs collés.\n"
+            ."Objectif : au moins {$minWords} mots, HTML avec <h2> et <p>, voix institutionnelle continue.\n"
+            ."Ajoute profondeur : cadre réglementaire, acteurs, documents, cas d'usage (copropriété, démolition…), erreurs fréquentes, arbitrages.\n"
+            ."Interdit : je/j'/mon, anecdotes chiffrées inventées, checklist opérationnelle, ressources à croiser, blocs collés.\n"
             .'Mot-clé : '.$keyword."\n"
             .'Titre actuel : '.(string) ($payload['title'] ?? '')."\n"
             ."Contenu actuel :\n".$content."\n"
@@ -961,7 +963,7 @@ class SeoGenerationService
                 break;
             }
 
-            $prompt = "L article reste trop court (objectif 1000+ mots). Approfondis encore sans changer de voix.\n"
+            $prompt = "L article reste trop court (objectif {$minWords}+ mots). Approfondis encore sans changer de voix.\n"
                 .'Mot-clé : '.$keyword."\n"
                 ."Contenu actuel :\n".(string) ($expandedPayload['content'] ?? '')."\n"
                 .'Retourner uniquement un JSON avec : title, meta_description, h1, content.';
@@ -972,7 +974,7 @@ class SeoGenerationService
 
     protected function fieldExpertContentTooShort(string $content): bool
     {
-        return $this->fieldExpertWordCount($content) < 750;
+        return $this->fieldExpertWordCount($content) < max(1200, (int) config('seo-engine.quality.min_word_count', 1300));
     }
 
     protected function fieldExpertWordCount(string $content): int

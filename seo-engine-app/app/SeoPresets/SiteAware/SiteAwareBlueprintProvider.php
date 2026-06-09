@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\SeoPresets\SiteAware;
 
-use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\NicheBlueprintProvider;
 
 final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
@@ -19,19 +18,25 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
         $audience = is_array($profile['audience'] ?? null) ? $profile['audience'] : [];
         $geography = is_array($profile['geography'] ?? null) ? $profile['geography'] : [];
 
+        $terms = array_map('strval', (array) ($vocabulary['core_terms'] ?? []));
+        $nicheProfile = NicheEditorialRegistry::resolve($industry, $keyword, $terms);
+
         return [
             'topic' => $keyword,
             'family' => $industry,
+            'niche' => $nicheProfile['niche'] ?? 'generic',
             'archetype' => 'field_expert_guide',
-            'hero_angle' => 'Répondre comme un praticien du métier à une situation réelle autour de '.$keyword,
-            'composition' => $this->composition($keyword, $services, $industry),
+            'hero_angle' => (string) ($nicheProfile['hero_angle'] ?? ('Répondre comme une publication métier de référence sur '.$keyword)),
+            'voice_note' => (string) ($nicheProfile['voice_note'] ?? ''),
+            'composition' => $this->composition($keyword, $services, $industry, $nicheProfile),
+            'depth_topics' => $this->depthTopics($keyword, $industry, $vocabulary, $nicheProfile),
             'services' => $services,
             'vocabulary' => $vocabulary['core_terms'] ?? [],
             'geography' => $geography,
             'audience' => $audience,
-            'cases' => $this->fieldCases($keyword, $industry, $services, $geography),
-            'mistakes' => $this->commonMistakes($keyword, $industry),
-            'field_scenarios' => $this->fieldScenarios($keyword, $industry, $services),
+            'cases' => $this->fieldCases($keyword, $industry, $services, $geography, $nicheProfile),
+            'mistakes' => $this->commonMistakes($keyword, $industry, $nicheProfile),
+            'field_scenarios' => $this->fieldScenarios($keyword, $industry, $services, $nicheProfile),
             'arbitrages' => $this->clientArbitrages($industry),
             'faq' => $this->faqBlueprint($keyword, $services, $industry),
         ];
@@ -41,15 +46,28 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
     {
         $keyword = (string) ($profile['topic'] ?? 'le sujet');
         $industry = (string) ($profile['family'] ?? data_get(SiteProfilePromptContext::profile(), 'business.industry', 'activité'));
+        $nicheProfile = NicheEditorialRegistry::resolve(
+            $industry,
+            $keyword,
+            array_map('strval', (array) data_get($profile, 'vocabulary', [])),
+        );
+        $composition = (array) ($nicheProfile['composition'] ?? []);
+
+        if ($composition !== []) {
+            return array_values(array_map(
+                static fn (string $block): string => $block.' (adapter au sujet '.$keyword.')',
+                $composition,
+            ));
+        }
 
         return [
-            'ouverture : situation terrain concrète autour de '.$keyword,
-            'diagnostic rapide : ce qui bloque ou fait perdre du temps',
-            'erreurs fréquentes et conséquences sur le terrain',
-            'exemple chiffré crédible (délai, volume, budget indicatif)',
-            'arbitrage client (coût, urgence, conformité, prestataire)',
-            'lien naturel avec une prestation réelle du site si pertinent',
-            'conclusion opérationnelle pour un décideur '.$industry,
+            'cadrage : enjeu métier de '.$keyword.' pour les décideurs '.$industry,
+            'cadre, acteurs et responsabilités propres au secteur',
+            'documents, preuves et points de contrôle utiles',
+            'erreurs fréquentes et conséquences opérationnelles',
+            'cas d\'usage pertinents pour ce métier uniquement',
+            'arbitrages du décideur (coût, délai, conformité, prestataire)',
+            'synthèse opérationnelle actionnable',
         ];
     }
 
@@ -73,26 +91,49 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
      * @param  array<int,array<string,mixed>>  $services
      * @return array<int,string>
      */
-    private function composition(string $keyword, array $services, string $industry): array
+    /**
+     * @param  array<string,mixed>  $nicheProfile
+     * @return array<int,string>
+     */
+    private function composition(string $keyword, array $services, string $industry, array $nicheProfile): array
     {
-        $blocks = [
-            'ouverture narrative : une situation '.$industry.' reconnaissable autour de '.$keyword,
-            'diagnostic rapide : ce qui bloque ou fait perdre du temps sur le terrain',
-            'erreurs fréquentes et conséquences concrètes',
-            'exemple chiffré crédible (délai, volume, budget indicatif)',
-            'arbitrage client (coût, urgence, conformité, prestataire)',
-        ];
+        $blocks = (array) ($nicheProfile['composition'] ?? []);
+
+        if ($blocks === []) {
+            $blocks = [
+                'cadrage métier : pourquoi '.$keyword.' compte pour un décideur '.$industry,
+                'cadre et chaîne de responsabilité propre au secteur',
+                'documents et preuves à mobiliser selon le contexte',
+                'erreurs fréquentes et conséquences opérationnelles',
+                'cas d\'usage contextualisés pour '.$keyword,
+                'arbitrages du décideur',
+            ];
+        }
 
         foreach (array_slice($services, 0, 2) as $service) {
             if (! is_array($service)) {
                 continue;
             }
-            $blocks[] = 'articulation terrain avec : '.(string) ($service['name'] ?? '');
+            $blocks[] = 'lien métier avec : '.(string) ($service['name'] ?? '');
         }
 
-        $blocks[] = 'conclusion opérationnelle pour le décideur métier';
+        $blocks[] = 'synthèse opérationnelle';
 
         return $blocks;
+    }
+
+    /**
+     * @param  array<string,mixed>  $vocabulary
+     * @return array<int,string>
+     */
+    /**
+     * @param  array<string,mixed>  $vocabulary
+     * @param  array<string,mixed>  $nicheProfile
+     * @return array<int,string>
+     */
+    private function depthTopics(string $keyword, string $industry, array $vocabulary, array $nicheProfile): array
+    {
+        return array_values(array_unique(array_filter((array) ($nicheProfile['depth_topics'] ?? []))));
     }
 
     /**
@@ -100,28 +141,52 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
      * @param  array<string,mixed>  $geography
      * @return array<int,string>
      */
-    private function fieldCases(string $keyword, string $industry, array $services, array $geography): array
+    /**
+     * @param  array<int,array<string,mixed>>  $services
+     * @param  array<string,mixed>  $geography
+     * @param  array<string,mixed>  $nicheProfile
+     * @return array<int,string>
+     */
+    private function fieldCases(string $keyword, string $industry, array $services, array $geography, array $nicheProfile): array
     {
+        $cases = (array) ($nicheProfile['field_scenarios'] ?? []);
+
+        if ($cases !== []) {
+            return array_values(array_map(
+                static fn (string $case): string => $case.' — lien possible avec '.$keyword,
+                $cases,
+            ));
+        }
+
         $serviceName = (string) data_get($services, '0.name', 'prestation locale');
         $region = (string) data_get($geography, 'regions.0', 'secteur local');
 
         return [
-            'Un client '.$industry.' appelle pour '.$keyword.' avec un délai serré : il sous-estime souvent la préparation documentaire et découvre un blocage seulement 48 h avant l\'intervention.',
-            'Sur '.$keyword.', une équipe terrain arrive avec un cadrage incomplet : le surcoût vient moins de la prestation que du temps perdu à requalifier le périmètre sur place.',
-            'Dans un contexte '.$region.', '.$serviceName.' aide à structurer '.$keyword.' quand plusieurs acteurs (client, prestataire, responsable technique) ne partagent pas la même version des informations.',
+            'Un décideur '.$industry.' traite '.$keyword.' sans cadrage complet : le blocage apparaît souvent tard dans la préparation.',
+            'Sur '.$keyword.', plusieurs acteurs partagent des versions différentes du périmètre.',
+            'Dans un contexte '.$region.', '.$serviceName.' aide à structurer '.$keyword.' quand les parties ne s\'alignent pas.',
         ];
     }
 
     /**
      * @return array<int,string>
      */
-    private function commonMistakes(string $keyword, string $industry): array
+    /**
+     * @param  array<string,mixed>  $nicheProfile
+     * @return array<int,string>
+     */
+    private function commonMistakes(string $keyword, string $industry, array $nicheProfile): array
     {
+        $mistakes = (array) ($nicheProfile['mistakes'] ?? []);
+
+        if ($mistakes !== []) {
+            return $mistakes;
+        }
+
         return [
-            'Traiter '.$keyword.' comme une formalité sans cadrer le contexte réel du chantier ou de l\'intervention.',
-            'Confondre urgence client et faisabilité terrain, ce qui provoque replanification et surcoût.',
-            'Rédiger ou décider sans chiffres (délais, surfaces, effectifs, volumes) alors que le métier '.$industry.' s\'arbitre avec des ordres de grandeur concrets.',
-            'Ignorer les conséquences opérationnelles : retard, reprise, non-conformité, insatisfaction client ou re-intervention.',
+            'Traiter '.$keyword.' comme une formalité sans cadrer le contexte réel.',
+            'Confondre urgence affichée et faisabilité réelle.',
+            'Décider sans repères vérifiables propres au métier '.$industry.'.',
         ];
     }
 
@@ -129,14 +194,25 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
      * @param  array<int,array<string,mixed>>  $services
      * @return array<int,string>
      */
-    private function fieldScenarios(string $keyword, string $industry, array $services): array
+    /**
+     * @param  array<int,array<string,mixed>>  $services
+     * @param  array<string,mixed>  $nicheProfile
+     * @return array<int,string>
+     */
+    private function fieldScenarios(string $keyword, string $industry, array $services, array $nicheProfile): array
     {
+        $scenarios = (array) ($nicheProfile['field_scenarios'] ?? []);
+
+        if ($scenarios !== []) {
+            return $scenarios;
+        }
+
         $service = (string) data_get($services, '0.name', 'intervention');
 
         return [
-            'Chantier sous pression : '.$keyword.' à traiter avant reprise d\'activité',
-            'Dossier incomplet : le client pensait être prêt, l\'équipe découvre un angle mort sur le terrain',
-            'Arbitrage prestataire : internaliser ou confier '.$keyword.' selon délai, compétence et '.$service,
+            'Dossier incomplet avant intervention sur '.$keyword,
+            'Plusieurs acteurs sans version unique des informations',
+            'Arbitrage : internaliser ou confier '.$keyword.' selon délai, compétence et '.$service,
         ];
     }
 
@@ -146,8 +222,8 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
     private function clientArbitrages(string $industry): array
     {
         return [
-            'Coût immédiat vs risque différé : accepter un raccourci documentaire ou sécuriser le dossier avant intervention.',
-            'Urgence client vs faisabilité terrain : lancer tout de suite ou phaser pour éviter une reprise coûteuse.',
+            'Coût immédiat vs risque différé : raccourcir le cadrage documentaire ou sécuriser le dossier avant intervention.',
+            'Urgence affichée vs faisabilité terrain : lancer tout de suite ou phaser pour éviter une reprise coûteuse.',
             'Interne vs prestataire : garder la maîtrise opérationnelle ou gagner en vitesse avec un spécialiste '.$industry.'.',
         ];
     }
@@ -162,7 +238,11 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
 
         $items = [
             [
-                'question' => 'Quel est le premier réflexe terrain quand on traite '.$keyword.' ?',
+                'question' => 'Quel est le premier réflexe métier quand on traite '.$keyword.' ?',
+                'answer' => '',
+            ],
+            [
+                'question' => 'Quels documents ou repérages vérifier avant de lancer les travaux ?',
                 'answer' => '',
             ],
             [
@@ -170,7 +250,11 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
                 'answer' => '',
             ],
             [
-                'question' => 'Comment estimer un délai ou un budget crédible sur ce sujet ?',
+                'question' => 'Comment estimer un délai ou une fourchette de budget crédible sur ce sujet ?',
+                'answer' => '',
+            ],
+            [
+                'question' => 'Qui est responsable de quoi entre donneur d\'ordre, diagnostiqueur et entreprises ?',
                 'answer' => '',
             ],
         ];

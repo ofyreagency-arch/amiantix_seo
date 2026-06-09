@@ -10,33 +10,42 @@ final class FieldExpertWritingDirectives
     {
         if ($language === 'en') {
             return "Field-expert writing (mandatory):\n"
-                ."- Write as a seasoned practitioner in the client's industry, not as an SEO copywriter.\n"
+                ."- Institutional editorial voice for the site: neutral, expert, decision-maker oriented — not SEO copy, not an invented first-person narrator.\n"
+                ."- Never use first-person singular (I, my, me): do not invent a consultant, inspector, or eyewitness persona.\n"
+                ."- Describe situations in third person (the client, the contractor, teams) or with professional \"we\" without autobiography.\n"
                 ."- One continuous editorial voice from opening to close — no stitched blocks or template sections.\n"
-                ."- Open with a recognizable real-world situation (job site, client case, urgent field call).\n"
-                ."- Mix short narrative paragraphs with technical precision; avoid bullet-only sections without context.\n"
-                ."- Include at least 2 credible numeric examples (timelines, areas, headcount, indicative budgets, volumes).\n"
+                ."- Prioritize domain depth: regulatory frame, actors, responsibilities, documents, use cases (condo, demolition, occupied site…) as relevant.\n"
+                ."- Numbers allowed: orders of magnitude, regulatory ranges, typical timelines — never precise amounts presented as a lived client case unless sourced.\n"
+                ."- Hypothetical examples only when explicitly labeled (\"on a typical job site…\", \"in a common scenario…\").\n"
                 ."- Name frequent field mistakes and their concrete consequences (delay, overrun, non-compliance, exposure).\n"
                 ."- Show real client trade-offs (cost vs risk, urgency vs compliance, in-house vs specialist).\n"
                 ."FORBIDDEN:\n"
+                ."- Autobiographical storytelling: \"I remember\", \"I was recently involved\", \"my team\", \"a client called me\".\n"
+                ."- Implicit fictional numbered scenarios presented as lived experience.\n"
+                ."- The same scaffold on every article: urgency → blockage → mistake → numbered example → trade-off → conclusion.\n"
                 ."- Numbered generic headings: \"Field zoom 1\", \"Example 2\", \"Case study 3\", \"Key point 4\".\n"
                 ."- Systematic tables, checklists, FAQ blocks, or resource lists unless truly indispensable.\n"
-                ."- Identical repetitive section templates or duplicated bullet lists.\n"
                 ."- SEO packaging: \"our guide\", \"discover\", \"learn how\", \"in this article\".\n"
                 ."- Empty lists, premium fluff, or SaaS vocabulary.\n";
         }
 
         return "Écriture métier (obligatoire) :\n"
-            ."- Rédiger comme un praticien expérimenté du métier du client, pas comme un rédacteur SEO.\n"
+            ."- Voix éditoriale institutionnelle du site : neutre, experte, orientée décideurs métier — pas un rédacteur SEO, pas un narrateur personnel inventé.\n"
+            ."- Interdit absolu de la première personne du singulier (je, j', mon, ma, mes) : ne pas inventer un consultant, diagnostiqueur ou témoin.\n"
+            ."- Décrire les situations à la troisième personne (le donneur d'ordre, le syndic, l'entreprise, les équipes) ou avec « on » métier sans autobiographie.\n"
             ."- Une seule voix rédactionnelle du début à la fin — pas de blocs collés ni de sections modèle.\n"
-            ."- Ouvrir sur une situation réelle reconnaissable (chantier, intervention, dossier client, urgence terrain).\n"
-            ."- Alterner narration courte et précision technique ; éviter les suites de listes à puces sans contexte.\n"
-            ."- Inclure au moins 2 passages avec chiffres crédibles (délais, surfaces, effectifs, budgets indicatifs, volumes).\n"
+            ."- Prioriser profondeur métier : cadre réglementaire, acteurs, responsabilités, documents, cas d'usage (copropriété, ERP, démolition…) selon le sujet.\n"
+            ."- Alterner explication structurée et précision technique ; éviter les suites de listes à puces sans contexte.\n"
+            ."- Chiffres autorisés : ordres de grandeur, fourchettes réglementaires, délais types — jamais de montants précis présentés comme un cas client vécu si ce n'est pas sourcé.\n"
+            ."- Exemples hypothétiques possibles uniquement s'ils sont explicitement présentés comme tels (« sur un chantier type… », « dans un scénario courant… »).\n"
             ."- Nommer des erreurs fréquentes du métier et leurs conséquences concrètes (retard, surcoût, non-conformité, risque).\n"
             ."- Montrer des arbitrages réels (coût vs risque, urgence vs conformité, interne vs prestataire).\n"
             ."INTERDIT :\n"
+            ."- Récit autobiographique : « je me souviens », « j'ai récemment », « mon équipe », « un client m'appelle ».\n"
+            ."- Scénario fictionnel chiffré implicite (500 m², 15 000 €, 20 000 €) présenté comme expérience vécue.\n"
+            ."- Structure répétitive systématique : urgence → blocage → erreur → exemple chiffré → arbitrage → conclusion sur chaque article.\n"
             ."- Titres génériques numérotés : \"Zoom terrain 1\", \"Exemple 1\", \"Cas pratique 2\", \"Point clé 3\".\n"
             ."- Tableaux systématiques, checklists, blocs FAQ ou listes de ressources sauf si vraiment indispensables.\n"
-            ."- Structures répétitives identiques d'une section à l'autre ou listes à puces dupliquées.\n"
             ."- Packaging SEO : \"notre guide\", \"découvrez\", \"apprenez\", \"dans cet article\".\n"
             ."- Paragraphes creux, formulations premium ou vocabulaire SaaS.\n";
     }
@@ -75,6 +84,13 @@ final class FieldExpertWritingDirectives
             'Ressources et pages utiles à croiser',
             'Cette checklist donne de l air au contenu',
             'Les nommer clairement aide a differencier un contenu expert',
+            'je me souviens',
+            'J ai récemment',
+            'J\'ai récemment',
+            'mon équipe',
+            'Mon équipe',
+            'un client m appelle',
+            'un client m\'appelle',
         ];
     }
 
@@ -146,8 +162,8 @@ final class FieldExpertWritingDirectives
             }
         }
 
-        if (preg_match_all('/\d+/', $plain, $matches) < 2) {
-            throw new \RuntimeException('Le contenu doit inclure au moins deux repères chiffrés crédibles (délai, surface, budget, volume, effectif).');
+        if (preg_match_all('/\b(je|j\'|j’|mon|ma|mes)\b/iu', $plain, $firstPerson) >= 2) {
+            throw new \RuntimeException('Voix narrative interdite : la première personne du singulier invente un témoin. Utiliser une voix institutionnelle ou la troisième personne.');
         }
 
         if (preg_match_all('/<table\b/i', $content, $tables) > 1) {
@@ -168,9 +184,14 @@ final class FieldExpertWritingDirectives
             }
         }
 
-        if (self::wordCount($plain) < 750) {
-            throw new \RuntimeException('Le contenu est trop court pour une expertise terrain crédible.');
+        if (self::wordCount($plain) < self::minWordCount()) {
+            throw new \RuntimeException('Le contenu est trop court pour une expertise métier crédible (minimum '.self::minWordCount().' mots).');
         }
+    }
+
+    public static function minWordCount(): int
+    {
+        return max(1200, (int) config('seo-engine.quality.min_word_count', 1300));
     }
 
     private static function wordCount(string $plain): int
@@ -200,8 +221,8 @@ final class FieldExpertWritingDirectives
             return;
         }
 
-        if (count($faq) > 4) {
-            throw new \RuntimeException('FAQ trop longue : maximum 4 questions naturelles.');
+        if (count($faq) > 6) {
+            throw new \RuntimeException('FAQ trop longue : maximum 6 questions naturelles.');
         }
 
         foreach ($faq as $item) {
