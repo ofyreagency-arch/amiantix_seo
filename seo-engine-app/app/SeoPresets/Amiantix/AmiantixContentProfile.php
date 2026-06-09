@@ -98,8 +98,12 @@ final class AmiantixContentProfile implements NicheContentProvider
             }
         }
 
+        if ($context['preserve_ai_narrative'] ?? false) {
+            return $content;
+        }
+
         $cycle = 1;
-        while ($this->contentWordCount($content) < 1450 && $cycle <= 6) {
+        while ($this->contentWordCount($content) < 1450 && $cycle <= 2) {
             $content .= $this->deepeningBlock($blueprint, $cycle);
             $cycle++;
         }
@@ -493,7 +497,14 @@ final class AmiantixContentProfile implements NicheContentProvider
             ->map(static fn (string $item): string => '<li>'.$item.'</li>')
             ->implode('');
 
-        return '<section><h2>Zoom terrain '.$cycle.'</h2><h3>'.$risk[0].'</h3><p>'.$risk[1].'. Ce point devient critique quand la preparation documentaire, la coordination des acteurs ou la lecture du site ne suivent pas le rythme reel des travaux ou de la maintenance.</p><p>La mesure attendue doit rester visible: '.$risk[2].'. Le point de controle utile est souvent '.$control.', avec une preuve concrete comme '.$proof.'. C est ce niveau de detail qui rend un contenu amiante exploitable par un responsable technique, un syndic ou un donneur d ordre.</p><ul>'.$list.'</ul></section>';
+        $cases = $blueprint['cases'] ?? [];
+        $caseTitle = (string) ($cases[($cycle - 1) % max(1, count($cases))] ?? $risk[1]);
+        $heading = Str::limit($caseTitle, 72, '…');
+        if (strlen($heading) < 12) {
+            $heading = 'Situation chantier : '.$risk[0];
+        }
+
+        return '<section><h2>'.$heading.'</h2><p>'.$risk[1].'. Ce point devient critique quand la preparation documentaire, la coordination des acteurs ou la lecture du site ne suivent pas le rythme reel des travaux ou de la maintenance.</p><p>La mesure attendue doit rester visible: '.$risk[2].'. Le point de controle utile est souvent '.$control.', avec une preuve concrete comme '.$proof.'. C est ce niveau de detail qui rend un contenu amiante exploitable par un responsable technique, un syndic ou un donneur d ordre.</p><ul>'.$list.'</ul></section>';
     }
 
     private function contentWordCount(string $content): int

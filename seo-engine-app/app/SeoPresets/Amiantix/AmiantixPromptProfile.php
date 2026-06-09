@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\SeoPresets\Amiantix;
 
+use App\SeoPresets\Shared\FieldExpertWritingDirectives;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\PromptProfileProvider;
 
@@ -17,7 +18,8 @@ final class AmiantixPromptProfile implements PromptProfileProvider
 
     public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
     {
-        return "Tu rediges un article expert Amiantix sur le risque amiante.\n".
+        return FieldExpertWritingDirectives::promptBlock('fr')."\n".
+            "Tu rediges un article expert Amiantix sur le risque amiante.\n".
             'Mot-cle principal: '.$keyword."\n".
             'Cluster: '.$cluster."\n".
             'Sujet: '.$blueprint['topic']."\n".
@@ -48,6 +50,7 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- expliciter des arbitrages client: cout vs risque, urgence vs conformite, interne vs diagnostiqueur, phasage vs arret d activite\n".
             "- decrire des consequences concretes d erreurs terrain (retard chantier, arret, surcout, non conformite, exposition)\n".
             "- privilegier des scenarios narratifs plutot que des listes generiques sans situation\n".
+            "- interdit absolu de titres \"Zoom terrain 1/2/3\", \"Exemple 1\", \"Cas pratique 2\" ou sections numerotees repetitives\n".
             "- conclusion orientee action, verification et preparation documentaire, pas marketing\n".
             "- 1400 mots minimum\n".
             'Retourner uniquement un JSON avec: title, meta_description, h1, content.';

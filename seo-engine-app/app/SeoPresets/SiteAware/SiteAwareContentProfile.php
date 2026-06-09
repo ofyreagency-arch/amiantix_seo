@@ -37,6 +37,10 @@ final class SiteAwareContentProfile implements NicheContentProvider
 
     public function ensureContentDepth(string $content, array $blueprint, array $context = []): string
     {
+        if ($context['preserve_ai_narrative'] ?? false) {
+            return $content;
+        }
+
         $wordCount = str_word_count(strip_tags($content));
 
         if ($wordCount >= 900) {

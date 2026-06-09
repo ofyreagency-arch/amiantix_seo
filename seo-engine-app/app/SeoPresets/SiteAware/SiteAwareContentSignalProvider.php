@@ -50,6 +50,8 @@ final class SiteAwareContentSignalProvider implements ContentSignalProvider
             ['phrase' => 'Field example', 'warning' => 'Section fictive interdite — supprimer immédiatement.'],
             ['phrase' => 'SaaS knowledge base', 'warning' => 'Template SaaS interdit — ancrer dans le métier réel.'],
             ['phrase' => 'innovative solution', 'warning' => 'Formulation générique — remplacer par un service concret du site.'],
+            ['phrase' => 'Zoom terrain', 'warning' => 'Titre template interdit — remplacer par un scénario métier concret.'],
+            ['phrase' => 'Cas pratique 1', 'warning' => 'Structure numérotée générique — réécrire en situation terrain nommée.'],
         ];
 
         foreach (is_array($forbidden) ? $forbidden : [] as $phrase) {

@@ -7,6 +7,7 @@ namespace App\SeoBridge\Drivers;
 use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Runtime\SeoEngineContext;
+use App\SeoPresets\Shared\FieldExpertWritingDirectives;
 use App\Understanding\SiteProfileGate;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\SeoGenerationDriver;
@@ -108,18 +109,7 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
             return;
         }
 
-        $forbidden = [
-            'Field example',
-            'SaaS knowledge base',
-            'Write a business article for a professional SaaS',
-            'Operational context',
-        ];
-
-        foreach ($forbidden as $phrase) {
-            if (str_contains($content, $phrase)) {
-                throw new \RuntimeException('Contenu générique interdit détecté: '.$phrase);
-            }
-        }
+        FieldExpertWritingDirectives::assertFieldExpertContent($content);
     }
 
     public function improvePage(object $page, array $audit = []): object

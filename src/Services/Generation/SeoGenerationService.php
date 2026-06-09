@@ -564,6 +564,7 @@ class SeoGenerationService
             'keyword' => $keyword,
             'cluster' => $cluster,
             'internal_links' => $links,
+            'preserve_ai_narrative' => $this->requiresSiteProfile(),
         ]);
 
         if (! isset($payload['faq']) || ! is_array($payload['faq']) || count($payload['faq']) < 5) {
