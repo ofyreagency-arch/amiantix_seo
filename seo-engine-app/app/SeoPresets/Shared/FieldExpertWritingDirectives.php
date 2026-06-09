@@ -168,7 +168,7 @@ final class FieldExpertWritingDirectives
             }
         }
 
-        if (self::wordCount($plain) < 800) {
+        if (self::wordCount($plain) < 750) {
             throw new \RuntimeException('Le contenu est trop court pour une expertise terrain crédible.');
         }
     }

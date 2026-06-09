@@ -27,6 +27,9 @@ preg_match_all('/[\p{L}\p{N}\']+/u', $plain, $matches);
 echo json_encode([
     'generation_source' => $result['generation_source'] ?? null,
     'generation_error' => $result['generation_error'] ?? null,
+    'title' => $result['payload']['title'] ?? null,
+    'meta_description' => $result['payload']['meta_description'] ?? null,
+    'expand_step' => $result['generation_trace']['expand'] ?? null,
     'html_length' => mb_strlen($content),
     'plain_length' => mb_strlen($plain),
     'unicode_word_count' => count($matches[0] ?? []),

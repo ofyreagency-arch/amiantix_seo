@@ -937,23 +937,41 @@ class SeoGenerationService
             ."Contenu actuel :\n".$content."\n"
             .'Retourner uniquement un JSON avec : title, meta_description, h1, content.';
 
-        $result = $this->askAiResult(
-            $prompt,
-            $keyword,
-            ['title', 'meta_description', 'h1', 'content'],
-            'expand',
-        );
+        $trace = [];
+        $expandedPayload = $payload;
 
-        if (! is_array($result['payload'] ?? null)) {
-            return [$payload, $result['trace']];
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $result = $this->askAiResult(
+                $prompt,
+                $keyword,
+                ['title', 'meta_description', 'h1', 'content'],
+                'expand',
+            );
+
+            $trace['attempt_'.$attempt] = $result['trace'];
+
+            if (! is_array($result['payload'] ?? null)) {
+                break;
+            }
+
+            $expandedPayload = array_replace($expandedPayload, $result['payload']);
+
+            if (! $this->fieldExpertContentTooShort((string) ($expandedPayload['content'] ?? ''))) {
+                break;
+            }
+
+            $prompt = "L article reste trop court (objectif 1000+ mots). Approfondis encore sans changer de voix.\n"
+                .'Mot-clé : '.$keyword."\n"
+                ."Contenu actuel :\n".(string) ($expandedPayload['content'] ?? '')."\n"
+                .'Retourner uniquement un JSON avec : title, meta_description, h1, content.';
         }
 
-        return [array_replace($payload, $result['payload']), $result['trace']];
+        return [$expandedPayload, $trace !== [] ? $trace : null];
     }
 
     protected function fieldExpertContentTooShort(string $content): bool
     {
-        return $this->fieldExpertWordCount($content) < 800;
+        return $this->fieldExpertWordCount($content) < 750;
     }
 
     protected function fieldExpertWordCount(string $content): int
