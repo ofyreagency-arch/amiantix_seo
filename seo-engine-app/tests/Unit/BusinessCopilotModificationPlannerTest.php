@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Copilot\BusinessCopilotModificationPlanner;
+use App\Models\SeoSite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -24,26 +25,41 @@ class BusinessCopilotModificationPlannerTest extends TestCase
         $this->assertStringContainsString('visiteurs/mois', $low['display']);
     }
 
-    public function test_plan_for_gsc_includes_sections_topics_and_faq(): void
+    public function test_plan_for_gsc_uses_niche_faq_without_generic_fallback(): void
     {
+        SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
         $planner = app(BusinessCopilotModificationPlanner::class);
 
         $plan = $planner->planForGsc(
             'amiantix',
             'near_top_10',
-            'Faq',
-            'Faq',
+            'FAQ amiante',
+            'FAQ',
             null,
             'faq',
-            null,
+            'délai repérage amiante',
             null,
         );
+
+        $faqBlob = mb_strtolower(implode(' ', $plan['faq']));
 
         $this->assertNotSame('', $plan['action_label']);
         $this->assertNotSame('', $plan['action_detail']);
         $this->assertNotEmpty($plan['sections']);
         $this->assertNotEmpty($plan['topics']);
         $this->assertNotEmpty($plan['faq']);
+        $this->assertStringNotContainsString('combien de temps pour traiter', $faqBlob);
+        $this->assertStringNotContainsString('bloc de preuves et cas pratiques', mb_strtolower(implode(' ', $plan['sections'])));
         $this->assertNotSame('', $plan['content_summary']);
     }
 }

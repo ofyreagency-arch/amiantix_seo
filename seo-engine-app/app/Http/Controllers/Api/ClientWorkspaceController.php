@@ -12,6 +12,7 @@ use App\Models\SeoSemanticLink;
 use App\Models\SeoSite;
 use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSuggestion;
+use App\Copilot\BusinessCopilotModificationPlanner;
 use App\Copilot\BusinessCopilotService;
 use App\Runtime\GscOpportunityService;
 use App\Models\User;
@@ -23,7 +24,12 @@ use Illuminate\Validation\Rule;
 
 class ClientWorkspaceController extends Controller
 {
-    public function optimizations(Request $request, GscOpportunityService $gscOpportunities, BusinessCopilotService $businessCopilot): JsonResponse
+    public function optimizations(
+        Request $request,
+        GscOpportunityService $gscOpportunities,
+        BusinessCopilotService $businessCopilot,
+        BusinessCopilotModificationPlanner $modificationPlanner,
+    ): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -95,7 +101,8 @@ class ClientWorkspaceController extends Controller
                     ->all();
             })
             ->sortByDesc('priority_score')
-            ->values();
+            ->values()
+            ->map(fn (array $item): array => $this->enrichOpportunityWithBusinessCopy($item, $modificationPlanner));
 
         $opportunitySummary = [
             'low_ctr' => (int) $opportunityPayloads->sum(fn (array $payload): int => (int) ($payload['summary']['low_ctr'] ?? 0)),
@@ -663,5 +670,60 @@ class ClientWorkspaceController extends Controller
             'http_status' => $statusCode,
             'link' => $liveUrl,
         ];
+    }
+
+    /**
+     * @param  array<string,mixed>  $item
+     * @return array<string,mixed>
+     */
+    private function enrichOpportunityWithBusinessCopy(array $item, BusinessCopilotModificationPlanner $modificationPlanner): array
+    {
+        $query = isset($item['query']) ? trim((string) $item['query']) : '';
+        $label = trim((string) ($item['label'] ?? ''));
+        $subject = $query !== '' ? $query : $label;
+        $metrics = is_array($item['metrics'] ?? null) ? $item['metrics'] : [];
+        $position = (float) ($metrics['position'] ?? 0);
+
+        $plan = $modificationPlanner->planForGsc(
+            (string) ($item['site_id'] ?? ''),
+            (string) ($item['type'] ?? ''),
+            $subject,
+            $label,
+            is_numeric($item['page_id'] ?? null) ? (int) $item['page_id'] : null,
+            (string) ($item['slug'] ?? ''),
+            $query !== '' ? $query : null,
+            null,
+        );
+
+        $item['reason'] = $this->businessOpportunityReason((string) ($item['type'] ?? ''), $label, $position, $plan);
+        $item['action'] = (string) ($plan['action_label'] ?: ($item['action'] ?? ''));
+        $item['modification_preview'] = [
+            'content_summary' => (string) ($plan['content_summary'] ?? ''),
+            'sections' => array_values(array_slice((array) ($plan['sections'] ?? []), 0, 2)),
+            'faq' => array_values(array_slice((array) ($plan['faq'] ?? []), 0, 2)),
+        ];
+
+        return $item;
+    }
+
+    /**
+     * @param  array<string,mixed>  $plan
+     */
+    private function businessOpportunityReason(string $type, string $label, float $position, array $plan): string
+    {
+        $summary = trim((string) ($plan['content_summary'] ?? ''));
+        if ($summary !== '' && ! str_contains($summary, 'PraeviSEO précisera')) {
+            return $summary;
+        }
+
+        return match ($type) {
+            'near_top_10' => $position > 0
+                ? sprintf('« %s » apparaît autour de la %.0fe position : PraeviSEO peut compléter ce qui manque pour gagner des visiteurs.', $label, $position)
+                : sprintf('« %s » peut gagner des visiteurs avec un renfort ciblé.', $label),
+            'low_ctr' => sprintf('« %s » est visible dans Google, mais attire encore trop peu de clics.', $label),
+            'emerging_query' => sprintf('Google associe déjà votre site à une recherche autour de « %s ».', $label),
+            'sustained_drop' => sprintf('« %s » perd de la visibilité depuis plusieurs semaines.', $label),
+            default => sprintf('PraeviSEO voit un levier utile sur « %s ».', $label),
+        };
     }
 }

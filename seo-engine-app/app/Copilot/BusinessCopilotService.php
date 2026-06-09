@@ -274,7 +274,7 @@ final class BusinessCopilotService
                     : 'Google commence déjà à vous montrer sur cette recherche : un contenu plus complet peut faire la différence.',
                 'action_label' => 'Enrichir le contenu et clarifier le titre de la page',
                 'action_detail' => 'Ajoutez une section utile, renforcez le titre et répondez plus précisément à ce que cherchent vos prospects.',
-                'apply_mode' => 'rafraichir la page',
+                'apply_mode' => 'renforcer la page',
                 'effort_key' => 'medium',
             ],
             'low_ctr' => [
@@ -311,7 +311,7 @@ final class BusinessCopilotService
                 'why_plain' => 'Chaque semaine sans action, vous laissez une partie de votre visibilité à vos concurrents.',
                 'action_label' => 'Actualiser la page et vérifier qu’elle répond encore au besoin client',
                 'action_detail' => 'Mettez à jour le contenu, les preuves et les réponses aux questions fréquentes.',
-                'apply_mode' => 'rafraichir la page',
+                'apply_mode' => 'renforcer la page',
                 'effort_key' => 'medium',
             ],
             default => [
@@ -343,7 +343,7 @@ final class BusinessCopilotService
                 'why_plain' => 'La page existe, mais elle n’explique pas assez clairement votre valeur ni les réponses attendues.',
                 'action_label' => 'Enrichir le contenu et clarifier les sections clés',
                 'action_detail' => $actionDetail,
-                'apply_mode' => 'rafraichir la page',
+                'apply_mode' => 'renforcer la page',
             ],
             'create_page', 'expand_cluster' => [
                 'action_verb' => 'créer',
@@ -433,7 +433,7 @@ final class BusinessCopilotService
         };
     }
 
-    private function formatEffortDisplay(array $effort, int $monthlyGain): string
+    private function formatEffortDisplay(array $effort, int $monthlyGain, int $monthlyGainMin = 0, int $monthlyGainMax = 0): string
     {
         $emoji = match ($effort['level']) {
             'easy' => '🟢',
@@ -441,12 +441,16 @@ final class BusinessCopilotService
             default => '🟠',
         };
 
+        $gainLine = $monthlyGainMin > 0 && $monthlyGainMax > $monthlyGainMin
+            ? sprintf('+%d–%d visiteurs/mois', $monthlyGainMin, $monthlyGainMax)
+            : sprintf('+%d visiteurs/mois', max(0, $monthlyGain));
+
         return sprintf(
-            '%s %s — %d min — +%d visiteurs/mois',
+            '%s %s — %d min — %s',
             $emoji,
             $effort['label'],
             (int) $effort['minutes'],
-            max(0, $monthlyGain),
+            $gainLine,
         );
     }
 
@@ -465,6 +469,8 @@ final class BusinessCopilotService
                     'minutes' => (int) ($payload['effort_minutes'] ?? 30),
                 ],
                 (int) ($payload['monthly_gain_visitors'] ?? 0),
+                (int) ($payload['monthly_gain_min'] ?? 0),
+                (int) ($payload['monthly_gain_max'] ?? 0),
             );
 
         if (! isset($payload['gain_display']) || $payload['gain_display'] === '') {

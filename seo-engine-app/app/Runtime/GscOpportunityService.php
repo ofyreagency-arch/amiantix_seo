@@ -111,8 +111,8 @@ class GscOpportunityService
                     'label' => $label,
                     'slug' => $page->slug,
                     'page_id' => $page->id,
-                    'reason' => 'La page est proche de la zone qui compte et peut gagner vite avec un refresh ciblé.',
-                    'action' => 'rafraichir la page',
+                    'reason' => 'Google montre déjà cette page : un renfort ciblé peut faire gagner des visiteurs.',
+                    'action' => 'Renforcer le contenu sur cette page',
                     'mode' => 'enrich',
                     'pending_suggestion_id' => $existingPending?->id,
                     'pending_suggestion' => $existingPending !== null,
@@ -312,8 +312,8 @@ class GscOpportunityService
                     'label' => $label,
                     'slug' => $slug,
                     'page_id' => null,
-                    'reason' => 'La page est proche de la zone qui compte et peut gagner vite avec un refresh ciblé.',
-                    'action' => 'rafraichir la page',
+                    'reason' => 'Google montre déjà cette page : un renfort ciblé peut faire gagner des visiteurs.',
+                    'action' => 'Renforcer le contenu sur cette page',
                     'mode' => 'enrich',
                     'pending_suggestion_id' => null,
                     'pending_suggestion' => false,
@@ -423,14 +423,14 @@ class GscOpportunityService
         };
 
         [$level, $label] = match (true) {
-            $score >= 620 => ['high', 'Priorite haute'],
+            $score >= 620 => ['high', 'Priorité haute'],
             $score >= 420 => ['medium', 'Gain rapide'],
-            default => ['watch', 'A surveiller'],
+            default => ['watch', 'À surveiller'],
         };
 
         $actionStateLabel = match ($actionState) {
-            'pending' => 'Suggestion deja en attente',
-            'cooldown' => 'Cooldown actif',
+            'pending' => 'Suggestion déjà en attente',
+            'cooldown' => 'Pause temporaire',
             default => 'Actionnable maintenant',
         };
 

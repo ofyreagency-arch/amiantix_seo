@@ -419,6 +419,11 @@ export type PraeviseoGscOpportunity = {
   action_state_label: string;
   pending_suggestion: boolean;
   metrics: Record<string, number | string>;
+  modification_preview?: {
+    content_summary: string;
+    sections: string[];
+    faq: string[];
+  };
 };
 
 export type PraeviseoObservedRecommendation = {
@@ -2771,6 +2776,37 @@ export function getClientOpportunityWhy(type: string): string {
     default:
       return "PraeviSEO voit ici un levier utile à ouvrir.";
   }
+}
+
+export function getClientOpportunityTypeLabel(type: string): string {
+  return (
+    {
+      low_ctr: "Peu de clics malgré la visibilité",
+      near_top_10: "Proche d’un meilleur résultat",
+      emerging_query: "Nouvelle recherche détectée",
+      sustained_drop: "Visibilité en baisse",
+    }[type] ?? "Levier détecté"
+  );
+}
+
+export function getClientImpactLabel(impact: string): string {
+  return (
+    {
+      high: "Gain estimé élevé",
+      medium: "Gain estimé modéré",
+      low: "Gain estimé léger",
+    }[impact] ?? "Gain à confirmer"
+  );
+}
+
+export function getClientDifficultyLabel(difficulty: string): string {
+  return (
+    {
+      low: "Effort léger",
+      medium: "Effort modéré",
+      high: "Effort soutenu",
+    }[difficulty] ?? "Effort à cadrer"
+  );
 }
 
 export function getClientQueryBadge(position: number, linkedPage = false): string {

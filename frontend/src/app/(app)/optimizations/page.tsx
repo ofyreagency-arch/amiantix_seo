@@ -7,7 +7,17 @@ import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getOptimizations, getSitePath } from "@/lib/praeviseo-api";
+import {
+  getClientDifficultyLabel,
+  getClientImpactLabel,
+  getClientOpportunityPriorityLabel,
+  getClientOpportunityStateLabel,
+  getClientOpportunityTypeLabel,
+  getClientRecommendationBadge,
+  getOptimizations,
+  getSitePath,
+  type PraeviseoGscOpportunity,
+} from "@/lib/praeviseo-api";
 import { formatDate } from "@/lib/utils";
 
 type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -20,14 +30,17 @@ function getValue(value: string | string[] | undefined, fallback = ""): string {
   return value ?? fallback;
 }
 
-function opportunityTypeLabel(type: string): string {
+function opportunityModificationHint(item: PraeviseoGscOpportunity) {
+  const preview = item.modification_preview;
+  if (!preview?.sections?.length && !preview?.faq?.length) {
+    return null;
+  }
+
   return (
-    {
-      low_ctr: "Peu de clics",
-      near_top_10: "Proche du top 10",
-      emerging_query: "Requête émergente",
-      sustained_drop: "Baisse durable",
-    }[type] ?? "Opportunité SEO"
+    <div className="mt-2 space-y-1 rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-subtle">
+      {preview.sections[0] ? <p>Section : {preview.sections[0]}</p> : null}
+      {preview.faq[0] ? <p>FAQ : {preview.faq[0]}</p> : null}
+    </div>
   );
 }
 
@@ -46,47 +59,6 @@ function opportunityMetricLine(metrics: Record<string, number | string>): string
   }
 
   return `${new Intl.NumberFormat("fr-FR").format(impressions)} affichage(s) dans Google, avec une présence moyenne autour de la ${Math.round(position)}e place`;
-}
-
-function impactLabel(impact: string): string {
-  return (
-    {
-      high: "Gain attendu fort",
-      medium: "Gain attendu moyen",
-      low: "Gain attendu leger",
-    }[impact] ?? "Gain a confirmer"
-  );
-}
-
-function difficultyLabel(difficulty: string): string {
-  return (
-    {
-      low: "Effort leger",
-      medium: "Effort modere",
-      high: "Effort soutenu",
-    }[difficulty] ?? "Effort a cadrer"
-  );
-}
-
-function opportunityPriorityLabel(priorityLabel: string): string {
-  return (
-    {
-      "Priorité haute": "À faire en premier",
-      "A surveiller": "À garder à l'oeil",
-      "À surveiller": "À garder à l'oeil",
-      "Gain rapide": "Gain rapide possible",
-    }[priorityLabel] ?? priorityLabel
-  );
-}
-
-function opportunityStateLabel(stateLabel: string): string {
-  return (
-    {
-      "Actionnable maintenant": "Prête à être traitée",
-      "Suggestion deja en attente": "Déjà prévue dans le plan",
-      "Suggestion déjà en attente": "Déjà prévue dans le plan",
-    }[stateLabel] ?? stateLabel
-  );
 }
 
 export default async function OptimizationsPage({ searchParams }: { searchParams?: PageSearchParams }) {
@@ -110,7 +82,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
   const leadRecommendation = actionPlan[0] ?? null;
   const summarySignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
-      ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
+      ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) peuvent gagner des visiteurs avec un renfort ciblé`
       : null,
     optimizations.gsc_opportunities.summary.low_ctr > 0
       ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) attirent encore trop peu de clics`
@@ -133,12 +105,12 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       tone: gscOpportunityCount > 0 ? "warning" : "secondary",
     },
     {
-      label: "Pages proches du top 10",
+      label: "Pages proches d’un gain",
       value: optimizations.gsc_opportunities.summary.near_top_10,
       detail:
         optimizations.gsc_opportunities.summary.near_top_10 > 0
-          ? "gains rapides potentiels si on rafraîchit"
-          : "pas de page chaude à pousser tout de suite",
+          ? "un renfort ciblé peut faire la différence"
+          : "pas de page chaude à renforcer tout de suite",
       tone: optimizations.gsc_opportunities.summary.near_top_10 > 0 ? "success" : "secondary",
     },
     {
@@ -174,7 +146,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       id: `optimization-${item.id}`,
       title: item.page.title,
       detail: item.summary,
-      badge: item.status === "pending" ? "Reco ouverte" : "Reco suivie",
+      badge: item.status === "pending" ? "Action en cours" : "Déjà traitée",
       badgeVariant: item.status === "pending" ? "warning" : "secondary",
       meta: item.created_at ? formatDate(item.created_at) : "Récemment",
       timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
@@ -193,32 +165,32 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
     .slice(0, 6);
   const optimizationDecisionBlocks = [
     {
-      title: "Impact estimé moteur",
+      title: "Gain estimé",
       items: [
         leadRecommendation
-          ? `${impactLabel(leadRecommendation.estimated_impact)} sur l’action ${leadRecommendation.title}.`
-          : "Le prochain impact fort apparaîtra ici dès qu’une recommandation claire remontera.",
+          ? `${getClientImpactLabel(leadRecommendation.estimated_impact)} sur l’action ${leadRecommendation.title}.`
+          : "Le prochain gain estimé apparaîtra ici dès qu’une recommandation claire remontera.",
         leadOpportunity
           ? `Google montre déjà un levier concret sur ${leadOpportunity.label}.`
           : "Les prochains signaux Google utiles apparaîtront ici automatiquement.",
       ],
     },
     {
-      title: "Effort estimé moteur",
+      title: "Effort estimé",
       items: [
         leadRecommendation
-          ? `${difficultyLabel(leadRecommendation.difficulty)} pour la meilleure action actuellement suggérée.`
+          ? `${getClientDifficultyLabel(leadRecommendation.difficulty)} pour la meilleure action actuellement suggérée.`
           : "PraeviSEO précisera l’effort requis dès qu’une action sortira du lot.",
         pagesToRefresh.length > 0
-          ? `${pagesToRefresh.length} page(s) peuvent déjà être retravaillées sans chantier trop lourd.`
-          : "Aucune page chaude à retravailler rapidement pour le moment.",
+          ? `${pagesToRefresh.length} page(s) peuvent déjà être renforcées sans chantier trop lourd.`
+          : "Aucune page chaude à renforcer rapidement pour le moment.",
       ],
     },
     {
       title: "Priorité",
       items: [
         leadOpportunity
-          ? `${opportunityPriorityLabel(leadOpportunity.priority_label)} sur ${leadOpportunity.label}.`
+          ? `${getClientOpportunityPriorityLabel(leadOpportunity.priority_label)} sur ${leadOpportunity.label}.`
           : "Aucune priorité très forte n’est encore remontée.",
         optimizations.gsc_opportunities.summary.high_priority > 0
           ? `${optimizations.gsc_opportunities.summary.high_priority} opportunité(s) sont déjà classées en priorité haute.`
@@ -229,7 +201,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       title: "Action recommandée",
       items: [
         leadRecommendation?.suggested_action ?? leadOpportunity?.action ?? "PraeviSEO affichera ici l’action la plus utile dès qu’elle sera claire.",
-        actionPlan[0]?.reasoning ?? "Le moteur continue de comparer les prochains gains possibles.",
+        actionPlan[0]?.reasoning ?? "PraeviSEO continue de comparer les prochains gains possibles.",
       ],
     },
   ] as const;
@@ -244,7 +216,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       });
     } else if (item.type === "near_top_10" || item.type === "sustained_drop") {
       actions.push({
-        label: item.slug ? "Ouvrir le studio ciblé" : "Voir les pages",
+        label: item.slug ? "Voir la page concernée" : "Voir les pages",
         href: item.slug
           ? `/publications?focus=content&site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
           : `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.label)}`,
@@ -252,7 +224,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       });
     } else if (item.type === "low_ctr") {
       actions.push({
-        label: item.slug ? "Ouvrir le studio ciblé" : "Voir l’indexation",
+        label: item.slug ? "Voir la page concernée" : "Voir la visibilité Google",
         href: item.slug
           ? `/publications?focus=content&site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
           : `/sites/${item.site_id}/search-console`,
@@ -295,7 +267,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
 
     if (item.type === "create_page" || suggestionText.includes("nouvelle page") || suggestionText.includes("nouveau contenu")) {
       actions.push({
-        label: "Ouvrir le studio éditorial",
+        label: "Créer le contenu ciblé",
         href: `/publications?focus=query&site=${encodeURIComponent(item.site_id)}&query=${encodeURIComponent(item.cluster ?? item.title)}`,
         variant: "primary",
       });
@@ -306,7 +278,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       });
     } else if (item.type === "refresh_page" || suggestionText.includes("réécri") || suggestionText.includes("rafraîch")) {
       actions.push({
-        label: "Voir les pages à retravailler",
+        label: "Voir les pages à renforcer",
         href: `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.title)}`,
         variant: "primary",
       });
@@ -377,7 +349,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
             },
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: recommendationOpportunityCount, tone: "default" },
             { label: "Gains rapides", href: "#gains-rapides", count: quickWins.length, tone: "warning" },
-            { label: "Pages à refresh", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
+            { label: "Pages à renforcer", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
             { label: "Requêtes Google", href: "#requetes", count: queryWatchlist.length, tone: "success" },
             { label: "Plan d’action", href: "#plan-action", count: actionPlan.length, tone: "warning" },
             { label: "Activité", href: "#activite", count: optimizations.items.length, tone: "default" },
@@ -397,7 +369,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
           <h1 className="text-2xl font-bold tracking-tight text-text">Toutes les actions classées par impact business</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            Au-delà de la priorité du jour, retrouvez ici le détail des signaux Google et des recommandations moteur — toujours traduits en gains visiteurs et actions concrètes.
+            Au-delà de la priorité du jour, retrouvez ici le détail des signaux Google et des actions recommandées — toujours traduits en gains visiteurs et modifications concrètes.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Button href="/sites">
@@ -461,7 +433,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
           {[
             ["Actionnables maintenant", optimizations.gsc_opportunities.summary.ready],
             ["Priorité haute", optimizations.gsc_opportunities.summary.high_priority],
-            ["Proches du top 10", optimizations.gsc_opportunities.summary.near_top_10],
+            ["Proches d’un gain rapide", optimizations.gsc_opportunities.summary.near_top_10],
             ["Clics à améliorer", optimizations.gsc_opportunities.summary.low_ctr],
           ].map(([label, value]) => (
             <Card key={label}>
@@ -510,10 +482,10 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant={leadOpportunity.priority_level === "high" ? "warning" : "secondary"}>
-                        {opportunityPriorityLabel(leadOpportunity.priority_label)}
+                        {getClientOpportunityPriorityLabel(leadOpportunity.priority_label)}
                       </Badge>
                       <Badge variant={leadOpportunity.action_state === "ready" ? "success" : "secondary"}>
-                        {opportunityStateLabel(leadOpportunity.action_state_label)}
+                        {getClientOpportunityStateLabel(leadOpportunity.action_state_label)}
                       </Badge>
                     </div>
                   </div>
@@ -542,7 +514,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
 
           <Card className="border-border-subtle bg-surface/90">
             <CardHeader>
-              <CardTitle>Gain attendu et effort</CardTitle>
+              <CardTitle>Gain estimé et effort</CardTitle>
               <CardDescription>
                 La meilleure action déjà prête, avec son ratio gain attendu / difficulté.
               </CardDescription>
@@ -559,12 +531,12 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                       </p>
                     </div>
                     <Badge variant={leadRecommendation.priority <= 30 ? "warning" : "secondary"}>
-                      Priorite {leadRecommendation.priority}
+                      Priorité {leadRecommendation.priority}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{impactLabel(leadRecommendation.estimated_impact)}</Badge>
-                    <Badge variant="secondary">{difficultyLabel(leadRecommendation.difficulty)}</Badge>
+                    <Badge variant="secondary">{getClientImpactLabel(leadRecommendation.estimated_impact)}</Badge>
+                    <Badge variant="secondary">{getClientDifficultyLabel(leadRecommendation.difficulty)}</Badge>
                   </div>
                   <p className="text-sm text-text-muted">{leadRecommendation.reasoning}</p>
                   <p className="text-sm text-text">
@@ -593,7 +565,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
             <CardHeader>
               <CardTitle>Gains rapides</CardTitle>
               <CardDescription>
-                Les opportunités les plus actionnables maintenant pour faire bouger le SEO vite.
+                Les actions les plus rentables à traiter en premier pour gagner des visiteurs.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -609,12 +581,13 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                         <p className="text-sm font-semibold text-text">{item.label}</p>
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{opportunityPriorityLabel(item.priority_label)}</Badge>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{getClientOpportunityPriorityLabel(item.priority_label)}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
                     <p className="mt-2 text-sm text-text">
-                      A ouvrir maintenant : <span className="font-medium">{item.action}</span>
+                      À faire : <span className="font-medium">{item.action}</span>
                     </p>
+                    {opportunityModificationHint(item)}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {opportunityActions(item).map((action) => (
                         <Button key={`${item.site_id}-${item.slug}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
@@ -630,15 +603,15 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
 
           <Card id="pages-refresh" className="scroll-mt-24">
             <CardHeader>
-              <CardTitle>Pages à refresh</CardTitle>
+              <CardTitle>Pages à renforcer</CardTitle>
               <CardDescription>
-                Les pages qui approchent d’un gain réel si on les rafraîchit ou les renforce maintenant.
+                Les pages qui peuvent gagner des visiteurs rapidement si on complète ce qui manque aujourd’hui.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {pagesToRefresh.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune page à refresh en ce moment. Le cockpit remontera les prochaines baisses ou zones proches du top 10.
+                  Aucune page à renforcer en ce moment. PraeviSEO remontera les prochaines baisses ou pages proches d’un gain rapide.
                 </div>
               ) : (
                 pagesToRefresh.map((item) => (
@@ -649,13 +622,14 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                         <p className="text-xs text-text-subtle">{opportunityMetricLine(item.metrics)}</p>
                       </div>
                       <Badge variant={item.type === "sustained_drop" ? "danger" : "secondary"}>
-                        {opportunityTypeLabel(item.type)}
+                        {getClientOpportunityTypeLabel(item.type)}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">{item.action}</p>
-                    <p className="mt-2 text-xs text-text-subtle">
-                      Pourquoi maintenant : {item.type === "sustained_drop" ? "la page a deja perdu un signal durable" : "la page est proche d’un gain visible sans changement lourd"}.
+                    <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
+                    <p className="mt-2 text-sm text-text">
+                      À faire : <span className="font-medium">{item.action}</span>
                     </p>
+                    {opportunityModificationHint(item)}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {opportunityActions(item).map((action) => (
                         <Button key={`${item.site_id}-${item.slug}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
@@ -691,7 +665,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                         <p className="text-sm font-semibold text-text">{item.query}</p>
                         <p className="text-xs text-text-subtle">{item.site_name}</p>
                       </div>
-                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{opportunityPriorityLabel(item.priority_label)}</Badge>
+                      <Badge variant={item.priority_level === "high" ? "warning" : "success"}>{getClientOpportunityPriorityLabel(item.priority_label)}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-text-muted">{item.reason}</p>
                     <p className="mt-2 text-sm text-text">
@@ -774,10 +748,10 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={item.priority <= 30 ? "warning" : "secondary"}>
-                        Priorité {item.priority}
+                        {getClientRecommendationBadge(item.priority)}
                       </Badge>
-                      <Badge variant="secondary">{impactLabel(item.estimated_impact)}</Badge>
-                      <Badge variant="secondary">{difficultyLabel(item.difficulty)}</Badge>
+                      <Badge variant="secondary">{getClientImpactLabel(item.estimated_impact)}</Badge>
+                      <Badge variant="secondary">{getClientDifficultyLabel(item.difficulty)}</Badge>
                     </div>
                   </div>
                   <p className="text-sm text-text-muted">{item.reasoning}</p>
@@ -797,13 +771,13 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
           <CardHeader>
             <CardTitle>Opportunités détectées dans Google</CardTitle>
             <CardDescription>
-              Ce sont les pages où PraeviSEO voit un gain réaliste à court terme à partir des signaux GSC.
+              Ce sont les pages où PraeviSEO voit un gain réaliste à court terme à partir de Google Search Console.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {opportunities.length === 0 ? (
               <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                Aucune opportunité GSC forte pour le moment. PraeviSEO continue de surveiller les performances et
+                Aucun levier Google fort pour le moment. PraeviSEO continue de surveiller les performances et
                 rouvrira des actions dès qu’un signal utile remonte.
               </div>
             ) : (
@@ -818,17 +792,18 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={item.priority_level === "high" ? "warning" : item.priority_level === "medium" ? "brand-subtle" : "secondary"}>
-                        {opportunityPriorityLabel(item.priority_label)}
+                        {getClientOpportunityPriorityLabel(item.priority_label)}
                       </Badge>
                       <Badge variant={item.action_state === "ready" ? "success" : item.action_state === "pending" ? "warning" : "secondary"}>
-                        {opportunityStateLabel(item.action_state_label)}
+                        {getClientOpportunityStateLabel(item.action_state_label)}
                       </Badge>
                       {item.pending_suggestion ? <Badge variant="secondary">Déjà prévue</Badge> : null}
-                      <Badge variant="secondary">{opportunityTypeLabel(item.type)}</Badge>
+                      <Badge variant="secondary">{getClientOpportunityTypeLabel(item.type)}</Badge>
                     </div>
                   </div>
 
                   <p className="text-sm text-text-muted">{item.reason}</p>
+                  {opportunityModificationHint(item)}
 
                   {item.query ? (
                     <div className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-text-subtle">

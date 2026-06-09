@@ -16,6 +16,7 @@ final class BusinessCopilotModificationPlanner
     public function __construct(
         private readonly ObservedRewriteBridgeService $observedRewrite,
         private readonly ObservedPageHealthService $pageHealth,
+        private readonly PageModificationEvidenceService $pageEvidence,
     ) {}
 
     /**
@@ -44,10 +45,11 @@ final class BusinessCopilotModificationPlanner
             ? $this->observedRewrite->contextForPage($page)
             : $this->observedContextForSlug($siteId, $slug);
         $suggestion = $this->resolveSuggestion($page, $pendingSuggestionId);
+        $evidence = $this->pageEvidence->gather($siteId, $page?->id, $slug, $query, $subject);
 
-        $sections = $this->sectionsFromSources($observed, $suggestion, $type, $subject, $query);
-        $topics = $this->topicsFromSources($siteId, $type, $subject, $query, $observed);
-        $faq = $this->faqFromSources($observed, $suggestion, $type, $subject, $query);
+        $sections = $this->sectionsFromSources($observed, $suggestion, $type, $subject, $query, $evidence);
+        $topics = $this->topicsFromSources($siteId, $type, $subject, $query, $observed, $evidence);
+        $faq = $this->faqFromSources($observed, $suggestion, $type, $subject, $query, $evidence);
         $titleChange = $this->titleChangeFromSources($type, $suggestion, $observed, $subject);
 
         $actionLabel = $this->actionLabel($type, $sections, $topics, $faq, $titleChange);
@@ -85,22 +87,24 @@ final class BusinessCopilotModificationPlanner
         array $meta,
         ?int $pageId,
     ): array {
-        $page = $this->resolveSeoPage($siteId, $pageId, (string) data_get($meta, 'path', ''));
+        $path = (string) data_get($meta, 'path', '');
+        $page = $this->resolveSeoPage($siteId, $pageId, $path);
         $observed = $page ? $this->observedRewrite->contextForPage($page) : ['sections' => [], 'faq' => [], 'flags' => []];
         $suggestion = $this->resolveSuggestion($page, null);
+        $evidence = $this->pageEvidence->gather($siteId, $page?->id, $path, null, $subject);
 
-        $sections = $this->sectionsFromSources($observed, $suggestion, $type, $subject, null);
+        $sections = $this->sectionsFromSources($observed, $suggestion, $type, $subject, null, $evidence);
         if ($sections === [] && $suggestedAction !== null && trim($suggestedAction) !== '') {
             $sections[] = $this->translateEngineLine($suggestedAction);
         }
 
-        $topics = [$subject];
+        $topics = $this->topicsFromSources($siteId, $type, $subject, null, $observed, $evidence);
         $cluster = trim((string) ($meta['cluster'] ?? ''));
         if ($cluster !== '' && ! in_array($cluster, $topics, true)) {
             $topics[] = $cluster;
         }
 
-        $faq = $this->faqFromSources($observed, $suggestion, $type, $subject, null);
+        $faq = $this->faqFromSources($observed, $suggestion, $type, $subject, null, $evidence);
         $titleChange = $type === 'refresh_page' ? null : null;
 
         return [
@@ -249,17 +253,60 @@ final class BusinessCopilotModificationPlanner
      * @param  array<string,mixed>  $observed
      * @return array<int,string>
      */
+    /**
+     * @param  array<string,mixed>  $evidence
+     */
     private function sectionsFromSources(
         array $observed,
         ?SeoSuggestion $suggestion,
         string $type,
         string $subject,
         ?string $query,
+        array $evidence = [],
     ): array {
-        $sections = collect($observed['sections'] ?? [])
-            ->map(fn (mixed $line): string => $this->translateEngineLine((string) $line))
-            ->filter(fn (string $line): bool => $line !== '')
-            ->values();
+        $sections = collect();
+
+        foreach ((array) ($evidence['section_gaps'] ?? []) as $line) {
+            $sections->push((string) $line);
+        }
+
+        if ($type === 'near_top_10' && $query !== null && $query !== '') {
+            $sections->push(sprintf(
+                'Répondre explicitement à « %s » avec procédure, délais et responsabilités terrain.',
+                $query,
+            ));
+        } elseif ($type === 'near_top_10') {
+            $topQuery = (string) data_get($evidence, 'gsc_queries.0.query', '');
+            if ($topQuery !== '') {
+                $sections->push(sprintf(
+                    'Renforcer la page sur la recherche « %s » (%d affichages/mois).',
+                    $topQuery,
+                    (int) data_get($evidence, 'gsc_queries.0.impressions', 0),
+                ));
+            }
+        }
+
+        if ($type === 'low_ctr') {
+            $pageTitle = trim((string) ($evidence['page_title'] ?? $subject));
+            $sections->push(sprintf(
+                'Accroche plus claire en tête de page : bénéfice client et promesse concrète pour « %s ».',
+                $pageTitle !== '' ? $pageTitle : $subject,
+            ));
+        }
+
+        if ($type === 'emerging_query' && $query !== null) {
+            $sections->prepend(sprintf('Introduction qui répond directement à « %s ».', $query));
+            foreach (array_slice((array) ($evidence['missing_topics'] ?? []), 0, 2) as $topic) {
+                $sections->push('Section manquante : '.(string) $topic);
+            }
+        }
+
+        if (($evidence['word_count'] ?? null) !== null && (int) $evidence['word_count'] < 450) {
+            $sections->push(sprintf(
+                'Approfondir le contenu actuel (%d mots observés) avec des éléments métier plus concrets.',
+                (int) $evidence['word_count'],
+            ));
+        }
 
         $payload = is_array($suggestion?->suggestions_json) ? $suggestion->suggestions_json : [];
         foreach (array_slice((array) ($payload['sections'] ?? []), 0, 4) as $line) {
@@ -273,22 +320,11 @@ final class BusinessCopilotModificationPlanner
             $sections->push($line);
         }
 
-        if ($type === 'near_top_10' && $query !== null && $query !== '') {
-            $sections->push(sprintf('Section dédiée à « %s » avec exemples concrets et réponses opérationnelles.', $query));
-        } elseif ($type === 'near_top_10') {
-            $sections->push(sprintf('Bloc de preuves et cas pratiques pour renforcer « %s ».', $subject));
-        }
-
-        if ($type === 'low_ctr') {
-            $sections->push(sprintf('Accroche d’ouverture plus claire sur le bénéfice client pour « %s ».', $subject));
-        }
-
-        if ($type === 'emerging_query' && $query !== null) {
-            $sections = collect([
-                sprintf('Introduction qui répond directement à « %s ».', $query),
-                'Plan en 4–6 sections avec preuves métier et appels à l’action.',
-                'FAQ finale avec les objections les plus fréquentes.',
-            ]);
+        foreach ($observed['sections'] ?? [] as $line) {
+            $translated = $this->translateEngineLine((string) $line);
+            if ($translated !== '') {
+                $sections->push($translated);
+            }
         }
 
         return $sections->unique()->values()->take(4)->all();
@@ -298,17 +334,31 @@ final class BusinessCopilotModificationPlanner
      * @param  array<string,mixed>  $observed
      * @return array<int,string>
      */
+    /**
+     * @param  array<string,mixed>  $evidence
+     */
     private function topicsFromSources(
         string $siteId,
         string $type,
         string $subject,
         ?string $query,
         array $observed,
+        array $evidence = [],
     ): array {
         $topics = collect([$subject]);
 
         if ($query !== null && $query !== '') {
             $topics->prepend($query);
+        }
+
+        foreach ((array) ($evidence['gsc_queries'] ?? []) as $row) {
+            if (is_array($row) && filled($row['query'] ?? null)) {
+                $topics->push((string) $row['query']);
+            }
+        }
+
+        foreach (array_slice((array) ($evidence['missing_topics'] ?? []), 0, 2) as $topic) {
+            $topics->push((string) $topic);
         }
 
         $cluster = trim((string) ($observed['cluster_label'] ?? ''));
@@ -333,17 +383,22 @@ final class BusinessCopilotModificationPlanner
      * @param  array<string,mixed>  $observed
      * @return array<int,string>
      */
+    /**
+     * @param  array<string,mixed>  $evidence
+     */
     private function faqFromSources(
         array $observed,
         ?SeoSuggestion $suggestion,
         string $type,
         string $subject,
         ?string $query,
+        array $evidence = [],
     ): array {
-        $faq = collect($observed['faq'] ?? [])
-            ->map(fn (mixed $item): ?string => is_array($item) ? trim((string) ($item['question'] ?? '')) : null)
-            ->filter(fn (?string $question): bool => is_string($question) && $question !== '')
-            ->map(fn (string $question): string => $this->translateEngineLine($question));
+        $faq = collect();
+
+        foreach ((array) ($evidence['faq_candidates'] ?? []) as $question) {
+            $faq->push((string) $question);
+        }
 
         $payload = is_array($suggestion?->suggestions_json) ? $suggestion->suggestions_json : [];
         foreach (array_slice((array) ($payload['faq'] ?? []), 0, 3) as $item) {
@@ -352,17 +407,40 @@ final class BusinessCopilotModificationPlanner
             }
         }
 
+        foreach ($observed['faq'] ?? [] as $item) {
+            $question = is_array($item) ? trim((string) ($item['question'] ?? '')) : '';
+            if ($question !== '') {
+                $faq->push($this->translateEngineLine($question));
+            }
+        }
+
         foreach ($this->faqFromFlags((array) ($observed['flags'] ?? []), $subject) as $question) {
             $faq->push($question);
         }
 
-        if ($faq->isEmpty()) {
-            $seed = $query !== null && $query !== '' ? $query : $subject;
-            $faq->push(sprintf('Combien de temps pour traiter « %s » ?', $seed));
-            $faq->push(sprintf('Qui doit intervenir pour « %s » ?', $seed));
-        }
+        return $faq
+            ->map(fn (string $question): string => trim($question))
+            ->reject(fn (string $question): bool => $this->isGenericFaqFallback($question))
+            ->unique()
+            ->values()
+            ->take(3)
+            ->all();
+    }
 
-        return $faq->unique()->values()->take(3)->all();
+    private function isGenericFaqFallback(string $question): bool
+    {
+        $normalized = mb_strtolower($question);
+
+        return str_contains($normalized, 'combien de temps pour traiter')
+            || str_contains($normalized, 'qui doit intervenir pour');
+    }
+
+    private function isSecondaryTechnicalSection(string $line): bool
+    {
+        $normalized = mb_strtolower($line);
+
+        return str_contains($normalized, 'liens internes depuis vos pages')
+            || str_contains($normalized, 'bloc de preuves et cas pratiques');
     }
 
     /**
@@ -401,7 +479,11 @@ final class BusinessCopilotModificationPlanner
         }
 
         if ($sections !== []) {
-            return 'Ajouter : '.($sections[0] ?? 'contenu ciblé');
+            $primary = collect($sections)->first(
+                fn (string $line): bool => ! $this->isSecondaryTechnicalSection($line),
+            ) ?? $sections[0];
+
+            return 'Ajouter : '.$primary;
         }
 
         return match ($type) {

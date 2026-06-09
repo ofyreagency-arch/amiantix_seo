@@ -261,10 +261,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       ? `Requêtes Google : ${linkedQueryWatchlist.length} recherche(s) déjà reliée(s) à une page observée.`
       : null,
     actionPlan.length > 0
-      ? `Actions moteur : ${actionPlan.length} recommandation(s) ouverte(s) à traiter en priorité.`
+      ? `Actions recommandées : ${actionPlan.length} levier(s) à traiter en priorité.`
       : null,
     contentRefreshFeed.length > 0
-      ? `Contenus suivis : ${contentRefreshFeed.length} page(s) avec un refresh éditorial recommandé.`
+      ? `Contenus suivis : ${contentRefreshFeed.length} page(s) à renforcer selon PraeviSEO.`
       : null,
     progressingHealthSites.length > 0
       ? `Lecture du site : ${progressingHealthSites.length} site(s) gagnent en solidité interne depuis la dernière observation.`
@@ -304,8 +304,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     ...contentRefreshFeed.slice(0, 2).map((item) => ({
       id: `content-refresh-${item.id}`,
       title: item.title,
-      detail: item.latest_suggestion?.summary ?? "Un refresh éditorial est recommandé.",
-      badge: "Refresh",
+      detail: item.latest_suggestion?.summary ?? "Un renfort éditorial est recommandé.",
+      badge: "À renforcer",
       badgeVariant: "warning" as const,
       meta: `${item.site_id} · contenu`,
     })),
@@ -316,7 +316,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         site.summary.observed_crawl_issues > 0
           ? `${site.summary.observed_crawl_issues} point(s) technique(s) repéré(s), ${site.summary.observed_weak_pages} page(s) encore fragile(s), ${site.summary.observed_orphan_pages} page(s) trop isolée(s).`
           : `${site.summary.observed_weak_pages} page(s) encore fragile(s) et ${site.summary.observed_orphan_pages} page(s) trop isolée(s) déjà repérées.`,
-      badge: "Santé SEO",
+      badge: "Lecture du site",
       badgeVariant: "secondary" as const,
       meta: site.summary.observed_snapshot_date ? `snapshot du ${formatDate(site.summary.observed_snapshot_date)}` : "observation récente",
     })),
@@ -343,7 +343,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       id: `timeline-optimization-${item.id}`,
       title: item.page.title,
       detail: item.summary,
-      badge: item.status === "pending" ? "Reco ouverte" : "Reco suivie",
+      badge: item.status === "pending" ? "Action en cours" : "Déjà traitée",
       badgeVariant: item.status === "pending" ? "warning" : "secondary",
       meta: item.created_at ? formatDate(item.created_at) : "Récemment",
       timestamp: item.created_at ? new Date(item.created_at).getTime() : 0,
@@ -384,7 +384,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     .slice(0, 6);
   const insightSignals = [
     optimizations.gsc_opportunities.summary.near_top_10 > 0
-      ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) approchent du top 10`
+      ? `${optimizations.gsc_opportunities.summary.near_top_10} page(s) peuvent gagner des visiteurs avec un renfort ciblé`
       : null,
     optimizations.gsc_opportunities.summary.low_ctr > 0
       ? `${optimizations.gsc_opportunities.summary.low_ctr} page(s) attirent encore trop peu de clics`
@@ -440,7 +440,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       tone: activeAlerts + slippingSitesCount > 0 ? "warning" : "secondary",
     },
     {
-      label: "Santé SEO moyenne",
+      label: "Solidité moyenne du site",
       value: averageObservedHealth,
       detail: healthTrackedSites.length > 0 ? "lecture globale de la santé des sites relus" : "aucune lecture santé encore disponible",
       tone: averageObservedHealth >= 70 ? "success" : averageObservedHealth > 0 ? "secondary" : "secondary",
@@ -523,13 +523,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const overviewProductLoops = [
     {
       key: "near-top-10",
-      title: "Pages proches du top 10",
+      title: "Pages proches d’un gain rapide",
       value: nearTop10Count,
       problem:
         nearTop10Count > 0
-          ? `${nearTop10Count} page(s) reçoivent déjà des impressions Google sans atteindre le top 10.`
-          : "Aucune page proche du top 10 n'est encore repérée sur vos sites connectés.",
-      gain: "Un refresh ciblé du title, du H1 ou du contenu peut faire basculer ces pages dans les premiers résultats.",
+          ? `${nearTop10Count} page(s) reçoivent déjà des impressions Google sans convertir assez ce potentiel.`
+          : "Aucune page proche d’un gain rapide n'est encore repérée sur vos sites connectés.",
+      gain: "Un renfort ciblé du titre, de l’accroche ou du contenu peut faire gagner des visiteurs rapidement.",
       actionHref: "/optimizations",
       actionLabel: "Voir les opportunités",
       result: latestSuccessResult,
@@ -776,7 +776,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
               label: "Opportunités actives",
               value: recommendationOpportunityCount,
               icon: SearchCheck,
-              hint: "actions SEO retenues par le moteur après qualification et priorisation",
+              hint: "actions retenues par PraeviSEO après qualification et priorisation",
             },
             {
               label: "Pages suivies dans Google",
@@ -1307,7 +1307,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             <CardContent className="space-y-3">
               {actionPlan.length === 0 && topOpportunities.length === 0 ? (
                 <div className="rounded-xl border border-border bg-surface-2 px-4 py-4 text-sm text-text-muted">
-                  Aucune action prioritaire forte pour le moment. Les prochaines remontées GSC ou recommandations moteur viendront enrichir ce bloc.
+                  Aucune action prioritaire forte pour le moment. Les prochains signaux Google ou recommandations viendront enrichir ce bloc.
                 </div>
               ) : (
                 [
