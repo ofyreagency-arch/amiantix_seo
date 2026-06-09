@@ -490,9 +490,14 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     const liveUrl = observedPageLiveUrl(siteId, slug);
     const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary"; external?: boolean }> = [
       {
+        label: "Voir la prévisualisation",
+        href: `/preview?site=${encodeURIComponent(siteId)}&slug=${encodeURIComponent(slug)}`,
+        variant: "primary",
+      },
+      {
         label: "Voir les actions recommandées",
         href: `/optimizations?site=${encodeURIComponent(siteId)}&slug=${encodeURIComponent(slug)}`,
-        variant: "primary",
+        variant: "secondary",
       },
     ];
 

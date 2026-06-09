@@ -256,10 +256,10 @@ final class ActionApplyContextService
         }
 
         if ($pageKind === 'observed') {
-            return 'Voir le plan pour cette page';
+            return 'Voir la prévisualisation';
         }
 
-        return 'Ouvrir dans le studio';
+        return 'Voir la prévisualisation';
     }
 
     private function buttonExplanation(
@@ -281,13 +281,17 @@ final class ActionApplyContextService
 
         if ($pageKind === 'observed') {
             return sprintf(
-                'Ouvre la fiche de « %s »%s avec le plan recommandé. PraeviSEO ne modifie pas encore automatiquement cette page sur votre site.',
+                'Affiche ce que PraeviSEO voit aujourd’hui sur « %s »%s et ce qu’il propose d’ajouter. Aucune modification n’est envoyée sur votre site tant que vous ne confirmez pas.',
                 $targetLabel,
                 $pathSuffix,
             );
         }
 
-        return sprintf('Ouvre la vue de travail pour « %s »%s afin de vérifier le plan avant action.', $targetLabel, $pathSuffix);
+        return sprintf(
+            'Compare l’état actuel et la version proposée pour « %s »%s avant toute application.',
+            $targetLabel,
+            $pathSuffix,
+        );
     }
 
     private function resolveStudioPage(string $siteId, string $slug, mixed $pageId): ?SeoPage

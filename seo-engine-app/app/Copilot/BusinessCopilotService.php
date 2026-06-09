@@ -567,11 +567,10 @@ final class BusinessCopilotService
                         'site' => $siteId,
                         'slug' => $slug,
                     ])
-                    : '/pages?'.http_build_query([
-                        'focus' => 'content',
+                    : '/preview?'.http_build_query(array_filter([
                         'site' => $siteId,
-                        'target' => $slug,
-                    ]))
+                        'slug' => $slug,
+                    ])))
                 : ($pageId
                     ? '/sites/'.$siteId.'/automation?'.http_build_query(['site' => $siteId])
                     : '/pages?'.http_build_query(['focus' => 'content', 'site' => $siteId])),

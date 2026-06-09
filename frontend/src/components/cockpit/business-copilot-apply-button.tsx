@@ -41,8 +41,9 @@ export function BusinessCopilotApplyButton({
   returnTo: string;
 }) {
   if (!action.apply_ready) {
-    const manualLabel = action.apply_context?.button_label
-      ?? (action.apply_href.includes("/pages") ? "Voir le plan pour cette page" : "Ouvrir dans le studio");
+    const manualLabel =
+      action.apply_context?.button_label
+      ?? (action.apply_href.includes("/preview") ? "Voir la prévisualisation" : "Voir la prévisualisation");
 
     return (
       <div className="flex shrink-0 flex-col items-end gap-2">

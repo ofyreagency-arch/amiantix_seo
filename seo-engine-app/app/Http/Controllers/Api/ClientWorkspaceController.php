@@ -13,6 +13,7 @@ use App\Models\SeoSite;
 use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSuggestion;
 use App\Copilot\ActionApplyContextService;
+use App\Copilot\ActionPreviewService;
 use App\Copilot\BusinessCopilotModificationPlanner;
 use App\Copilot\BusinessCopilotService;
 use App\Runtime\GscOpportunityService;
@@ -191,6 +192,39 @@ class ClientWorkspaceController extends Controller
                 ];
             })->values(),
         ]);
+    }
+
+    public function actionPreview(Request $request, ActionPreviewService $preview): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $siteId = trim((string) $request->query('site', ''));
+        $slug = ltrim(trim((string) $request->query('slug', '')), '/');
+        $query = trim((string) $request->query('query', ''));
+
+        if ($siteId === '' || $slug === '') {
+            return response()->json([
+                'message' => 'PraeviSEO a besoin du site et du slug pour préparer la prévisualisation.',
+            ], 422);
+        }
+
+        $allowed = $user->seoSites()->where('site_id', $siteId)->exists();
+
+        if (! $allowed) {
+            return response()->json([
+                'message' => 'Ce site n’est pas accessible depuis votre compte.',
+            ], 403);
+        }
+
+        $payload = $preview->build($siteId, $slug, $query !== '' ? $query : null);
+
+        if (! $payload) {
+            return response()->json([
+                'message' => 'PraeviSEO n’a pas encore assez de données pour prévisualiser cette page.',
+            ], 404);
+        }
+
+        return response()->json($payload);
     }
 
     public function publications(Request $request): JsonResponse

@@ -60,7 +60,7 @@ class ActionApplyContextServiceTest extends TestCase
         $this->assertSame('https://amiantix.com/faq', $context['target_url']);
         $this->assertFalse($context['will_modify_live_site']);
         $this->assertSame('advisory_only', $context['live_site_impact']);
-        $this->assertStringContainsString('Voir le plan pour cette page', (string) $context['button_label']);
-        $this->assertStringContainsString('ne modifie pas encore automatiquement', (string) $context['button_explanation']);
+        $this->assertStringContainsString('Voir la prévisualisation', (string) $context['button_label']);
+        $this->assertStringContainsString('Aucune modification n’est envoyée sur votre site', (string) $context['button_explanation']);
     }
 }

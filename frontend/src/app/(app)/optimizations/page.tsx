@@ -218,17 +218,17 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       });
     } else if (item.type === "near_top_10" || item.type === "sustained_drop") {
       actions.push({
-        label: item.slug ? "Voir la page concernée" : "Voir les pages",
+        label: item.slug ? "Voir la prévisualisation" : "Voir les pages",
         href: item.slug
-          ? `/publications?focus=content&site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
+          ? `/preview?site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
           : `/pages?focus=refresh&site=${encodeURIComponent(item.site_id)}&target=${encodeURIComponent(item.label)}`,
         variant: "primary",
       });
     } else if (item.type === "low_ctr") {
       actions.push({
-        label: item.slug ? "Voir la page concernée" : "Voir la visibilité Google",
+        label: item.slug ? "Voir la prévisualisation" : "Voir la visibilité Google",
         href: item.slug
-          ? `/publications?focus=content&site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
+          ? `/preview?site=${encodeURIComponent(item.site_id)}&slug=${encodeURIComponent(item.slug)}`
           : `/sites/${item.site_id}/search-console`,
         variant: "primary",
       });
@@ -327,7 +327,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
             title: `Action ouverte pour « ${focusSlug} »`,
             detail:
               "Consultez d’abord la page concernée, le plan recommandé et l’impact sur votre site live avant toute modification.",
-            href: `/pages?focus=content&site=${encodeURIComponent(focusSite)}&target=${encodeURIComponent(focusSlug)}`,
+            href: `/preview?site=${encodeURIComponent(focusSite)}&slug=${encodeURIComponent(focusSlug)}`,
           }
         : null;
   const focusedOpportunity =

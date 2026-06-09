@@ -467,6 +467,52 @@ export type PraeviseoActionApplyContext = {
   button_explanation: string;
 };
 
+export type PraeviseoActionPreviewState = {
+  source: string;
+  title: string;
+  meta_description: string;
+  h2_headings: string[];
+  word_count: number;
+  content_excerpt: string;
+  observed_at: string | null;
+  live_url: string;
+};
+
+export type PraeviseoActionPreviewProposed = {
+  title: string;
+  meta_description: string | null;
+  h2_headings: string[];
+  sections_to_add: string[];
+  topics_to_cover: string[];
+  faq_to_add: string[];
+  content_summary: string;
+  title_change: string | null;
+};
+
+export type PraeviseoActionPreviewDiff = {
+  sections_added_count: number;
+  faq_added_count: number;
+  topics_added_count: number;
+  headings_added_count: number;
+  headings_added: string[];
+  title_will_change: boolean;
+};
+
+export type PraeviseoActionPreview = {
+  site_id: string;
+  site_name: string;
+  slug: string;
+  query: string | null;
+  apply_context: PraeviseoActionApplyContext;
+  modification_plan: PraeviseoBusinessCopilotModificationPlan;
+  apply_ready: boolean;
+  apply_workflow: "rewrite" | "generate" | "linking";
+  apply_href: string | null;
+  current: PraeviseoActionPreviewState;
+  proposed: PraeviseoActionPreviewProposed;
+  diff: PraeviseoActionPreviewDiff;
+};
+
 export const emptyActionApplyContext: PraeviseoActionApplyContext = {
   page_kind: "unknown",
   page_kind_label: "Page à clarifier",
@@ -2645,6 +2691,37 @@ export async function getDashboard(): Promise<PraeviseoDashboard> {
       indexedPagesSynced: totals.indexedPagesSynced,
     },
   };
+}
+
+export async function getActionPreview(
+  siteId: string,
+  slug: string,
+  query?: string
+): Promise<PraeviseoActionPreview | null> {
+  if (!backendConfigured()) {
+    return null;
+  }
+
+  try {
+    const token = await getSessionToken();
+
+    if (!token) {
+      return null;
+    }
+
+    const params = new URLSearchParams({
+      site: siteId,
+      slug,
+    });
+
+    if (query) {
+      params.set("query", query);
+    }
+
+    return await appFetch<PraeviseoActionPreview>(`/api/client/action-preview?${params.toString()}`, undefined, token);
+  } catch {
+    return null;
+  }
 }
 
 export async function getOptimizations(): Promise<PraeviseoOptimizations> {
