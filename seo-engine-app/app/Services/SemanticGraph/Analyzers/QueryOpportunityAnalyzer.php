@@ -32,7 +32,7 @@ class QueryOpportunityAnalyzer
         $this->pageEmbeddings->embedSite($siteId, force: $forceEmbeddings);
         $this->queryEmbeddings->embedSite($siteId, $window, $limit, $forceEmbeddings);
 
-        $pages = SeoSitePage::query()->where('site_id', $siteId)->get()->keyBy('normalized_url');
+        $pages = $this->support->businessPagesForSite($siteId)->keyBy('normalized_url');
         $pageVectors = collect($this->vectors->forEntityKeys('observed_page', $pages->keys()->all()))
             ->keyBy(fn (object $vector): string => (string) ($vector->entity_key ?? ''));
 

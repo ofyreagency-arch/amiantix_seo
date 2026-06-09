@@ -5,18 +5,21 @@ declare(strict_types=1);
 namespace App\Services\SemanticGraph\Analyzers;
 
 use App\Models\SeoSitePage;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 
 class ContentGapAnalyzer
 {
+    public function __construct(
+        private readonly BusinessPageRelevanceFilter $businessPages,
+    ) {}
+
     /**
      * @return array<int,array<string,mixed>>
      */
     public function analyze(string $siteId): array
     {
-        $clusters = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereNotNull('cluster_label')
-            ->get()
+        $clusters = $this->businessPages
+            ->loadObservedPages($siteId, fn ($query) => $query->whereNotNull('cluster_label'))
             ->groupBy('cluster_label');
 
         $gaps = [];

@@ -12,11 +12,12 @@ use App\SeoPresets\Amiantix\AmiantixContentProfile;
 use App\SeoPresets\Amiantix\AmiantixImagePromptProvider;
 use App\SeoPresets\Amiantix\AmiantixInternalLinkProvider;
 use App\SeoPresets\Amiantix\AmiantixPromptProfile;
-use App\SeoPresets\Generic\GenericBlueprintProvider;
-use App\SeoPresets\Generic\GenericContentProfile;
-use App\SeoPresets\Generic\GenericImagePromptProvider;
-use App\SeoPresets\Generic\GenericInternalLinkProvider;
-use App\SeoPresets\Generic\GenericPromptProfile;
+use App\SeoPresets\SiteAware\SiteAwareBlueprintProvider;
+use App\SeoPresets\SiteAware\SiteAwareContentProfile;
+use App\SeoPresets\SiteAware\SiteAwareContentSignalProvider;
+use App\SeoPresets\SiteAware\SiteAwareImagePromptProvider;
+use App\SeoPresets\SiteAware\SiteAwareInternalLinkProvider;
+use App\SeoPresets\SiteAware\SiteAwarePromptProfile;
 use InvalidArgumentException;
 use Ofyre\SeoEngine\Contracts\ContentSignalProvider;
 use Ofyre\SeoEngine\Contracts\ImagePromptProvider;
@@ -86,12 +87,12 @@ class PresetManager
                 'content_signals' => AmiantixContentSignalProvider::class,
             ],
             'generic' => [
-                'blueprint' => GenericBlueprintProvider::class,
-                'prompt' => GenericPromptProfile::class,
-                'content' => GenericContentProfile::class,
-                'internal_links' => GenericInternalLinkProvider::class,
-                'image_prompt' => GenericImagePromptProvider::class,
-                'content_signals' => GenericContentSignalProvider::class,
+                'blueprint' => SiteAwareBlueprintProvider::class,
+                'prompt' => SiteAwarePromptProfile::class,
+                'content' => SiteAwareContentProfile::class,
+                'internal_links' => SiteAwareInternalLinkProvider::class,
+                'image_prompt' => SiteAwareImagePromptProvider::class,
+                'content_signals' => SiteAwareContentSignalProvider::class,
             ],
             default => throw new InvalidArgumentException('Unknown SEO preset: '.$preset),
         };

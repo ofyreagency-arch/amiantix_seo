@@ -15,8 +15,9 @@ use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\SeoBridge\Repositories\DatabaseSeoCockpitRepository;
-use App\Runtime\RuntimeSeoMonitoringService;
 use App\Runtime\SeoEngineContext;
+use App\Runtime\RuntimeSeoMonitoringService;
+use App\Services\Publication\SeoLivePublicationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Ofyre\SeoEngine\Contracts\SemanticLinkRepository;
@@ -33,7 +34,10 @@ use Ofyre\SeoEngine\Services\SearchConsole\SearchConsoleService;
 
 class SeoRuntimeController extends Controller
 {
-    public function __construct(private readonly SeoPageObservedLinkService $observedLinks) {}
+    public function __construct(
+        private readonly SeoPageObservedLinkService $observedLinks,
+        private readonly SeoLivePublicationService $livePublication,
+    ) {}
 
     public function generate(Request $request, SeoGeneratePageRunner $runner): JsonResponse
     {
@@ -389,16 +393,20 @@ class SeoRuntimeController extends Controller
         ]);
     }
 
-    public function sitemap(SeoEngineContext $context, SeoPageRepository $pages): JsonResponse
+    public function sitemap(SeoEngineContext $context): JsonResponse
     {
-        $siteUrl = rtrim($context->url(), '/');
+        $site = SeoSite::query()
+            ->where('site_id', $context->siteId())
+            ->firstOrFail();
 
-        $entries = collect($pages->publishedPages())
-            ->map(fn (object $page): array => [
-                'loc'        => $siteUrl.$page->canonicalPath(),
-                'lastmod'    => $page->updated_at?->toDateString(),
+        $entries = $this->livePublication->livePagesQuery($site)
+            ->where('forced_noindex', false)
+            ->get()
+            ->map(fn (SeoPage $page): array => [
+                'loc' => $page->live_url ?: $this->livePublication->liveUrlFor($page, $site),
+                'lastmod' => ($page->published_live_at ?? $page->updated_at)?->toDateString(),
                 'changefreq' => 'weekly',
-                'priority'   => '0.8',
+                'priority' => '0.8',
             ])
             ->values();
 

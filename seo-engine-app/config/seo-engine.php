@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'require_site_profile' => env('SEO_REQUIRE_SITE_PROFILE', true),
     'site' => [
         'id'          => env('SEO_SITE_ID', 'default'),
         'name'        => env('SEO_SITE_NAME', 'My Site'),

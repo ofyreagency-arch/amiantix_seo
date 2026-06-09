@@ -22,7 +22,7 @@ class CannibalizationAnalyzer
      */
     public function analyze(string $siteId): array
     {
-        $pages = SeoSitePage::query()->where('site_id', $siteId)->get()->keyBy('normalized_url');
+        $pages = $this->support->businessPagesForSite($siteId)->keyBy('normalized_url');
 
         $neighbors = SeoSemanticLink::query()
             ->where('site_id', $siteId)

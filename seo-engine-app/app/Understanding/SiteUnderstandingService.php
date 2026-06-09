@@ -7,6 +7,7 @@ namespace App\Understanding;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use App\Services\SemanticGraph\SemanticGraphEngine;
 use App\Services\SemanticGraph\Analyzers\AuthorityAnalyzer;
 use App\Services\SemanticGraph\Analyzers\ClusterAnalyzer;
@@ -23,6 +24,7 @@ class SiteUnderstandingService
         private readonly AuthorityAnalyzer $authority,
         private readonly PillarAnalyzer $pillars,
         private readonly ContentGapAnalyzer $gaps,
+        private readonly BusinessPageRelevanceFilter $businessPages,
     ) {}
 
     /**
@@ -67,16 +69,16 @@ class SiteUnderstandingService
      */
     private function weakPages(string $siteId): array
     {
-        $pages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereNotNull('last_snapshot_id')
-            ->where(function ($query): void {
-                $query->where('latest_word_count', '<', 300)
-                    ->orWhere('authority_score', '<', 0.20)
-                    ->orWhere('indexability_state', '!=', 'indexable');
-            })
-            ->limit(20)
-            ->get();
+        $pages = $this->businessPages->loadObservedPages($siteId, function ($query): void {
+            $query
+                ->whereNotNull('last_snapshot_id')
+                ->where(function ($query): void {
+                    $query->where('latest_word_count', '<', 300)
+                        ->orWhere('authority_score', '<', 0.20)
+                        ->orWhere('indexability_state', '!=', 'indexable');
+                })
+                ->limit(20);
+        });
 
         $snapshots = SeoSitePageSnapshot::query()
             ->where('site_id', $siteId)

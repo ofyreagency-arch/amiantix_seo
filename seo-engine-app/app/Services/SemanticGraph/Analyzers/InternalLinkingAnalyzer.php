@@ -22,7 +22,7 @@ class InternalLinkingAnalyzer
      */
     public function analyze(string $siteId): array
     {
-        $pages = SeoSitePage::query()->where('site_id', $siteId)->get()->keyBy('id');
+        $pages = $this->support->businessPagesForSite($siteId)->keyBy('id');
         $existing = SeoSiteLink::query()
             ->where('site_id', $siteId)
             ->where('is_internal', true)

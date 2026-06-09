@@ -9,6 +9,10 @@ use App\Models\SeoSitePage;
 
 class SeoPageObservedLinkService
 {
+    public function __construct(
+        private readonly BusinessPageRelevanceFilter $businessPages,
+    ) {}
+
     public function observedForPage(SeoPage $page, bool $resolve = true): ?SeoSitePage
     {
         if ($page->relationLoaded('observedPage') && $page->observedPage) {
@@ -71,9 +75,10 @@ class SeoPageObservedLinkService
             $observed = SeoSitePage::query()
                 ->where('site_id', $page->site_id)
                 ->where('normalized_url', $canonicalUrl)
+                ->businessRelevant()
                 ->first();
 
-            if ($observed) {
+            if ($observed && $this->businessPages->isRelevantObservedPage($observed)) {
                 return ['page' => $observed, 'rule' => 'canonical_url_exact'];
             }
         }
@@ -82,10 +87,11 @@ class SeoPageObservedLinkService
         $observed = SeoSitePage::query()
             ->where('site_id', $page->site_id)
             ->where('path', $path)
+            ->businessRelevant()
             ->orderByDesc('last_seen_at')
             ->first();
 
-        if ($observed) {
+        if ($observed && $this->businessPages->isRelevantObservedPage($observed)) {
             return ['page' => $observed, 'rule' => 'path_exact'];
         }
 

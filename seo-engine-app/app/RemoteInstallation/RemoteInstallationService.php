@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\RemoteInstallation;
 
+use App\Jobs\RunSiteOnboardingJob;
 use App\Models\RemoteInstallation;
 use App\Models\SeoSite;
 use App\RemoteInstallation\Connectors\RemoteConnector;
@@ -65,6 +66,8 @@ class RemoteInstallationService
             }
 
             $installation->markProgress(RemoteInstallation::STATUS_COMPLETED, 'completed', 100, 'PraeviSEO est maintenant actif sur le site.');
+
+            RunSiteOnboardingJob::dispatch($site->site_id);
         } catch (RemoteInstallationException $exception) {
             $installation->markProgress(RemoteInstallation::STATUS_FAILED, 'failed', 100, $exception->getMessage());
             throw $exception;

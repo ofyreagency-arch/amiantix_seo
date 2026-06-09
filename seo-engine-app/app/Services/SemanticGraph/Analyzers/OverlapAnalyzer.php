@@ -6,6 +6,7 @@ namespace App\Services\SemanticGraph\Analyzers;
 
 use App\Models\SeoSemanticLink;
 use App\Models\SeoSitePage;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use App\ObservedSite\ObservedPageEmbeddingService;
 use Ofyre\SeoEngine\Contracts\VectorStore;
 use Ofyre\SeoEngine\Services\Embeddings\SemanticSimilarityService;
@@ -16,6 +17,7 @@ class OverlapAnalyzer
         private readonly ObservedPageEmbeddingService $embeddings,
         private readonly VectorStore $vectors,
         private readonly SemanticSimilarityService $similarity,
+        private readonly BusinessPageRelevanceFilter $businessPages,
     ) {}
 
     /**
@@ -25,10 +27,8 @@ class OverlapAnalyzer
     {
         $this->embeddings->embedSite($siteId, force: $forceEmbeddings);
 
-        $pages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereNotNull('cluster_label')
-            ->get()
+        $pages = $this->businessPages
+            ->loadObservedPages($siteId, fn ($query) => $query->whereNotNull('cluster_label'))
             ->keyBy('normalized_url');
 
         $vectors = collect($this->vectors->forEntityKeys('observed_page', $pages->keys()->all()))

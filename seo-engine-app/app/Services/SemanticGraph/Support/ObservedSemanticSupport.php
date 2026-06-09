@@ -6,11 +6,16 @@ namespace App\Services\SemanticGraph\Support;
 
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
+use App\ObservedSite\BusinessPageRelevanceFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class ObservedSemanticSupport
 {
+    public function __construct(
+        private readonly BusinessPageRelevanceFilter $businessPages,
+    ) {}
     public function normalizeUrl(?string $url): string
     {
         $url = trim((string) $url);
@@ -89,5 +94,14 @@ class ObservedSemanticSupport
     public function snapshotForPage(SeoSitePage $page, Collection $snapshots): ?SeoSitePageSnapshot
     {
         return $page->last_snapshot_id ? $snapshots->get($page->last_snapshot_id) : null;
+    }
+
+    /**
+     * @param  callable(Builder):void|null  $constraint
+     * @return Collection<int,SeoSitePage>
+     */
+    public function businessPagesForSite(string $siteId, ?callable $constraint = null): Collection
+    {
+        return $this->businessPages->loadObservedPages($siteId, $constraint);
     }
 }

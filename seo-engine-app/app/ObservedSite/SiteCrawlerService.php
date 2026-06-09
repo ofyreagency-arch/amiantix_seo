@@ -28,6 +28,10 @@ class SiteCrawlerService
     /** @var array<string,bool> */
     private array $knownSitemaps = [];
 
+    public function __construct(
+        private readonly BusinessPageRelevanceFilter $businessPages,
+    ) {}
+
     public function crawl(SeoSite $site, int $maxPages = 80): array
     {
         $crawl = SeoSiteCrawl::query()->create([
@@ -180,6 +184,7 @@ class SiteCrawlerService
         $queue = collect($discovery['page_urls'])
             ->prepend($baseUrl.'/')
             ->unique()
+            ->filter(fn (string $url): bool => $this->businessPages->isRelevantUrl($this->normalizeUrl($url)))
             ->values()
             ->map(fn (string $url): array => ['url' => $url, 'depth' => $this->depthFromUrl($url)])
             ->all();
@@ -192,6 +197,12 @@ class SiteCrawlerService
             $depth = (int) ($item['depth'] ?? 0);
 
             if ($url === '' || isset($this->visited[$url]) || $depth > 4) {
+                continue;
+            }
+
+            if (! $this->businessPages->isRelevantUrl($url)) {
+                $this->visited[$url] = true;
+
                 continue;
             }
 
@@ -281,6 +292,10 @@ class SiteCrawlerService
 
                     $targetUrl = $this->normalizeUrl((string) ($link['url'] ?? ''));
                     if ($targetUrl === '' || isset($this->visited[$targetUrl])) {
+                        continue;
+                    }
+
+                    if (! $this->businessPages->isRelevantUrl($targetUrl)) {
                         continue;
                     }
 

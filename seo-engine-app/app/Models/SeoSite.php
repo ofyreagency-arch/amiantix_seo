@@ -186,6 +186,36 @@ class SeoSite extends Model
         return trim((string) data_get($this->settings_json, 'publication.bridge_status', 'pending')) ?: 'pending';
     }
 
+    /**
+     * @return array<string,mixed>|null
+     */
+    public function siteProfile(): ?array
+    {
+        $profile = data_get($this->settings_json, 'site_profile');
+
+        return is_array($profile) ? $profile : null;
+    }
+
+    public function siteProfileStatus(): string
+    {
+        return trim((string) data_get($this->settings_json, 'site_profile.status', 'pending')) ?: 'pending';
+    }
+
+    public function isSiteProfileReady(): bool
+    {
+        return $this->siteProfileStatus() === 'ready';
+    }
+
+    /**
+     * @param  array<string,mixed>  $profile
+     */
+    public function saveSiteProfile(array $profile): void
+    {
+        $settings = $this->settings_json ?? [];
+        $settings['site_profile'] = $profile;
+        $this->forceFill(['settings_json' => $settings])->save();
+    }
+
     public static function resolveByToken(string $rawToken): ?self
     {
         return self::query()

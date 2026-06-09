@@ -9,141 +9,253 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css'])
     <style>
-        * { font-family: 'Inter', sans-serif; }
-        body { background: #060810; }
-
-        .login-orb-1 {
-            position:fixed;width:700px;height:700px;border-radius:50%;pointer-events:none;
-            background:radial-gradient(circle,rgba(99,102,241,0.14) 0%,transparent 70%);
-            top:-200px;left:-200px;
-            animation:orbFloat 10s ease-in-out infinite;
-        }
-        .login-orb-2 {
-            position:fixed;width:500px;height:500px;border-radius:50%;pointer-events:none;
-            background:radial-gradient(circle,rgba(139,92,246,0.1) 0%,transparent 70%);
-            bottom:-100px;right:-100px;
-            animation:orbFloat 13s ease-in-out infinite reverse;
-        }
-        @keyframes orbFloat {
-            0%,100%{transform:translate(0,0);}
-            50%{transform:translate(30px,-40px);}
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            background: #070711;
+            color: #f0f4ff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
         }
 
-        .grid-bg {
-            background-image:
-                linear-gradient(rgba(99,102,241,0.03) 1px,transparent 1px),
-                linear-gradient(90deg,rgba(99,102,241,0.03) 1px,transparent 1px);
-            background-size:50px 50px;
+        body::after {
+            content: '';
+            position: fixed;
+            top: -10rem; left: 50%;
+            transform: translateX(-50%);
+            width: 50rem; height: 25rem;
+            background: radial-gradient(ellipse at top, rgba(99,102,241,.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .login-wrap {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 22rem;
+        }
+
+        .login-brand {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-icon {
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: .875rem;
+            background: #6366f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+        }
+
+        .login-title {
+            font-size: 1.375rem;
+            font-weight: 800;
+            letter-spacing: -.03em;
+            color: #f0f4ff;
+            margin: 0;
+        }
+
+        .login-sub {
+            font-size: .8125rem;
+            color: rgba(176,192,220,.45);
+            margin-top: .25rem;
         }
 
         .login-card {
-            background: rgba(13,15,28,0.9);
-            border: 1px solid rgba(255,255,255,0.08);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            animation: cardIn 0.5s cubic-bezier(.23,1,.32,1) both;
-        }
-        @keyframes cardIn {
-            from{opacity:0;transform:translateY(24px) scale(0.97);}
-            to{opacity:1;transform:none;}
+            border-radius: 1rem;
+            border: 1px solid rgba(255,255,255,.08);
+            background: rgba(255,255,255,.04);
+            padding: 1.75rem;
         }
 
-        .btn-submit {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            box-shadow: 0 4px 20px rgba(99,102,241,0.4);
-            transition: all 0.2s ease;
+        .login-status {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .625rem .875rem;
+            border-radius: .625rem;
+            border: 1px solid rgba(16,185,129,.18);
+            background: rgba(16,185,129,.06);
+            margin-bottom: 1.5rem;
+            font-size: .8rem;
+            font-weight: 500;
+            color: rgba(110,231,183,.8);
         }
-        .btn-submit:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 28px rgba(99,102,241,0.5);
-        }
-        .btn-submit:active { transform: translateY(0); }
 
-        .pwd-input {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: white;
-            transition: all 0.2s ease;
+        .login-status-dot {
+            width: .4rem;
+            height: .4rem;
+            border-radius: 50%;
+            background: #10b981;
+            flex-shrink: 0;
         }
-        .pwd-input:focus {
+
+        .login-error {
+            display: flex;
+            align-items: flex-start;
+            gap: .625rem;
+            padding: .875rem 1rem;
+            border-radius: .75rem;
+            border: 1px solid rgba(244,63,94,.2);
+            background: rgba(244,63,94,.08);
+            color: rgba(252,165,165,.9);
+            font-size: .875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .login-label {
+            display: block;
+            font-size: .8125rem;
+            font-weight: 600;
+            color: rgba(176,192,220,.65);
+            margin-bottom: .5rem;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: .75rem 2.5rem .75rem 1rem;
+            border-radius: .625rem;
+            border: 1px solid rgba(255,255,255,.1);
+            background: rgba(255,255,255,.05);
+            color: #f0f4ff;
+            font-family: inherit;
+            font-size: .9rem;
             outline: none;
-            border-color: rgba(99,102,241,0.6);
-            background: rgba(99,102,241,0.06);
-            box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
-        }
-        .pwd-input::placeholder { color: rgba(255,255,255,0.2); }
-
-        .logo-icon {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            box-shadow: 0 8px 30px rgba(99,102,241,0.5);
+            transition: border-color .15s, box-shadow .15s, background .15s;
         }
 
-        .back-link { transition: all 0.2s ease; }
-        .back-link:hover { color: rgba(255,255,255,0.7); }
+        .login-input:focus {
+            border-color: rgba(99,102,241,.5);
+            background: rgba(99,102,241,.06);
+            box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+        }
+
+        .login-input::placeholder { color: rgba(176,192,220,.25); }
+
+        .login-eye {
+            position: absolute;
+            right: .875rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: rgba(176,192,220,.3);
+            padding: 0;
+            display: flex;
+            align-items: center;
+            transition: color .15s;
+        }
+
+        .login-eye:hover { color: rgba(176,192,220,.6); }
+
+        .login-btn {
+            width: 100%;
+            padding: .875rem 1rem;
+            border-radius: .625rem;
+            border: none;
+            background: #6366f1;
+            color: #fff;
+            font-family: inherit;
+            font-size: .9375rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            transition: background .15s, transform .15s, box-shadow .15s;
+            box-shadow: 0 0 0 1px rgba(99,102,241,.3), 0 8px 24px rgba(99,102,241,.2);
+            margin-top: 1.25rem;
+        }
+
+        .login-btn:hover {
+            background: #4f46e5;
+            transform: translateY(-1px);
+            box-shadow: 0 0 0 1px rgba(99,102,241,.4), 0 12px 30px rgba(99,102,241,.28);
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: .75rem;
+            color: rgba(176,192,220,.25);
+        }
+
+        .back-link {
+            position: fixed;
+            top: 1.25rem;
+            left: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            font-size: .8125rem;
+            font-weight: 500;
+            color: rgba(176,192,220,.35);
+            text-decoration: none;
+            transition: color .15s;
+        }
+
+        .back-link:hover { color: rgba(176,192,220,.7); }
     </style>
 </head>
-<body class="min-h-screen grid-bg flex flex-col items-center justify-center p-4 relative overflow-hidden">
+<body>
 
-    <div class="login-orb-1"></div>
-    <div class="login-orb-2"></div>
-
-    {{-- Back link --}}
-    <a href="/" class="back-link absolute top-6 left-6 flex items-center gap-2 text-sm text-white/30 z-10">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <a href="{{ route('home') }}" class="back-link">
+        <svg style="width:.875rem;height:.875rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>
         Retour au site
     </a>
 
-    <div class="relative z-10 w-full max-w-sm">
+    <div class="login-wrap">
 
-        {{-- Logo + Brand --}}
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl logo-icon mb-5">
-                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="login-brand">
+            <div class="login-icon">
+                <svg style="width:1.25rem;height:1.25rem;color:#fff;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
             </div>
-            <h1 class="text-2xl font-black text-white tracking-tight">SEO Engine</h1>
-            <p class="text-sm text-white/30 mt-1.5">Administration · Ofyre Agency</p>
+            <h1 class="login-title">SEO Engine</h1>
+            <p class="login-sub">Espace privé · accès opérateur</p>
         </div>
 
-        {{-- Card --}}
-        <div class="login-card rounded-3xl p-8">
+        <div class="login-card">
 
-            {{-- Status bar --}}
-            <div class="flex items-center gap-2 mb-7 px-3 py-2.5 rounded-xl"
-                 style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);">
-                <span class="w-2 h-2 rounded-full bg-emerald-400" style="animation:pulse 2s ease-in-out infinite;"></span>
-                <span class="text-xs text-emerald-300/80 font-medium">Runtime actif · Moteur en ligne</span>
+            <div class="login-status">
+                <span class="login-status-dot"></span>
+                Runtime actif · environnement sécurisé
             </div>
 
             @if($errors->any())
-            <div class="flex items-start gap-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-2xl px-4 py-3.5 mb-6 text-sm">
-                <svg class="w-4 h-4 mt-0.5 shrink-0 text-rose-400" fill="currentColor" viewBox="0 0 20 20">
+            <div class="login-error">
+                <svg style="width:.9rem;height:.9rem;flex-shrink:0;margin-top:.1rem;" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
                 </svg>
-                <span>{{ $errors->first() }}</span>
+                {{ $errors->first() }}
             </div>
             @endif
 
             <form method="POST" action="{{ route('admin.login.post') }}">
                 @csrf
-                <div class="mb-5">
-                    <label class="block text-sm font-semibold text-white/60 mb-2.5">
-                        Mot de passe administrateur
-                    </label>
-                    <div class="relative">
-                        <input type="password"
-                               name="password"
-                               id="password"
-                               autofocus
-                               class="pwd-input w-full rounded-xl px-4 py-3 text-sm pr-10"
+                <div>
+                    <label class="login-label">Mot de passe privé</label>
+                    <div style="position:relative;">
+                        <input type="password" name="password" id="password"
+                               autofocus class="login-input"
                                placeholder="••••••••••••">
-                        <button type="button"
-                                onclick="togglePwd()"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors">
-                            <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button type="button" class="login-eye" onclick="togglePwd()">
+                            <svg style="width:.9rem;height:.9rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                             </svg>
@@ -151,32 +263,16 @@
                     </div>
                 </div>
 
-                <button type="submit"
-                        class="btn-submit w-full text-white font-bold rounded-xl px-4 py-3.5 text-sm flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button type="submit" class="login-btn">
+                    <svg style="width:.9rem;height:.9rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                     </svg>
-                    Accéder au moteur
+                    Ouvrir l'espace privé
                 </button>
             </form>
-
-            <div class="mt-6 pt-5 border-t border-white/5">
-                <div class="grid grid-cols-3 gap-3 text-center">
-                    @foreach(['Crawl','Graph','IA'] as $feature)
-                    <div class="rounded-xl py-2 px-1" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
-                        <div class="text-xs font-semibold text-white/30">{{ $feature }}</div>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
         </div>
 
-        {{-- Footer --}}
-        <div class="text-center mt-6">
-            <p class="text-xs text-white/20">
-                SEO Engine · Ofyre Agency · {{ date('Y') }}
-            </p>
-        </div>
+        <div class="login-footer">SEO Engine · Ofyre · {{ date('Y') }}</div>
     </div>
 
     <script>

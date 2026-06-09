@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunSiteOnboardingJob;
 use App\Models\SeoSite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,8 @@ class SeoBridgeConnectController extends Controller
             'webhook_url' => $endpoint,
             'settings_json' => $settings,
         ])->save();
+
+        RunSiteOnboardingJob::dispatch($site->site_id);
 
         return response()->json([
             'status' => 'connected',

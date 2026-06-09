@@ -44,6 +44,10 @@ final class AmiantixPromptProfile implements PromptProfileProvider
             "- structurer avec des H2/H3 nombreux, des listes courtes, des checklists, des points de vigilance et des blocs visuellement respirables\n".
             "- couvrir aussi les contextes copropriete, ERP, site occupe, maintenance contrainte et changement d hypothese de travaux\n".
             "- inclure des cas pratiques, des erreurs frequentes et des points de vigilance pour le donneur d ordre\n".
+            "- integrer au moins 2 exemples chiffres credibles (surfaces, delais, effectifs, budgets indicatifs, frequences de controle)\n".
+            "- expliciter des arbitrages client: cout vs risque, urgence vs conformite, interne vs diagnostiqueur, phasage vs arret d activite\n".
+            "- decrire des consequences concretes d erreurs terrain (retard chantier, arret, surcout, non conformite, exposition)\n".
+            "- privilegier des scenarios narratifs plutot que des listes generiques sans situation\n".
             "- conclusion orientee action, verification et preparation documentaire, pas marketing\n".
             "- 1400 mots minimum\n".
             'Retourner uniquement un JSON avec: title, meta_description, h1, content.';

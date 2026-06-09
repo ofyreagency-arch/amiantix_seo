@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\ObservedSite\BusinessPageRelevanceFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -49,5 +51,10 @@ class SeoSitePage extends Model
     public function editorialPages(): HasMany
     {
         return $this->hasMany(SeoPage::class, 'observed_site_page_id');
+    }
+
+    public function scopeBusinessRelevant(Builder $query): Builder
+    {
+        return app(BusinessPageRelevanceFilter::class)->constrainObservedQuery($query);
     }
 }

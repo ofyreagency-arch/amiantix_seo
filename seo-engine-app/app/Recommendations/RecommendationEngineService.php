@@ -8,6 +8,7 @@ use App\Models\SeoRecommendation;
 use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 use App\Models\SeoStrategyItem;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use App\Understanding\SiteUnderstandingService;
 use Illuminate\Support\Collection;
 
@@ -20,6 +21,7 @@ class RecommendationEngineService
         private readonly RecommendationEligibilityService $eligibility,
         private readonly RecommendationScoringService $scoring,
         private readonly ImpactEstimatorService $impactEstimator,
+        private readonly BusinessPageRelevanceFilter $businessPages,
     ) {}
 
     /**
@@ -397,10 +399,13 @@ class RecommendationEngineService
      */
     private function sitePageContexts(string $siteId, array $pageIds): array
     {
-        return SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereIn('id', $pageIds)
-            ->get([
+        return $this->businessPages
+            ->filterObservedPages(
+                SeoSitePage::query()
+                    ->where('site_id', $siteId)
+                    ->whereIn('id', $pageIds)
+                    ->businessRelevant()
+                    ->get([
                 'id',
                 'title',
                 'normalized_url',
@@ -410,7 +415,9 @@ class RecommendationEngineService
                 'latest_word_count',
                 'authority_score',
                 'orphan_score',
-            ])
+                    ]),
+                $siteId,
+            )
             ->mapWithKeys(fn (SeoSitePage $page): array => [
                 $page->id => [
                     'label' => $this->pageLabel($page->title, $page->normalized_url),
@@ -435,6 +442,27 @@ class RecommendationEngineService
      */
     private function evaluateCandidate(array $item, ?array $pageContext = null, ?array $secondaryContext = null, bool $includeRejected = false): array
     {
+        $sitePageId = (int) ($item['site_page_id'] ?? 0);
+        if ($sitePageId > 0) {
+            $observedPage = SeoSitePage::query()->whereKey($sitePageId)->first();
+            if ($observedPage && ! $this->businessPages->isRelevantObservedPage($observedPage)) {
+                return [
+                    'accepted' => false,
+                    'recommendation' => null,
+                    'rejected' => $includeRejected
+                        ? [
+                            'url' => (string) ($observedPage->normalized_url ?? ''),
+                            'title' => (string) ($item['title'] ?? $observedPage->title ?? ''),
+                            'action' => (string) ($item['type'] ?? ''),
+                            'layer' => 'technical_exclusion',
+                            'rejected_by' => 'technical_exclusion',
+                            'reason' => 'Page technique ou de validation exclue du raisonnement métier.',
+                        ]
+                        : null,
+                ];
+            }
+        }
+
         $primaryContext = $this->hydrateContext(
             (string) ($item['site_id'] ?? ''),
             (int) ($item['site_page_id'] ?? 0),
@@ -663,20 +691,8 @@ class RecommendationEngineService
      */
     private function classificationStatsForSite(string $siteId): array
     {
-        return SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->get([
-                'normalized_url',
-                'path',
-                'title',
-                'meta_description',
-                'primary_h1',
-                'indexability_state',
-                'latest_word_count',
-                'authority_score',
-                'orphan_score',
-                'cluster_label',
-            ])
+        return $this->businessPages
+            ->loadObservedPages($siteId)
             ->map(function (SeoSitePage $page): string {
                 $classification = $this->classifier->classify([
                     'url' => $page->normalized_url,

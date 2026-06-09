@@ -31,14 +31,22 @@ class SeoGenerationService
      */
     public function generatePayload(string $keyword): array
     {
+        $this->assertSiteProfileReady();
+
         $cluster = $this->internalLinking->clusterForKeyword($keyword);
         $blueprint = $this->blueprints->resolve($keyword, $cluster);
-        $fallbackPayload = $this->fallbackPayload($keyword, $cluster, $blueprint);
+        $fallbackPayload = $this->requiresSiteProfile() ? [] : $this->fallbackPayload($keyword, $cluster, $blueprint);
         $coreResult = $this->generateCoreWithAi($keyword, $cluster, $blueprint);
         $steps = ['core' => $coreResult['trace']];
         $errors = [];
 
         if ($coreResult['payload'] === null) {
+            if ($this->requiresSiteProfile()) {
+                throw new \RuntimeException(
+                    'La génération IA a échoué. Aucun contenu générique ne sera produit tant que le profil métier est requis.'
+                );
+            }
+
             $source = 'fallback';
             $payload = $fallbackPayload;
             $errors[] = $coreResult['error'];
@@ -48,7 +56,9 @@ class SeoGenerationService
                 'reason' => 'core_failed',
             ];
         } else {
-            $payload = $this->mergePartialPayloadWithFallback($coreResult['payload'], $fallbackPayload);
+            $payload = $this->requiresSiteProfile()
+                ? $coreResult['payload']
+                : $this->mergePartialPayloadWithFallback($coreResult['payload'], $fallbackPayload);
             $source = (($coreResult['trace']['error_type'] ?? null) === 'partial_generation') ? 'hybrid' : 'ai';
 
             if ($coreResult['error']) {
@@ -69,17 +79,19 @@ class SeoGenerationService
 
             if ($faqResult['payload'] !== null && is_array($faqResult['payload']['faq'] ?? null) && count($faqResult['payload']['faq']) >= 5) {
                 $payload['faq'] = array_values($faqResult['payload']['faq']);
-            } else {
+            } elseif (! $this->requiresSiteProfile()) {
                 $source = 'hybrid';
                 if ($faqResult['error']) {
                     $errors[] = $faqResult['error'];
                 }
+            } elseif ($faqResult['error']) {
+                $errors[] = $faqResult['error'];
             }
         }
 
         [$payload, $enriched] = $this->ensurePremiumDepth($payload, $blueprint, $keyword, $cluster);
 
-        if ($source === 'ai' && $enriched) {
+        if ($source === 'ai' && $enriched && ! $this->requiresSiteProfile()) {
             $source = 'hybrid';
         }
 
@@ -99,11 +111,19 @@ class SeoGenerationService
      */
     public function improvePayload(object $page, array $audit = []): array
     {
+        $this->assertSiteProfileReady();
+
         $cluster = (string) ($page->cluster ?: $this->internalLinking->clusterForKeyword((string) $page->keyword));
         $blueprint = $this->blueprints->resolve((string) $page->keyword, $cluster);
         $payload = $this->improveWithAi($page, $audit);
 
         if (! $payload) {
+            if ($this->requiresSiteProfile()) {
+                throw new \RuntimeException(
+                    'L amélioration IA a échoué. Aucun contenu générique ne sera produit tant que le profil métier est requis.'
+                );
+            }
+
             $payload = $this->fallbackPayload((string) $page->keyword, $cluster, $blueprint);
             $payload['content'] = (string) $page->content."\n".$this->content->extraSection((string) $page->keyword, $blueprint, [
                 'cluster' => $cluster,
@@ -547,14 +567,16 @@ class SeoGenerationService
         ]);
 
         if (! isset($payload['faq']) || ! is_array($payload['faq']) || count($payload['faq']) < 5) {
-            $fallbackFaq = $this->content->fallbackPayload($keyword, $cluster, $blueprint, [
-                'internal_links' => $links,
-            ])['faq'];
+            if (! $this->requiresSiteProfile()) {
+                $fallbackFaq = $this->content->fallbackPayload($keyword, $cluster, $blueprint, [
+                    'internal_links' => $links,
+                ])['faq'];
 
-            $payload['faq'] = array_map(static fn (array $item): array => [
-                'question' => (string) $item['question'],
-                'answer' => (string) $item['answer'],
-            ], $fallbackFaq);
+                $payload['faq'] = array_map(static fn (array $item): array => [
+                    'question' => (string) $item['question'],
+                    'answer' => (string) $item['answer'],
+                ], $fallbackFaq);
+            }
         }
 
         if (! isset($payload['schema']) || ! is_array($payload['schema']) || count($payload['schema']) < 2) {
@@ -830,5 +852,26 @@ class SeoGenerationService
         $normalized = str_replace('_', '-', trim($configured));
 
         return $normalized !== '' ? $normalized : 'en';
+    }
+
+    protected function requiresSiteProfile(): bool
+    {
+        return (bool) config('seo-engine.require_site_profile', false);
+    }
+
+    protected function assertSiteProfileReady(): void
+    {
+        if (! $this->requiresSiteProfile()) {
+            return;
+        }
+
+        $status = trim((string) data_get(config('seo-engine.site.profile'), 'status', 'pending'));
+
+        if ($status !== 'ready') {
+            throw new \RuntimeException(sprintf(
+                'Le profil métier du site n est pas prêt (statut: %s). La génération est bloquée.',
+                $status !== '' ? $status : 'pending',
+            ));
+        }
     }
 }

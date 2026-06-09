@@ -7,6 +7,7 @@ namespace App\Runtime;
 use App\ActionLayer\SeoSuggestionWorkflowService;
 use App\Jobs\RunObservedSiteCrawlJob;
 use App\Models\SeoPage;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSuggestion;
@@ -29,6 +30,7 @@ class PremiumAutomationLoopService
         private readonly SeoSuggestionWorkflowService $workflow,
         private readonly SeoPageImageGenerator $images,
         private readonly SeoLivePublicationService $livePublication,
+        private readonly BusinessPageRelevanceFilter $businessPages,
     ) {}
 
     /**
@@ -413,16 +415,17 @@ class PremiumAutomationLoopService
 
     private function resolveRewriteCandidatePage(string $siteId): ?SeoPage
     {
-        return SeoPage::query()
-            ->where('site_id', $siteId)
-            ->withCount([
-                'suggestions as pending_suggestions_count' => fn ($query) => $query->where('status', 'pending'),
-            ])
-            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
-            ->orderByRaw('CASE WHEN observed_site_page_id IS NULL THEN 1 ELSE 0 END')
-            ->orderByDesc('seo_score')
-            ->orderByDesc('updated_at')
-            ->first();
+        return $this->businessPages->firstRelevantSeoPage(
+            SeoPage::query()
+                ->where('site_id', $siteId)
+                ->withCount([
+                    'suggestions as pending_suggestions_count' => fn ($query) => $query->where('status', 'pending'),
+                ])
+                ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+                ->orderByRaw('CASE WHEN observed_site_page_id IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('seo_score')
+                ->orderByDesc('updated_at')
+        );
     }
 
     private function resolvePublicationCandidatePage(string $siteId): ?SeoPage
@@ -443,28 +446,30 @@ class PremiumAutomationLoopService
             });
         }
 
-        return $query
-            ->orderByDesc('published_at')
-            ->orderByDesc('updated_at')
-            ->first();
+        return $this->businessPages->firstRelevantSeoPage(
+            $query
+                ->orderByDesc('published_at')
+                ->orderByDesc('updated_at')
+        );
     }
 
     private function resolveImageCandidatePage(string $siteId): ?SeoPage
     {
-        return SeoPage::query()
-            ->where('site_id', $siteId)
-            ->where(function (Builder $query): void {
-                $query
-                    ->whereNull('image_path')
-                    ->orWhere('image_path', '')
-                    ->orWhereNull('image_status')
-                    ->orWhere('image_status', '!=', 'approved');
-            })
-            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
-            ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
-            ->orderByDesc('seo_score')
-            ->orderByDesc('updated_at')
-            ->first();
+        return $this->businessPages->firstRelevantSeoPage(
+            SeoPage::query()
+                ->where('site_id', $siteId)
+                ->where(function (Builder $query): void {
+                    $query
+                        ->whereNull('image_path')
+                        ->orWhere('image_path', '')
+                        ->orWhereNull('image_status')
+                        ->orWhere('image_status', '!=', 'approved');
+                })
+                ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+                ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
+                ->orderByDesc('seo_score')
+                ->orderByDesc('updated_at')
+        );
     }
 
     /**
@@ -481,25 +486,31 @@ class PremiumAutomationLoopService
             ->get()
             ->first(fn (SeoSuggestion $suggestion): bool => $this->extractSuggestionInternalLinks($suggestion) !== []);
 
-        if ($pendingSuggestion && $pendingSuggestion->page) {
+        if ($pendingSuggestion && $pendingSuggestion->page && $this->businessPages->isRelevantSeoPage($pendingSuggestion->page)) {
             return [
                 'page' => $pendingSuggestion->page,
                 'suggestion' => $pendingSuggestion,
             ];
         }
 
-        $page = SeoPage::query()
-            ->select('seo_pages.*')
-            ->leftJoin('seo_site_pages', 'seo_site_pages.id', '=', 'seo_pages.observed_site_page_id')
-            ->where('seo_pages.site_id', $siteId)
-            ->whereNotNull('seo_pages.observed_site_page_id')
-            ->with('observedPage')
-            ->orderByRaw('CASE WHEN seo_pages.status = ? THEN 0 ELSE 1 END', ['published'])
-            ->orderByRaw('COALESCE(seo_site_pages.internal_inlinks, 9999) ASC')
-            ->orderByRaw('COALESCE(seo_site_pages.orphan_score, 0) DESC')
-            ->orderByDesc('seo_pages.seo_score')
-            ->orderByDesc('seo_pages.updated_at')
-            ->first();
+        $page = $this->businessPages->firstRelevantSeoPage(
+            SeoPage::query()
+                ->select('seo_pages.*')
+                ->leftJoin('seo_site_pages', 'seo_site_pages.id', '=', 'seo_pages.observed_site_page_id')
+                ->where('seo_pages.site_id', $siteId)
+                ->whereNotNull('seo_pages.observed_site_page_id')
+                ->where(function (Builder $query): void {
+                    $query
+                        ->whereNull('seo_site_pages.indexability_state')
+                        ->orWhere('seo_site_pages.indexability_state', '!=', 'excluded_technical');
+                })
+                ->with('observedPage')
+                ->orderByRaw('CASE WHEN seo_pages.status = ? THEN 0 ELSE 1 END', ['published'])
+                ->orderByRaw('COALESCE(seo_site_pages.internal_inlinks, 9999) ASC')
+                ->orderByRaw('COALESCE(seo_site_pages.orphan_score, 0) DESC')
+                ->orderByDesc('seo_pages.seo_score')
+                ->orderByDesc('seo_pages.updated_at')
+        );
 
         return [
             'page' => $page,

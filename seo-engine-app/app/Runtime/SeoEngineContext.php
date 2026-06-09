@@ -40,6 +40,8 @@ class SeoEngineContext
             'seo-engine.site.niche' => $this->niche,
             'seo-engine.site.locale' => $this->locale,
             'seo-engine.site.preset' => $this->preset,
+            'seo-engine.site.profile' => $site->siteProfile(),
+            'seo-engine.require_site_profile' => true,
         ]);
 
         // Only override the global GSC enablement when this site explicitly carries GSC config.

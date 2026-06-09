@@ -14,6 +14,7 @@ class ObservedPageEmbeddingService
     public function __construct(
         private readonly EmbeddingProvider $provider,
         private readonly VectorStore $vectors,
+        private readonly BusinessPageRelevanceFilter $businessPages,
     ) {}
 
     /**
@@ -21,12 +22,12 @@ class ObservedPageEmbeddingService
      */
     public function embedSite(string $siteId, int $limit = 250, bool $force = false): array
     {
-        $pages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereNotNull('last_snapshot_id')
-            ->orderByDesc('last_seen_at')
-            ->limit($limit)
-            ->get();
+        $pages = $this->businessPages->loadObservedPages($siteId, function ($query) use ($limit): void {
+            $query
+                ->whereNotNull('last_snapshot_id')
+                ->orderByDesc('last_seen_at')
+                ->limit($limit);
+        });
 
         $snapshots = SeoSitePageSnapshot::query()
             ->where('site_id', $siteId)

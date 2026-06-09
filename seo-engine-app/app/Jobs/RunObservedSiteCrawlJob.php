@@ -6,8 +6,10 @@ namespace App\Jobs;
 
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use App\ObservedSite\SiteCrawlerService;
 use App\Runtime\PremiumAutomationLoopService;
+use App\Understanding\SiteOnboardingService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -19,12 +21,19 @@ class RunObservedSiteCrawlJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public function __construct(public readonly int $crawlId)
-    {
+    public function __construct(
+        public readonly int $crawlId,
+        public readonly bool $runOnboarding = false,
+    ) {
         $this->onQueue('observed-crawls');
     }
 
-    public function handle(SiteCrawlerService $service, PremiumAutomationLoopService $premiumLoop): void
+    public function handle(
+        SiteCrawlerService $service,
+        PremiumAutomationLoopService $premiumLoop,
+        SiteOnboardingService $onboarding,
+        BusinessPageRelevanceFilter $businessPages,
+    ): void
     {
         $crawl = SeoSiteCrawl::query()->find($this->crawlId);
 
@@ -49,6 +58,13 @@ class RunObservedSiteCrawlJob implements ShouldQueue
 
         try {
             $service->crawlQueued($site, $crawl);
+            $crawl = $crawl->fresh();
+            $businessPages->markExcludedTechnicalPages($site->fresh());
+
+            if ($this->runOnboarding || data_get($crawl->meta_json, 'trigger') === 'site_onboarding') {
+                $onboarding->completeAfterCrawl($site->fresh(), $crawl);
+            }
+
             $premiumLoop->runForSite($site->fresh(['googleConnection', 'latestObservedCrawl']));
         } catch (\Throwable $exception) {
             $crawl->forceFill([

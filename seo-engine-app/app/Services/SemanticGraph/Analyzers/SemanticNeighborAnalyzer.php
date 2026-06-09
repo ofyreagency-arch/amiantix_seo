@@ -30,10 +30,8 @@ class SemanticNeighborAnalyzer
     {
         $this->embeddings->embedSite($siteId, force: $forceEmbeddings);
 
-        $pages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereNotNull('last_snapshot_id')
-            ->get()
+        $pages = $this->support
+            ->businessPagesForSite($siteId, fn ($query) => $query->whereNotNull('last_snapshot_id'))
             ->keyBy('normalized_url');
 
         $snapshots = SeoSitePageSnapshot::query()

@@ -21,6 +21,7 @@ use App\Models\SeoSuggestion;
 use App\Services\Media\SeoPageImageGenerator;
 use App\Services\Publication\SeoLivePublicationService;
 use App\Models\User;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use App\RemoteInstallation\InstallationPrecheckService;
 use App\Runtime\PremiumArticleGenerationService;
 use App\Runtime\SeoEngineContext;
@@ -40,6 +41,10 @@ use Throwable;
 
 class ClientSitesController extends Controller
 {
+    public function __construct(
+        private readonly BusinessPageRelevanceFilter $businessPages,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -1447,13 +1452,19 @@ class ClientSitesController extends Controller
         $issueRows = collect();
 
         if ($referenceCrawl) {
-            $pages = SeoSitePage::query()
-                ->where('site_id', $site->site_id)
-                ->where('last_crawl_id', $referenceCrawl->id)
-                ->orderByDesc('authority_score')
-                ->orderByDesc('last_seen_at')
-                ->limit(8)
-                ->get()
+            $pages = $this->businessPages
+                ->filterObservedPages(
+                    SeoSitePage::query()
+                        ->where('site_id', $site->site_id)
+                        ->where('last_crawl_id', $referenceCrawl->id)
+                        ->businessRelevant()
+                        ->orderByDesc('authority_score')
+                        ->orderByDesc('last_seen_at')
+                        ->limit(16)
+                        ->get(),
+                    $site->site_id,
+                )
+                ->take(8)
                 ->map(fn (SeoSitePage $page): array => $this->observedPagePayload($page))
                 ->values();
 
@@ -2014,17 +2025,18 @@ class ClientSitesController extends Controller
             ]);
 
         if ($slug !== null && $slug !== '') {
-            return $query
-                ->where('slug', $slug)
-                ->first();
+            $page = $query->where('slug', $slug)->first();
+
+            return $page && $this->businessPages->isRelevantSeoPage($page) ? $page : null;
         }
 
-        return $query
-            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
-            ->orderByRaw('CASE WHEN observed_site_page_id IS NULL THEN 1 ELSE 0 END')
-            ->orderByDesc('seo_score')
-            ->orderByDesc('updated_at')
-            ->first();
+        return $this->businessPages->firstRelevantSeoPage(
+            $query
+                ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+                ->orderByRaw('CASE WHEN observed_site_page_id IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('seo_score')
+                ->orderByDesc('updated_at')
+        );
     }
 
     private function resolvePublicationCandidatePage(string $siteId, ?string $slug = null): ?SeoPage
@@ -2039,6 +2051,9 @@ class ClientSitesController extends Controller
 
         if ($slug !== null && $slug !== '') {
             $query->where('slug', $slug);
+            $page = $query->first();
+
+            return $page && $this->businessPages->isRelevantSeoPage($page) ? $page : null;
         }
 
         if (Schema::hasColumn('seo_pages', 'published_live')) {
@@ -2049,10 +2064,11 @@ class ClientSitesController extends Controller
             });
         }
 
-        return $query
-            ->orderByDesc('published_at')
-            ->orderByDesc('updated_at')
-            ->first();
+        return $this->businessPages->firstRelevantSeoPage(
+            $query
+                ->orderByDesc('published_at')
+                ->orderByDesc('updated_at')
+        );
     }
 
     private function resolveImageCandidatePage(string $siteId, ?string $slug = null): ?SeoPage
@@ -2068,17 +2084,18 @@ class ClientSitesController extends Controller
             });
 
         if ($slug !== null && $slug !== '') {
-            return $query
-                ->where('slug', $slug)
-                ->first();
+            $page = $query->where('slug', $slug)->first();
+
+            return $page && $this->businessPages->isRelevantSeoPage($page) ? $page : null;
         }
 
-        return $query
-            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
-            ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
-            ->orderByDesc('seo_score')
-            ->orderByDesc('updated_at')
-            ->first();
+        return $this->businessPages->firstRelevantSeoPage(
+            $query
+                ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['published'])
+                ->orderByRaw('CASE WHEN published_live = 1 THEN 0 ELSE 1 END')
+                ->orderByDesc('seo_score')
+                ->orderByDesc('updated_at')
+        );
     }
 
     /**
@@ -2093,7 +2110,7 @@ class ClientSitesController extends Controller
                 ->with('observedPage')
                 ->first();
 
-            if (! $page) {
+            if (! $page || ! $this->businessPages->isRelevantSeoPage($page)) {
                 return [
                     'page' => null,
                     'suggestion' => null,
@@ -2122,25 +2139,31 @@ class ClientSitesController extends Controller
             ->get()
             ->first(fn (SeoSuggestion $suggestion): bool => $this->extractSuggestionInternalLinks($suggestion) !== []);
 
-        if ($pendingSuggestion && $pendingSuggestion->page) {
+        if ($pendingSuggestion && $pendingSuggestion->page && $this->businessPages->isRelevantSeoPage($pendingSuggestion->page)) {
             return [
                 'page' => $pendingSuggestion->page,
                 'suggestion' => $pendingSuggestion,
             ];
         }
 
-        $page = SeoPage::query()
-            ->select('seo_pages.*')
-            ->leftJoin('seo_site_pages', 'seo_site_pages.id', '=', 'seo_pages.observed_site_page_id')
-            ->where('seo_pages.site_id', $siteId)
-            ->whereNotNull('seo_pages.observed_site_page_id')
-            ->with('observedPage')
-            ->orderByRaw('CASE WHEN seo_pages.status = ? THEN 0 ELSE 1 END', ['published'])
-            ->orderByRaw('COALESCE(seo_site_pages.internal_inlinks, 9999) ASC')
-            ->orderByRaw('COALESCE(seo_site_pages.orphan_score, 0) DESC')
-            ->orderByDesc('seo_pages.seo_score')
-            ->orderByDesc('seo_pages.updated_at')
-            ->first();
+        $page = $this->businessPages->firstRelevantSeoPage(
+            SeoPage::query()
+                ->select('seo_pages.*')
+                ->leftJoin('seo_site_pages', 'seo_site_pages.id', '=', 'seo_pages.observed_site_page_id')
+                ->where('seo_pages.site_id', $siteId)
+                ->whereNotNull('seo_pages.observed_site_page_id')
+                ->where(function (Builder $query): void {
+                    $query
+                        ->whereNull('seo_site_pages.indexability_state')
+                        ->orWhere('seo_site_pages.indexability_state', '!=', 'excluded_technical');
+                })
+                ->with('observedPage')
+                ->orderByRaw('CASE WHEN seo_pages.status = ? THEN 0 ELSE 1 END', ['published'])
+                ->orderByRaw('COALESCE(seo_site_pages.internal_inlinks, 9999) ASC')
+                ->orderByRaw('COALESCE(seo_site_pages.orphan_score, 0) DESC')
+                ->orderByDesc('seo_pages.seo_score')
+                ->orderByDesc('seo_pages.updated_at')
+        );
 
         return [
             'page' => $page,
@@ -2182,25 +2205,7 @@ class ClientSitesController extends Controller
      */
     private function observedSiteSnapshot(string $siteId): array
     {
-        $pages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->get([
-                'id',
-                'site_id',
-                'normalized_url',
-                'path',
-                'title',
-                'indexability_state',
-                'latest_word_count',
-                'internal_inlinks',
-                'internal_outlinks',
-                'authority_score',
-                'orphan_score',
-                'overlap_score',
-                'pillar_likelihood',
-                'cluster_label',
-                'last_seen_at',
-            ]);
+        $pages = $this->businessPages->loadObservedPages($siteId);
 
         if ($pages->isEmpty()) {
             return [

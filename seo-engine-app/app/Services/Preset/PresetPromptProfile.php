@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Preset;
 
+use App\SeoPresets\SiteAware\SiteProfilePromptContext;
 use Ofyre\SeoEngine\Contracts\PromptProfileProvider;
 
 class PresetPromptProfile implements PromptProfileProvider
@@ -19,7 +20,10 @@ class PresetPromptProfile implements PromptProfileProvider
 
     public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
     {
-        return $this->presets->resolvePromptProfile()->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
+        $base = $this->presets->resolvePromptProfile()->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
+        $context = SiteProfilePromptContext::block();
+
+        return $context !== '' ? $context."\n\n".$base : $base;
     }
 
     public function generationFaqPrompt(string $keyword, string $cluster, array $blueprint, string $title, string $metaDescription, string $h1, string $content): string

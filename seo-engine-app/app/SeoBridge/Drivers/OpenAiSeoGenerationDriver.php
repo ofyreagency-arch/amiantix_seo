@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\SeoBridge\Drivers;
 
 use App\Models\SeoPage;
+use App\Models\SeoSite;
 use App\Runtime\SeoEngineContext;
+use App\Understanding\SiteProfileGate;
 use Illuminate\Support\Str;
 use Ofyre\SeoEngine\Contracts\SeoGenerationDriver;
 use Ofyre\SeoEngine\Services\Generation\SeoGenerationService;
@@ -17,11 +19,25 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
         private readonly SeoGenerationService $generator,
         private readonly SeoScoreRefreshService $scoreRefresh,
         private readonly SeoEngineContext $context,
+        private readonly SiteProfileGate $siteProfileGate,
     ) {}
 
     public function generatePage(string $keyword, string $status): object
     {
+        $this->siteProfileGate->assertReady(
+            SeoSite::query()->where('site_id', $this->context->siteId())->first(),
+        );
+
         $result = $this->generator->generatePayload($keyword);
+
+        if (config('seo-engine.require_site_profile', true) && ($result['generation_source'] ?? '') === 'fallback') {
+            throw new \RuntimeException(
+                (string) ($result['generation_error'] ?? 'La génération IA a échoué. Aucun contenu générique ne sera produit.')
+            );
+        }
+
+        $this->assertNoGenericContent((string) data_get($result, 'payload.content', ''));
+
         $slug = $this->resolveSlug($keyword);
 
         $page = SeoPage::query()->firstOrNew([
@@ -86,8 +102,32 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
         return $candidate;
     }
 
+    private function assertNoGenericContent(string $content): void
+    {
+        if (! config('seo-engine.require_site_profile', true)) {
+            return;
+        }
+
+        $forbidden = [
+            'Field example',
+            'SaaS knowledge base',
+            'Write a business article for a professional SaaS',
+            'Operational context',
+        ];
+
+        foreach ($forbidden as $phrase) {
+            if (str_contains($content, $phrase)) {
+                throw new \RuntimeException('Contenu générique interdit détecté: '.$phrase);
+            }
+        }
+    }
+
     public function improvePage(object $page, array $audit = []): object
     {
+        $this->siteProfileGate->assertReady(
+            SeoSite::query()->where('site_id', $this->context->siteId())->first(),
+        );
+
         $result = $this->generator->improvePayload($page, $audit);
 
         if (! $page instanceof SeoPage) {

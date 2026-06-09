@@ -6,19 +6,23 @@ namespace App\Services\SemanticGraph\Analyzers;
 
 use App\Models\SeoSitePage;
 use App\Models\SeoSitePageSnapshot;
+use App\ObservedSite\BusinessPageRelevanceFilter;
 use Illuminate\Support\Str;
 
 class ClusterAnalyzer
 {
+    public function __construct(
+        private readonly BusinessPageRelevanceFilter $businessPages,
+    ) {}
+
     /**
      * @return array<int,array<string,mixed>>
      */
     public function analyze(string $siteId): array
     {
-        $pages = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->whereNotNull('last_snapshot_id')
-            ->get();
+        $pages = $this->businessPages->loadObservedPages($siteId, function ($query): void {
+            $query->whereNotNull('last_snapshot_id');
+        });
 
         $snapshots = SeoSitePageSnapshot::query()
             ->where('site_id', $siteId)
@@ -36,6 +40,7 @@ class ClusterAnalyzer
 
         return SeoSitePage::query()
             ->where('site_id', $siteId)
+            ->businessRelevant()
             ->selectRaw('cluster_label, COUNT(*) as aggregate_count')
             ->whereNotNull('cluster_label')
             ->groupBy('cluster_label')
