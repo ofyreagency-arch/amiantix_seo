@@ -2473,9 +2473,7 @@ class ClientSitesController extends Controller
             ->get(['query', 'metric_date', 'impressions', 'position']);
 
         if ($metrics->isEmpty()) {
-            $profileKeyword = $limitReason === null
-                ? app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site)
-                : null;
+            $profileKeyword = app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site);
 
             return [
                 'status' => $limitReason ? 'cooldown' : ($profileKeyword ? 'profile_ready' : 'no_data'),
@@ -2585,9 +2583,7 @@ class ClientSitesController extends Controller
             ? 'cooldown'
             : ($eligibleQueriesCount > 0 ? 'eligible' : ($queriesAnalyzedCount > 0 ? 'rejected' : 'no_data'));
 
-        $profileKeyword = $limitReason === null
-            ? app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site, $existingTokens)
-            : null;
+        $profileKeyword = app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site, $existingTokens);
 
         return [
             'status' => $status,
@@ -2616,9 +2612,11 @@ class ClientSitesController extends Controller
         }
 
         $profileKeyword = app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site);
-        if ($profileKeyword === null || app(PremiumArticleGenerationService::class)->limitReason($site) !== null) {
+        if ($profileKeyword === null) {
             return [];
         }
+
+        $limitReason = app(PremiumArticleGenerationService::class)->limitReason($site);
 
         return [[
             'query' => $profileKeyword,
@@ -2626,6 +2624,8 @@ class ClientSitesController extends Controller
             'impressions' => 0,
             'previous_impressions' => 0,
             'position' => 0,
+            'generation_limited' => $limitReason !== null,
+            'generation_limit_reason' => $limitReason,
         ]];
     }
 

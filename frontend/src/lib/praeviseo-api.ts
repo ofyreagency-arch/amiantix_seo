@@ -304,6 +304,7 @@ export type PraeviseoSite = {
     }>;
     new_queries: Array<{
       query: string;
+      source?: string;
       impressions: number;
       previous_impressions: number;
       delta_impressions: number;
@@ -311,6 +312,8 @@ export type PraeviseoSite = {
       clicks: number;
       ctr: number;
       position: number;
+      generation_limited?: boolean;
+      generation_limit_reason?: string | null;
     }>;
     indexation_alerts: Array<{
       label: string;
@@ -2081,6 +2084,9 @@ function normaliseSite(raw: unknown): PraeviseoSite {
       new_queries: Array.isArray(summary.new_queries)
         ? summary.new_queries.map((entry) => ({
             query: String((entry as Record<string, unknown>).query ?? ""),
+            source: (entry as Record<string, unknown>).source
+              ? String((entry as Record<string, unknown>).source)
+              : undefined,
             impressions: Number((entry as Record<string, unknown>).impressions ?? 0),
             previous_impressions: Number((entry as Record<string, unknown>).previous_impressions ?? 0),
             delta_impressions: Number((entry as Record<string, unknown>).delta_impressions ?? 0),
@@ -2088,6 +2094,10 @@ function normaliseSite(raw: unknown): PraeviseoSite {
             clicks: Number((entry as Record<string, unknown>).clicks ?? 0),
             ctr: Number((entry as Record<string, unknown>).ctr ?? 0),
             position: Number((entry as Record<string, unknown>).position ?? 0),
+            generation_limited: Boolean((entry as Record<string, unknown>).generation_limited),
+            generation_limit_reason: (entry as Record<string, unknown>).generation_limit_reason
+              ? String((entry as Record<string, unknown>).generation_limit_reason)
+              : null,
           }))
         : [],
       indexation_alerts: Array.isArray(summary.indexation_alerts)

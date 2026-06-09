@@ -169,15 +169,18 @@ class PremiumArticleGenerationService
 
         $candidates = [];
 
-        foreach (array_slice($services, 0, 6) as $service) {
+        foreach (array_slice($services, 0, 12) as $service) {
             if (! is_array($service)) {
                 continue;
             }
 
             $name = trim((string) ($service['name'] ?? ''));
-            if ($name !== '' && mb_strlen($name) >= 8) {
-                $candidates[] = $name;
+            $intent = strtoupper(trim((string) ($service['intent'] ?? '')));
+            if ($name === '' || mb_strlen($name) < 8 || $this->isAdministrativeServiceCandidate($name, $intent)) {
+                continue;
             }
+
+            $candidates[] = $name;
         }
 
         foreach ($terms as $term) {
@@ -237,5 +240,32 @@ class PremiumArticleGenerationService
         return $existingTokens->contains(function (string $token) use ($query): bool {
             return $token === $query || str_contains($token, $query) || str_contains($query, $token);
         });
+    }
+
+    private function isAdministrativeServiceCandidate(string $name, string $intent): bool
+    {
+        if (in_array($intent, ['CONVERSION_PAGE', 'LEGAL_PAGE', 'ADMIN_PAGE'], true)) {
+            return true;
+        }
+
+        $normalized = mb_strtolower($name);
+
+        foreach ([
+            'politique de confidential',
+            'mentions l',
+            'conditions g',
+            'données personnelles',
+            'donnees personnelles',
+            'exercer vos droits',
+            'rgpd',
+            'cgu',
+            'cgv',
+        ] as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

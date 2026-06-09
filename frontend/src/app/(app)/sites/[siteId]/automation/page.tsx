@@ -606,7 +606,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     )
     .sort((left, right) => new Date(right.at ?? 0).getTime() - new Date(left.at ?? 0).getTime());
 
-  const generationReady = site.summary.new_queries.length > 0;
+  const generationSubject = site.summary.new_queries[0] ?? null;
+  const generationLimited = Boolean(generationSubject?.generation_limited);
+  const generationReady = Boolean(generationSubject) && !generationLimited;
   const rewriteReady = Boolean(leadRefresh || leadRisingPage);
   const linkingReady =
     site.summary.observed_link_gap_pages.length > 0 || site.summary.observed_orphan_alerts.length > 0;
@@ -622,8 +624,8 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const crawlIssueSlug = slugFromUrl(crawlIssueLead?.url ?? null);
   const risingPageSlug = leadRisingPage?.slug || slugFromUrl(leadRisingPage?.url ?? null);
   const refreshPageSlug = leadRefresh?.slug || null;
-  const generationKeyword = site.summary.new_queries[0]?.query?.trim() || null;
-  const generationFromProfile = site.summary.new_queries[0]?.source === "site_profile";
+  const generationKeyword = generationSubject?.query?.trim() || null;
+  const generationFromProfile = generationSubject?.source === "site_profile";
   const runCrawlAction = launchPremiumCrawlAction.bind(null, site.site_id);
   const runGenerationKeywordAction = generationKeyword
     ? launchPremiumGenerationToStudioAction.bind(null, site.site_id, generationKeyword)
@@ -671,31 +673,39 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
     {
       key: "generation",
       label: "Créer un article",
-      stage: generationReady ? "now" : gscConnected ? "soon" : "prep",
-      ctaLabel: generationReady ? "Créer l’article ciblé" : "Sujet encore trop flou",
+      stage: generationReady ? "now" : generationSubject || gscConnected ? "soon" : "prep",
+      ctaLabel: generationReady ? "Créer l’article ciblé" : generationSubject ? "Sujet retenu, pause en cours" : "Sujet encore trop flou",
       description:
         generationReady
           ? generationFromProfile
-            ? `Le profil métier propose déjà un sujet éditorial : ${site.summary.new_queries[0].query}.`
-            : `Une requête montante est déjà visible : ${site.summary.new_queries[0].query}.`
-          : "Ouvrir un nouveau contenu dès qu’un sujet assez net mérite une vraie page.",
+            ? `Le profil métier propose déjà un sujet éditorial : ${generationSubject?.query}.`
+            : `Une requête montante est déjà visible : ${generationSubject?.query}.`
+          : generationSubject
+            ? generationFromProfile
+              ? `Le profil métier a déjà retenu un sujet : ${generationSubject.query}. PraeviSEO attend encore avant d’ouvrir un nouvel article.`
+              : `Un sujet est déjà retenu : ${generationSubject.query}. PraeviSEO attend encore avant d’ouvrir un nouvel article.`
+            : "Ouvrir un nouveau contenu dès qu’un sujet assez net mérite une vraie page.",
       recommended: recommendedActionKey === "generation",
       available: generationReady,
       blockedReason: generationReady
         ? null
-        : gscConnected
-          ? [
-              generationAuditSummary,
-              generationAudit?.limit_reason
-                ? `Blocage actuel : ${generationAudit.limit_reason}.`
-                : `Motif principal de rejet : ${describeGenerationReason(generationAuditReason)}`,
-              generationAudit?.best_query
-                ? `Meilleure requête vue : ${generationAudit.best_query.query} (${generationAudit.best_query.impressions} impressions, position ${generationAudit.best_query.position}).`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" ")
-          : "Reliez d’abord Google Search Console pour laisser PraeviSEO détecter les vraies recherches montantes du site.",
+        : generationLimited
+          ? generationSubject?.generation_limit_reason ??
+            generationAudit?.limit_reason ??
+            "PraeviSEO attend encore avant d’ouvrir un nouveau sujet pour éviter de publier trop vite."
+          : gscConnected
+            ? [
+                generationAuditSummary,
+                generationAudit?.limit_reason
+                  ? `Blocage actuel : ${generationAudit.limit_reason}.`
+                  : `Motif principal de rejet : ${describeGenerationReason(generationAuditReason)}`,
+                generationAudit?.best_query
+                  ? `Meilleure requête vue : ${generationAudit.best_query.query} (${generationAudit.best_query.impressions} impressions, position ${generationAudit.best_query.position}).`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" ")
+            : "Reliez d’abord Google Search Console pour laisser PraeviSEO détecter les vraies recherches montantes du site.",
       helperHref: queryFocusHref,
       helperLabel: "Voir les requêtes utiles",
       action: generationReady && runGenerationKeywordAction ? runGenerationKeywordAction : runCrawlAction,
