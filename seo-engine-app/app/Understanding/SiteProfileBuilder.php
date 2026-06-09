@@ -24,6 +24,7 @@ final class SiteProfileBuilder
     public function __construct(
         private readonly BusinessIntentService $businessIntent,
         private readonly BusinessPageRelevanceFilter $businessPages,
+        private readonly EditorialTopicClassifier $topics,
     ) {}
 
     /**
@@ -65,18 +66,16 @@ final class SiteProfileBuilder
         $geography = $this->extractGeography($site, $schemas, $homepageSnapshot);
         $audience = $this->extractAudience($pages, $snapshots, $vocabulary);
         $businessSummary = $this->buildBusinessSummary($site, $homepage, $homepageSnapshot, $services);
+        $industry = $this->resolveIndustry($site, $vocabulary);
 
-        $locale = trim((string) $site->locale) ?: 'fr';
-        $language = str_starts_with(strtolower($locale), 'en') ? 'en' : 'fr';
-
-        return [
+        $profile = [
             'version' => 'v1',
             'status' => $this->resolveStatus($pages, $businessSummary),
             'generated_at' => now()->toIso8601String(),
             'source_crawl_id' => $crawlId,
             'business' => [
                 'summary' => $businessSummary,
-                'industry' => $this->resolveIndustry($site, $vocabulary),
+                'industry' => $industry,
                 'positioning' => $this->resolvePositioning($site, $homepageSnapshot),
             ],
             'services' => $services,
@@ -84,19 +83,27 @@ final class SiteProfileBuilder
             'main_pages' => $mainPages,
             'geography' => $geography,
             'audience' => $audience,
-            'generation_directives' => [
-                'language' => $language,
-                'locale' => $locale,
-                'site_name' => $site->name,
-                'site_url' => $site->url,
-                'niche' => $site->niche,
-                'forbid_english' => $language === 'fr',
-                'forbid_saas_template' => true,
-                'forbid_generic_sections' => true,
-                'must_reference_site_services' => count($services) > 0,
-                'must_use_core_vocabulary' => count($vocabulary['core_terms'] ?? []) > 0,
-            ],
         ];
+
+        $locale = trim((string) $site->locale) ?: 'fr';
+        $language = str_starts_with(strtolower($locale), 'en') ? 'en' : 'fr';
+
+        $profile['editorial_topics'] = $this->topics->buildEditorialTopics($profile);
+        $profile['generation_directives'] = [
+            'language' => $language,
+            'locale' => $locale,
+            'site_name' => $site->name,
+            'site_url' => $site->url,
+            'niche' => $site->niche,
+            'forbid_english' => $language === 'fr',
+            'forbid_saas_template' => true,
+            'forbid_generic_sections' => true,
+            'must_reference_site_services' => count($services) > 0,
+            'must_use_core_vocabulary' => count($vocabulary['core_terms'] ?? []) > 0,
+            'prefer_editorial_topics' => true,
+        ];
+
+        return $profile;
     }
 
     private function resolveStatus($pages, string $summary): string
@@ -126,19 +133,32 @@ final class SiteProfileBuilder
 
         foreach ($pages as $page) {
             $snapshot = $snapshots->get($page->last_snapshot_id);
-            $intent = $this->businessIntent->classify($this->pagePayload($page, $snapshot));
+            $payload = $this->pagePayload($page, $snapshot);
+            $intent = $this->businessIntent->classify($payload);
 
-            if (! in_array($intent['intent_type'], ['MONEY_PAGE', 'CONVERSION_PAGE'], true)) {
+            if (! in_array($intent['intent_type'], ['MONEY_PAGE', 'TRAFFIC_PAGE'], true)) {
                 continue;
             }
 
-            $h2 = collect($snapshot?->h2_json ?? [])->filter()->take(3)->values()->all();
+            $name = trim((string) ($page->primary_h1 ?: $page->title ?: $page->path));
+
+            if ($this->topics->isExcludedServiceName($name, $intent['intent_type'], (string) $page->path)) {
+                continue;
+            }
+
+            $h2 = collect($snapshot?->h2_json ?? [])
+                ->filter(fn (mixed $heading): bool => $this->topics->isSearchableEditorialTopic((string) $heading))
+                ->take(4)
+                ->values()
+                ->all();
+
             $services[] = [
-                'name' => trim((string) ($page->primary_h1 ?: $page->title ?: $page->path)),
+                'name' => $name,
                 'description' => trim((string) ($page->meta_description ?: Str::limit((string) ($snapshot?->content_text ?? ''), 220))),
                 'source_url' => $page->normalized_url,
                 'headings' => $h2,
                 'intent' => $intent['intent_type'],
+                'path' => $page->path,
             ];
         }
 
@@ -160,13 +180,27 @@ final class SiteProfileBuilder
             ->sortByDesc(fn (SeoSitePage $page): float => (float) $page->authority_score + (float) $page->pillar_likelihood)
             ->take(12)
             ->map(function (SeoSitePage $page) use ($pillarUrls): array {
-                $role = 'content';
-                if (in_array($page->normalized_url, $pillarUrls, true)) {
+                $intent = $this->businessIntent->classify([
+                    'path' => $page->path,
+                    'url' => $page->normalized_url,
+                    'title' => $page->title,
+                    'meta_description' => $page->meta_description,
+                    'primary_h1' => $page->primary_h1,
+                    'cluster' => $page->cluster_label,
+                ]);
+
+                $role = match ($intent['intent_type']) {
+                    'MONEY_PAGE' => 'service',
+                    'TRAFFIC_PAGE' => 'expertise',
+                    'CONTACT_PAGE' => 'contact',
+                    'LEGAL_PAGE' => 'legal',
+                    'SUPPORT_PAGE' => 'support',
+                    'CTA_PAGE' => 'cta',
+                    default => 'content',
+                };
+
+                if (in_array($page->normalized_url, $pillarUrls, true) || (float) $page->pillar_likelihood >= 0.6) {
                     $role = 'pillar';
-                } elseif ((float) $page->pillar_likelihood >= 0.6) {
-                    $role = 'pillar';
-                } elseif (str_contains(strtolower((string) $page->path), 'contact')) {
-                    $role = 'contact';
                 }
 
                 return [
@@ -189,7 +223,17 @@ final class SiteProfileBuilder
         $terms = [];
 
         foreach ($pages as $page) {
+            if ($this->topics->isNonSeoPath((string) $page->path)) {
+                continue;
+            }
+
             $snapshot = $snapshots->get($page->last_snapshot_id);
+            $intent = $this->businessIntent->classify($this->pagePayload($page, $snapshot));
+
+            if (! in_array($intent['intent_type'], ['MONEY_PAGE', 'TRAFFIC_PAGE'], true)) {
+                continue;
+            }
+
             $blob = implode(' ', array_filter([
                 $page->title,
                 $page->meta_description,
@@ -297,8 +341,15 @@ final class SiteProfileBuilder
         ]);
 
         if ($services !== []) {
-            $serviceNames = collect($services)->pluck('name')->take(4)->implode(', ');
-            $parts[] = 'Services observés : '.$serviceNames.'.';
+            $serviceNames = collect($services)
+                ->pluck('name')
+                ->filter(fn (mixed $name): bool => $this->topics->isSearchableEditorialTopic((string) $name))
+                ->take(4)
+                ->implode(', ');
+
+            if ($serviceNames !== '') {
+                $parts[] = 'Prestations observées : '.$serviceNames.'.';
+            }
         }
 
         return trim(implode(' ', $parts));
@@ -336,9 +387,11 @@ final class SiteProfileBuilder
     {
         return [
             'url' => $page->normalized_url,
+            'path' => $page->path,
             'title' => $page->title,
             'meta_description' => $page->meta_description,
             'h1' => $page->primary_h1,
+            'primary_h1' => $page->primary_h1,
             'cluster' => $page->cluster_label,
             'content' => $snapshot?->content_text,
         ];

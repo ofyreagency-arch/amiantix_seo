@@ -30,6 +30,29 @@ class SiteProfileBuilderTest extends TestCase
         $this->assertNotContains('/ressources/slug-test', $mainPaths);
     }
 
+    public function test_excludes_contact_and_legal_pages_from_services_and_topics(): void
+    {
+        $site = $this->seedSiteWithPages('amiantix-pages', 'amiante', [
+            ['path' => '/', 'title' => 'Amiantix logiciel amiante SS3/SS4', 'h1' => 'Ingénierie amiante', 'content' => 'Diagnostic amiante et repérage avant travaux pour entreprises.'],
+            ['path' => '/services-ingenierie', 'title' => 'Services ingénierie amiante SS3/SS4', 'h1' => 'Services ingénierie amiante', 'content' => 'Analyse de rapports, calculs EPC/EPI et stratégie d échantillonnage.'],
+            ['path' => '/contact', 'title' => 'Contact & démo logiciel amiante', 'h1' => 'Parlons de vos dossiers techniques', 'content' => 'Parlez-nous de vos dossiers techniques : réponse sous 24h ouvrées.'],
+            ['path' => '/confidentialite', 'title' => 'Politique de confidentialité RGPD', 'h1' => 'Politique de confidentialité', 'content' => 'Finalités, bases légales, durées de conservation.'],
+        ]);
+
+        $profile = app(SiteProfileBuilder::class)->build($site);
+        $serviceNames = collect($profile['services'] ?? [])->pluck('name')->all();
+        $topics = $profile['editorial_topics'] ?? [];
+
+        $this->assertNotContains('Parlons de vos dossiers techniques', $serviceNames);
+        $this->assertNotContains('Politique de confidentialité RGPD', $serviceNames);
+        $this->assertNotContains('Parlons de vos dossiers techniques', $topics);
+        $this->assertTrue(
+            collect($topics)->contains(fn (string $topic): bool => str_contains(mb_strtolower($topic), 'diagnostic')
+                || str_contains(mb_strtolower($topic), 'repérage')
+                || str_contains(mb_strtolower($topic), 'amiante')),
+        );
+    }
+
     public function test_builds_distinct_profiles_for_amiante_and_plomberie(): void
     {
         $amiante = $this->seedSiteWithPages('amiante-site', 'amiante', [

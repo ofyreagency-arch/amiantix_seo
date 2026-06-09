@@ -14,7 +14,7 @@ class PremiumArticleProfileKeywordTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_skips_administrative_services_when_picking_profile_keyword(): void
+    public function test_skips_contact_cta_and_legal_pages_when_picking_profile_keyword(): void
     {
         $siteId = 'profile-kw-'.Str::lower(Str::random(8));
 
@@ -32,16 +32,20 @@ class PremiumArticleProfileKeywordTest extends TestCase
             'status' => 'ready',
             'business' => ['industry' => 'amiante', 'summary' => 'Logiciel amiante SS3/SS4'],
             'vocabulary' => ['core_terms' => ['diagnostic amiante', 'repérage']],
+            'editorial_topics' => [
+                'diagnostic amiante avant travaux',
+                'repérage amiante avant travaux',
+            ],
             'services' => [
-                ['name' => 'Politique de confidentialité', 'intent' => 'CONVERSION_PAGE'],
-                ['name' => 'Parlons de vos dossiers techniques', 'intent' => 'MONEY_PAGE'],
+                ['name' => 'Politique de confidentialité', 'intent' => 'LEGAL_PAGE', 'path' => '/confidentialite'],
+                ['name' => 'Parlons de vos dossiers techniques', 'intent' => 'CONTACT_PAGE', 'path' => '/contact'],
             ],
         ]);
 
         $service = app(PremiumArticleGenerationService::class);
 
         $this->assertSame(
-            'Parlons de vos dossiers techniques',
+            'diagnostic amiante avant travaux',
             $service->resolveProfileKeyword($site->fresh()),
         );
     }
@@ -71,7 +75,12 @@ class PremiumArticleProfileKeywordTest extends TestCase
         $site = $site->fresh();
 
         $this->assertTrue($site->isSiteProfileReady());
-        $this->assertSame('Dépannage urgence 24h', $service->resolveProfileKeyword($site));
-        $this->assertSame('Dépannage urgence 24h', $service->resolveCandidateKeyword($site));
+
+        $keyword = $service->resolveProfileKeyword($site);
+
+        $this->assertNotNull($keyword);
+        $this->assertStringContainsString('fuite', mb_strtolower((string) $keyword));
+        $this->assertNotSame('Dépannage urgence 24h', $keyword);
+        $this->assertSame($keyword, $service->resolveCandidateKeyword($site));
     }
 }

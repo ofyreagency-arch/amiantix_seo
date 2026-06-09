@@ -18,7 +18,102 @@ class BusinessIntentService
     public function classify(array $page): array
     {
         $haystack = $this->normalizedHaystack($page);
+        $path = $this->normalizedPath($page);
         $reasons = [];
+
+        if ($this->pathMatches($path, [
+            'mentions-legales',
+            'mentions-legale',
+            'confidentialite',
+            'confidentialité',
+            'donnees-personnelles',
+            'données-personnelles',
+            'conditions-generales',
+            'conditions-generale',
+            'cgu',
+            'cgv',
+            'privacy',
+            'legal',
+            'cookies',
+        ])) {
+            $reasons[] = 'Page légale ou conformité détectée via URL';
+
+            return [
+                'intent_type' => 'LEGAL_PAGE',
+                'business_value_score' => 0,
+                'confidence' => 96,
+                'reasons' => $reasons,
+            ];
+        }
+
+        if ($this->pathMatches($path, [
+            'contact',
+            'devis',
+            'rdv',
+            'rendez-vous',
+            'appointment',
+        ]) || $this->containsAny($haystack, [
+            'parlons de vos',
+            'parlez-nous',
+            'écrire à l équipe',
+            'ecrire a l equipe',
+            'nous répondons sous',
+            'nous repondons sous',
+            'prendre contact',
+        ])) {
+            $reasons[] = 'Page contact ou prise de rendez-vous détectée';
+
+            return [
+                'intent_type' => 'CONTACT_PAGE',
+                'business_value_score' => 5,
+                'confidence' => 94,
+                'reasons' => $reasons,
+            ];
+        }
+
+        if ($this->pathMatches($path, [
+            'newsletter',
+            'demo',
+            'demonstration',
+            'essai',
+            'trial',
+        ]) || $this->containsAny($haystack, [
+            'inscrivez-vous',
+            'inscrivez vous',
+            'restez informé',
+            'restez informe',
+            'double opt-in',
+            'demandez une démo',
+            'demandez une demo',
+        ])) {
+            $reasons[] = 'Page CTA commerciale détectée';
+
+            return [
+                'intent_type' => 'CTA_PAGE',
+                'business_value_score' => 10,
+                'confidence' => 90,
+                'reasons' => $reasons,
+            ];
+        }
+
+        if ($this->pathMatches($path, [
+            'faq',
+            'support',
+            'aide',
+            'help',
+            'documentation',
+            'doc',
+            'sav',
+        ])) {
+            $reasons[] = 'Page support détectée via URL';
+
+            return [
+                'intent_type' => 'SUPPORT_PAGE',
+                'business_value_score' => 20,
+                'confidence' => 90,
+                'reasons' => $reasons,
+            ];
+        }
 
         if ($this->containsAny($haystack, [
             'logiciel',
@@ -40,27 +135,6 @@ class BusinessIntentService
                 'intent_type' => 'MONEY_PAGE',
                 'business_value_score' => 95,
                 'confidence' => 84,
-                'reasons' => $reasons,
-            ];
-        }
-
-        if ($this->containsAny($haystack, [
-            'contact',
-            'devis',
-            'demo',
-            'essai',
-            'trial',
-            'rdv',
-            'appointment',
-            'consultation',
-            'prendre contact',
-        ])) {
-            $reasons[] = 'Page de conversion détectée';
-
-            return [
-                'intent_type' => 'CONVERSION_PAGE',
-                'business_value_score' => 78,
-                'confidence' => 88,
                 'reasons' => $reasons,
             ];
         }
@@ -90,25 +164,6 @@ class BusinessIntentService
         }
 
         if ($this->containsAny($haystack, [
-            'faq',
-            'support',
-            'aide',
-            'help',
-            'documentation',
-            'doc',
-            'sav',
-        ])) {
-            $reasons[] = 'Page support détectée';
-
-            return [
-                'intent_type' => 'SUPPORT_PAGE',
-                'business_value_score' => 35,
-                'confidence' => 78,
-                'reasons' => $reasons,
-            ];
-        }
-
-        if ($this->containsAny($haystack, [
             'login',
             'connexion',
             'register',
@@ -118,13 +173,8 @@ class BusinessIntentService
             'reset-password',
             'desinscription',
             'désinscription',
-            'privacy',
-            'confidentialite',
-            'confidentialité',
-            'mentions legales',
-            'mentions légales',
         ])) {
-            $reasons[] = 'Page sans intention business SEO détectée';
+            $reasons[] = 'Page compte ou authentification détectée';
 
             return [
                 'intent_type' => 'NONE',
@@ -168,6 +218,37 @@ class BusinessIntentService
     {
         foreach ($needles as $needle) {
             if (str_contains($haystack, mb_strtolower($needle))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizedPath(array $page): string
+    {
+        $path = trim((string) ($page['path'] ?? ''));
+
+        if ($path === '' && isset($page['url'])) {
+            $path = (string) (parse_url((string) $page['url'], PHP_URL_PATH) ?? '');
+        }
+
+        return mb_strtolower(trim($path, '/'));
+    }
+
+    /**
+     * @param  array<int,string>  $segments
+     */
+    private function pathMatches(string $path, array $segments): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+
+        $parts = array_values(array_filter(explode('/', $path)));
+
+        foreach ($parts as $part) {
+            if (in_array($part, $segments, true)) {
                 return true;
             }
         }

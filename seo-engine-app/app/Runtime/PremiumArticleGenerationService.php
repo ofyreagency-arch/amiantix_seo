@@ -7,10 +7,14 @@ namespace App\Runtime;
 use App\Models\SeoPage;
 use App\Models\SeoSearchConsoleMetric;
 use App\Models\SeoSite;
+use App\Understanding\EditorialTopicClassifier;
 use Illuminate\Support\Collection;
 
 class PremiumArticleGenerationService
 {
+    public function __construct(
+        private readonly EditorialTopicClassifier $topics,
+    ) {}
     /**
      * @return array{
      *   min_hours_between_articles:int,
@@ -143,7 +147,7 @@ class PremiumArticleGenerationService
                 continue;
             }
 
-            if (! $this->queryAlreadyCovered($query, $existingTokens)) {
+            if ($this->topics->isSearchableEditorialTopic($query) && ! $this->queryAlreadyCovered($query, $existingTokens)) {
                 return (string) $candidate['query'];
             }
         }
@@ -166,26 +170,24 @@ class PremiumArticleGenerationService
         $industry = trim((string) data_get($profile, 'business.industry', ''));
         $terms = is_array($profile['vocabulary']['core_terms'] ?? null) ? $profile['vocabulary']['core_terms'] : [];
         $services = is_array($profile['services'] ?? null) ? $profile['services'] : [];
+        $editorialTopics = is_array($profile['editorial_topics'] ?? null) ? $profile['editorial_topics'] : [];
+
+        if ($editorialTopics === []) {
+            $editorialTopics = $this->topics->buildEditorialTopics($profile);
+        }
 
         $candidates = [];
 
-        foreach (array_slice($services, 0, 12) as $service) {
-            if (! is_array($service)) {
-                continue;
+        foreach ($editorialTopics as $topic) {
+            $topic = trim((string) $topic);
+            if ($topic !== '' && $this->topics->isSearchableEditorialTopic($topic)) {
+                $candidates[] = $topic;
             }
-
-            $name = trim((string) ($service['name'] ?? ''));
-            $intent = strtoupper(trim((string) ($service['intent'] ?? '')));
-            if ($name === '' || mb_strlen($name) < 8 || $this->isAdministrativeServiceCandidate($name, $intent)) {
-                continue;
-            }
-
-            $candidates[] = $name;
         }
 
         foreach ($terms as $term) {
             $term = trim((string) $term);
-            if ($term === '' || mb_strlen($term) < 4) {
+            if ($term === '' || ! $this->topics->isSearchableVocabularyTerm($term)) {
                 continue;
             }
 
@@ -194,8 +196,25 @@ class PremiumArticleGenerationService
                 : $term;
         }
 
-        if ($industry !== '') {
-            $candidates[] = $industry;
+        foreach (array_slice($services, 0, 12) as $service) {
+            if (! is_array($service)) {
+                continue;
+            }
+
+            foreach ($service['headings'] ?? [] as $heading) {
+                $heading = trim((string) $heading);
+                if ($heading !== '' && $this->topics->isSearchableEditorialTopic($heading)) {
+                    $candidates[] = $heading;
+                }
+            }
+
+            $name = trim((string) ($service['name'] ?? ''));
+            $intent = strtoupper(trim((string) ($service['intent'] ?? '')));
+            $path = (string) ($service['path'] ?? '');
+
+            if ($name !== '' && ! $this->topics->isExcludedServiceName($name, $intent, $path)) {
+                $candidates[] = $name;
+            }
         }
 
         $uniqueCandidates = array_values(array_unique($candidates));
@@ -244,28 +263,6 @@ class PremiumArticleGenerationService
 
     private function isAdministrativeServiceCandidate(string $name, string $intent): bool
     {
-        if (in_array($intent, ['CONVERSION_PAGE', 'LEGAL_PAGE', 'ADMIN_PAGE'], true)) {
-            return true;
-        }
-
-        $normalized = mb_strtolower($name);
-
-        foreach ([
-            'politique de confidential',
-            'mentions l',
-            'conditions g',
-            'données personnelles',
-            'donnees personnelles',
-            'exercer vos droits',
-            'rgpd',
-            'cgu',
-            'cgv',
-        ] as $needle) {
-            if (str_contains($normalized, $needle)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->topics->isExcludedServiceName($name, $intent);
     }
 }

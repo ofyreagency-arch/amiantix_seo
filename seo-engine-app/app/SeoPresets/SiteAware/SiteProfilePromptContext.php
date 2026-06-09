@@ -51,6 +51,11 @@ final class SiteProfilePromptContext
         $lines[] = '- Interdiction de sections génériques type SaaS, "Field example", "Zoom terrain N", checklist fictive ou contenu hors métier.';
         $lines[] = '- Raconter des situations terrain avec chiffres, erreurs fréquentes et arbitrages client.';
         $lines[] = '- Mentionner les services du site seulement quand le récit métier le justifie.';
+        $lines[] = '- Ne jamais traiter un titre de page contact, CTA, légale ou support comme sujet principal.';
+        $topics = array_slice((array) ($profile['editorial_topics'] ?? []), 0, 8);
+        if ($topics !== []) {
+            $lines[] = '- Sujets éditoriaux prioritaires (problèmes clients / requêtes métier) : '.json_encode($topics, JSON_UNESCAPED_UNICODE);
+        }
 
         return implode("\n", $lines);
     }
