@@ -14,6 +14,7 @@ final class BusinessCopilotService
 {
     public function __construct(
         private readonly ImpactEstimatorService $impactEstimator,
+        private readonly BusinessCopilotModificationPlanner $modificationPlanner,
     ) {}
 
     /**
@@ -78,7 +79,17 @@ final class BusinessCopilotService
         $pageId = $item['page_id'] ?? null;
 
         $profile = $this->gscBusinessProfile($type, $subject, $label, $impressions, $position, $ctr);
-        $gain = $this->estimateGain($profile['action_key'], $impressions, $position, $ctr);
+        $plan = $this->modificationPlanner->planForGsc(
+            $siteId,
+            $type,
+            $subject,
+            $label,
+            is_numeric($pageId) ? (int) $pageId : null,
+            $slug,
+            $query !== '' ? $query : null,
+            is_numeric($item['pending_suggestion_id'] ?? null) ? (int) $item['pending_suggestion_id'] : null,
+        );
+        $gain = $this->modificationPlanner->estimateGain($profile['action_key'], $impressions, $position, $ctr, $subject);
         $effort = $this->effortProfile($profile['effort_key']);
         $workflow = $this->workflowForGscType($type);
         $signalReady = ($item['action_state'] ?? '') === 'ready' && ! ($item['pending_suggestion'] ?? false);
@@ -96,8 +107,17 @@ final class BusinessCopilotService
             'headline' => $profile['headline'],
             'problem_plain' => $profile['problem_plain'],
             'why_plain' => $profile['why_plain'],
-            'action_label' => $profile['action_label'],
-            'action_detail' => $profile['action_detail'],
+            'action_label' => $plan['action_label'],
+            'action_detail' => $plan['action_detail'],
+            'modification_plan' => [
+                'sections' => $plan['sections'],
+                'topics' => $plan['topics'],
+                'faq' => $plan['faq'],
+                'content_summary' => $plan['content_summary'],
+                'title_change' => $plan['title_change'],
+            ],
+            'gain_basis' => $gain['basis'],
+            'gain_display' => $gain['display'],
             'monthly_gain_visitors' => $gain['visitors'],
             'monthly_gain_min' => $gain['min'],
             'monthly_gain_max' => $gain['max'],
@@ -106,7 +126,7 @@ final class BusinessCopilotService
             'effort_level' => $effort['level'],
             'effort_label' => $effort['label'],
             'effort_minutes' => $effort['minutes'],
-            'effort_display' => $effort['display'],
+            'effort_display' => '',
             'apply_mode' => (string) ($item['action'] ?? $profile['apply_mode']),
             'apply_workflow' => $workflow,
             'apply_ready' => $signalReady && $this->canAutoApply($workflow, $siteId, $pageId, $slug, $query !== '' ? $query : null),
@@ -137,7 +157,37 @@ final class BusinessCopilotService
 
         $subject = $this->recommendationSubject((string) $recommendation->title, $meta);
         $profile = $this->recommendationBusinessProfile((string) $recommendation->type, $subject, (string) $recommendation->suggested_action);
-        $visitors = (int) round(((int) ($impact['monthly_gain_min'] ?? 0) + (int) ($impact['monthly_gain_max'] ?? 0)) / 2);
+        $signalsCtr = $signals['ctr'] > 1 ? $signals['ctr'] : $signals['ctr'] * 100;
+        $actionKey = match ((string) $recommendation->type) {
+            'create_page', 'expand_cluster' => 'create_page',
+            'add_internal_links' => 'add_internal_links',
+            default => 'refresh_page',
+        };
+        $plan = $this->modificationPlanner->planForRecommendation(
+            (string) $recommendation->site_id,
+            (string) $recommendation->type,
+            $subject,
+            $recommendation->suggested_action,
+            $meta,
+            $recommendation->site_page_id,
+        );
+        $gain = $this->modificationPlanner->estimateGain(
+            $actionKey,
+            $signals['impressions'],
+            $signals['position'],
+            $signalsCtr,
+            $subject,
+        );
+        if ($gain['visitors'] <= 0 && $impact !== []) {
+            $mid = (int) round(((int) ($impact['monthly_gain_min'] ?? 0) + (int) ($impact['monthly_gain_max'] ?? 0)) / 2);
+            $gain = [
+                'visitors' => $mid,
+                'min' => (int) ($impact['monthly_gain_min'] ?? 0),
+                'max' => (int) ($impact['monthly_gain_max'] ?? 0),
+                'basis' => 'Estimation moteur sur le cluster éditorial',
+                'display' => sprintf('+%d visiteurs/mois', $mid),
+            ];
+        }
         $effort = $this->effortProfile((string) $recommendation->difficulty);
 
         return $this->composeAction([
@@ -153,17 +203,26 @@ final class BusinessCopilotService
             'headline' => $profile['headline'],
             'problem_plain' => $profile['problem_plain'],
             'why_plain' => $profile['why_plain'],
-            'action_label' => $profile['action_label'],
-            'action_detail' => $profile['action_detail'],
-            'monthly_gain_visitors' => max($visitors, (int) ($impact['monthly_gain_min'] ?? 0)),
-            'monthly_gain_min' => (int) ($impact['monthly_gain_min'] ?? 0),
-            'monthly_gain_max' => (int) ($impact['monthly_gain_max'] ?? 0),
+            'action_label' => $plan['action_label'],
+            'action_detail' => $plan['action_detail'],
+            'modification_plan' => [
+                'sections' => $plan['sections'],
+                'topics' => $plan['topics'],
+                'faq' => $plan['faq'],
+                'content_summary' => $plan['content_summary'],
+                'title_change' => $plan['title_change'],
+            ],
+            'gain_basis' => $gain['basis'],
+            'gain_display' => $gain['display'],
+            'monthly_gain_visitors' => $gain['visitors'],
+            'monthly_gain_min' => $gain['min'],
+            'monthly_gain_max' => $gain['max'],
             'estimated_volume' => $this->estimateMonthlyVolume($signals['impressions']),
             'current_position' => $signals['position'] > 0 ? round($signals['position'], 1) : null,
             'effort_level' => $effort['level'],
             'effort_label' => $effort['label'],
             'effort_minutes' => $effort['minutes'],
-            'effort_display' => $this->formatEffortDisplay($effort, max($visitors, (int) ($impact['monthly_gain_min'] ?? 0))),
+            'effort_display' => '',
             'apply_mode' => $profile['apply_mode'],
             'apply_workflow' => $this->workflowForRecommendationType((string) $recommendation->type),
             'apply_ready' => $this->canAutoApply(
@@ -175,7 +234,7 @@ final class BusinessCopilotService
             ),
             'apply_href' => $this->applyHref((string) $recommendation->site_id, '', $recommendation->site_page_id, $profile['apply_mode']),
             'priority_score' => max(0, 100 - (int) $recommendation->priority),
-            'sort_score' => max($visitors, (int) ($impact['monthly_gain_min'] ?? 0)) * 10 + max(0, 100 - (int) $recommendation->priority),
+            'sort_score' => $gain['visitors'] * 10 + max(0, 100 - (int) $recommendation->priority),
         ]);
     }
 
@@ -338,30 +397,6 @@ final class BusinessCopilotService
         };
     }
 
-    /**
-     * @return array{visitors:int,min:int,max:int}
-     */
-    private function estimateGain(string $actionKey, int $impressions, float $position, float $ctr): array
-    {
-        $impact = $this->impactEstimator->estimate($actionKey, [], [], [
-            'impressions' => $impressions,
-            'position' => $position,
-            'ctr' => $ctr,
-        ]);
-
-        $mid = (int) round(((int) ($impact['monthly_gain_min'] ?? 0) + (int) ($impact['monthly_gain_max'] ?? 0)) / 2);
-
-        if ($mid <= 0 && $impressions > 0) {
-            $mid = max(15, (int) round($impressions * 0.08));
-        }
-
-        return [
-            'visitors' => max($mid, (int) ($impact['monthly_gain_min'] ?? 0)),
-            'min' => (int) ($impact['monthly_gain_min'] ?? max(10, (int) floor($mid * 0.7))),
-            'max' => (int) ($impact['monthly_gain_max'] ?? max($mid, (int) ceil($mid * 1.4))),
-        ];
-    }
-
     private function estimateMonthlyVolume(int $impressions): ?int
     {
         if ($impressions <= 0) {
@@ -432,10 +467,14 @@ final class BusinessCopilotService
                 (int) ($payload['monthly_gain_visitors'] ?? 0),
             );
 
-        $payload['gain_display'] = sprintf(
-            '+%d visiteurs/mois',
-            (int) ($payload['monthly_gain_visitors'] ?? 0),
-        );
+        if (! isset($payload['gain_display']) || $payload['gain_display'] === '') {
+            $min = (int) ($payload['monthly_gain_min'] ?? 0);
+            $max = (int) ($payload['monthly_gain_max'] ?? 0);
+            $visitors = (int) ($payload['monthly_gain_visitors'] ?? 0);
+            $payload['gain_display'] = $min > 0 && $max > $min
+                ? sprintf('+%d–%d visiteurs/mois', $min, $max)
+                : sprintf('+%d visiteurs/mois', $visitors);
+        }
 
         $payload['card_title'] = sprintf(
             '#%d %s',

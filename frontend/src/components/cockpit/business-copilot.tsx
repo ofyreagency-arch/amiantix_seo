@@ -53,10 +53,59 @@ function BusinessCopilotActionCard({
         </div>
       </div>
 
+      {action.modification_plan?.sections?.length ||
+      action.modification_plan?.topics?.length ||
+      action.modification_plan?.faq?.length ? (
+        <div className="mt-4 rounded-xl border border-brand/20 bg-brand-muted/20 px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">Ce que PraeviSEO va modifier</p>
+          {action.modification_plan.content_summary ? (
+            <p className="mt-2 text-sm leading-6 text-text">{action.modification_plan.content_summary}</p>
+          ) : null}
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {action.modification_plan.sections.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-text-muted">Sections à ajouter</p>
+                <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text">
+                  {action.modification_plan.sections.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {action.modification_plan.topics.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-text-muted">Sujets à couvrir</p>
+                <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text">
+                  {action.modification_plan.topics.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {action.modification_plan.faq.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-text-muted">FAQ à ajouter</p>
+                <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text">
+                  {action.modification_plan.faq.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          {action.modification_plan.title_change ? (
+            <p className="mt-3 text-sm text-text-muted">
+              <span className="font-medium text-text">Titre proposé :</span> {action.modification_plan.title_change}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <p className="text-sm text-text-muted">{action.action_detail}</p>
           <p className="text-sm font-medium text-text">{action.effort_display}</p>
+          {action.gain_basis ? <p className="text-xs text-text-subtle">Gain estimé à partir de : {action.gain_basis}</p> : null}
           <div className="flex flex-wrap gap-2 text-xs text-text-subtle">
             {action.current_position !== null ? (
               <span className="rounded-full border border-border px-2.5 py-1">Position actuelle : {action.current_position}</span>

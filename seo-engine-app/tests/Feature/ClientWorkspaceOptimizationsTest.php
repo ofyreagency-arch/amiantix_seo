@@ -100,6 +100,13 @@ class ClientWorkspaceOptimizationsTest extends TestCase
                 'top_action' => [
                     'apply_workflow',
                     'apply_ready',
+                    'modification_plan' => [
+                        'sections',
+                        'topics',
+                        'faq',
+                        'content_summary',
+                    ],
+                    'gain_basis',
                 ],
             ],
         ]);

@@ -436,6 +436,14 @@ export type PraeviseoObservedRecommendation = {
   generated_at: string | null;
 };
 
+export type PraeviseoBusinessCopilotModificationPlan = {
+  sections: string[];
+  topics: string[];
+  faq: string[];
+  content_summary: string;
+  title_change: string | null;
+};
+
 export type PraeviseoBusinessCopilotAction = {
   rank: number;
   source: "gsc_opportunity" | "recommendation";
@@ -453,6 +461,8 @@ export type PraeviseoBusinessCopilotAction = {
   why_plain: string;
   action_label: string;
   action_detail: string;
+  modification_plan: PraeviseoBusinessCopilotModificationPlan;
+  gain_basis: string;
   monthly_gain_visitors: number;
   monthly_gain_min: number;
   monthly_gain_max: number;
@@ -1665,6 +1675,32 @@ const mockSettings: PraeviseoSettings = {
   })),
 };
 
+const emptyModificationPlan: PraeviseoBusinessCopilotModificationPlan = {
+  sections: [],
+  topics: [],
+  faq: [],
+  content_summary: "",
+  title_change: null,
+};
+
+function normalizeBusinessCopilotAction(action: PraeviseoBusinessCopilotAction): PraeviseoBusinessCopilotAction {
+  return {
+    ...action,
+    modification_plan: action.modification_plan ?? emptyModificationPlan,
+    gain_basis: action.gain_basis ?? "",
+  };
+}
+
+function normalizeBusinessCopilot(copilot: PraeviseoBusinessCopilot): PraeviseoBusinessCopilot {
+  const daily = (copilot.daily_priority ?? []).map(normalizeBusinessCopilotAction);
+
+  return {
+    ...copilot,
+    daily_priority: daily,
+    top_action: copilot.top_action ? normalizeBusinessCopilotAction(copilot.top_action) : null,
+  };
+}
+
 const emptyBusinessCopilot: PraeviseoBusinessCopilot = {
   headline: "PraeviSEO surveille votre visibilité",
   subheadline: "Dès qu’un levier concret apparaît dans Google, il sera classé ici par gain potentiel.",
@@ -2585,7 +2621,7 @@ export async function getOptimizations(): Promise<PraeviseoOptimizations> {
 
     return {
       ...data,
-      business_copilot: data.business_copilot ?? emptyBusinessCopilot,
+      business_copilot: normalizeBusinessCopilot(data.business_copilot ?? emptyBusinessCopilot),
     };
   } catch {
     return emptyOptimizations;
