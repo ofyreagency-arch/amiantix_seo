@@ -8,6 +8,8 @@ use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\ObservedSite\SiteCrawlerService;
 use App\SeoPresets\Shared\FieldExpertWritingDirectives;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 class PublishedContentValidationService
@@ -44,7 +46,7 @@ class PublishedContentValidationService
             ];
         }
 
-        $publishedHtml = $this->fetchPublishedHtml($liveUrl);
+        $publishedHtml = $this->fetchPublishedHtml($liveUrl, $page);
         $extracted = $this->extractPublishedBody($publishedHtml);
 
         $report = [
@@ -52,6 +54,7 @@ class PublishedContentValidationService
             'stage' => 'published_html',
             'live_url' => $liveUrl,
             'http_status' => $publishedHtml['status'],
+            'fetch_mode' => $publishedHtml['mode'] ?? 'http',
             'word_count' => $extracted['word_count'],
             'h2_headings' => $extracted['h2_headings'],
             'draft_word_count' => $this->wordCount((string) ($page->content ?? '')),
@@ -88,17 +91,65 @@ class PublishedContentValidationService
     }
 
     /**
-     * @return array{status:int,html:string}
+     * @return array{status:int,html:string,mode:string}
      */
-    private function fetchPublishedHtml(string $liveUrl): array
+    private function fetchPublishedHtml(string $liveUrl, SeoPage $page): array
     {
         $response = Http::timeout(20)
             ->withHeaders(['User-Agent' => 'Praeviseo-PublishedValidator/1.0'])
             ->get($liveUrl);
 
+        if ($response->successful()) {
+            return [
+                'status' => $response->status(),
+                'html' => (string) $response->body(),
+                'mode' => 'http',
+            ];
+        }
+
+        $internal = $this->fetchPublishedHtmlInternally($page, $liveUrl);
+
+        if ($internal !== null) {
+            return $internal;
+        }
+
         return [
             'status' => $response->status(),
             'html' => (string) $response->body(),
+            'mode' => 'http',
+        ];
+    }
+
+    /**
+     * @return array{status:int,html:string,mode:string}|null
+     */
+    private function fetchPublishedHtmlInternally(SeoPage $page, string $liveUrl): ?array
+    {
+        $path = parse_url($liveUrl, PHP_URL_PATH);
+        $host = parse_url($liveUrl, PHP_URL_HOST);
+
+        if (! is_string($path) || $path === '' || ! is_string($host) || $host === '') {
+            return null;
+        }
+
+        /** @var HttpKernel $kernel */
+        $kernel = app(HttpKernel::class);
+        $request = Request::create($path, 'GET', server: [
+            'HTTP_HOST' => $host,
+            'HTTPS' => parse_url($liveUrl, PHP_URL_SCHEME) === 'https' ? 'on' : 'off',
+        ]);
+        $response = $kernel->handle($request);
+        $html = (string) $response->getContent();
+        $kernel->terminate($request, $response);
+
+        if ($response->getStatusCode() >= 400 || ! str_contains($html, 'prose-article')) {
+            return null;
+        }
+
+        return [
+            'status' => $response->getStatusCode(),
+            'html' => $html,
+            'mode' => 'internal_kernel',
         ];
     }
 

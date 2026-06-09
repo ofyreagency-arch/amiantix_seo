@@ -943,7 +943,7 @@ class SeoGenerationService
         $trace = [];
         $expandedPayload = $payload;
 
-        for ($attempt = 1; $attempt <= 2; $attempt++) {
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
             $result = $this->askAiResult(
                 $prompt,
                 $keyword,

@@ -124,7 +124,9 @@ foreach ($selectedNiches as $niche) {
         $page = $page->refresh();
 
         $published = $publishedValidator->validate($site->fresh(), $page->fresh(), publishIfNeeded: true);
-        $fingerprints[$niche] = NicheDistinguishabilityAnalyzer::fingerprint($niche, $content, [$keyword]);
+        $page = $page->fresh();
+        $publishedContent = (string) ($page->content ?? $content);
+        $fingerprints[$niche] = NicheDistinguishabilityAnalyzer::fingerprint($niche, $publishedContent, [$keyword]);
 
         $entry = array_merge($entry, [
             'status' => ($published['ok'] ?? false) ? 'validated' : 'published_validation_failed',
@@ -135,6 +137,10 @@ foreach ($selectedNiches as $niche) {
             'published_validation' => $published,
             'fingerprint' => $fingerprints[$niche],
             'live_url' => $page->live_url,
+            'blueprint_niche' => data_get(
+                app(\App\Services\Preset\PresetBlueprintProvider::class)->resolve($keyword, 'default'),
+                'niche',
+            ),
         ]);
     } catch (Throwable $exception) {
         $entry['status'] = 'error';
