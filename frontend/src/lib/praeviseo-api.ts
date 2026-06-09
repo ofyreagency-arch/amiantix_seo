@@ -459,7 +459,7 @@ export type PraeviseoActionApplyContext = {
   why_this_action: string;
   what_will_change: string;
   has_modification_plan: boolean;
-  live_site_impact: "advisory_only" | "draft_only" | "studio_then_publish" | "live_auto" | "review_first";
+  live_site_impact: "preview_then_confirm" | "advisory_only" | "draft_only" | "studio_then_publish" | "live_auto" | "review_first";
   live_site_impact_label: string;
   live_site_impact_detail: string;
   will_modify_live_site: boolean;

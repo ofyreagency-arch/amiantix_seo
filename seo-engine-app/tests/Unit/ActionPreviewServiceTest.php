@@ -67,7 +67,7 @@ class ActionPreviewServiceTest extends TestCase
         $this->assertSame('FAQ amiante', $payload['current']['title']);
         $this->assertContains('Questions générales', $payload['current']['h2_headings']);
         $this->assertFalse($payload['apply_ready']);
-        $this->assertSame('advisory_only', $payload['apply_context']['live_site_impact']);
+        $this->assertSame('preview_then_confirm', $payload['apply_context']['live_site_impact']);
         $this->assertFalse($payload['can_confirm_publish']);
         $this->assertNotEmpty($payload['proposed']['sections_to_add'] ?? $payload['proposed']['faq_to_add'] ?? $payload['proposed']['content_summary']);
     }

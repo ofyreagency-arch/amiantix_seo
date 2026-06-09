@@ -8,6 +8,7 @@ use App\Models\SeoPage;
 use App\Models\SeoRecommendation;
 use App\Models\SeoSitePage;
 use App\Recommendations\ImpactEstimatorService;
+use App\Services\Publication\ObservedNativePublicationGuard;
 use Illuminate\Support\Collection;
 
 final class BusinessCopilotService
@@ -16,6 +17,7 @@ final class BusinessCopilotService
         private readonly ImpactEstimatorService $impactEstimator,
         private readonly BusinessCopilotModificationPlanner $modificationPlanner,
         private readonly ActionApplyContextService $applyContext,
+        private readonly ObservedNativePublicationGuard $nativeGuard,
     ) {}
 
     /**
@@ -561,16 +563,18 @@ final class BusinessCopilotService
                 'target' => $slug !== '' ? $slug : $query,
             ])),
             default => $slug !== ''
-                ? ($this->hasStudioPage($siteId, $slug, $pageId)
-                    ? '/publications?'.http_build_query([
+                ? ($this->nativeGuard->isNativeObservedSlug($siteId, $slug)
+                    || ! $this->hasStudioPage($siteId, $slug, $pageId)
+                    ? '/preview?'.http_build_query(array_filter([
+                        'site' => $siteId,
+                        'slug' => $slug,
+                        'query' => $query,
+                    ]))
+                    : '/publications?'.http_build_query([
                         'focus' => 'content',
                         'site' => $siteId,
                         'slug' => $slug,
-                    ])
-                    : '/preview?'.http_build_query(array_filter([
-                        'site' => $siteId,
-                        'slug' => $slug,
-                    ])))
+                    ]))
                 : ($pageId
                     ? '/sites/'.$siteId.'/automation?'.http_build_query(['site' => $siteId])
                     : '/pages?'.http_build_query(['focus' => 'content', 'site' => $siteId])),

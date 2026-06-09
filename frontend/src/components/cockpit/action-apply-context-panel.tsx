@@ -10,6 +10,7 @@ function impactTone(impact: PraeviseoActionApplyContext["live_site_impact"]) {
     case "studio_then_publish":
     case "draft_only":
       return "secondary" as const;
+    case "preview_then_confirm":
     case "advisory_only":
     default:
       return "brand-subtle" as const;

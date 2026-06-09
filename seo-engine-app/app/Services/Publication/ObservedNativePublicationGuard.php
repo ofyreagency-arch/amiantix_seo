@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Publication;
 
+use App\Models\SeoPage;
+use App\Models\SeoSite;
 use App\Models\SeoSitePage;
 
 final class ObservedNativePublicationGuard
@@ -32,6 +34,54 @@ final class ObservedNativePublicationGuard
     public function homepageBlockedReason(): string
     {
         return 'La page d accueil demande une validation humaine obligatoire avant toute publication native. Validez le plan ici, puis finalisez la publication avec votre référent PraeviSEO ou depuis le studio éditorial.';
+    }
+
+    public function isNativeObservedSlug(string $siteId, string $slug): bool
+    {
+        $observed = $this->resolveObservedPageBySlug($siteId, $slug);
+
+        if (! $observed) {
+            return false;
+        }
+
+        return $this->isNativeObservedPath($siteId, (string) $observed->path);
+    }
+
+    public function isNativeObservedPage(SeoPage $page): bool
+    {
+        $observed = $page->relationLoaded('observedPage')
+            ? $page->observedPage
+            : ($page->observed_site_page_id
+                ? SeoSitePage::query()->find($page->observed_site_page_id)
+                : null);
+
+        if (! $observed) {
+            return false;
+        }
+
+        return $this->isNativeObservedPath((string) $page->site_id, (string) $observed->path);
+    }
+
+    public function isNativeObservedPath(string $siteId, string $path): bool
+    {
+        $site = SeoSite::query()->where('site_id', $siteId)->first();
+
+        if (! $site) {
+            return false;
+        }
+
+        $prefix = trim((string) $site->publicationPathPrefix(), '/');
+        $observedPath = ltrim(trim($path), '/');
+
+        if ($observedPath === '') {
+            return true;
+        }
+
+        if ($prefix !== '' && ($observedPath === $prefix || str_starts_with($observedPath, $prefix.'/'))) {
+            return false;
+        }
+
+        return true;
     }
 
     public function resolveObservedPageBySlug(string $siteId, string $slug): ?SeoSitePage

@@ -72,6 +72,10 @@ final class ActionApplyContextService
             return 'new_content';
         }
 
+        if ($this->nativeGuard->isNativeObservedSlug($siteId, $slug)) {
+            return 'observed';
+        }
+
         if ($this->hasStudioPage($siteId, $slug, $pageId)) {
             return 'studio';
         }
@@ -213,9 +217,9 @@ final class ActionApplyContextService
     {
         if ($pageKind === 'observed') {
             return [
-                'code' => 'advisory_only',
-                'label' => 'Conseil pour l’instant',
-                'detail' => 'PraeviSEO ne modifie pas encore automatiquement cette page sur votre site. Vous voyez ici le plan à appliquer, puis une future version pourra le publier directement.',
+                'code' => 'preview_then_confirm',
+                'label' => 'Prévisualisation puis validation',
+                'detail' => 'PraeviSEO ne modifie pas cette URL native en un clic depuis Optimisations. Ouvrez la prévisualisation, validez le plan, puis confirmez la publication si le bridge est connecté.',
                 'will_modify' => false,
             ];
         }
@@ -336,11 +340,21 @@ final class ActionApplyContextService
         }
 
         if ($pageId) {
+            $page = SeoPage::query()->where('site_id', $siteId)->whereKey($pageId)->first();
+
+            if ($page && $this->nativeGuard->isNativeObservedPage($page)) {
+                return false;
+            }
+
             return true;
         }
 
         if ($slug === '') {
             return true;
+        }
+
+        if ($this->nativeGuard->isNativeObservedSlug($siteId, $slug)) {
+            return false;
         }
 
         if ($this->hasStudioPage($siteId, $slug, $pageId)) {
