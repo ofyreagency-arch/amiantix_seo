@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { BusinessCopilotPriority } from "@/components/cockpit/business-copilot";
 import { Badge } from "@/components/ui/badge";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
