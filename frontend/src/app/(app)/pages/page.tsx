@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { ActionApplyContextPanel } from "@/components/cockpit/action-apply-context-panel";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { CockpitMetricGrid } from "@/components/cockpit/metric-grid";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
@@ -689,51 +690,36 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
         </div>
 
         {focusMessage ? (
-          <div id="page-cible" className="scroll-mt-24 rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
-            <div className="flex flex-col gap-4">
-              <div>
+          <div id="page-cible" className="scroll-mt-24 space-y-4">
+            {focusedOpportunity?.apply_context ? (
+              <ActionApplyContextPanel context={focusedOpportunity.apply_context} />
+            ) : (
+              <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
                 <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
                 <p className="mt-2 text-sm leading-6 text-text-muted">
                   {focusMessage.detail}
                   {focusSite ? ` Site ciblé : ${focusSite}.` : ""}
                 </p>
-                {focusedOpportunity?.reason ? (
-                  <p className="mt-2 text-sm leading-6 text-text">{focusedOpportunity.reason}</p>
-                ) : null}
-                {focusedOpportunity?.modification_preview?.sections?.[0] ||
-                focusedOpportunity?.modification_preview?.faq?.[0] ? (
-                  <div className="mt-3 space-y-1 rounded-lg border border-border bg-surface/70 px-3 py-2 text-xs text-text-subtle">
-                    {focusedOpportunity.modification_preview.sections[0] ? (
-                      <p>Section à ajouter : {focusedOpportunity.modification_preview.sections[0]}</p>
-                    ) : null}
-                    {focusedOpportunity.modification_preview.faq[0] ? (
-                      <p>FAQ à ajouter : {focusedOpportunity.modification_preview.faq[0]}</p>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {focus === "content" && focusedPageActions.length > 0
-                  ? focusedPageActions.map((action) => (
-                      <Button
-                        key={`focus-${action.label}`}
-                        href={action.href}
-                        size="sm"
-                        variant={action.variant ?? "secondary"}
-                        external={action.external}
-                      >
-                        {action.label}
-                      </Button>
-                    ))
-                  : (
-                    <Button href={focusMessage.href} size="sm">
-                      Voir la section détaillée
+            )}
+            <div className="flex flex-wrap gap-2">
+              {focus === "content" && focusedPageActions.length > 0
+                ? focusedPageActions.map((action) => (
+                    <Button
+                      key={`focus-${action.label}`}
+                      href={action.href}
+                      size="sm"
+                      variant={action.variant ?? "secondary"}
+                      external={action.external}
+                    >
+                      {action.label}
                     </Button>
-                  )}
-              </div>
-              {focusedLiveUrl ? (
-                <p className="text-xs text-text-subtle break-all">Page live : {focusedLiveUrl}</p>
-              ) : null}
+                  ))
+                : (
+                  <Button href={focusMessage.href} size="sm">
+                    Voir la section détaillée
+                  </Button>
+                )}
             </div>
           </div>
         ) : null}

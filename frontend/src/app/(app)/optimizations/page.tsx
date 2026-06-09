@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { ActionApplyContextPanel } from "@/components/cockpit/action-apply-context-panel";
 import { BusinessCopilotPriority } from "@/components/cockpit/business-copilot";
 import { CopilotFeedbackBanner } from "@/components/cockpit/copilot-feedback-banner";
 import { Badge } from "@/components/ui/badge";
@@ -325,10 +326,14 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
         ? {
             title: `Action ouverte pour « ${focusSlug} »`,
             detail:
-              "PraeviSEO a préparé un plan de modification pour cette page. Ouvrez le studio pour voir le contenu et appliquer les changements proposés.",
+              "Consultez d’abord la page concernée, le plan recommandé et l’impact sur votre site live avant toute modification.",
             href: `/pages?focus=content&site=${encodeURIComponent(focusSite)}&target=${encodeURIComponent(focusSlug)}`,
           }
         : null;
+  const focusedOpportunity =
+    focusSlug !== ""
+      ? opportunities.find((item) => item.slug === focusSlug && (!focusSite || item.site_id === focusSite)) ?? null
+      : null;
 
   return (
     <div className="min-h-screen">
@@ -390,17 +395,21 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
         </div>
 
         {focusMessage ? (
-          <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+          <div className="space-y-4">
+            {focusedOpportunity?.apply_context ? (
+              <ActionApplyContextPanel context={focusedOpportunity.apply_context} />
+            ) : (
+              <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
                 <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
                 <p className="mt-2 text-sm leading-6 text-text-muted">
                   {focusMessage.detail}
                   {focusSite ? ` Site ciblé : ${focusSite}.` : ""}
                 </p>
               </div>
+            )}
+            <div className="flex flex-wrap gap-2">
               <Button href={focusMessage.href} size="sm">
-                Ouvrir la bonne section
+                {focusedOpportunity?.apply_context?.button_label ?? "Voir la fiche de la page"}
               </Button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { ActionApplyContextPanel } from "@/components/cockpit/action-apply-context-panel";
 import { BusinessCopilotApplyButton } from "@/components/cockpit/business-copilot-apply-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,11 +54,23 @@ function BusinessCopilotActionCard({
         </div>
       </div>
 
+      {action.apply_context ? (
+        <div className="mt-4">
+          <ActionApplyContextPanel context={action.apply_context} compact />
+        </div>
+      ) : null}
+
       {action.modification_plan?.sections?.length ||
       action.modification_plan?.topics?.length ||
       action.modification_plan?.faq?.length ? (
         <div className="mt-4 rounded-xl border border-brand/20 bg-brand-muted/20 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">Ce que PraeviSEO va modifier</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+            {action.apply_context?.will_modify_live_site
+              ? "Modifications prévues sur le site"
+              : action.apply_context?.page_kind === "observed"
+                ? "Plan recommandé à appliquer sur votre site"
+                : "Détail du plan PraeviSEO"}
+          </p>
           {action.modification_plan.content_summary ? (
             <p className="mt-2 text-sm leading-6 text-text">{action.modification_plan.content_summary}</p>
           ) : null}

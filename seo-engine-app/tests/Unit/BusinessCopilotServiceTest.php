@@ -6,6 +6,8 @@ namespace Tests\Unit;
 
 use App\Copilot\BusinessCopilotService;
 use App\Models\SeoRecommendation;
+use App\Models\SeoSite;
+use App\Models\SeoSitePage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -122,6 +124,25 @@ class BusinessCopilotServiceTest extends TestCase
 
     public function test_marks_unmapped_gsc_page_as_manual_apply(): void
     {
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        SeoSitePage::query()->create([
+            'site_id' => $site->site_id,
+            'normalized_url' => 'https://amiantix.com/faq',
+            'url_hash' => hash('sha256', 'https://amiantix.com/faq'),
+            'path' => '/faq',
+            'title' => 'Faq',
+        ]);
+
         $payload = app(BusinessCopilotService::class)->build(collect([
             [
                 'site_id' => 'amiantix',
@@ -144,5 +165,8 @@ class BusinessCopilotServiceTest extends TestCase
         $this->assertFalse($payload['top_action']['apply_ready'] ?? true);
         $this->assertStringContainsString('/pages', (string) ($payload['top_action']['apply_href'] ?? ''));
         $this->assertStringContainsString('target=faq', (string) ($payload['top_action']['apply_href'] ?? ''));
+        $this->assertSame('observed', $payload['top_action']['apply_context']['page_kind'] ?? null);
+        $this->assertFalse($payload['top_action']['apply_context']['will_modify_live_site'] ?? true);
+        $this->assertSame('advisory_only', $payload['top_action']['apply_context']['live_site_impact'] ?? null);
     }
 }

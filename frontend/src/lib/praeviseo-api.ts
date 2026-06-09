@@ -424,6 +424,7 @@ export type PraeviseoGscOpportunity = {
     sections: string[];
     faq: string[];
   };
+  apply_context?: PraeviseoActionApplyContext;
 };
 
 export type PraeviseoObservedRecommendation = {
@@ -447,6 +448,40 @@ export type PraeviseoBusinessCopilotModificationPlan = {
   faq: string[];
   content_summary: string;
   title_change: string | null;
+};
+
+export type PraeviseoActionApplyContext = {
+  page_kind: "studio" | "observed" | "new_content" | "unknown";
+  page_kind_label: string;
+  target_label: string;
+  target_path: string | null;
+  target_url: string | null;
+  why_this_action: string;
+  what_will_change: string;
+  has_modification_plan: boolean;
+  live_site_impact: "advisory_only" | "draft_only" | "studio_then_publish" | "live_auto" | "review_first";
+  live_site_impact_label: string;
+  live_site_impact_detail: string;
+  will_modify_live_site: boolean;
+  button_label: string;
+  button_explanation: string;
+};
+
+export const emptyActionApplyContext: PraeviseoActionApplyContext = {
+  page_kind: "unknown",
+  page_kind_label: "Page à clarifier",
+  target_label: "Page ciblée",
+  target_path: null,
+  target_url: null,
+  why_this_action: "PraeviSEO a identifié une action utile sur cette page.",
+  what_will_change: "Le détail des modifications apparaîtra ici dès que le plan est prêt.",
+  has_modification_plan: false,
+  live_site_impact: "review_first",
+  live_site_impact_label: "À vérifier avant action",
+  live_site_impact_detail: "Ouvrez la page concernée pour confirmer la cible et le mode d’application.",
+  will_modify_live_site: false,
+  button_label: "Voir la page concernée",
+  button_explanation: "Affiche la fiche de la page et le plan recommandé.",
 };
 
 export type PraeviseoBusinessCopilotAction = {
@@ -482,6 +517,7 @@ export type PraeviseoBusinessCopilotAction = {
   apply_workflow: "rewrite" | "generate" | "linking";
   apply_ready: boolean;
   apply_href: string;
+  apply_context?: PraeviseoActionApplyContext;
 };
 
 export type PraeviseoBusinessCopilot = {
@@ -1693,6 +1729,7 @@ function normalizeBusinessCopilotAction(action: PraeviseoBusinessCopilotAction):
     ...action,
     modification_plan: action.modification_plan ?? emptyModificationPlan,
     gain_basis: action.gain_basis ?? "",
+    apply_context: action.apply_context ?? emptyActionApplyContext,
   };
 }
 

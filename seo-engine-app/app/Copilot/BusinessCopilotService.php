@@ -15,6 +15,7 @@ final class BusinessCopilotService
     public function __construct(
         private readonly ImpactEstimatorService $impactEstimator,
         private readonly BusinessCopilotModificationPlanner $modificationPlanner,
+        private readonly ActionApplyContextService $applyContext,
     ) {}
 
     /**
@@ -133,6 +134,8 @@ final class BusinessCopilotService
             'apply_href' => $this->applyHref($siteId, $slug, $pageId, $workflow, $query !== '' ? $query : null),
             'priority_score' => (int) ($item['priority_score'] ?? 0),
             'sort_score' => $gain['visitors'] * 10 + (int) ($item['priority_score'] ?? 0),
+            'site_url' => (string) ($item['site_url'] ?? ''),
+            'page_label' => $label,
         ]);
     }
 
@@ -241,6 +244,7 @@ final class BusinessCopilotService
             ),
             'priority_score' => max(0, 100 - (int) $recommendation->priority),
             'sort_score' => $gain['visitors'] * 10 + max(0, 100 - (int) $recommendation->priority),
+            'page_label' => $subject,
         ]);
     }
 
@@ -494,6 +498,21 @@ final class BusinessCopilotService
             (string) ($payload['headline'] ?? 'Action recommandée'),
         );
 
+        $modificationPlan = is_array($payload['modification_plan'] ?? null) ? $payload['modification_plan'] : [];
+        $slug = ltrim((string) ($payload['slug'] ?? ''), '/');
+        $payload['apply_context'] = $this->applyContext->resolve(
+            (string) ($payload['site_id'] ?? ''),
+            $slug,
+            $payload['page_id'] ?? null,
+            (string) ($payload['apply_workflow'] ?? 'rewrite'),
+            (bool) ($payload['apply_ready'] ?? false),
+            (string) ($payload['subject'] ?? ''),
+            (string) ($payload['page_label'] ?? $payload['subject'] ?? 'Page ciblée'),
+            trim((string) ($payload['site_url'] ?? '')) !== '' ? (string) $payload['site_url'] : null,
+            $modificationPlan,
+        );
+        unset($payload['site_url'], $payload['page_label']);
+
         return $payload;
     }
 
@@ -516,45 +535,7 @@ final class BusinessCopilotService
 
     private function canAutoApply(string $workflow, string $siteId, mixed $pageId, string $slug, ?string $keyword = null): bool
     {
-        return match ($workflow) {
-            'generate' => $siteId !== '',
-            'linking', 'rewrite' => $this->pageResolvableForApply($siteId, $pageId, $slug),
-            default => false,
-        };
-    }
-
-    private function pageResolvableForApply(string $siteId, mixed $pageId, string $slug): bool
-    {
-        if ($siteId === '') {
-            return false;
-        }
-
-        if ($pageId) {
-            return true;
-        }
-
-        if ($slug === '') {
-            return true;
-        }
-
-        if (SeoPage::query()->where('site_id', $siteId)->where('slug', $slug)->exists()) {
-            return true;
-        }
-
-        $path = '/'.ltrim($slug, '/');
-        $observedId = SeoSitePage::query()
-            ->where('site_id', $siteId)
-            ->where('path', $path)
-            ->value('id');
-
-        if (! $observedId) {
-            return false;
-        }
-
-        return SeoPage::query()
-            ->where('site_id', $siteId)
-            ->where('observed_site_page_id', (int) $observedId)
-            ->exists();
+        return $this->applyContext->canAutoApply($workflow, $siteId, $pageId, $slug);
     }
 
     private function applyHref(

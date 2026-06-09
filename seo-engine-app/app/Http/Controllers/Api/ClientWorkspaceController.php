@@ -12,6 +12,7 @@ use App\Models\SeoSemanticLink;
 use App\Models\SeoSite;
 use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSuggestion;
+use App\Copilot\ActionApplyContextService;
 use App\Copilot\BusinessCopilotModificationPlanner;
 use App\Copilot\BusinessCopilotService;
 use App\Runtime\GscOpportunityService;
@@ -102,7 +103,7 @@ class ClientWorkspaceController extends Controller
             })
             ->sortByDesc('priority_score')
             ->values()
-            ->map(fn (array $item): array => $this->enrichOpportunityWithBusinessCopy($item, $modificationPlanner));
+            ->map(fn (array $item): array => $this->enrichOpportunityWithBusinessCopy($item, $modificationPlanner, app(ActionApplyContextService::class)));
 
         $opportunitySummary = [
             'low_ctr' => (int) $opportunityPayloads->sum(fn (array $payload): int => (int) ($payload['summary']['low_ctr'] ?? 0)),
@@ -676,32 +677,62 @@ class ClientWorkspaceController extends Controller
      * @param  array<string,mixed>  $item
      * @return array<string,mixed>
      */
-    private function enrichOpportunityWithBusinessCopy(array $item, BusinessCopilotModificationPlanner $modificationPlanner): array
-    {
+    private function enrichOpportunityWithBusinessCopy(
+        array $item,
+        BusinessCopilotModificationPlanner $modificationPlanner,
+        ActionApplyContextService $applyContext,
+    ): array {
         $query = isset($item['query']) ? trim((string) $item['query']) : '';
         $label = trim((string) ($item['label'] ?? ''));
         $subject = $query !== '' ? $query : $label;
         $metrics = is_array($item['metrics'] ?? null) ? $item['metrics'] : [];
         $position = (float) ($metrics['position'] ?? 0);
+        $siteId = (string) ($item['site_id'] ?? '');
+        $slug = (string) ($item['slug'] ?? '');
+        $pageId = $item['page_id'] ?? null;
+        $workflow = match ((string) ($item['type'] ?? '')) {
+            'emerging_query' => 'generate',
+            default => 'rewrite',
+        };
+        $signalReady = ($item['action_state'] ?? '') === 'ready' && ! ($item['pending_suggestion'] ?? false);
 
         $plan = $modificationPlanner->planForGsc(
-            (string) ($item['site_id'] ?? ''),
+            $siteId,
             (string) ($item['type'] ?? ''),
             $subject,
             $label,
-            is_numeric($item['page_id'] ?? null) ? (int) $item['page_id'] : null,
-            (string) ($item['slug'] ?? ''),
+            is_numeric($pageId) ? (int) $pageId : null,
+            $slug,
             $query !== '' ? $query : null,
             null,
         );
 
-        $item['reason'] = $this->businessOpportunityReason((string) ($item['type'] ?? ''), $label, $position, $plan);
-        $item['action'] = (string) ($plan['action_label'] ?: ($item['action'] ?? ''));
-        $item['modification_preview'] = [
+        $modificationPlan = [
             'content_summary' => (string) ($plan['content_summary'] ?? ''),
             'sections' => array_values(array_slice((array) ($plan['sections'] ?? []), 0, 2)),
             'faq' => array_values(array_slice((array) ($plan['faq'] ?? []), 0, 2)),
+            'topics' => array_values(array_slice((array) ($plan['topics'] ?? []), 0, 2)),
+            'title_change' => $plan['title_change'] ?? null,
         ];
+
+        $item['reason'] = $this->businessOpportunityReason((string) ($item['type'] ?? ''), $label, $position, $plan);
+        $item['action'] = (string) ($plan['action_label'] ?: ($item['action'] ?? ''));
+        $item['modification_preview'] = [
+            'content_summary' => $modificationPlan['content_summary'],
+            'sections' => $modificationPlan['sections'],
+            'faq' => $modificationPlan['faq'],
+        ];
+        $item['apply_context'] = $applyContext->resolve(
+            $siteId,
+            $slug,
+            $pageId,
+            $workflow,
+            $signalReady && $applyContext->canAutoApply($workflow, $siteId, $pageId, $slug),
+            $subject,
+            $label,
+            trim((string) ($item['site_url'] ?? '')) !== '' ? (string) $item['site_url'] : null,
+            $modificationPlan,
+        );
 
         return $item;
     }

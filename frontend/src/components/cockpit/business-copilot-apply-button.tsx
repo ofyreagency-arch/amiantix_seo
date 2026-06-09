@@ -9,9 +9,11 @@ import { useFormStatus } from "react-dom";
 function SubmitButton({
   ready,
   featured,
+  label,
 }: {
   ready: boolean;
   featured: boolean;
+  label: string;
 }) {
   const { pending } = useFormStatus();
 
@@ -23,7 +25,7 @@ function SubmitButton({
       loading={pending}
       disabled={pending}
     >
-      {ready ? "Appliquer automatiquement" : "Ouvrir dans le studio"}
+      {label}
       <ArrowRight className="h-4 w-4" />
     </Button>
   );
@@ -39,26 +41,39 @@ export function BusinessCopilotApplyButton({
   returnTo: string;
 }) {
   if (!action.apply_ready) {
-    const manualLabel = action.apply_href.includes("/pages") ? "Voir la page concernée" : "Ouvrir dans le studio";
+    const manualLabel = action.apply_context?.button_label
+      ?? (action.apply_href.includes("/pages") ? "Voir le plan pour cette page" : "Ouvrir dans le studio");
 
     return (
-      <Button href={action.apply_href} variant={featured ? "primary" : "secondary"} className="shrink-0">
-        {manualLabel}
-        <ArrowRight className="h-4 w-4" />
-      </Button>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        <Button href={action.apply_href} variant={featured ? "primary" : "secondary"} className="shrink-0">
+          {manualLabel}
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+        {action.apply_context?.button_explanation ? (
+          <p className="max-w-sm text-right text-xs leading-5 text-text-subtle">{action.apply_context.button_explanation}</p>
+        ) : null}
+      </div>
     );
   }
 
+  const autoLabel = action.apply_context?.button_label ?? "Appliquer automatiquement";
+
   return (
-    <form action={applyCopilotAction} className="shrink-0">
-      <input type="hidden" name="site_id" value={action.site_id} />
-      <input type="hidden" name="apply_workflow" value={action.apply_workflow} />
-      <input type="hidden" name="subject" value={action.subject} />
-      <input type="hidden" name="slug" value={action.slug} />
-      <input type="hidden" name="query" value={action.query ?? ""} />
-      <input type="hidden" name="apply_href" value={action.apply_href} />
-      <input type="hidden" name="return_to" value={returnTo} />
-      <SubmitButton ready={action.apply_ready} featured={featured} />
-    </form>
+    <div className="flex shrink-0 flex-col items-end gap-2">
+      <form action={applyCopilotAction} className="shrink-0">
+        <input type="hidden" name="site_id" value={action.site_id} />
+        <input type="hidden" name="apply_workflow" value={action.apply_workflow} />
+        <input type="hidden" name="subject" value={action.subject} />
+        <input type="hidden" name="slug" value={action.slug} />
+        <input type="hidden" name="query" value={action.query ?? ""} />
+        <input type="hidden" name="apply_href" value={action.apply_href} />
+        <input type="hidden" name="return_to" value={returnTo} />
+        <SubmitButton ready={action.apply_ready} featured={featured} label={autoLabel} />
+      </form>
+      {action.apply_context?.button_explanation ? (
+        <p className="max-w-sm text-right text-xs leading-5 text-text-subtle">{action.apply_context.button_explanation}</p>
+      ) : null}
+    </div>
   );
 }
