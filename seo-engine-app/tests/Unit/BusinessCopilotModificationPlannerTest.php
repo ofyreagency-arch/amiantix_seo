@@ -60,6 +60,9 @@ class BusinessCopilotModificationPlannerTest extends TestCase
         $this->assertNotEmpty($plan['faq']);
         $this->assertStringNotContainsString('combien de temps pour traiter', $faqBlob);
         $this->assertStringNotContainsString('bloc de preuves et cas pratiques', mb_strtolower(implode(' ', $plan['sections'])));
+        if ($plan['title_change'] !== null) {
+            $this->assertStringNotContainsString('titre plus concret orienté bénéfice', mb_strtolower((string) $plan['title_change']));
+        }
         $this->assertNotSame('', $plan['content_summary']);
     }
 }

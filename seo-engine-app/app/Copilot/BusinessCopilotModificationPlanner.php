@@ -50,7 +50,7 @@ final class BusinessCopilotModificationPlanner
         $sections = $this->sectionsFromSources($observed, $suggestion, $type, $subject, $query, $evidence);
         $topics = $this->topicsFromSources($siteId, $type, $subject, $query, $observed, $evidence);
         $faq = $this->faqFromSources($observed, $suggestion, $type, $subject, $query, $evidence);
-        $titleChange = $this->titleChangeFromSources($type, $suggestion, $observed, $subject);
+        $titleChange = $this->titleChangeFromSources($type, $suggestion, $observed, $subject, $slug, $evidence);
 
         $actionLabel = $this->actionLabel($type, $sections, $topics, $faq, $titleChange);
         $actionDetail = $this->actionDetail($type, $sections, $topics, $faq, $titleChange, $subject, $query);
@@ -316,7 +316,10 @@ final class BusinessCopilotModificationPlanner
             }
         }
 
-        foreach ($this->sectionsFromFlags((array) ($observed['flags'] ?? [])) as $line) {
+        foreach ($this->sectionsFromFlags(
+            (array) ($observed['flags'] ?? []),
+            count((array) ($evidence['section_gaps'] ?? [])) > 0,
+        ) as $line) {
             $sections->push($line);
         }
 
@@ -440,26 +443,70 @@ final class BusinessCopilotModificationPlanner
         $normalized = mb_strtolower($line);
 
         return str_contains($normalized, 'liens internes depuis vos pages')
-            || str_contains($normalized, 'bloc de preuves et cas pratiques');
+            || str_contains($normalized, 'bloc de preuves')
+            || str_contains($normalized, 'meta description')
+            || str_contains($normalized, 'titre de page plus clair');
     }
 
     /**
      * @param  array<string,mixed>  $observed
+     */
+    /**
+     * @param  array<string,mixed>  $evidence
      */
     private function titleChangeFromSources(
         string $type,
         ?SeoSuggestion $suggestion,
         array $observed,
         string $subject,
+        string $slug,
+        array $evidence,
     ): ?string {
-        if ($type !== 'low_ctr' && ! in_array('missing_title', (array) ($observed['flags'] ?? []), true)) {
-            $payload = is_array($suggestion?->suggestions_json) ? $suggestion->suggestions_json : [];
-            $title = trim((string) ($payload['title'] ?? ''));
-
-            return $title !== '' ? $title : null;
+        $payload = is_array($suggestion?->suggestions_json) ? $suggestion->suggestions_json : [];
+        $suggested = trim((string) ($payload['title'] ?? ''));
+        if ($suggested !== '') {
+            return $suggested;
         }
 
-        return sprintf('Titre plus concret orienté bénéfice client autour de « %s ».', $subject);
+        $needsTitle = $type === 'low_ctr'
+            || in_array('missing_title', (array) ($observed['flags'] ?? []), true)
+            || in_array('missing_meta_description', (array) ($observed['flags'] ?? []), true);
+
+        if (! $needsTitle) {
+            return null;
+        }
+
+        return $this->concreteTitleProposal($slug, $subject, $evidence);
+    }
+
+    /**
+     * @param  array<string,mixed>  $evidence
+     */
+    private function concreteTitleProposal(string $slug, string $subject, array $evidence): ?string
+    {
+        $topQuery = (string) data_get($evidence, 'gsc_queries.0.query', '');
+        $pageTitle = trim((string) ($evidence['page_title'] ?? ''));
+        $niche = (string) ($evidence['niche_key'] ?? 'generic');
+        $slugHaystack = mb_strtolower($slug);
+
+        $pageSpecific = match (true) {
+            $niche === 'amiante' && str_contains($slugHaystack, 'faq') => 'FAQ amiante : délais de repérage, DTA, copropriété et responsabilités MOA',
+            $niche === 'amiante' && (str_contains($slugHaystack, 'reference') || str_contains($slugHaystack, 'reglement')) => 'Références réglementaires amiante : repérage, SS3/SS4 et obligations chantier',
+            $niche === 'amiante' && str_contains($slugHaystack, 'copropri') => 'Amiante en copropriété : repérage, coordination syndic et phasage chantier',
+            default => null,
+        };
+
+        if ($pageSpecific !== null) {
+            return $pageSpecific;
+        }
+
+        if ($topQuery !== '' && (int) data_get($evidence, 'gsc_queries.0.impressions', 0) >= 3) {
+            $base = $pageTitle !== '' ? $pageTitle : $subject;
+
+            return sprintf('%s — réponses pratiques sur « %s »', $base, $topQuery);
+        }
+
+        return null;
     }
 
     /**
@@ -574,15 +621,19 @@ final class BusinessCopilotModificationPlanner
      * @param  array<int,string>  $flags
      * @return array<int,string>
      */
-    private function sectionsFromFlags(array $flags): array
+    /**
+     * @param  array<int,string>  $flags
+     * @return array<int,string>
+     */
+    private function sectionsFromFlags(array $flags, bool $limitTechnical = false): array
     {
         return collect($flags)
             ->map(fn (string $flag): ?string => match ($flag) {
-                'missing_title' => 'Titre de page plus clair, aligné sur la recherche principale.',
-                'missing_meta_description' => 'Meta description orientée bénéfice client pour améliorer le taux de clic.',
+                'missing_title' => $limitTechnical ? null : 'Titre de page plus clair, aligné sur la recherche principale.',
+                'missing_meta_description' => $limitTechnical ? null : 'Meta description orientée bénéfice client pour améliorer le taux de clic.',
                 'missing_cluster_signal' => 'Sous-titres (H2/H3) qui clarifient l’angle métier de la page.',
-                'low_authority' => 'Section preuves : exemples terrain, chiffres, procédures et points de vigilance.',
-                'orphan_high' => 'Liens internes depuis vos pages les plus visibles vers cette page.',
+                'low_authority' => $limitTechnical ? null : 'Section preuves : exemples terrain, chiffres, procédures et points de vigilance.',
+                'orphan_high' => $limitTechnical ? null : 'Liens internes depuis vos pages les plus visibles vers cette page.',
                 'overlap_high' => 'Repositionner l’angle pour ne plus cannibaliser une autre page du site.',
                 'non_indexable' => 'Corriger les blocages d’indexation visibles dans le contenu et les métadonnées.',
                 'unhealthy_status' => 'Rafraîchir le contenu pour rétablir une page saine côté technique.',

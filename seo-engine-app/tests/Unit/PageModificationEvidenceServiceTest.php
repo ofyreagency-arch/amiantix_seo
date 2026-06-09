@@ -96,4 +96,54 @@ class PageModificationEvidenceServiceTest extends TestCase
         $this->assertStringNotContainsString('combien de temps pour traiter', mb_strtolower(implode(' ', $evidence['faq_candidates'])));
         $this->assertNotEmpty($evidence['missing_topics']);
     }
+
+    public function test_gather_filters_irrelevant_low_volume_gsc_queries_for_faq_page(): void
+    {
+        $site = SeoSite::query()->create([
+            'site_id' => 'amiantix',
+            'name' => 'Amiantix',
+            'url' => 'https://amiantix.com',
+            'niche' => 'amiante',
+            'locale' => 'fr',
+            'preset' => 'amiantix',
+            'api_token_hash' => hash('sha256', 'token'),
+            'is_active' => true,
+        ]);
+
+        $page = SeoPage::query()->create([
+            'site_id' => $site->site_id,
+            'keyword' => 'faq amiante',
+            'slug' => 'faq',
+            'title' => 'FAQ amiante',
+            'status' => 'published',
+        ]);
+
+        SeoSearchConsoleMetric::query()->create([
+            'site_id' => $site->site_id,
+            'seo_page_id' => $page->id,
+            'metric_date' => now()->subDay()->toDateString(),
+            'window_days' => 28,
+            'query' => 'logiciel spécifique amiante',
+            'url' => 'https://amiantix.com/faq',
+            'clicks' => 0,
+            'impressions' => 1,
+            'ctr' => 0,
+            'position' => 14.0,
+            'payload_json' => [],
+        ]);
+
+        $evidence = app(PageModificationEvidenceService::class)->gather(
+            $site->site_id,
+            $page->id,
+            'faq',
+            null,
+            'FAQ',
+        );
+
+        $queries = collect($evidence['gsc_queries'])->pluck('query')->all();
+        $faqBlob = mb_strtolower(implode(' ', $evidence['faq_candidates']));
+
+        $this->assertNotContains('logiciel spécifique amiante', $queries);
+        $this->assertStringNotContainsString('logiciel spécifique amiante', $faqBlob);
+    }
 }

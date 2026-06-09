@@ -38,7 +38,17 @@ final class PageModificationEvidenceService
         $observedPage = $this->resolveObservedPage($siteId, $seoPage, $slug);
         $snapshot = $this->latestSnapshot($observedPage);
         $h2Headings = $this->normalizeHeadings($snapshot?->h2_json ?? []);
-        $gscQueries = $this->topGscQueries($siteId, $seoPage, $slug, $primaryQuery);
+        $pageTitle = trim((string) ($observedPage?->title ?: $seoPage?->title ?: ''));
+        $contentHaystack = implode(' ', $h2Headings).' '.(string) ($snapshot?->content_text ?? '');
+        $gscQueries = $this->topGscQueries(
+            $siteId,
+            $seoPage,
+            $slug,
+            $primaryQuery,
+            $pageTitle,
+            $subject,
+            $contentHaystack,
+        );
         $nicheProfile = $this->nicheProfile($site, $seoPage, $subject);
         $nicheKey = (string) ($nicheProfile['niche'] ?? 'generic');
         $relevantTopics = $this->relevantDepthTopics($nicheProfile, $slug, $subject, $gscQueries);
@@ -142,6 +152,9 @@ final class PageModificationEvidenceService
         ?SeoPage $seoPage,
         string $slug,
         ?string $primaryQuery,
+        string $pageTitle,
+        string $subject,
+        string $contentHaystack,
     ): array {
         $query = SeoSearchConsoleMetric::query()
             ->where('site_id', $siteId)
@@ -171,23 +184,83 @@ final class PageModificationEvidenceService
             ->unique(fn (SeoSearchConsoleMetric $metric): string => mb_strtolower((string) $metric->query))
             ->values();
 
-        if ($primaryQuery !== null && trim($primaryQuery) !== '') {
-            $needle = mb_strtolower(trim($primaryQuery));
-            $rows = $rows->sortByDesc(function (SeoSearchConsoleMetric $metric) use ($needle): float {
-                $queryText = mb_strtolower((string) $metric->query);
+        $rows = $rows
+            ->map(function (SeoSearchConsoleMetric $metric) use ($slug, $pageTitle, $subject, $contentHaystack): array {
+                $impressions = (int) round((float) $metric->impressions);
+                $relevance = $this->queryPageRelevance(
+                    (string) $metric->query,
+                    $slug,
+                    $pageTitle,
+                    $subject,
+                    $contentHaystack,
+                );
 
-                return ($queryText === $needle ? 1_000_000 : 0) + (float) $metric->impressions;
-            })->values();
-        }
+                return [
+                    'metric' => $metric,
+                    'impressions' => $impressions,
+                    'relevance' => $relevance,
+                ];
+            })
+            ->filter(function (array $row): bool {
+                return $row['relevance'] >= 2
+                    || ($row['relevance'] >= 1 && $row['impressions'] >= 8)
+                    || $row['impressions'] >= 20;
+            })
+            ->sortByDesc(function (array $row) use ($primaryQuery): float {
+                $queryText = mb_strtolower((string) $row['metric']->query);
+                $needle = $primaryQuery !== null ? mb_strtolower(trim($primaryQuery)) : '';
+                $primaryBoost = $needle !== '' && $queryText === $needle ? 1_000_000 : 0;
+
+                return $primaryBoost + ($row['relevance'] * 1_000) + $row['impressions'];
+            })
+            ->values();
 
         return $rows
             ->take(6)
-            ->map(fn (SeoSearchConsoleMetric $metric): array => [
-                'query' => (string) $metric->query,
-                'impressions' => (int) round((float) $metric->impressions),
-                'position' => round((float) $metric->position, 1),
+            ->map(fn (array $row): array => [
+                'query' => (string) $row['metric']->query,
+                'impressions' => $row['impressions'],
+                'position' => round((float) $row['metric']->position, 1),
+                'relevance' => $row['relevance'],
             ])
             ->all();
+    }
+
+    private function queryPageRelevance(
+        string $query,
+        string $slug,
+        string $pageTitle,
+        string $subject,
+        string $contentHaystack,
+    ): int {
+        $pageHaystack = mb_strtolower(trim($slug.' '.$pageTitle.' '.$subject.' '.$contentHaystack));
+        $queryHaystack = mb_strtolower($query);
+        $tokens = $this->topicTokens($query);
+        $score = collect($tokens)->sum(
+            fn (string $token): int => str_contains($pageHaystack, $token) || str_contains($queryHaystack, $token) ? 1 : 0,
+        );
+
+        if (str_contains($pageHaystack, 'faq')) {
+            foreach (['repérage', 'reperage', 'délai', 'delai', 'dt', 'copropri', 'diagnostic', 'chantier', 'oblig', 'faq', 'question'] as $intent) {
+                if (str_contains($queryHaystack, $intent)) {
+                    $score += 2;
+                }
+            }
+
+            if (str_contains($queryHaystack, 'logiciel') && ! str_contains($pageHaystack, 'logiciel')) {
+                $score -= 3;
+            }
+        }
+
+        if (str_contains($pageHaystack, 'reference') || str_contains($pageHaystack, 'reglement')) {
+            foreach (['reglement', 'réglement', 'ss3', 'ss4', 'repérage', 'reperage', 'dt', 'code'] as $intent) {
+                if (str_contains($queryHaystack, $intent)) {
+                    $score += 2;
+                }
+            }
+        }
+
+        return max(0, $score);
     }
 
     /**
