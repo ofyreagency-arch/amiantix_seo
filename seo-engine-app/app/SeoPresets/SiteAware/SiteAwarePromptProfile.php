@@ -45,7 +45,8 @@ final class SiteAwarePromptProfile implements PromptProfileProvider
             ."- narration d'abord ; listes courtes seulement après un paragraphe de contexte\n"
             ."- pas de tableau, pas de FAQ dans le corps, pas de section \"ressources\"\n"
             ."- title et meta_description factuels, sans \"découvrez\" ni \"notre guide\"\n"
-            ."- 1200 mots minimum\n"
+            ."- 1000 mots minimum dans content\n"
+            ."- content en HTML : <h2> pour les sections, <p> pour les paragraphes (pas de texte brut)\n"
             .'Retourner uniquement un JSON avec : title, meta_description, h1, content.';
     }
 
