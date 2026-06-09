@@ -37,7 +37,7 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
             );
         }
 
-        $this->assertNoGenericContent((string) data_get($result, 'payload.content', ''));
+        $this->assertFieldExpertPayload(is_array($result['payload'] ?? null) ? $result['payload'] : []);
 
         $slug = $this->resolveSlug($keyword);
 
@@ -103,13 +103,16 @@ class OpenAiSeoGenerationDriver implements SeoGenerationDriver
         return $candidate;
     }
 
-    private function assertNoGenericContent(string $content): void
+    /**
+     * @param  array<string,mixed>  $payload
+     */
+    private function assertFieldExpertPayload(array $payload): void
     {
         if (! config('seo-engine.require_site_profile', true)) {
             return;
         }
 
-        FieldExpertWritingDirectives::assertFieldExpertContent($content);
+        FieldExpertWritingDirectives::assertFieldExpertPayload($payload);
     }
 
     public function improvePage(object $page, array $audit = []): object

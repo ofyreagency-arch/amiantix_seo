@@ -65,33 +65,57 @@ class SeoGenerationService
                 $errors[] = $coreResult['error'];
             }
 
-            $faqResult = $this->generateFaqWithAi(
-                $keyword,
-                $cluster,
-                $blueprint,
-                (string) ($payload['title'] ?? ''),
-                (string) ($payload['meta_description'] ?? ''),
-                (string) ($payload['h1'] ?? ''),
-                (string) ($payload['content'] ?? '')
-            );
+            if ($this->requiresSiteProfile()) {
+                $payload['faq'] = [];
 
-            $steps['faq'] = $faqResult['trace'];
+                $faqResult = $this->generateFaqWithAi(
+                    $keyword,
+                    $cluster,
+                    $blueprint,
+                    (string) ($payload['title'] ?? ''),
+                    (string) ($payload['meta_description'] ?? ''),
+                    (string) ($payload['h1'] ?? ''),
+                    (string) ($payload['content'] ?? '')
+                );
 
-            if ($faqResult['payload'] !== null && is_array($faqResult['payload']['faq'] ?? null) && count($faqResult['payload']['faq']) >= 5) {
-                $payload['faq'] = array_values($faqResult['payload']['faq']);
-            } elseif (! $this->requiresSiteProfile()) {
-                $source = 'hybrid';
+                $steps['faq'] = $faqResult['trace'];
+
+                if ($faqResult['payload'] !== null && is_array($faqResult['payload']['faq'] ?? null)) {
+                    $payload['faq'] = array_slice(array_values($faqResult['payload']['faq']), 0, 4);
+                }
+
                 if ($faqResult['error']) {
                     $errors[] = $faqResult['error'];
                 }
-            } elseif ($faqResult['error']) {
-                $errors[] = $faqResult['error'];
+            } else {
+                $faqResult = $this->generateFaqWithAi(
+                    $keyword,
+                    $cluster,
+                    $blueprint,
+                    (string) ($payload['title'] ?? ''),
+                    (string) ($payload['meta_description'] ?? ''),
+                    (string) ($payload['h1'] ?? ''),
+                    (string) ($payload['content'] ?? '')
+                );
+
+                $steps['faq'] = $faqResult['trace'];
+
+                if ($faqResult['payload'] !== null && is_array($faqResult['payload']['faq'] ?? null) && count($faqResult['payload']['faq']) >= 5) {
+                    $payload['faq'] = array_values($faqResult['payload']['faq']);
+                } else {
+                    $source = 'hybrid';
+                    if ($faqResult['error']) {
+                        $errors[] = $faqResult['error'];
+                    }
+                }
             }
         }
 
         [$payload, $enriched] = $this->ensurePremiumDepth($payload, $blueprint, $keyword, $cluster);
 
-        if ($source === 'ai' && $enriched && ! $this->requiresSiteProfile()) {
+        if ($this->requiresSiteProfile()) {
+            $source = 'ai';
+        } elseif ($source === 'ai' && $enriched) {
             $source = 'hybrid';
         }
 
@@ -154,7 +178,7 @@ class SeoGenerationService
      */
     public function generateSchema(object $page): array
     {
-        return [
+        $schema = [
             [
                 '@context' => 'https://schema.org',
                 '@type' => 'Article',
@@ -167,7 +191,12 @@ class SeoGenerationService
                     'name' => (string) config('seo-engine.site.name', config('app.name')),
                 ],
             ],
-            [
+        ];
+
+        $faq = is_array($page->faq_json ?? null) ? $page->faq_json : [];
+
+        if ($faq !== []) {
+            $schema[] = [
                 '@context' => 'https://schema.org',
                 '@type' => 'FAQPage',
                 'mainEntity' => array_map(static fn (array $item): array => [
@@ -177,9 +206,11 @@ class SeoGenerationService
                         '@type' => 'Answer',
                         'text' => $item['answer'] ?? '',
                     ],
-                ], $page->faq_json ?? []),
-            ],
-        ];
+                ], $faq),
+            ];
+        }
+
+        return $schema;
     }
 
     /**
@@ -560,15 +591,15 @@ class SeoGenerationService
         $links = $this->internalLinkHtml($keyword, $cluster);
         $originalPayload = $payload;
 
-        $payload['content'] = $this->content->ensureContentDepth((string) ($payload['content'] ?? ''), $blueprint, [
-            'keyword' => $keyword,
-            'cluster' => $cluster,
-            'internal_links' => $links,
-            'preserve_ai_narrative' => $this->requiresSiteProfile(),
-        ]);
+        if (! $this->requiresSiteProfile()) {
+            $payload['content'] = $this->content->ensureContentDepth((string) ($payload['content'] ?? ''), $blueprint, [
+                'keyword' => $keyword,
+                'cluster' => $cluster,
+                'internal_links' => $links,
+                'preserve_ai_narrative' => false,
+            ]);
 
-        if (! isset($payload['faq']) || ! is_array($payload['faq']) || count($payload['faq']) < 5) {
-            if (! $this->requiresSiteProfile()) {
+            if (! isset($payload['faq']) || ! is_array($payload['faq']) || count($payload['faq']) < 5) {
                 $fallbackFaq = $this->content->fallbackPayload($keyword, $cluster, $blueprint, [
                     'internal_links' => $links,
                 ])['faq'];
@@ -580,7 +611,7 @@ class SeoGenerationService
             }
         }
 
-        if (! isset($payload['schema']) || ! is_array($payload['schema']) || count($payload['schema']) < 2) {
+        if (! isset($payload['schema']) || ! is_array($payload['schema']) || $payload['schema'] === []) {
             $payload['schema'] = $this->generateSchema((object) [
                 'title' => $payload['title'] ?? '',
                 'meta_description' => $payload['meta_description'] ?? '',

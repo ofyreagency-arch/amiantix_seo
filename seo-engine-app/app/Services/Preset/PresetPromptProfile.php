@@ -20,7 +20,13 @@ class PresetPromptProfile implements PromptProfileProvider
 
     public function generationCorePrompt(string $keyword, string $cluster, array $blueprint, array $editorialSections, array $expectedSignals): string
     {
-        $base = $this->presets->resolvePromptProfile()->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
+        $profile = $this->presets->resolvePromptProfile();
+        $base = $profile->generationCorePrompt($keyword, $cluster, $blueprint, $editorialSections, $expectedSignals);
+
+        if ($this->presets->siteProfileDrivesGeneration()) {
+            return $base;
+        }
+
         $context = SiteProfilePromptContext::block();
 
         return $context !== '' ? $context."\n\n".$base : $base;

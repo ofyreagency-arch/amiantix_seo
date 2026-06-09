@@ -45,9 +45,10 @@ final class SiteProfilePromptContext
             $lines[] = '- Interdiction absolue de rédiger en anglais.';
         }
 
+        $lines[] = '- Une seule voix rédactionnelle : pas de blocs collés, pas de sections template SEO, pas d enrichissement post-rédaction.';
         $lines[] = '- Interdiction de sections génériques type SaaS, "Field example", "Zoom terrain N", checklist fictive ou contenu hors métier.';
-        $lines[] = '- Chaque section doit raconter une situation terrain, avec chiffres, erreurs fréquentes et arbitrages client.';
-        $lines[] = '- Chaque section doit refléter les services réels et le vocabulaire du site.';
+        $lines[] = '- Raconter des situations terrain avec chiffres, erreurs fréquentes et arbitrages client.';
+        $lines[] = '- Mentionner les services du site seulement quand le récit métier le justifie.';
 
         return implode("\n", $lines);
     }

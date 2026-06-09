@@ -53,6 +53,10 @@ final class AmiantixContentProfile implements NicheContentProvider
 
     public function ensureContentDepth(string $content, array $blueprint, array $context = []): string
     {
+        if ($context['preserve_ai_narrative'] ?? false) {
+            return $content;
+        }
+
         $links = $context['internal_links'] ?? (($context['page']->internal_links_json ?? null) ?: []);
 
         foreach ($this->missingStructuralBlocks($content, $blueprint, $context) as $block) {

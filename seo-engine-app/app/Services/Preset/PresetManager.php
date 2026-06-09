@@ -39,17 +39,38 @@ class PresetManager
 
     public function resolveBlueprintProvider(): NicheBlueprintProvider
     {
+        if ($this->siteProfileDrivesGeneration()) {
+            return app(SiteAwareBlueprintProvider::class);
+        }
+
         return app($this->contractMap($this->currentPreset())['blueprint']);
     }
 
     public function resolvePromptProfile(): PromptProfileProvider
     {
+        if ($this->siteProfileDrivesGeneration()) {
+            return app(SiteAwarePromptProfile::class);
+        }
+
         return app($this->contractMap($this->currentPreset())['prompt']);
     }
 
     public function resolveContentProfile(): NicheContentProvider
     {
+        if ($this->siteProfileDrivesGeneration()) {
+            return app(SiteAwareContentProfile::class);
+        }
+
         return app($this->contractMap($this->currentPreset())['content']);
+    }
+
+    public function siteProfileDrivesGeneration(): bool
+    {
+        if (! (bool) config('seo-engine.require_site_profile', false)) {
+            return false;
+        }
+
+        return trim((string) data_get(config('seo-engine.site.profile'), 'status', 'pending')) === 'ready';
     }
 
     public function resolveInternalLinkProvider(): InternalLinkProvider

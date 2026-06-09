@@ -43,13 +43,13 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
         $industry = (string) ($profile['family'] ?? data_get(SiteProfilePromptContext::profile(), 'business.industry', 'activité'));
 
         return [
-            'Situation terrain qui déclenche la demande',
-            'Ce que le professionnel doit vérifier en premier',
-            'Erreurs fréquentes et conséquences sur le terrain',
-            'Scénario chiffré : délais, volumes ou budget indicatif',
-            'Arbitrage client : comment trancher sans se tromper',
-            'Lien concret avec les services du site sur '.$keyword,
-            'Passage à l\'action pour un client de '.$industry,
+            'ouverture : situation terrain concrète autour de '.$keyword,
+            'diagnostic rapide : ce qui bloque ou fait perdre du temps',
+            'erreurs fréquentes et conséquences sur le terrain',
+            'exemple chiffré crédible (délai, volume, budget indicatif)',
+            'arbitrage client (coût, urgence, conformité, prestataire)',
+            'lien naturel avec une prestation réelle du site si pertinent',
+            'conclusion opérationnelle pour un décideur '.$industry,
         ];
     }
 
