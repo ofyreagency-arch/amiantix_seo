@@ -1345,7 +1345,7 @@ const mockBusinessCopilot: PraeviseoBusinessCopilot = {
 };
 
 const mockOptimizations: PraeviseoOptimizations = {
-  business_copilot: normalizeBusinessCopilot(mockBusinessCopilot),
+  business_copilot: mockBusinessCopilot,
   stats: { pending: 2, applied: 3, rejected: 1, total: 6 },
   gsc_opportunities: {
     summary: {
