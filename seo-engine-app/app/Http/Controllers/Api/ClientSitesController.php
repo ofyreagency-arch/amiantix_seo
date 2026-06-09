@@ -1303,7 +1303,7 @@ class ClientSitesController extends Controller
                 'top_queries' => $gscSnapshot['top_queries'],
                 'top_rising_queries' => $gscSnapshot['top_rising_queries'],
                 'top_falling_queries' => $gscSnapshot['top_falling_queries'],
-                'new_queries' => $gscSnapshot['new_queries'],
+                'new_queries' => $this->editorialQueriesForSite($site, $gscSnapshot['new_queries']),
                 'generation_audit' => $this->generationAudit($site),
                 'indexation_alerts' => $gscSnapshot['indexation_alerts'],
             ],
@@ -2473,8 +2473,12 @@ class ClientSitesController extends Controller
             ->get(['query', 'metric_date', 'impressions', 'position']);
 
         if ($metrics->isEmpty()) {
+            $profileKeyword = $limitReason === null
+                ? app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site)
+                : null;
+
             return [
-                'status' => $limitReason ? 'cooldown' : 'no_data',
+                'status' => $limitReason ? 'cooldown' : ($profileKeyword ? 'profile_ready' : 'no_data'),
                 'queries_analyzed_count' => 0,
                 'eligible_queries_count' => 0,
                 'rejected_queries_count' => 0,
@@ -2484,6 +2488,7 @@ class ClientSitesController extends Controller
                 'min_hours_between_articles' => (int) $policy['min_hours_between_articles'],
                 'max_articles_per_28_days' => (int) $policy['max_articles_per_28_days'],
                 'best_query' => null,
+                'profile_keyword' => $profileKeyword,
                 'rejection_breakdown' => [],
             ];
         }
@@ -2580,6 +2585,10 @@ class ClientSitesController extends Controller
             ? 'cooldown'
             : ($eligibleQueriesCount > 0 ? 'eligible' : ($queriesAnalyzedCount > 0 ? 'rejected' : 'no_data'));
 
+        $profileKeyword = $limitReason === null
+            ? app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site, $existingTokens)
+            : null;
+
         return [
             'status' => $status,
             'queries_analyzed_count' => $queriesAnalyzedCount,
@@ -2591,8 +2600,33 @@ class ClientSitesController extends Controller
             'min_hours_between_articles' => (int) $policy['min_hours_between_articles'],
             'max_articles_per_28_days' => (int) $policy['max_articles_per_28_days'],
             'best_query' => $bestQuery,
+            'profile_keyword' => $profileKeyword,
             'rejection_breakdown' => $rejectionBreakdown,
         ];
+    }
+
+    /**
+     * @param  array<int,array<string,mixed>>  $gscNewQueries
+     * @return array<int,array<string,mixed>>
+     */
+    private function editorialQueriesForSite(SeoSite $site, array $gscNewQueries): array
+    {
+        if ($gscNewQueries !== []) {
+            return $gscNewQueries;
+        }
+
+        $profileKeyword = app(PremiumArticleGenerationService::class)->resolveProfileKeyword($site);
+        if ($profileKeyword === null || app(PremiumArticleGenerationService::class)->limitReason($site) !== null) {
+            return [];
+        }
+
+        return [[
+            'query' => $profileKeyword,
+            'source' => 'site_profile',
+            'impressions' => 0,
+            'previous_impressions' => 0,
+            'position' => 0,
+        ]];
     }
 
     private function searchConsoleSnapshot(string $siteId): array

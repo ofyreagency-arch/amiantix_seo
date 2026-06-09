@@ -90,6 +90,8 @@ function describeGenerationReason(reason: string | null | undefined): string {
       return "La requête est encore trop loin dans Google pour ouvrir un article propre.";
     case "deja_couverte":
       return "Le sujet est déjà trop proche d’un contenu existant.";
+    case "site_profile":
+      return "Aucune requête Google assez nette pour l’instant, mais le profil métier propose déjà un sujet éditorial.";
     default:
       return "Aucun sujet assez net n’est encore retenu par le moteur.";
   }
@@ -621,6 +623,7 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
   const risingPageSlug = leadRisingPage?.slug || slugFromUrl(leadRisingPage?.url ?? null);
   const refreshPageSlug = leadRefresh?.slug || null;
   const generationKeyword = site.summary.new_queries[0]?.query?.trim() || null;
+  const generationFromProfile = site.summary.new_queries[0]?.source === "site_profile";
   const runCrawlAction = launchPremiumCrawlAction.bind(null, site.site_id);
   const runGenerationKeywordAction = generationKeyword
     ? launchPremiumGenerationToStudioAction.bind(null, site.site_id, generationKeyword)
@@ -672,7 +675,9 @@ export default async function SiteAutomationPage({ params, searchParams }: SiteA
       ctaLabel: generationReady ? "Créer l’article ciblé" : "Sujet encore trop flou",
       description:
         generationReady
-          ? `Une requête montante est déjà visible : ${site.summary.new_queries[0].query}.`
+          ? generationFromProfile
+            ? `Le profil métier propose déjà un sujet éditorial : ${site.summary.new_queries[0].query}.`
+            : `Une requête montante est déjà visible : ${site.summary.new_queries[0].query}.`
           : "Ouvrir un nouveau contenu dès qu’un sujet assez net mérite une vraie page.",
       recommended: recommendedActionKey === "generation",
       available: generationReady,

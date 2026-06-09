@@ -79,17 +79,7 @@ class PremiumArticleGenerationService
             return null;
         }
 
-        $existingTokens = SeoPage::query()
-            ->where('site_id', $site->site_id)
-            ->get(['keyword', 'slug', 'title'])
-            ->flatMap(function (SeoPage $page): array {
-                return array_filter([
-                    mb_strtolower(trim((string) $page->keyword)),
-                    mb_strtolower(trim((string) $page->slug)),
-                    mb_strtolower(trim((string) $page->title)),
-                ]);
-            })
-            ->values();
+        $existingTokens = $this->existingContentTokens($site);
 
         $rows = SeoSearchConsoleMetric::query()
             ->where('site_id', $site->site_id)
@@ -100,12 +90,12 @@ class PremiumArticleGenerationService
             ->get(['metric_date', 'query', 'clicks', 'impressions', 'position']);
 
         if ($rows->isEmpty()) {
-            return null;
+            return $this->resolveProfileKeyword($site, $existingTokens);
         }
 
         $latestDate = optional($rows->first()?->metric_date)?->toDateString();
         if (! $latestDate) {
-            return null;
+            return $this->resolveProfileKeyword($site, $existingTokens);
         }
 
         $currentRows = $rows->filter(fn (SeoSearchConsoleMetric $metric): bool => $metric->metric_date?->toDateString() === $latestDate);
@@ -153,15 +143,99 @@ class PremiumArticleGenerationService
                 continue;
             }
 
-            $alreadyCovered = $existingTokens->contains(function (string $token) use ($query): bool {
-                return $token === $query || str_contains($token, $query) || str_contains($query, $token);
-            });
-
-            if (! $alreadyCovered) {
+            if (! $this->queryAlreadyCovered($query, $existingTokens)) {
                 return (string) $candidate['query'];
             }
         }
 
+        return $this->resolveProfileKeyword($site, $existingTokens);
+    }
+
+    public function resolveProfileKeyword(SeoSite $site, ?Collection $existingTokens = null): ?string
+    {
+        if (! $site->isSiteProfileReady()) {
+            return null;
+        }
+
+        $profile = $site->siteProfile();
+        if (! is_array($profile)) {
+            return null;
+        }
+
+        $existingTokens ??= $this->existingContentTokens($site);
+        $industry = trim((string) data_get($profile, 'business.industry', ''));
+        $terms = is_array($profile['vocabulary']['core_terms'] ?? null) ? $profile['vocabulary']['core_terms'] : [];
+        $services = is_array($profile['services'] ?? null) ? $profile['services'] : [];
+
+        $candidates = [];
+
+        foreach (array_slice($services, 0, 6) as $service) {
+            if (! is_array($service)) {
+                continue;
+            }
+
+            $name = trim((string) ($service['name'] ?? ''));
+            if ($name !== '' && mb_strlen($name) >= 8) {
+                $candidates[] = $name;
+            }
+        }
+
+        foreach ($terms as $term) {
+            $term = trim((string) $term);
+            if ($term === '' || mb_strlen($term) < 4) {
+                continue;
+            }
+
+            $candidates[] = $industry !== '' && ! str_contains(mb_strtolower($term), mb_strtolower($industry))
+                ? trim($industry.' '.$term)
+                : $term;
+        }
+
+        if ($industry !== '') {
+            $candidates[] = $industry;
+        }
+
+        $uniqueCandidates = array_values(array_unique($candidates));
+
+        foreach ($uniqueCandidates as $candidate) {
+            $normalized = mb_strtolower(trim($candidate));
+            if ($normalized === '' || mb_strlen($normalized) < 4) {
+                continue;
+            }
+
+            if (! $this->queryAlreadyCovered($normalized, $existingTokens)) {
+                return $candidate;
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * @return Collection<int,string>
+     */
+    private function existingContentTokens(SeoSite $site): Collection
+    {
+        return SeoPage::query()
+            ->where('site_id', $site->site_id)
+            ->get(['keyword', 'slug', 'title'])
+            ->flatMap(function (SeoPage $page): array {
+                return array_filter([
+                    mb_strtolower(trim((string) $page->keyword)),
+                    mb_strtolower(trim((string) $page->slug)),
+                    mb_strtolower(trim((string) $page->title)),
+                ]);
+            })
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int,string>  $existingTokens
+     */
+    private function queryAlreadyCovered(string $query, Collection $existingTokens): bool
+    {
+        return $existingTokens->contains(function (string $token) use ($query): bool {
+            return $token === $query || str_contains($token, $query) || str_contains($query, $token);
+        });
     }
 }

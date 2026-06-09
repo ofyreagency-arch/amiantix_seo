@@ -30,6 +30,11 @@ final class BusinessPageRelevanceFilter
         '_e2e',
         'sandbox',
         'validation',
+        'mot-de-passe',
+        'mot_de_passe',
+        'forgot-password',
+        'reset-password',
+        '/login',
     ];
 
     /** @var array<int,string> */
@@ -38,6 +43,13 @@ final class BusinessPageRelevanceFilter
         'sandbox',
         'validation',
         'lab',
+        'login',
+        'connexion',
+        'auth',
+        'register',
+        'signup',
+        'account',
+        'oublie',
     ];
 
     /** @var array<int,string> */
@@ -52,6 +64,9 @@ final class BusinessPageRelevanceFilter
         '/\bvalidation\s+(page|process|bridge|lab)\b/i',
         '/\bguide\s+to\s+reviewing\b/i',
         '/\bfield\s+example\b/i',
+        '/\bmot\s+de\s+passe\s+oubli[eé]\b/i',
+        '/\bforgot\s+password\b/i',
+        '/\breset\s+password\b/i',
     ];
 
     /** @var array<int,string> */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Models\SeoPage;
 use App\Models\SeoSite;
 use App\Models\SeoSiteCrawl;
 use App\Models\SeoSitePage;
@@ -112,6 +113,31 @@ class BusinessPageRelevanceFilterTest extends TestCase
         $page->forceFill(['last_snapshot_id' => $snapshot->id])->save();
 
         $this->assertTrue($this->filter->isRelevantObservedPage($page->fresh(), $snapshot));
+    }
+
+    public function test_excludes_forgot_password_pages_by_title(): void
+    {
+        $this->assertFalse($this->filter->isRelevantUrl('https://amiantix.com/login'));
+        $this->assertFalse($this->filter->isRelevantUrl('https://amiantix.com/mot-de-passe-oublie'));
+
+        $page = SeoSitePage::query()->create([
+            'site_id' => 'amiantix',
+            'normalized_url' => 'https://amiantix.com/mot-de-passe-oublie',
+            'url_hash' => hash('sha256', '/mot-de-passe-oublie'),
+            'path' => '/mot-de-passe-oublie',
+            'title' => 'Mot de passe oublié - Amiantix',
+            'primary_h1' => 'Mot de passe oublié',
+            'indexability_state' => 'indexable',
+        ]);
+
+        $this->assertFalse($this->filter->isRelevantObservedPage($page));
+        $this->assertFalse($this->filter->isRelevantSeoPage(SeoPage::query()->create([
+            'site_id' => 'amiantix',
+            'keyword' => 'mot de passe oublié',
+            'slug' => 'mot-de-passe-oublie',
+            'title' => 'Mot de passe oublié - Amiantix',
+            'status' => 'published',
+        ])));
     }
 
     public function test_mark_excluded_technical_pages_persists_state(): void
