@@ -65,7 +65,7 @@ function BusinessCopilotActionCard({
             ) : null}
           </div>
         </div>
-        <Button href={action.apply_href} variant={featured ? "default" : "secondary"} className="shrink-0">
+        <Button href={action.apply_href} variant={featured ? "primary" : "secondary"} className="shrink-0">
           {action.apply_ready ? "Appliquer automatiquement" : "Voir comment l’appliquer"}
           <ArrowRight className="h-4 w-4" />
         </Button>
