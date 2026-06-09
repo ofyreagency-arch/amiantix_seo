@@ -6,6 +6,9 @@ use Praeviseo\SymfonyBridge\Command\PraeviseoConnectCommand;
 use Praeviseo\SymfonyBridge\Controller\PraeviseoBridgeController;
 use Praeviseo\SymfonyBridge\Controller\PraeviseoPublishedPageController;
 use Praeviseo\SymfonyBridge\Controller\PraeviseoPublishedSitemapController;
+use Praeviseo\SymfonyBridge\EventSubscriber\NativePagePatchSubscriber;
+use Praeviseo\SymfonyBridge\Service\NativePageHtmlPatcher;
+use Praeviseo\SymfonyBridge\Service\NativePagePatchRepository;
 use Praeviseo\SymfonyBridge\Service\PraeviseoBridgeConfig;
 use Praeviseo\SymfonyBridge\Service\PraeviseoBridgeService;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -23,6 +26,9 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$bridgeSiteId', '%env(default::PRAEVISEO_BRIDGE_SITE_ID)%')
         ->arg('$bridgePrefix', '%env(default::PRAEVISEO_BRIDGE_PREFIX)%');
 
+    $services->set(NativePageHtmlPatcher::class);
+    $services->set(NativePagePatchRepository::class);
+    $services->set(NativePagePatchSubscriber::class);
     $services->set(PraeviseoBridgeService::class);
     $services->set(PraeviseoBridgeController::class)->public();
     $services->alias('praeviseo_symfony_bridge.controller.publish', PraeviseoBridgeController::class)->public();

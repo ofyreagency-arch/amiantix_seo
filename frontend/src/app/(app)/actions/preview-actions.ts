@@ -67,8 +67,8 @@ export async function confirmPreviewPublish(formData: FormData): Promise<void> {
         "success",
         "Publication confirmée",
         liveUrl !== ""
-          ? `PraeviSEO a publié les enrichissements validés sur ${liveUrl}.`
-          : `PraeviSEO a publié les enrichissements validés sur « ${slug} ».`
+          ? `PraeviSEO a activé les enrichissements sur ${liveUrl}. Vérifiez la page live : le titre, les sections et la FAQ ajoutés doivent être visibles.`
+          : `PraeviSEO a activé les enrichissements sur « ${slug} ». Vérifiez la page live pour confirmer le rendu.`
       )
     );
   } catch (error) {

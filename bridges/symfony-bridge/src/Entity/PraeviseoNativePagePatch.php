@@ -64,6 +64,34 @@ class PraeviseoNativePagePatch
         return $this->targetPath;
     }
 
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+
+    public function getMetaDescription(): ?string
+    {
+        return $this->metaDescription;
+    }
+
+    public function getContentHtml(): string
+    {
+        return $this->contentHtml;
+    }
+
+    /**
+     * @return array<int,mixed>
+     */
+    public function getFaqJson(): array
+    {
+        return $this->faqJson;
+    }
+
+    public function getPublicationState(): string
+    {
+        return $this->publicationState;
+    }
+
     public function getLiveUrl(): ?string
     {
         return $this->liveUrl;

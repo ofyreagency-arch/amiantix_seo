@@ -218,8 +218,8 @@ final class ActionApplyContextService
         if ($pageKind === 'observed') {
             return [
                 'code' => 'preview_then_confirm',
-                'label' => 'Prévisualisation puis validation',
-                'detail' => 'PraeviSEO ne modifie pas cette URL native en un clic depuis Optimisations. Ouvrez la prévisualisation, validez le plan, puis confirmez la publication si le bridge est connecté.',
+                'label' => 'Prévisualisation puis publication native',
+                'detail' => 'Depuis Optimisations, ouvrez la prévisualisation puis confirmez la publication. Le bridge injecte alors les enrichissements sur l’URL native existante (FAQ, services, etc.).',
                 'will_modify' => false,
             ];
         }

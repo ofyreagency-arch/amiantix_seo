@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Praeviseo\LaravelBridge;
 
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\ServiceProvider;
 use Praeviseo\LaravelBridge\Console\PraeviseoConnectCommand;
+use Praeviseo\LaravelBridge\Http\Middleware\ApplyNativePagePatch;
+use Praeviseo\LaravelBridge\Services\NativePageHtmlPatcher;
 
 final class PraeviseoLaravelBridgeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/praeviseo-bridge.php', 'praeviseo-bridge');
+        $this->app->singleton(NativePageHtmlPatcher::class);
     }
 
     public function boot(): void
@@ -29,5 +33,7 @@ final class PraeviseoLaravelBridgeServiceProvider extends ServiceProvider
                 PraeviseoConnectCommand::class,
             ]);
         }
+
+        $this->app->make(Kernel::class)->pushMiddleware(ApplyNativePagePatch::class);
     }
 }
