@@ -450,6 +450,78 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
     action: "rewrite" | "image" | "publish" | "preview" | "linking"
   ) =>
     `/publications?focus=content&site=${encodeURIComponent(siteId)}&slug=${encodeURIComponent(slug)}&action=${encodeURIComponent(action)}`;
+  const hasStudioPublication = (siteId: string, slug: string) => publicationsByKey.has(`${siteId}:${slug}`);
+  const observedPageLiveUrl = (siteId: string, slug: string) => {
+    const site = sitesById.get(siteId);
+    const observedCandidates = site
+      ? [
+          ...site.summary.observed_pillar_pages,
+          ...site.summary.observed_link_gap_pages,
+          ...site.summary.observed_orphan_alerts,
+          ...site.summary.observed_weak_page_details,
+        ]
+      : [];
+    const observedMatch = observedCandidates.find((item) => item.slug === slug);
+
+    if (observedMatch?.url) {
+      return observedMatch.url;
+    }
+
+    const opportunity = optimizations.gsc_opportunities.items.find(
+      (item) => item.site_id === siteId && item.slug === slug
+    );
+
+    if (opportunity?.site_url && slug) {
+      return `${opportunity.site_url.replace(/\/$/, "")}/${slug}`;
+    }
+
+    if (site?.url && slug) {
+      return `${site.url.replace(/\/$/, "")}/${slug}`;
+    }
+
+    return null;
+  };
+  const observedPageActions = (
+    siteId: string,
+    slug: string,
+    options?: { includeSearchConsole?: boolean; includeSite?: boolean }
+  ) => {
+    const liveUrl = observedPageLiveUrl(siteId, slug);
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary"; external?: boolean }> = [
+      {
+        label: "Voir les actions recommandées",
+        href: `/optimizations?site=${encodeURIComponent(siteId)}&slug=${encodeURIComponent(slug)}`,
+        variant: "primary",
+      },
+    ];
+
+    if (liveUrl) {
+      actions.push({
+        label: "Voir la page sur le site",
+        href: liveUrl,
+        variant: "secondary",
+        external: true,
+      });
+    }
+
+    if (options?.includeSearchConsole) {
+      actions.push({
+        label: "Voir l’indexation",
+        href: `/sites/${siteId}/search-console`,
+        variant: "secondary",
+      });
+    }
+
+    if (options?.includeSite) {
+      actions.push({
+        label: "Ouvrir le site",
+        href: getSitePath(siteId),
+        variant: "secondary",
+      });
+    }
+
+    return actions;
+  };
   const pageActions = (
     siteId: string,
     options?: {
@@ -463,9 +535,16 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
       return [];
     }
 
-    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary" }> = [];
+    const actions: Array<{ label: string; href: string; variant?: "primary" | "secondary"; external?: boolean }> = [];
 
     if (options?.slug && options?.preferredAction) {
+      if (!hasStudioPublication(siteId, options.slug)) {
+        return observedPageActions(siteId, options.slug, {
+          includeSearchConsole: options.includeSearchConsole,
+          includeSite: options.includeSite,
+        });
+      }
+
       actions.push({
         label:
           options.preferredAction === "rewrite"
@@ -506,6 +585,19 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
 
     return actions;
   };
+  const focusedOpportunity =
+    focusTarget !== ""
+      ? optimizations.gsc_opportunities.items.find(
+          (item) => item.slug === focusTarget && (!focusSite || item.site_id === focusSite)
+        ) ?? null
+      : null;
+  const focusedSiteId = focusSite || focusedOpportunity?.site_id || "";
+  const focusedLiveUrl =
+    focusedSiteId && focusTarget ? observedPageLiveUrl(focusedSiteId, focusTarget) : null;
+  const focusedPageActions =
+    focusedSiteId && focusTarget
+      ? observedPageActions(focusedSiteId, focusTarget, { includeSearchConsole: true })
+      : [];
   const focusMessage =
     focus === "refresh"
       ? {
@@ -533,10 +625,12 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
             ? {
                 title: `Page « ${focusTarget} » observée sur votre site`,
                 detail:
-                  "PraeviSEO voit cette page dans Google. Elle n’est pas encore dans le studio éditorial : consultez ici ce que le crawl observe et les actions recommandées depuis Optimisations.",
-                href: "#surveiller",
+                  focusedOpportunity?.action ??
+                  "Cette page est déjà sur votre site mais pas encore dans le studio PraeviSEO. Ouvrez les actions recommandées pour voir quoi enrichir (sections, FAQ, maillage).",
+                href: "#page-cible",
               }
             : null;
+  const shouldOpenDetailedSections = focus !== "";
 
   return (
     <div className="min-h-screen">
@@ -595,18 +689,51 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
         </div>
 
         {focusMessage ? (
-          <div className="rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div id="page-cible" className="scroll-mt-24 rounded-2xl border border-brand/20 bg-brand-muted px-5 py-4">
+            <div className="flex flex-col gap-4">
               <div>
                 <div className="text-sm font-semibold text-text">{focusMessage.title}</div>
                 <p className="mt-2 text-sm leading-6 text-text-muted">
                   {focusMessage.detail}
                   {focusSite ? ` Site ciblé : ${focusSite}.` : ""}
                 </p>
+                {focusedOpportunity?.reason ? (
+                  <p className="mt-2 text-sm leading-6 text-text">{focusedOpportunity.reason}</p>
+                ) : null}
+                {focusedOpportunity?.modification_preview?.sections?.[0] ||
+                focusedOpportunity?.modification_preview?.faq?.[0] ? (
+                  <div className="mt-3 space-y-1 rounded-lg border border-border bg-surface/70 px-3 py-2 text-xs text-text-subtle">
+                    {focusedOpportunity.modification_preview.sections[0] ? (
+                      <p>Section à ajouter : {focusedOpportunity.modification_preview.sections[0]}</p>
+                    ) : null}
+                    {focusedOpportunity.modification_preview.faq[0] ? (
+                      <p>FAQ à ajouter : {focusedOpportunity.modification_preview.faq[0]}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-              <Button href={focusMessage.href} size="sm">
-                Ouvrir la bonne section
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {focus === "content" && focusedPageActions.length > 0
+                  ? focusedPageActions.map((action) => (
+                      <Button
+                        key={`focus-${action.label}`}
+                        href={action.href}
+                        size="sm"
+                        variant={action.variant ?? "secondary"}
+                        external={action.external}
+                      >
+                        {action.label}
+                      </Button>
+                    ))
+                  : (
+                    <Button href={focusMessage.href} size="sm">
+                      Voir la section détaillée
+                    </Button>
+                  )}
+              </div>
+              {focusedLiveUrl ? (
+                <p className="text-xs text-text-subtle break-all">Page live : {focusedLiveUrl}</p>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -712,7 +839,13 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                         : "rewrite",
                     includeSearchConsole: true,
                   }).map((action) => (
-                    <Button key={`${leadPageSummary.title}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                    <Button
+                      key={`${leadPageSummary.title}-${action.label}`}
+                      href={action.href}
+                      size="sm"
+                      variant={action.variant ?? "secondary"}
+                      external={action.external}
+                    >
                       {action.label}
                     </Button>
                   ))}
@@ -763,7 +896,13 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                         : "rewrite",
                     includeSite: true,
                   }).map((action) => (
-                    <Button key={`${leadStructuralPage.title}-${action.label}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+                    <Button
+                      key={`${leadStructuralPage.title}-${action.label}`}
+                      href={action.href}
+                      size="sm"
+                      variant={action.variant ?? "secondary"}
+                      external={action.external}
+                    >
                       {action.label}
                     </Button>
                   ))}
@@ -773,7 +912,7 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
           </CockpitSignalListCard>
         </div>
 
-        <details className="group rounded-3xl border border-border bg-surface/80">
+        <details className="group rounded-3xl border border-border bg-surface/80" open={shouldOpenDetailedSections || undefined}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
             <div>
               <p className="text-sm font-semibold text-text">Analyses détaillées des pages</p>
@@ -996,6 +1135,9 @@ export default async function PagesCockpitPage({ searchParams }: { searchParams?
                     badge={item.priority_label}
                     badgeTone={item.priority_level === "high" ? "warning" : item.type === "sustained_drop" ? "danger" : "secondary"}
                     description={item.reason}
+                    highlighted={
+                      focusTarget !== "" && item.slug === focusTarget && (!focusSite || item.site_id === focusSite)
+                    }
                     result={pageResultLine(item.site_id, item.slug, sitesById, publicationsByKey)}
                     actions={pageActions(item.site_id, {
                       slug: item.slug,

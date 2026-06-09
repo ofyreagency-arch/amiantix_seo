@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type BadgeTone = "default" | "brand-subtle" | "secondary" | "success" | "warning" | "danger";
 
@@ -51,10 +52,12 @@ interface CockpitSignalItemProps {
   description: string;
   result?: string;
   chips?: string[];
+  highlighted?: boolean;
   actions?: Array<{
     label: string;
     href: string;
     variant?: "primary" | "secondary";
+    external?: boolean;
   }>;
 }
 
@@ -66,10 +69,16 @@ export function CockpitSignalItem({
   description,
   result,
   chips = [],
+  highlighted = false,
   actions = [],
 }: CockpitSignalItemProps) {
   return (
-    <div className="rounded-xl border border-border px-4 py-3">
+    <div
+      className={cn(
+        "rounded-xl border px-4 py-3",
+        highlighted ? "border-brand/40 bg-brand-muted/40 ring-1 ring-brand/20" : "border-border"
+      )}
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text">{title}</p>
@@ -91,7 +100,13 @@ export function CockpitSignalItem({
       {actions.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {actions.map((action) => (
-            <Button key={`${title}-${action.label}-${action.href}`} href={action.href} size="sm" variant={action.variant ?? "secondary"}>
+            <Button
+              key={`${title}-${action.label}-${action.href}`}
+              href={action.href}
+              size="sm"
+              variant={action.variant ?? "secondary"}
+              external={action.external}
+            >
               {action.label}
             </Button>
           ))}
