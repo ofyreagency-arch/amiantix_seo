@@ -65,6 +65,14 @@ class SeoGenerationService
                 $errors[] = $coreResult['error'];
             }
 
+            if ($this->requiresSiteProfile() && is_array($payload)) {
+                [$payload, $expandTrace] = $this->expandShortFieldContent($payload, $keyword);
+
+                if (is_array($expandTrace)) {
+                    $steps['expand'] = $expandTrace;
+                }
+            }
+
             if ($this->requiresSiteProfile()) {
                 $payload['faq'] = [];
 
@@ -906,5 +914,53 @@ class SeoGenerationService
                 $status !== '' ? $status : 'pending',
             ));
         }
+    }
+
+    /**
+     * @param  array<string,mixed>  $payload
+     * @return array{0:array<string,mixed>,1:?array<string,mixed>}
+     */
+    protected function expandShortFieldContent(array $payload, string $keyword): array
+    {
+        $content = (string) ($payload['content'] ?? '');
+
+        if (! $this->fieldExpertContentTooShort($content)) {
+            return [$payload, null];
+        }
+
+        $prompt = "Approfondis cet article métier sans changer de voix ni ajouter de sections template.\n"
+            ."Objectif : au moins 1000 mots, HTML avec <h2> et <p>, une seule narration continue.\n"
+            ."Ajoute situations terrain, chiffres crédibles, erreurs fréquentes et arbitrages client.\n"
+            ."Interdit : checklist opérationnelle, ressources à croiser, phrases de consigne interne, blocs collés.\n"
+            .'Mot-clé : '.$keyword."\n"
+            .'Titre actuel : '.(string) ($payload['title'] ?? '')."\n"
+            ."Contenu actuel :\n".$content."\n"
+            .'Retourner uniquement un JSON avec : title, meta_description, h1, content.';
+
+        $result = $this->askAiResult(
+            $prompt,
+            $keyword,
+            ['title', 'meta_description', 'h1', 'content'],
+            'expand',
+        );
+
+        if (! is_array($result['payload'] ?? null)) {
+            return [$payload, $result['trace']];
+        }
+
+        return [array_replace($payload, $result['payload']), $result['trace']];
+    }
+
+    protected function fieldExpertContentTooShort(string $content): bool
+    {
+        return $this->fieldExpertWordCount($content) < 800;
+    }
+
+    protected function fieldExpertWordCount(string $content): int
+    {
+        $plain = trim(strip_tags($content));
+        preg_match_all('/[\p{L}\p{N}\']+/u', $plain, $matches);
+
+        return count($matches[0] ?? []);
     }
 }
