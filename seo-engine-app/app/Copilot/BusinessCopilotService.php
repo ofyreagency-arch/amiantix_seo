@@ -130,7 +130,7 @@ final class BusinessCopilotService
             'apply_mode' => (string) ($item['action'] ?? $profile['apply_mode']),
             'apply_workflow' => $workflow,
             'apply_ready' => $signalReady && $this->canAutoApply($workflow, $siteId, $pageId, $slug, $query !== '' ? $query : null),
-            'apply_href' => $this->applyHref($siteId, $slug, $pageId, (string) ($item['action'] ?? '')),
+            'apply_href' => $this->applyHref($siteId, $slug, $pageId, $workflow, $query !== '' ? $query : null),
             'priority_score' => (int) ($item['priority_score'] ?? 0),
             'sort_score' => $gain['visitors'] * 10 + (int) ($item['priority_score'] ?? 0),
         ]);
@@ -232,7 +232,13 @@ final class BusinessCopilotService
                 (string) data_get($meta, 'path', ''),
                 $subject,
             ),
-            'apply_href' => $this->applyHref((string) $recommendation->site_id, '', $recommendation->site_page_id, $profile['apply_mode']),
+            'apply_href' => $this->applyHref(
+                (string) $recommendation->site_id,
+                ltrim((string) data_get($meta, 'path', ''), '/'),
+                $recommendation->site_page_id,
+                $this->workflowForRecommendationType((string) $recommendation->type),
+                $subject,
+            ),
             'priority_score' => max(0, 100 - (int) $recommendation->priority),
             'sort_score' => $gain['visitors'] * 10 + max(0, 100 - (int) $recommendation->priority),
         ]);
@@ -551,22 +557,37 @@ final class BusinessCopilotService
             ->exists();
     }
 
-    private function applyHref(string $siteId, string $slug, mixed $pageId, string $mode): string
-    {
+    private function applyHref(
+        string $siteId,
+        string $slug,
+        mixed $pageId,
+        string $workflow,
+        ?string $query = null,
+    ): string {
         if ($siteId === '') {
             return '/optimizations';
         }
 
-        $query = http_build_query(array_filter([
-            'site' => $siteId,
-            'slug' => $slug !== '' ? $slug : null,
-            'focus' => $mode !== '' ? $mode : null,
-        ]));
-
-        if ($pageId) {
-            return '/sites/'.$siteId.'/automation?'.$query;
-        }
-
-        return '/optimizations?'.$query;
+        return match ($workflow) {
+            'generate' => '/publications?'.http_build_query(array_filter([
+                'focus' => 'query',
+                'site' => $siteId,
+                'query' => $query,
+            ])),
+            'linking' => '/pages?'.http_build_query(array_filter([
+                'focus' => 'linking',
+                'site' => $siteId,
+                'target' => $slug !== '' ? $slug : $query,
+            ])),
+            default => $slug !== ''
+                ? '/publications?'.http_build_query([
+                    'focus' => 'content',
+                    'site' => $siteId,
+                    'slug' => $slug,
+                ])
+                : ($pageId
+                    ? '/sites/'.$siteId.'/automation?'.http_build_query(['site' => $siteId])
+                    : '/pages?'.http_build_query(['focus' => 'content', 'site' => $siteId])),
+        };
     }
 }

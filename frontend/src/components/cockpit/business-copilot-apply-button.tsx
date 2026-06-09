@@ -23,7 +23,7 @@ function SubmitButton({
       loading={pending}
       disabled={pending}
     >
-      {ready ? "Appliquer automatiquement" : "Voir comment l’appliquer"}
+      {ready ? "Appliquer automatiquement" : "Ouvrir dans le studio"}
       <ArrowRight className="h-4 w-4" />
     </Button>
   );
@@ -41,7 +41,7 @@ export function BusinessCopilotApplyButton({
   if (!action.apply_ready) {
     return (
       <Button href={action.apply_href} variant={featured ? "primary" : "secondary"} className="shrink-0">
-        Voir comment l’appliquer
+        Ouvrir dans le studio
         <ArrowRight className="h-4 w-4" />
       </Button>
     );

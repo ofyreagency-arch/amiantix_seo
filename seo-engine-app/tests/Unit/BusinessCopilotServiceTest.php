@@ -142,5 +142,7 @@ class BusinessCopilotServiceTest extends TestCase
 
         $this->assertSame('rewrite', $payload['top_action']['apply_workflow'] ?? null);
         $this->assertFalse($payload['top_action']['apply_ready'] ?? true);
+        $this->assertStringContainsString('/publications', (string) ($payload['top_action']['apply_href'] ?? ''));
+        $this->assertStringContainsString('slug=faq', (string) ($payload['top_action']['apply_href'] ?? ''));
     }
 }

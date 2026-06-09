@@ -70,6 +70,7 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
   const focus = getValue(resolvedSearchParams.focus);
   const focusSite = getValue(resolvedSearchParams.site);
   const focusQuery = getValue(resolvedSearchParams.query);
+  const focusSlug = getValue(resolvedSearchParams.slug);
   const opportunities = optimizations.gsc_opportunities.items;
   const observedRecommendations = optimizations.recommendations.items;
   const recommendationOpportunityCount = optimizations.recommendations.summary.total;
@@ -320,7 +321,14 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
           detail: `${focusQuery || "Cette requête"} a été envoyée ici pour décider si elle doit ouvrir un contenu, renforcer une page ou rester en veille. Si le sujet est assez net, ouvre maintenant le studio éditorial.`,
           href: `/publications?focus=query&site=${encodeURIComponent(focusSite)}&query=${encodeURIComponent(focusQuery)}`,
         }
-      : null;
+      : focusSite && focusSlug
+        ? {
+            title: `Action ouverte pour « ${focusSlug} »`,
+            detail:
+              "PraeviSEO a préparé un plan de modification pour cette page. Ouvrez le studio pour voir le contenu et appliquer les changements proposés.",
+            href: `/publications?focus=content&site=${encodeURIComponent(focusSite)}&slug=${encodeURIComponent(focusSlug)}`,
+          }
+        : null;
 
   return (
     <div className="min-h-screen">
