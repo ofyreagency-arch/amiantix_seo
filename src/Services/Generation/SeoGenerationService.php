@@ -123,6 +123,7 @@ class SeoGenerationService
 
         if ($this->requiresSiteProfile()) {
             $source = 'ai';
+            $payload = $this->ensureFieldExpertMeta($payload, $keyword);
         } elseif ($source === 'ai' && $enriched) {
             $source = 'hybrid';
         }
@@ -980,5 +981,67 @@ class SeoGenerationService
         preg_match_all('/[\p{L}\p{N}\']+/u', $plain, $matches);
 
         return count($matches[0] ?? []);
+    }
+
+    /**
+     * @param  array<string,mixed>  $payload
+     * @return array<string,mixed>
+     */
+    protected function ensureFieldExpertMeta(array $payload, string $keyword): array
+    {
+        if (! $this->fieldExpertMetaNeedsRewrite($payload)) {
+            return $payload;
+        }
+
+        $prompt = "Réécris uniquement title, meta_description et h1 pour cet article métier.\n"
+            ."Style factuel, professionnel terrain, sans packaging SEO.\n"
+            ."Interdit : découvrez, apprenez, notre guide, cliquez, dans cet article.\n"
+            .'Mot-clé : '.$keyword."\n"
+            .'Titre actuel : '.(string) ($payload['title'] ?? '')."\n"
+            .'Meta actuelle : '.(string) ($payload['meta_description'] ?? '')."\n"
+            .'Extrait article : '.Str::limit(strip_tags((string) ($payload['content'] ?? '')), 900)."\n"
+            .'Retourner uniquement un JSON avec : title, meta_description, h1.';
+
+        $result = $this->askAiResult(
+            $prompt,
+            $keyword,
+            ['title', 'meta_description', 'h1'],
+            'meta',
+        );
+
+        if (! is_array($result['payload'] ?? null)) {
+            return $payload;
+        }
+
+        return array_replace($payload, $result['payload']);
+    }
+
+    /**
+     * @param  array<string,mixed>  $payload
+     */
+    protected function fieldExpertMetaNeedsRewrite(array $payload): bool
+    {
+        $patterns = [
+            '/\bdécouvrez\b/iu',
+            '/\bapprenez\b/iu',
+            '/\bnotre guide\b/iu',
+            '/\bcliquez\b/iu',
+            '/\bdiscover\b/i',
+            '/\blearn how\b/i',
+            '/\bmeilleures pratiques\b/iu',
+            '/\boptimisation\b/iu',
+        ];
+
+        foreach (['title', 'meta_description', 'h1'] as $field) {
+            $value = (string) ($payload[$field] ?? '');
+
+            foreach ($patterns as $pattern) {
+                if ($value !== '' && preg_match($pattern, $value) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
