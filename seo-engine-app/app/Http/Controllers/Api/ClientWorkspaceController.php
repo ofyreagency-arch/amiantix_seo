@@ -12,6 +12,7 @@ use App\Models\SeoSemanticLink;
 use App\Models\SeoSite;
 use App\Models\SeoSitePageSnapshot;
 use App\Models\SeoSuggestion;
+use App\Copilot\BusinessCopilotService;
 use App\Runtime\GscOpportunityService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +23,7 @@ use Illuminate\Validation\Rule;
 
 class ClientWorkspaceController extends Controller
 {
-    public function optimizations(Request $request, GscOpportunityService $gscOpportunities): JsonResponse
+    public function optimizations(Request $request, GscOpportunityService $gscOpportunities, BusinessCopilotService $businessCopilot): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -106,7 +107,26 @@ class ClientWorkspaceController extends Controller
             'high_priority' => $opportunityItems->where('priority_level', 'high')->count(),
         ];
 
+        $businessCopilotPayload = $businessCopilot->build($opportunityItems, $recommendations);
+        $siteNames = $sites->pluck('name', 'site_id');
+        $businessCopilotPayload['daily_priority'] = collect($businessCopilotPayload['daily_priority'])
+            ->map(function (array $action) use ($siteNames): array {
+                if (($action['site_name'] ?? '') === '') {
+                    $action['site_name'] = (string) ($siteNames[(string) ($action['site_id'] ?? '')] ?? '');
+                }
+
+                return $action;
+            })
+            ->all();
+        if (is_array($businessCopilotPayload['top_action'] ?? null)) {
+            $topSiteId = (string) ($businessCopilotPayload['top_action']['site_id'] ?? '');
+            if (($businessCopilotPayload['top_action']['site_name'] ?? '') === '') {
+                $businessCopilotPayload['top_action']['site_name'] = (string) ($siteNames[$topSiteId] ?? '');
+            }
+        }
+
         return response()->json([
+            'business_copilot' => $businessCopilotPayload,
             'stats' => [
                 'pending' => $suggestions->where('status', 'pending')->count(),
                 'applied' => $suggestions->where('status', 'applied')->count(),

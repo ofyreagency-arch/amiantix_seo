@@ -1,3 +1,4 @@
+import { BusinessCopilotPriority } from "@/components/cockpit/business-copilot";
 import { Badge } from "@/components/ui/badge";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
 import { Topbar } from "@/components/layout/topbar";
@@ -346,8 +347,8 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
   return (
     <div className="min-h-screen">
       <Topbar
-        title="Optimisations"
-        subtitle="Les actions qui peuvent réellement vous faire gagner du trafic maintenant."
+        title="Actions métier"
+        subtitle="Classées par gain potentiel : ce qui bloque, quoi faire, combien de temps, comment l’appliquer."
         actions={
           <div className="flex items-center gap-2">
             <Button href="/sites" size="sm">
@@ -362,6 +363,12 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
       <div className="p-6 space-y-6">
         <CockpitSectionNav
           items={[
+            {
+              label: "Priorité du jour",
+              href: "#priorite-jour",
+              count: optimizations.business_copilot.daily_priority.length,
+              tone: "warning",
+            },
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: recommendationOpportunityCount, tone: "default" },
             { label: "Gains rapides", href: "#gains-rapides", count: quickWins.length, tone: "warning" },
             { label: "Pages à refresh", href: "#pages-refresh", count: pagesToRefresh.length, tone: "secondary" },
@@ -371,10 +378,14 @@ export default async function OptimizationsPage({ searchParams }: { searchParams
           ]}
         />
 
+        <div id="priorite-jour" className="scroll-mt-24">
+          <BusinessCopilotPriority copilot={optimizations.business_copilot} />
+        </div>
+
         <div className="rounded-2xl border border-brand/20 bg-brand-muted px-6 py-6">
-          <h1 className="text-2xl font-bold tracking-tight text-text">Les actions SEO qui méritent d’être ouvertes maintenant</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text">Toutes les actions classées par impact business</h1>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-text-muted">
-            Cette page sert à une seule chose : trier les actions qui peuvent vraiment faire gagner du trafic, avec leur impact attendu, leur difficulté, leur priorité et l’action recommandée.
+            Au-delà de la priorité du jour, retrouvez ici le détail des signaux Google et des recommandations moteur — toujours traduits en gains visiteurs et actions concrètes.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Button href="/sites">

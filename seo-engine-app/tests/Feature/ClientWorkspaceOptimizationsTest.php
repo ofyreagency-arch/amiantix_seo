@@ -92,6 +92,21 @@ class ClientWorkspaceOptimizationsTest extends TestCase
         $response->assertJsonPath('gsc_opportunities.items.0.site_id', 'amiantix');
         $response->assertJsonPath('gsc_opportunities.items.0.slug', 'diagnostic-amiante-copropriete');
         $response->assertJsonPath('items.0.page.slug', 'diagnostic-amiante-copropriete');
+        $response->assertJsonStructure([
+            'business_copilot' => [
+                'headline',
+                'subheadline',
+                'daily_priority',
+                'top_action',
+            ],
+        ]);
+        $response->assertJsonPath('business_copilot.daily_priority.0.rank', 1);
+        $response->assertJsonPath('business_copilot.daily_priority.0.site_id', 'amiantix');
+        $response->assertJsonPath('business_copilot.top_action.rank', 1);
+        $this->assertStringContainsString(
+            'visiteur',
+            (string) $response->json('business_copilot.top_action.gain_display'),
+        );
     }
 
     public function test_optimizations_endpoint_exposes_gsc_opportunities_without_installed_seo_pages(): void

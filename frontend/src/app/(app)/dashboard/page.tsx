@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { Topbar } from "@/components/layout/topbar";
 import { CockpitSectionNav } from "@/components/cockpit/section-nav";
+import { BusinessCopilotPriority } from "@/components/cockpit/business-copilot";
 import { CockpitAssistantGuide } from "@/components/cockpit/assistant-guide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -561,13 +562,13 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen">
       <Topbar
-        title="Dashboard SEO"
-        subtitle="Où en est votre site, ce qui bloque sa progression et où se trouve le prochain gain."
+        title="Copilote métier"
+        subtitle="Ce qui bloque votre visibilité, ce que vous pouvez gagner et l’action la plus rentable à faire maintenant."
         lastSync={backendLive ? "données Google actualisées" : "mode démonstration"}
         actions={
           <div className="flex items-center gap-2">
             <Button href="/optimizations" size="sm">
-              Voir les opportunités
+              Voir les actions
             </Button>
             <Button href="/activity" variant="secondary" size="sm">
               Comprendre l’activité
@@ -579,6 +580,12 @@ export default async function DashboardPage() {
       <div className="p-6 space-y-6">
         <CockpitSectionNav
           items={[
+            {
+              label: "Priorité du jour",
+              href: "#priorite-jour",
+              count: optimizations.business_copilot.daily_priority.length,
+              tone: "warning",
+            },
             { label: "Actions", href: "#actions", count: dashboardActionCards.length, tone: "warning" },
             { label: "Vue d’ensemble", href: "#vue-ensemble", count: dashboard.sites.length, tone: "default" },
             { label: "Opportunités", href: "#opportunites", count: recommendationOpportunityCount, tone: "warning" },
@@ -594,13 +601,13 @@ export default async function DashboardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
               <Badge variant="brand-subtle" className="mb-3">
-                {backendLive ? "Cockpit SEO actif" : "Mode démonstration"}
+                {backendLive ? "Copilote actif" : "Mode démonstration"}
               </Badge>
               <h1 className="text-2xl font-bold tracking-tight text-text">
-                Le cockpit qui montre où gagner du trafic maintenant
+                Où gagner des visiteurs et des contacts dès aujourd’hui
               </h1>
               <p className="mt-2 text-sm text-text-muted leading-7">
-                Cette page sert à répondre à une seule question : où en est votre site, ce qui freine sa croissance et quelle action peut créer le prochain gain visible.
+                PraeviSEO traduit Google en actions métier simples : ce qui bloque, ce que vous pouvez gagner, quoi faire et combien de temps cela prend.
               </p>
               {(freshestSyncAt || freshestDataAsOf) && (
                 <p className="mt-3 text-xs text-text-subtle">
@@ -611,7 +618,7 @@ export default async function DashboardPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button href="/optimizations">
-                Voir les opportunités
+                Voir toutes les actions
                 <ArrowRight className="w-4 h-4" />
               </Button>
               <Button href="/sites" variant="secondary">
@@ -622,6 +629,10 @@ export default async function DashboardPage() {
               </Button>
             </div>
           </div>
+        </div>
+
+        <div id="priorite-jour" className="scroll-mt-24">
+          <BusinessCopilotPriority copilot={optimizations.business_copilot} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

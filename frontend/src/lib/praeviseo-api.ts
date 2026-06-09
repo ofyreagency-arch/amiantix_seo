@@ -436,7 +436,47 @@ export type PraeviseoObservedRecommendation = {
   generated_at: string | null;
 };
 
+export type PraeviseoBusinessCopilotAction = {
+  rank: number;
+  source: "gsc_opportunity" | "recommendation";
+  source_id: string;
+  site_id: string;
+  site_name: string;
+  page_id: number | null;
+  slug: string;
+  query: string | null;
+  subject: string;
+  action_verb: string;
+  headline: string;
+  card_title: string;
+  problem_plain: string;
+  why_plain: string;
+  action_label: string;
+  action_detail: string;
+  monthly_gain_visitors: number;
+  monthly_gain_min: number;
+  monthly_gain_max: number;
+  gain_display: string;
+  estimated_volume: number | null;
+  current_position: number | null;
+  effort_level: "easy" | "medium" | "important";
+  effort_label: string;
+  effort_minutes: number;
+  effort_display: string;
+  apply_mode: string;
+  apply_ready: boolean;
+  apply_href: string;
+};
+
+export type PraeviseoBusinessCopilot = {
+  headline: string;
+  subheadline: string;
+  daily_priority: PraeviseoBusinessCopilotAction[];
+  top_action: PraeviseoBusinessCopilotAction | null;
+};
+
 export type PraeviseoOptimizations = {
+  business_copilot: PraeviseoBusinessCopilot;
   stats: {
     pending: number;
     applied: number;
@@ -1156,7 +1196,141 @@ const mockSites: PraeviseoSite[] = [
   },
 ];
 
+const mockBusinessCopilot: PraeviseoBusinessCopilot = {
+  headline: "Votre action la plus rentable aujourd’hui",
+  subheadline: "Traitez d’abord ce qui peut vous apporter le plus de visiteurs avec le moins d’effort.",
+  top_action: {
+    rank: 1,
+    source: "gsc_opportunity",
+    source_id: "gsc-amiantix-diagnostic-amiante-avant-travaux-near_top_10",
+    site_id: "amiantix",
+    site_name: "Amiantix",
+    page_id: 11,
+    slug: "diagnostic-amiante-avant-travaux",
+    query: "diagnostic amiante avant travaux",
+    subject: "diagnostic amiante avant travaux",
+    action_verb: "actualiser",
+    headline: "Actualiser cet article",
+    card_title: "#1 Actualiser cet article",
+    problem_plain:
+      "« diagnostic amiante avant travaux » est proche de la première page Google mais n’y arrive pas encore.",
+    why_plain: "Vous êtes autour de la 11e position : un renfort ciblé peut vous faire gagner des visiteurs rapidement.",
+    action_label: "Enrichir le contenu et clarifier le titre de la page",
+    action_detail: "Ajoutez une section utile, renforcez le titre et répondez plus précisément à ce que cherchent vos prospects.",
+    monthly_gain_visitors: 120,
+    monthly_gain_min: 80,
+    monthly_gain_max: 180,
+    gain_display: "+120 visiteurs/mois",
+    estimated_volume: 800,
+    current_position: 11.2,
+    effort_level: "medium",
+    effort_label: "Moyen",
+    effort_minutes: 30,
+    effort_display: "🟠 Moyen — 30 min — +120 visiteurs/mois",
+    apply_mode: "rafraichir la page",
+    apply_ready: true,
+    apply_href: "/sites/amiantix/automation?site=amiantix&slug=diagnostic-amiante-avant-travaux&focus=rafraichir+la+page",
+  },
+  daily_priority: [
+    {
+      rank: 1,
+      source: "gsc_opportunity",
+      source_id: "gsc-amiantix-diagnostic-amiante-avant-travaux-near_top_10",
+      site_id: "amiantix",
+      site_name: "Amiantix",
+      page_id: 11,
+      slug: "diagnostic-amiante-avant-travaux",
+      query: "diagnostic amiante avant travaux",
+      subject: "diagnostic amiante avant travaux",
+      action_verb: "actualiser",
+      headline: "Actualiser cet article",
+      card_title: "#1 Actualiser cet article",
+      problem_plain:
+        "« diagnostic amiante avant travaux » est proche de la première page Google mais n’y arrive pas encore.",
+      why_plain: "Vous êtes autour de la 11e position : un renfort ciblé peut vous faire gagner des visiteurs rapidement.",
+      action_label: "Enrichir le contenu et clarifier le titre de la page",
+      action_detail: "Ajoutez une section FAQ sur les responsabilités du donneur d’ordre.",
+      monthly_gain_visitors: 120,
+      monthly_gain_min: 80,
+      monthly_gain_max: 180,
+      gain_display: "+120 visiteurs/mois",
+      estimated_volume: 800,
+      current_position: 11.2,
+      effort_level: "medium",
+      effort_label: "Moyen",
+      effort_minutes: 30,
+      effort_display: "🟠 Moyen — 30 min — +120 visiteurs/mois",
+      apply_mode: "rafraichir la page",
+      apply_ready: true,
+      apply_href: "/sites/amiantix/automation?site=amiantix&slug=diagnostic-amiante-avant-travaux&focus=rafraichir+la+page",
+    },
+    {
+      rank: 2,
+      source: "gsc_opportunity",
+      source_id: "gsc-amiantix-qui-sommes-nous-low_ctr",
+      site_id: "amiantix",
+      site_name: "Amiantix",
+      page_id: 12,
+      slug: "qui-sommes-nous",
+      query: null,
+      subject: "Qui sommes nous",
+      action_verb: "corriger",
+      headline: "Corriger cette page",
+      card_title: "#2 Corriger cette page",
+      problem_plain: "Des internautes voient « Qui sommes nous » dans Google, mais trop peu cliquent.",
+      why_plain: "Votre page apparaît déjà, mais le titre ou l’accroche ne donnent pas assez envie de cliquer.",
+      action_label: "Réécrire le titre et la description pour donner envie de cliquer",
+      action_detail: "Formulez un titre plus concret, orienté bénéfice client.",
+      monthly_gain_visitors: 40,
+      monthly_gain_min: 25,
+      monthly_gain_max: 60,
+      gain_display: "+40 visiteurs/mois",
+      estimated_volume: 122,
+      current_position: 7.8,
+      effort_level: "easy",
+      effort_label: "Facile",
+      effort_minutes: 5,
+      effort_display: "🟢 Facile — 5 min — +40 visiteurs/mois",
+      apply_mode: "relancer le CTR",
+      apply_ready: true,
+      apply_href: "/optimizations?site=amiantix&slug=qui-sommes-nous&focus=relancer+le+CTR",
+    },
+    {
+      rank: 3,
+      source: "recommendation",
+      source_id: "reco-303",
+      site_id: "amiantix",
+      site_name: "Amiantix",
+      page_id: null,
+      slug: "",
+      query: null,
+      subject: "réglementation amiante",
+      action_verb: "créer",
+      headline: "Créer ce contenu",
+      card_title: "#3 Créer ce contenu",
+      problem_plain: "Vos prospects cherchent « réglementation amiante » et votre site ne répond pas encore assez bien.",
+      why_plain: "Une page dédiée vous permet de capter une demande que vos concurrents peuvent déjà couvrir.",
+      action_label: "Publier une page dédiée à ce sujet",
+      action_detail: "Créez un contenu qui répond directement à la question de vos prospects.",
+      monthly_gain_visitors: 60,
+      monthly_gain_min: 40,
+      monthly_gain_max: 90,
+      gain_display: "+60 visiteurs/mois",
+      estimated_volume: null,
+      current_position: null,
+      effort_level: "medium",
+      effort_label: "Moyen",
+      effort_minutes: 30,
+      effort_display: "🟠 Moyen — 30 min — +60 visiteurs/mois",
+      apply_mode: "créer une page",
+      apply_ready: true,
+      apply_href: "/optimizations?site=amiantix&focus=cr%C3%A9er+une+page",
+    },
+  ],
+};
+
 const mockOptimizations: PraeviseoOptimizations = {
+  business_copilot: mockBusinessCopilot,
   stats: { pending: 2, applied: 3, rejected: 1, total: 6 },
   gsc_opportunities: {
     summary: {
@@ -1486,7 +1660,15 @@ const mockSettings: PraeviseoSettings = {
   })),
 };
 
+const emptyBusinessCopilot: PraeviseoBusinessCopilot = {
+  headline: "PraeviSEO surveille votre visibilité",
+  subheadline: "Dès qu’un levier concret apparaît dans Google, il sera classé ici par gain potentiel.",
+  daily_priority: [],
+  top_action: null,
+};
+
 const emptyOptimizations: PraeviseoOptimizations = {
+  business_copilot: emptyBusinessCopilot,
   stats: { pending: 0, applied: 0, rejected: 0, total: 0 },
   gsc_opportunities: {
     summary: {
@@ -2394,7 +2576,12 @@ export async function getOptimizations(): Promise<PraeviseoOptimizations> {
       return emptyOptimizations;
     }
 
-    return await appFetch<PraeviseoOptimizations>("/api/client/optimizations", undefined, token);
+    const data = await appFetch<PraeviseoOptimizations>("/api/client/optimizations", undefined, token);
+
+    return {
+      ...data,
+      business_copilot: data.business_copilot ?? emptyBusinessCopilot,
+    };
   } catch {
     return emptyOptimizations;
   }
