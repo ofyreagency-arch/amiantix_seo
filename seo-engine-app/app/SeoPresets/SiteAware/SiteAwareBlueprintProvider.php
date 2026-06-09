@@ -37,7 +37,7 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
             'cases' => $this->fieldCases($keyword, $industry, $services, $geography, $nicheProfile),
             'mistakes' => $this->commonMistakes($keyword, $industry, $nicheProfile),
             'field_scenarios' => $this->fieldScenarios($keyword, $industry, $services, $nicheProfile),
-            'arbitrages' => $this->clientArbitrages($industry),
+            'arbitrages' => $this->clientArbitrages($industry, $nicheProfile),
             'faq' => $this->faqBlueprint($keyword, $services, $industry),
         ];
     }
@@ -219,12 +219,22 @@ final class SiteAwareBlueprintProvider implements NicheBlueprintProvider
     /**
      * @return array<int,string>
      */
-    private function clientArbitrages(string $industry): array
+    /**
+     * @param  array<string,mixed>  $nicheProfile
+     * @return array<int,string>
+     */
+    private function clientArbitrages(string $industry, array $nicheProfile): array
     {
+        $arbitrages = (array) ($nicheProfile['arbitrages'] ?? []);
+
+        if ($arbitrages !== []) {
+            return $arbitrages;
+        }
+
         return [
-            'Coût immédiat vs risque différé : raccourcir le cadrage documentaire ou sécuriser le dossier avant intervention.',
-            'Urgence affichée vs faisabilité terrain : lancer tout de suite ou phaser pour éviter une reprise coûteuse.',
-            'Interne vs prestataire : garder la maîtrise opérationnelle ou gagner en vitesse avec un spécialiste '.$industry.'.',
+            'Coût immédiat vs risque différé : sécuriser le cadrage ou avancer vite.',
+            'Délai affiché vs faisabilité réelle : lancer tout de suite ou phaser.',
+            'Interne vs prestataire : garder la maîtrise ou gagner en vitesse avec un spécialiste '.$industry.'.',
         ];
     }
 

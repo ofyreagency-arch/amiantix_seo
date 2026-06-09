@@ -77,6 +77,11 @@ final class NicheEditorialRegistry
                     'Oublier la mise à jour documentaire après changement d\'hypothèse de travaux',
                     'Sous-estimer la coordination copropriété / occupants avant ouverture chantier',
                 ],
+                'arbitrages' => [
+                    'Conformité réglementaire vs délai de reprise d\'activité',
+                    'Repérage complet vs phasage chantier',
+                    'Coordination interne vs recours à un diagnostiqueur certifié',
+                ],
                 'signature_terms' => ['dta', 'repérage', 'reperage', 'ss3', 'ss4', 'desamiantage', 'désamiantage', 'diagnostiqueur', 'donneur d\'ordre', 'copropriété', 'copropriete'],
             ],
             'plomberie' => [
@@ -107,6 +112,11 @@ final class NicheEditorialRegistry
                     'Attendre trop longtemps avant coupure alors que l\'eau progresse',
                     'Lancer une réparation sans repérer l\'étendue réelle du dégât',
                     'Oublier de tracer l\'intervention pour le syndic ou l\'assurance',
+                ],
+                'arbitrages' => [
+                    'Coupure immédiate vs isolement partiel du réseau',
+                    'Réparation provisoire vs remplacement complet',
+                    'Dépannage syndic vs plombier privé du copropriétaire',
                 ],
                 'signature_terms' => ['fuite', 'plombier', 'coupure', 'canalisation', 'chauffe-eau', 'dégât', 'degat', 'syndic', 'colonne', 'robinet', 'pression'],
             ],
@@ -139,6 +149,11 @@ final class NicheEditorialRegistry
                     'Négliger la traçabilité des échanges et pièces contractuelles',
                     'Engager une procédure sans chiffrer honoraires et issue probable',
                 ],
+                'arbitrages' => [
+                    'Transaction amiable vs assignation',
+                    'Provision d\'honoraires vs engagement contentieux long',
+                    'Médiation vs procédure accélérée',
+                ],
                 'signature_terms' => ['juridique', 'procedure', 'procédure', 'tribunal', 'preuve', 'honoraires', 'assignation', 'mise en demeure', 'contentieux', 'prescription', 'juridiction'],
             ],
             'immobilier' => [
@@ -170,6 +185,11 @@ final class NicheEditorialRegistry
                     'Comparer des biens sans lire les diagnostics et charges réelles',
                     'Oublier les documents copropriété avant compromis',
                 ],
+                'arbitrages' => [
+                    'Mandat exclusif vs simple : visibilité et délai de vente',
+                    'Baisse de prix vs attente d\'un acheteur mieux financé',
+                    'Diagnostics avant mise en vente vs signature sous condition',
+                ],
                 'signature_terms' => ['mandat', 'vente', 'acheteur', 'vendeur', 'diagnostic', 'compromis', 'notaire', 'charges', 'copropriété', 'copropriete', 'estimation', 'offre'],
             ],
             'recrutement' => [
@@ -200,6 +220,11 @@ final class NicheEditorialRegistry
                     'Publier une annonce sans critères d\'écart clairs',
                     'Multiplier les entretiens sans grille de décision commune',
                     'Laisser un candidat chaud sans retour plus de 72 h',
+                ],
+                'arbitrages' => [
+                    'Profil strict vs élargissement du vivier candidats',
+                    'Cabinet de recrutement vs recrutement interne',
+                    'Offre rapide vs tours d\'entretien supplémentaires',
                 ],
                 'signature_terms' => ['candidat', 'recrutement', 'entretien', 'poste', 'sourcing', 'onboarding', 'rh', 'embauche', 'profil', 'marque employeur', 'période d\'essai', 'periode d\'essai'],
             ],
